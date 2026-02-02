@@ -54,6 +54,35 @@ export function discoverRuleFiles(agentDir: string): Record<string, string> | un
 }
 
 /**
+ * Load rule file contents from an agent's rules/ directory.
+ *
+ * Resolves the relative ruleFiles paths against the agent directory
+ * and reads each file's content, returning a locale → content map
+ * suitable for systemPromptI18n.
+ *
+ * @param agentDir - Absolute path to the agent's directory
+ * @param ruleFiles - Map of locale → relative file path
+ * @returns locale → file content map, or undefined if no files could be read
+ */
+export function loadRuleFileContents(agentDir: string, ruleFiles: Record<string, string>): Record<string, string> | undefined {
+  const contents: Record<string, string> = {};
+
+  for (const [locale, relativePath] of Object.entries(ruleFiles)) {
+    const fullPath = path.join(agentDir, relativePath);
+    try {
+      const content = fs.readFileSync(fullPath, 'utf-8');
+      if (content.trim()) {
+        contents[locale] = content;
+      }
+    } catch {
+      // Ignore read errors for individual files
+    }
+  }
+
+  return Object.keys(contents).length > 0 ? contents : undefined;
+}
+
+/**
  * Load a single agent from a directory.
  *
  * Tries to require the directory's index.ts/index.js.
@@ -88,6 +117,16 @@ export function loadAgentFromDir(agentDir: string): PluginAgent | null {
       if (discovered) {
         // Set ruleFiles on the agent regardless of type
         (agent as unknown as Record<string, unknown>).ruleFiles = discovered;
+      }
+    }
+
+    // Load rule file contents into systemPromptI18n if not already set.
+    // This completes the pipeline: rules/ discovery → file read → locale-keyed system prompts.
+    // The host uses systemPromptI18n as contextI18n on AcpBackendConfig for locale resolution.
+    if (agent.ruleFiles && !agent.systemPromptI18n) {
+      const i18nContent = loadRuleFileContents(agentDir, agent.ruleFiles);
+      if (i18nContent) {
+        (agent as unknown as Record<string, unknown>).systemPromptI18n = i18nContent;
       }
     }
 

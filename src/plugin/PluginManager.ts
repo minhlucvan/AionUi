@@ -64,6 +64,7 @@ export class PluginManager {
   private activePlugins: Map<string, ActivePlugin> = new Map();
   private currentProvider: AIProvider = 'gemini';
   private eventListeners: Map<string, Set<PluginEventListener>> = new Map();
+  private pendingSkillInstalls: Promise<void>[] = [];
 
   constructor(config: PluginManagerConfig) {
     this.config = config;
@@ -136,9 +137,10 @@ export class PluginManager {
 
     // Install plugin skill files to the host skills directory.
     // Built-in plugins always overwrite to ensure users get the latest version.
-    this.installPluginSkills(plugin, entry, /* overwrite */ true).catch((err) => {
+    const installPromise = this.installPluginSkills(plugin, entry, /* overwrite */ true).catch((err) => {
       console.error(`[PluginManager] Failed to install skills for built-in plugin "${entry.id}":`, err);
     });
+    this.pendingSkillInstalls.push(installPromise);
 
     this.emit('plugin:activated', { pluginId: entry.id, builtin: true });
   }
@@ -888,6 +890,17 @@ export class PluginManager {
 
   isPluginActive(pluginId: string): boolean {
     return this.activePlugins.has(pluginId);
+  }
+
+  /**
+   * Wait for all pending skill installations to complete.
+   * Useful for tests and initialization sequences that need skill files on disk.
+   */
+  async waitForSkillInstallation(): Promise<void> {
+    if (this.pendingSkillInstalls.length > 0) {
+      await Promise.all(this.pendingSkillInstalls);
+      this.pendingSkillInstalls = [];
+    }
   }
 
   async checkForUpdates(): Promise<Array<{ pluginId: string; currentVersion: string; latestVersion: string }>> {

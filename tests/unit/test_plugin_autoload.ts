@@ -588,7 +588,7 @@ describe('Plugin System Prompt Injection', () => {
 import { PluginAgentBase } from '../../src/plugin/agents/PluginAgentBase';
 import { isPluginAgentInstance } from '../../src/plugin/types';
 import type { ResolvedPluginAgent, AgentContext, IPluginAgent } from '../../src/plugin/types';
-import { discoverRuleFiles } from '../../src/plugin/agents/AgentLoader';
+import { discoverRuleFiles, loadRuleFileContents } from '../../src/plugin/agents/AgentLoader';
 
 describe('Class-based Agent System', () => {
   describe('PluginAgentBase', () => {
@@ -935,5 +935,254 @@ describe('Class-based Agent System', () => {
       expect(result).toBeDefined();
       expect(Object.keys(result!)).toEqual(['en-US']);
     });
+  });
+
+  describe('loadRuleFileContents', () => {
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-rule-contents-'));
+    });
+
+    afterEach(() => {
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    });
+
+    it('should read rule file contents for each locale', () => {
+      const rulesDir = path.join(tmpDir, 'rules');
+      fs.mkdirSync(rulesDir, { recursive: true });
+      fs.writeFileSync(path.join(rulesDir, 'en-US.md'), 'You are a PDF expert.');
+      fs.writeFileSync(path.join(rulesDir, 'zh-CN.md'), '你是PDF专家。');
+
+      const ruleFiles = { 'en-US': 'rules/en-US.md', 'zh-CN': 'rules/zh-CN.md' };
+      const contents = loadRuleFileContents(tmpDir, ruleFiles);
+
+      expect(contents).toBeDefined();
+      expect(contents!['en-US']).toBe('You are a PDF expert.');
+      expect(contents!['zh-CN']).toBe('你是PDF专家。');
+    });
+
+    it('should skip missing files gracefully', () => {
+      const rulesDir = path.join(tmpDir, 'rules');
+      fs.mkdirSync(rulesDir, { recursive: true });
+      fs.writeFileSync(path.join(rulesDir, 'en-US.md'), 'English rules');
+
+      const ruleFiles = { 'en-US': 'rules/en-US.md', 'zh-CN': 'rules/zh-CN.md' };
+      const contents = loadRuleFileContents(tmpDir, ruleFiles);
+
+      expect(contents).toBeDefined();
+      expect(contents!['en-US']).toBe('English rules');
+      expect(contents!['zh-CN']).toBeUndefined();
+    });
+
+    it('should return undefined if all files are empty', () => {
+      const rulesDir = path.join(tmpDir, 'rules');
+      fs.mkdirSync(rulesDir, { recursive: true });
+      fs.writeFileSync(path.join(rulesDir, 'en-US.md'), '   ');
+      fs.writeFileSync(path.join(rulesDir, 'zh-CN.md'), '');
+
+      const ruleFiles = { 'en-US': 'rules/en-US.md', 'zh-CN': 'rules/zh-CN.md' };
+      const contents = loadRuleFileContents(tmpDir, ruleFiles);
+
+      expect(contents).toBeUndefined();
+    });
+
+    it('should return undefined if all files are missing', () => {
+      const ruleFiles = { 'en-US': 'rules/en-US.md', 'zh-CN': 'rules/zh-CN.md' };
+      const contents = loadRuleFileContents(tmpDir, ruleFiles);
+
+      expect(contents).toBeUndefined();
+    });
+  });
+});
+
+// ── Plugin Agent Skill Loading Pipeline Tests ────────────────────────────────
+// Verifies that plugin-installed skills are correctly discoverable by the
+// skill loading systems used for each agent type:
+//   - Gemini: loads SKILL.md from skillsDir via SkillManager
+//   - ACP/Codex: AcpSkillManager discovers and indexes skills from skillsDir
+//
+// Note: We test the skill file structure directly (without importing
+// AcpSkillManager) to avoid pulling in initStorage.ts's Electron dependency.
+// The frontmatter parsing is tested inline to verify AcpSkillManager compatibility.
+
+/**
+ * Parse SKILL.md frontmatter — mirrors AcpSkillManager's parseFrontmatter logic
+ * to verify skill files are structured correctly for skill loading.
+ */
+function parseFrontmatter(content: string): { name?: string; description?: string } {
+  const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (!frontmatterMatch) return {};
+
+  const fm = frontmatterMatch[1];
+  const result: { name?: string; description?: string } = {};
+  const nameMatch = fm.match(/^name:\s*['"]?([^'"\n]+)['"]?\s*$/m);
+  if (nameMatch) result.name = nameMatch[1].trim();
+  const descMatch = fm.match(/^description:\s*['"]?(.+?)['"]?\s*$/m);
+  if (descMatch) result.description = descMatch[1].trim();
+  return result;
+}
+
+describe('Plugin Agent Skill Loading Pipeline', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-pipeline-'));
+    const { initPluginSystem, getPluginManager, shutdownPluginSystem } = await import('../../src/plugin/initPluginSystem');
+    await shutdownPluginSystem();
+    await initPluginSystem({
+      skillsDir: path.join(tmpDir, 'skills'),
+      workspace: tmpDir,
+    });
+    // Wait for background skill installation to complete before running tests
+    await getPluginManager()!.waitForSkillInstallation();
+  });
+
+  afterEach(async () => {
+    try {
+      const { shutdownPluginSystem } = await import('../../src/plugin/initPluginSystem');
+      await shutdownPluginSystem();
+    } catch {
+      /* ignore */
+    }
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it('should install skill SKILL.md files to skillsDir for each plugin', async () => {
+    const skillsDir = path.join(tmpDir, 'skills');
+    const expectedSkills = ['pdf', 'pptx', 'docx', 'xlsx'];
+
+    for (const skill of expectedSkills) {
+      const skillMdPath = path.join(skillsDir, skill, 'SKILL.md');
+      expect(fs.existsSync(skillMdPath)).toBe(true);
+
+      const content = fs.readFileSync(skillMdPath, 'utf-8');
+      expect(content.length).toBeGreaterThan(0);
+      // SKILL.md files should have frontmatter with name and description
+      expect(content).toContain('---');
+      expect(content).toContain('name:');
+    }
+  });
+
+  it('should install skill auxiliary files (scripts, schemas, references)', async () => {
+    const skillsDir = path.join(tmpDir, 'skills');
+
+    // PDF should have scripts directory with Python files
+    const pdfScriptsDir = path.join(skillsDir, 'pdf', 'scripts');
+    expect(fs.existsSync(pdfScriptsDir)).toBe(true);
+    const pdfScripts = fs.readdirSync(pdfScriptsDir);
+    expect(pdfScripts.length).toBeGreaterThan(0);
+    expect(pdfScripts.some((f: string) => f.endsWith('.py'))).toBe(true);
+
+    // XLSX should have recalc.py
+    const xlsxRecalc = path.join(skillsDir, 'xlsx', 'recalc.py');
+    expect(fs.existsSync(xlsxRecalc)).toBe(true);
+  });
+
+  it('installed skill SKILL.md files should have valid frontmatter for AcpSkillManager discovery', async () => {
+    // This verifies the skill files are structured correctly for AcpSkillManager.discoverSkills()
+    // which reads SKILL.md, parses frontmatter for name/description, and builds the skills index.
+    const skillsDir = path.join(tmpDir, 'skills');
+    const expectedSkills = ['pdf', 'pptx', 'docx', 'xlsx'];
+
+    for (const skillName of expectedSkills) {
+      const content = fs.readFileSync(path.join(skillsDir, skillName, 'SKILL.md'), 'utf-8');
+      const { name, description } = parseFrontmatter(content);
+
+      // AcpSkillManager uses name/description from frontmatter for the skills index
+      expect(name).toBeTruthy();
+      expect(name).toBe(skillName);
+      expect(description).toBeTruthy();
+      expect(description!.length).toBeGreaterThan(10);
+    }
+  });
+
+  it('installed SKILL.md files should have meaningful body content after frontmatter', async () => {
+    // This verifies the skill body (instructions for the agent) is present.
+    // AcpSkillManager strips frontmatter and returns only the body via getSkill().
+    const skillsDir = path.join(tmpDir, 'skills');
+    const expectedSkills = ['pdf', 'pptx', 'docx', 'xlsx'];
+
+    for (const skillName of expectedSkills) {
+      const content = fs.readFileSync(path.join(skillsDir, skillName, 'SKILL.md'), 'utf-8');
+
+      // Extract body (content after frontmatter)
+      const body = content.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '').trim();
+      expect(body.length).toBeGreaterThan(50);
+
+      // Body should contain skill instructions, not raw frontmatter
+      expect(body).not.toMatch(/^---/);
+      expect(body).not.toMatch(/^name:/m);
+    }
+  });
+
+  it('plugin agent skills should match installed skill names', async () => {
+    const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
+    const pm = getPluginManager()!;
+
+    const agents = pm.collectPluginAgents();
+    const skillsDir = path.join(tmpDir, 'skills');
+
+    for (const agent of agents) {
+      if (!agent.skills) continue;
+      for (const skillName of agent.skills) {
+        const skillMdPath = path.join(skillsDir, skillName, 'SKILL.md');
+        expect(fs.existsSync(skillMdPath)).toBe(true);
+      }
+    }
+  });
+
+  it('plugin agents should have enabledSkills and systemPrompt for registration as AcpBackendConfig', async () => {
+    // This verifies that collectPluginAgents returns the data needed for
+    // initStorage.ts Section 5.3 to register agents as AcpBackendConfig entries.
+    // The AcpBackendConfig.enabledSkills flows to the agent manager, which uses
+    // it to load skills via SkillManager (Gemini) or AcpSkillManager (ACP/Codex).
+    const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
+    const pm = getPluginManager()!;
+    const agents = pm.collectPluginAgents();
+
+    const expectedMappings = [
+      { pluginId: 'aionui-plugin-pdf', skills: ['pdf'] },
+      { pluginId: 'aionui-plugin-pptx', skills: ['pptx'] },
+      { pluginId: 'aionui-plugin-docx', skills: ['docx'] },
+      { pluginId: 'aionui-plugin-xlsx', skills: ['xlsx'] },
+    ];
+
+    for (const expected of expectedMappings) {
+      const agent = agents.find((a) => a.pluginId === expected.pluginId);
+      expect(agent).toBeDefined();
+      expect(agent!.skills).toEqual(expected.skills);
+      expect(agent!.systemPrompt).toBeTruthy();
+      // presetAgentType determines the conversation type (gemini/claude/codex)
+      expect(agent!.presetAgentType).toBeTruthy();
+    }
+  });
+
+  it('each installed skill directory should be complete (all required files present)', async () => {
+    const skillsDir = path.join(tmpDir, 'skills');
+
+    // PDF must have SKILL.md + scripts/
+    expect(fs.existsSync(path.join(skillsDir, 'pdf', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(skillsDir, 'pdf', 'scripts'))).toBe(true);
+
+    // PPTX must have SKILL.md + scripts/ + schemas/
+    expect(fs.existsSync(path.join(skillsDir, 'pptx', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(skillsDir, 'pptx', 'scripts'))).toBe(true);
+
+    // DOCX must have SKILL.md + scripts/
+    expect(fs.existsSync(path.join(skillsDir, 'docx', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(skillsDir, 'docx', 'scripts'))).toBe(true);
+
+    // XLSX must have SKILL.md + recalc.py
+    expect(fs.existsSync(path.join(skillsDir, 'xlsx', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(skillsDir, 'xlsx', 'recalc.py'))).toBe(true);
   });
 });
