@@ -1,0 +1,39 @@
+{
+  "name": "aionui-plugin-docx",
+  "version": "1.0.0",
+  "description": "AionUi plugin for Word document creation and editing — tracked changes, comments, redlining, and OOXML manipulation",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "aionui": {
+    "pluginVersion": "1.0",
+    "displayName": "Word Document Tools",
+    "description": "Create, edit, and analyze Word documents with tracked changes, comments, redlining, and OOXML manipulation.",
+    "category": "document",
+    "minHostVersion": "1.7.0",
+    "skills": [
+      {
+        "name": "docx",
+        "description": "Word document creation, editing, and analysis with tracked changes, comments, redlining, and OOXML manipulation"
+      }
+    ],
+    "tools": [
+      { "name": "docx_unpack", "description": "Unpack a DOCX file for XML editing" },
+      { "name": "docx_pack", "description": "Pack a directory back into a DOCX file" },
+      { "name": "docx_validate", "description": "Validate DOCX XML against OOXML schemas" },
+      { "name": "docx_to_text", "description": "Extract text from a DOCX file" },
+      { "name": "docx_to_images", "description": "Convert DOCX pages to images (via PDF)" }
+    ],
+    "permissions": [
+      "fs:read",
+      "fs:write",
+      "shell:execute"
+    ],
+    "settings": {}
+  },
+  "keywords": ["aionui", "plugin", "docx", "word"],
+  "license": "MIT"
+}

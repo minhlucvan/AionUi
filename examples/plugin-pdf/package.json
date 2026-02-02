@@ -1,0 +1,40 @@
+{
+  "name": "aionui-plugin-pdf",
+  "version": "1.0.0",
+  "description": "AionUi plugin for PDF processing — extract text, merge, split, fill forms, OCR, and convert to images",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "aionui": {
+    "pluginVersion": "1.0",
+    "displayName": "PDF Tools",
+    "description": "Comprehensive PDF processing: extract text, merge, split, fill forms, convert to images, and OCR support.",
+    "category": "document",
+    "minHostVersion": "1.7.0",
+    "skills": [
+      {
+        "name": "pdf",
+        "description": "Comprehensive PDF processing: extract text, merge, split, fill forms, convert to images, and OCR"
+      }
+    ],
+    "tools": [
+      { "name": "pdf_split", "description": "Split a PDF into individual pages or extract page ranges" },
+      { "name": "pdf_merge", "description": "Merge multiple PDF files into one" },
+      { "name": "pdf_to_images", "description": "Convert PDF pages to PNG images" },
+      { "name": "pdf_extract_form_fields", "description": "Extract form field metadata from a PDF" },
+      { "name": "pdf_fill_form", "description": "Fill a PDF form (fillable or non-fillable)" },
+      { "name": "pdf_check_fields", "description": "Check if a PDF has fillable form fields" }
+    ],
+    "permissions": [
+      "fs:read",
+      "fs:write",
+      "shell:execute"
+    ],
+    "settings": {}
+  },
+  "keywords": ["aionui", "plugin", "pdf"],
+  "license": "MIT"
+}

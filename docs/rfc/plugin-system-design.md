@@ -299,7 +299,66 @@ const plugin: AionPlugin = {
 };
 ```
 
-## 13. Migration Path
+## 13. Plugin SDK Helpers
+
+The `src/plugin/sdk/pluginHelpers.ts` module provides shared utilities for
+plugin authors:
+
+```typescript
+import { createScriptRunner, toolSuccess, toolError, validateRequired } from '@aionui/plugin-sdk';
+
+// Create a script runner bound to the plugin's directory
+const runner = createScriptRunner({
+  pluginDir: ctx.pluginDir,
+  exec: ctx.exec,
+  cwd: ctx.workspace,
+});
+
+// Run a bundled Python script
+const result = await runner.python('skills/pdf/scripts/split_pdf.py', [input, output], ctx.logger);
+
+// Run a bundled Node script
+const result = await runner.node('scripts/converter.js', [input], ctx.logger);
+
+// Validate required tool parameters
+const error = validateRequired(params, ['inputPdf', 'outputPath']);
+if (error) return error;
+```
+
+## 14. Migration Proof
+
+To validate the architecture, all four document skills were migrated to
+standalone plugin packages. Each migration wraps the exact same SKILL.md,
+scripts, and resources — proving that built-in capabilities can be
+distributed as installable plugins:
+
+| Built-in Skill | Plugin Package | Tools | Scripts |
+|---------------|----------------|-------|---------|
+| `skills/pdf/` | `examples/plugin-pdf/` | 6 (split, merge, images, forms...) | 10 Python scripts |
+| `skills/pptx/` | `examples/plugin-pptx/` | 8 (create, extract, thumbnail, ooxml...) | 5 Python + 1 Node |
+| `skills/docx/` | `examples/plugin-docx/` | 5 (unpack, pack, validate, text, images) | 3 Python + templates |
+| `skills/xlsx/` | `examples/plugin-xlsx/` | 1 (recalculate) | 1 Python (recalc.py) |
+
+### Key Migration Patterns
+
+1. **File-based skills**: The PluginManager detects `skills/{name}/SKILL.md`
+   in the plugin directory and copies the entire directory tree (scripts,
+   references, schemas, templates) into the host's skills directory.
+
+2. **Script execution**: Tool handlers use `context.exec()` (gated by the
+   `shell:execute` permission) to run bundled Python/Node scripts. The
+   `pluginDir` and `exec` are passed to tool handlers via the extended
+   `ToolExecutionContext`.
+
+3. **Same primitives**: Each migrated plugin uses the same four capabilities
+   as any new plugin: `systemPrompts[]`, `skills[]`, `tools[]`, and
+   optionally `mcpServers[]`.
+
+4. **Zero host changes**: The existing `AcpSkillManager`, `loadSkillsContent`,
+   and agent code required no modifications. Plugin skills merge seamlessly
+   into the built-in pool.
+
+## 15. Migration Path
 
 | Phase | Scope |
 |-------|-------|

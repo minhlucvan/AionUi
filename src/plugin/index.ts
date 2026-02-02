@@ -25,6 +25,15 @@ export {
   validatePluginPackageJson,
 } from './types/manifest';
 
+// SDK helpers for plugin authors
+export {
+  createPathResolver,
+  createScriptRunner,
+  toolError,
+  toolSuccess,
+  validateRequired,
+} from './sdk/pluginHelpers';
+
 // Types (re-export everything for consumers)
 export type {
   AIProvider,

@@ -1,0 +1,38 @@
+{
+  "name": "aionui-plugin-xlsx",
+  "version": "1.0.0",
+  "description": "AionUi plugin for Excel spreadsheet creation and editing — formula verification, formatting, and data analysis",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "aionui": {
+    "pluginVersion": "1.0",
+    "displayName": "Excel Tools",
+    "description": "Create and edit Excel spreadsheets with formula verification, financial formatting standards, and data analysis support.",
+    "category": "document",
+    "minHostVersion": "1.7.0",
+    "skills": [
+      {
+        "name": "xlsx",
+        "description": "Excel spreadsheet creation, editing, and analysis with formula verification, formatting standards, and data analysis"
+      }
+    ],
+    "tools": [
+      {
+        "name": "xlsx_recalculate",
+        "description": "Recalculate all formulas in an Excel file and report errors"
+      }
+    ],
+    "permissions": [
+      "fs:read",
+      "fs:write",
+      "shell:execute"
+    ],
+    "settings": {}
+  },
+  "keywords": ["aionui", "plugin", "xlsx", "excel"],
+  "license": "MIT"
+}

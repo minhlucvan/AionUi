@@ -1,0 +1,42 @@
+{
+  "name": "aionui-plugin-pptx",
+  "version": "1.0.0",
+  "description": "AionUi plugin for PowerPoint creation and editing — create from HTML, extract text, rearrange slides, and edit XML",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "aionui": {
+    "pluginVersion": "1.0",
+    "displayName": "PowerPoint Tools",
+    "description": "Create, edit, and analyze PowerPoint presentations. Convert HTML to PPTX, extract text, rearrange slides, and more.",
+    "category": "document",
+    "minHostVersion": "1.7.0",
+    "skills": [
+      {
+        "name": "pptx",
+        "description": "PowerPoint creation, editing, and analysis with HTML-to-PPTX conversion, OOXML editing, and template workflows"
+      }
+    ],
+    "tools": [
+      { "name": "pptx_create_from_html", "description": "Convert HTML slides to a PowerPoint presentation" },
+      { "name": "pptx_extract_text", "description": "Extract all text and shapes from a presentation" },
+      { "name": "pptx_thumbnail", "description": "Create a visual thumbnail grid of slides" },
+      { "name": "pptx_rearrange", "description": "Rearrange, duplicate, or delete slides" },
+      { "name": "pptx_replace_text", "description": "Apply text replacements from a JSON mapping" },
+      { "name": "pptx_unpack", "description": "Unpack a PPTX file for XML editing" },
+      { "name": "pptx_pack", "description": "Pack a directory back into a PPTX file" },
+      { "name": "pptx_validate", "description": "Validate PPTX XML against OOXML schemas" }
+    ],
+    "permissions": [
+      "fs:read",
+      "fs:write",
+      "shell:execute"
+    ],
+    "settings": {}
+  },
+  "keywords": ["aionui", "plugin", "pptx", "powerpoint"],
+  "license": "MIT"
+}

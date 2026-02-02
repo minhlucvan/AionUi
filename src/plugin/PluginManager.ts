@@ -337,6 +337,15 @@ export class PluginManager {
   /**
    * Install plugin skill files into the host skills directory.
    * This makes them discoverable by AcpSkillManager and loadSkillsContent.
+   *
+   * Supports two modes:
+   *   1. File-based: Plugin ships a `skills/{name}/` directory with SKILL.md
+   *      and scripts/references — the entire directory tree is copied.
+   *   2. Code-based: Skill has an inline `body` — SKILL.md is generated.
+   *
+   * This is key for the migration pattern: built-in skills (pdf, pptx, docx, xlsx)
+   * can be packaged as plugins and their entire skill directories (SKILL.md +
+   * scripts + references + schemas) are installed into the host skills dir.
    */
   private async installPluginSkills(
     plugin: AionPlugin,
@@ -345,34 +354,73 @@ export class PluginManager {
     if (!plugin.skills?.length) return;
 
     for (const skill of plugin.skills) {
-      const skillDir = path.join(this.config.skillsDir, skill.name);
+      const destSkillDir = path.join(this.config.skillsDir, skill.name);
 
       // Don't overwrite existing built-in skills
-      if (fs.existsSync(skillDir)) {
+      if (fs.existsSync(destSkillDir)) {
         console.warn(
           `[PluginManager] Skill "${skill.name}" already exists, skipping (plugin: ${entry.id})`,
         );
         continue;
       }
 
-      await fs.promises.mkdir(skillDir, { recursive: true });
+      // Check if the plugin ships a file-based skill directory
+      const pluginSkillDir = path.join(entry.installPath, 'skills', skill.name);
+      const pluginSkillMd = path.join(pluginSkillDir, 'SKILL.md');
 
-      // Generate SKILL.md from the plugin's skill definition
-      const skillContent = this.buildSkillMd(skill);
-      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), skillContent, 'utf-8');
+      if (fs.existsSync(pluginSkillMd)) {
+        // ── File-based skill: copy the entire directory tree ──────────────
+        // This preserves scripts/, references/, schemas/, templates/, etc.
+        await this.copyDirectoryRecursive(pluginSkillDir, destSkillDir);
+        console.log(
+          `[PluginManager] Installed skill "${skill.name}" from plugin "${entry.id}" (file-based, full directory)`,
+        );
+      } else {
+        // ── Code-based skill: generate SKILL.md from inline definition ────
+        await fs.promises.mkdir(destSkillDir, { recursive: true });
+        const skillContent = this.buildSkillMd(skill);
+        await fs.promises.writeFile(
+          path.join(destSkillDir, 'SKILL.md'),
+          skillContent,
+          'utf-8',
+        );
 
-      // Copy bundled resources if any
-      if (skill.resources) {
-        for (const resource of skill.resources) {
-          const srcPath = path.join(entry.installPath, resource);
-          const destPath = path.join(skillDir, path.basename(resource));
-          if (fs.existsSync(srcPath)) {
-            await fs.promises.copyFile(srcPath, destPath);
+        // Copy bundled resources if any (flattened into skill dir)
+        if (skill.resources) {
+          for (const resource of skill.resources) {
+            const srcPath = path.join(entry.installPath, resource);
+            const destPath = path.join(destSkillDir, path.basename(resource));
+            if (fs.existsSync(srcPath)) {
+              await fs.promises.copyFile(srcPath, destPath);
+            }
           }
         }
-      }
 
-      console.log(`[PluginManager] Installed skill "${skill.name}" from plugin "${entry.id}"`);
+        console.log(
+          `[PluginManager] Installed skill "${skill.name}" from plugin "${entry.id}" (code-based)`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Recursively copy a directory tree.
+   * Used to install file-based plugin skills with all their scripts,
+   * references, schemas, and other bundled resources.
+   */
+  private async copyDirectoryRecursive(src: string, dest: string): Promise<void> {
+    await fs.promises.mkdir(dest, { recursive: true });
+
+    const entries = await fs.promises.readdir(src, { withFileTypes: true });
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+
+      if (entry.isDirectory()) {
+        await this.copyDirectoryRecursive(srcPath, destPath);
+      } else {
+        await fs.promises.copyFile(srcPath, destPath);
+      }
     }
   }
 
@@ -421,6 +469,11 @@ export class PluginManager {
 
   /**
    * Execute a plugin tool by its namespaced name.
+   *
+   * The tool handler receives a ToolExecutionContext that includes the
+   * workspace, provider, settings, and logger. For plugins with shell:execute
+   * permission, the context also includes `exec` and `pluginDir` so tool
+   * handlers can run bundled scripts without storing module-level state.
    */
   async executeTool(
     namespacedName: string,
@@ -445,12 +498,25 @@ export class PluginManager {
       return { success: false, error: `Tool "${toolName}" not found in plugin "${pluginId}"` };
     }
 
-    const context: ToolExecutionContext = {
+    // Build the execution context.
+    // We extend it with exec and pluginDir from the plugin's activation context
+    // so tool handlers can run bundled scripts. The base ToolExecutionContext type
+    // doesn't declare these, but plugins that need shell access cast or check for them.
+    const context: ToolExecutionContext & {
+      exec?: PluginContext['exec'];
+      pluginDir?: string;
+    } = {
       workspace: this.config.workspace,
       provider: this.currentProvider,
       conversationId,
-      settings: active.entry.settings,
+      settings: {
+        ...active.entry.settings,
+        _pluginDir: active.entry.installPath,
+      },
       logger: this.createPluginLogger(pluginId),
+      // Pass exec from the plugin's activation context if available
+      exec: active.context.exec,
+      pluginDir: active.entry.installPath,
     };
 
     try {
