@@ -4,15 +4,16 @@
  * Bootstraps the plugin system at application startup. This module:
  *   1. Creates the singleton PluginManager
  *   2. Auto-registers and activates built-in plugins (pdf, pptx, docx, xlsx)
- *   3. Loads user-installed plugins from the registry
+ *   3. Installs plugin skill files (SKILL.md + scripts) to the host skills directory
+ *   4. Loads user-installed plugins from the registry
  *
- * The initialization is designed to run AFTER initBuiltinAssistantRules()
- * so that the skill files are already in getSkillsDir(). The plugin system
- * adds system prompts and tools on top of the existing skill content.
+ * The initialization runs BEFORE initBuiltinAssistantRules() — plugins are
+ * the primary source of skill files for pdf, pptx, docx, xlsx. The old
+ * initBuiltinAssistantRules() will skip any skills already installed by plugins.
  *
  * Usage in initStorage.ts:
  *   import { initPluginSystem, getPluginManager } from '../plugin/initPluginSystem';
- *   // After initBuiltinAssistantRules():
+ *   // Before initBuiltinAssistantRules():
  *   await initPluginSystem({ skillsDir, workspace });
  *
  * Usage in agentUtils.ts:
@@ -118,16 +119,16 @@ export async function shutdownPluginSystem(): Promise<void> {
 // ─── Built-in Plugin Registration ───────────────────────────────────────────────
 
 /**
- * Register and activate built-in plugins.
+ * Register, activate, and install built-in plugins.
  *
  * Built-in plugins are loaded from the bundled examples/ directory (dev)
  * or builtin-plugins/ directory (production). They are pre-activated with
  * all permissions granted.
  *
- * Since the skill files (SKILL.md + scripts) are already in getSkillsDir()
- * (copied by initBuiltinAssistantRules), we skip the skill installation step.
- * The plugin system just provides the additional capabilities: system prompts
- * and tool definitions.
+ * After registration, each plugin's skill files (SKILL.md + scripts + docs)
+ * are installed to the host skills directory. This makes plugins the primary
+ * source of skill content — the old initBuiltinAssistantRules() will skip
+ * any skills that plugins have already installed.
  */
 async function registerBuiltinPlugins(manager: PluginManager, config: PluginSystemConfig): Promise<void> {
   let registered = 0;
@@ -165,7 +166,7 @@ async function registerBuiltinPlugins(manager: PluginManager, config: PluginSyst
       // Activate the plugin (captures pluginDir, etc.)
       await plugin.activate(context);
 
-      // Register it as active in the manager
+      // Register it as active in the manager (also installs skills to skillsDir)
       manager.registerBuiltinPlugin(plugin, entry);
 
       registered++;

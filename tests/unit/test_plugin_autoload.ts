@@ -421,34 +421,29 @@ describe('Plugin System Prompt Injection', () => {
     }
   });
 
-  it('collectSystemPrompts should exclude plugins whose skills overlap with enabledSkills', async () => {
+  it('collectSystemPrompts should always return prompts (no dedup with enabledSkills)', async () => {
     const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
     const pm = getPluginManager()!;
 
+    // Plugin prompts are always injected (they describe tools, complementary to skill content)
     const allPrompts = pm.collectSystemPrompts();
+    expect(allPrompts.length).toBeGreaterThanOrEqual(4);
 
-    // Exclude plugins that provide pdf and docx skills
+    // Even with excludeSkillNames, prompts should still be filterable for future use
     const filtered = pm.collectSystemPrompts(undefined, ['pdf', 'docx']);
-
-    // Should have fewer prompts (pdf and docx plugins excluded)
     expect(filtered.length).toBeLessThan(allPrompts.length);
-
-    // Exclude all 4 built-in skill names
-    const none = pm.collectSystemPrompts(undefined, ['pdf', 'pptx', 'docx', 'xlsx']);
-
-    // All built-in plugins should be excluded — no prompts from them
-    expect(none.length).toBe(0);
   });
 
-  it('collectSystemPrompts should not exclude plugins for unrelated skill names', async () => {
+  it('plugin skill installation should create skill files in skillsDir', async () => {
     const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
     const pm = getPluginManager()!;
 
-    const allPrompts = pm.collectSystemPrompts();
-    const filtered = pm.collectSystemPrompts(undefined, ['skill-creator', 'custom-thing']);
-
-    // No built-in plugin has 'skill-creator' or 'custom-thing' as a skill
-    expect(filtered.length).toBe(allPrompts.length);
+    // Verify that built-in plugins installed their skills to the temp skillsDir
+    const skillNames = pm.getPluginSkillNames();
+    expect(skillNames).toContain('pdf');
+    expect(skillNames).toContain('pptx');
+    expect(skillNames).toContain('docx');
+    expect(skillNames).toContain('xlsx');
   });
 
   it('collectPluginTools should return namespaced tools ready for function calling', async () => {

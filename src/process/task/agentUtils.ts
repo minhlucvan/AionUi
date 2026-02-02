@@ -42,11 +42,11 @@ export async function buildSystemInstructions(config: FirstMessageConfig): Promi
     }
   }
 
-  // 注入插件系统提示（排除已由旧 skill 系统加载的插件）
-  // Inject plugin system prompts (exclude plugins already loaded by old skill system)
+  // 注入插件系统提示（描述可用工具，与 skills 内容互补）
+  // Inject plugin system prompts (describe available tools, complementary to skill content)
   const pm = getPluginManager();
   if (pm) {
-    const pluginPrompts = pm.collectSystemPrompts(undefined, config.enabledSkills);
+    const pluginPrompts = pm.collectSystemPrompts();
     if (pluginPrompts.length > 0) {
       instructions.push(pluginPrompts.join('\n\n'));
     }
@@ -128,11 +128,11 @@ For example, to use the "pptx" skill, read: ${skillsDir}/pptx/SKILL.md`;
     }
   }
 
-  // 注入插件系统提示（排除已由旧 skill 系统加载的插件）
-  // Inject plugin system prompts (exclude plugins already loaded by old skill system)
+  // 注入插件系统提示（描述可用工具，与 skills 索引互补）
+  // Inject plugin system prompts (describe available tools, complementary to skill index)
   const pm2 = getPluginManager();
   if (pm2) {
-    const pluginPrompts = pm2.collectSystemPrompts(undefined, config.enabledSkills);
+    const pluginPrompts = pm2.collectSystemPrompts();
     if (pluginPrompts.length > 0) {
       instructions.push(pluginPrompts.join('\n\n'));
     }

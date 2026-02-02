@@ -610,12 +610,10 @@ const initStorage = async () => {
   }
   // 5. 初始化内置助手（Assistants）
   try {
-    // 5.1 初始化内置助手的规则文件到用户目录
-    // Initialize builtin assistant rule files to user directory
-    await initBuiltinAssistantRules();
-
-    // 5.1.1 初始化插件系统（加载内置插件，注册系统提示和工具）
-    // Initialize plugin system (load built-in plugins, register system prompts and tools)
+    // 5.0 初始化插件系统（加载内置插件，安装技能文件到用户目录）
+    // Initialize plugin system (load built-in plugins, install skill files to user directory)
+    // 插件系统必须在 initBuiltinAssistantRules 之前运行，因为插件现在拥有技能文件
+    // Plugin system must run BEFORE initBuiltinAssistantRules since plugins now own skill files
     try {
       const { initPluginSystem } = await import('../plugin/initPluginSystem');
       await initPluginSystem({
@@ -625,6 +623,10 @@ const initStorage = async () => {
     } catch (pluginError) {
       console.error('[AionUi] Failed to initialize plugin system:', pluginError);
     }
+
+    // 5.1 初始化内置助手的规则文件到用户目录（跳过已由插件安装的技能）
+    // Initialize builtin assistant rule files to user directory (skips skills already installed by plugins)
+    await initBuiltinAssistantRules();
 
     // 5.2 初始化助手配置（只包含元数据，不包含 context）
     // Initialize assistant config (metadata only, no context)

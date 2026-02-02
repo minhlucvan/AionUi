@@ -133,6 +133,12 @@ export class PluginManager {
       context,
     });
 
+    // Install plugin skill files to the host skills directory.
+    // Built-in plugins always overwrite to ensure users get the latest version.
+    this.installPluginSkills(plugin, entry, /* overwrite */ true).catch((err) => {
+      console.error(`[PluginManager] Failed to install skills for built-in plugin "${entry.id}":`, err);
+    });
+
     this.emit('plugin:activated', { pluginId: entry.id, builtin: true });
   }
 
@@ -369,15 +375,14 @@ export class PluginManager {
    * can be packaged as plugins and their entire skill directories (SKILL.md +
    * scripts + references + schemas) are installed into the host skills dir.
    */
-  private async installPluginSkills(plugin: AionPlugin, entry: PluginRegistryEntry): Promise<void> {
+  async installPluginSkills(plugin: AionPlugin, entry: PluginRegistryEntry, overwrite = false): Promise<void> {
     if (!plugin.skills?.length) return;
 
     for (const skill of plugin.skills) {
       const destSkillDir = path.join(this.config.skillsDir, skill.name);
 
-      // Don't overwrite existing built-in skills
-      if (fs.existsSync(destSkillDir)) {
-        console.warn(`[PluginManager] Skill "${skill.name}" already exists, skipping (plugin: ${entry.id})`);
+      // Skip if skill already exists (unless overwrite is true, e.g. for built-in plugins)
+      if (fs.existsSync(destSkillDir) && !overwrite) {
         continue;
       }
 
