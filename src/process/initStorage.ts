@@ -697,6 +697,57 @@ const initStorage = async () => {
       }
     }
 
+    // 5.3 注册插件代理（从插件系统收集代理定义，转换为助手配置）
+    // Register plugin agents (collect agent definitions from plugins, convert to assistant configs)
+    try {
+      const { getPluginManager } = await import('../plugin/initPluginSystem');
+      const pm = getPluginManager();
+      if (pm) {
+        const pluginAgents = pm.collectPluginAgents();
+        for (const agent of pluginAgents) {
+          const agentId = `plugin-${agent.pluginId}-${agent.id}`;
+          const existingIdx = updatedAgents.findIndex((a: AcpBackendConfig) => a.id === agentId);
+
+          const agentConfig: AcpBackendConfig = {
+            id: agentId,
+            name: agent.name,
+            nameI18n: agent.nameI18n,
+            description: agent.description,
+            descriptionI18n: agent.descriptionI18n,
+            avatar: agent.avatar,
+            context: agent.systemPrompt,
+            contextI18n: agent.systemPromptI18n,
+            enabled: agent.enabledByDefault ?? false,
+            isPreset: true,
+            isBuiltin: true,
+            presetAgentType: agent.presetAgentType ?? 'gemini',
+            enabledSkills: agent.skills,
+            prompts: agent.prompts,
+            promptsI18n: agent.promptsI18n,
+          };
+
+          if (existingIdx >= 0) {
+            // Preserve user's enabled/presetAgentType settings
+            const existing = updatedAgents[existingIdx];
+            updatedAgents[existingIdx] = {
+              ...agentConfig,
+              enabled: existing.enabled ?? agentConfig.enabled,
+              presetAgentType: existing.presetAgentType ?? agentConfig.presetAgentType,
+            };
+          } else {
+            updatedAgents.push(agentConfig);
+          }
+          hasChanges = true;
+        }
+
+        if (pluginAgents.length > 0) {
+          console.log(`[AionUi] Registered ${pluginAgents.length} plugin agent(s)`);
+        }
+      }
+    } catch (pluginAgentError) {
+      console.error('[AionUi] Failed to register plugin agents:', pluginAgentError);
+    }
+
     if (hasChanges) {
       await configFile.set('acp.customAgents', updatedAgents);
     }

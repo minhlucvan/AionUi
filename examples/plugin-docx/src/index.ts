@@ -20,7 +20,7 @@
  *   Local: point to this directory
  */
 
-import type { AionPlugin, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
+import type { AionPlugin, PluginAgent, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -545,6 +545,33 @@ const docxPlugin: AionPlugin = {
       handler: handleDocxToImages,
     },
   ] satisfies PluginToolDefinition[],
+
+  // ── Capability 4: Agents ──────────────────────────────────────────────────
+
+  agents: [
+    {
+      id: 'docx-tools',
+      name: 'Word Document Tools',
+      nameI18n: {
+        'en-US': 'Word Document Tools',
+        'zh-CN': 'Word 文档工具',
+      },
+      description: 'Create, edit, and analyze Word documents with tracked changes, comments, and OOXML editing.',
+      descriptionI18n: {
+        'en-US': 'Create, edit, and analyze Word documents with tracked changes, comments, and OOXML editing.',
+        'zh-CN': '使用修订跟踪、批注和 OOXML 编辑来创建、编辑和分析 Word 文档。',
+      },
+      avatar: '📝',
+      skills: ['docx'],
+      tools: ['docx_unpack', 'docx_pack', 'docx_validate', 'docx_to_text', 'docx_to_images'],
+      presetAgentType: 'gemini',
+      prompts: ['Extract text from contract.docx', 'Convert report.docx to images'],
+      promptsI18n: {
+        'en-US': ['Extract text from contract.docx', 'Convert report.docx to images'],
+        'zh-CN': ['从 contract.docx 中提取文本', '将 report.docx 转换为图片'],
+      },
+    },
+  ] satisfies PluginAgent[],
 
   priority: 60,
 };

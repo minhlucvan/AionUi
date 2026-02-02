@@ -20,7 +20,7 @@ import * as path from 'path';
 import { promisify } from 'util';
 
 import { PluginLoader } from './loader/PluginLoader';
-import type { AIProvider, AionPlugin, PluginContext, PluginLogger, PluginMcpServer, PluginPermission, PluginRegistryEntry, PluginSkillDefinition, PluginToolDefinition, ToolExecutionContext, ToolResult } from './types';
+import type { AIProvider, AionPlugin, PluginAgent, PluginContext, PluginLogger, PluginMcpServer, PluginPermission, PluginRegistryEntry, PluginSkillDefinition, PluginToolDefinition, ToolExecutionContext, ToolResult } from './types';
 
 const execAsync = promisify(execCb);
 
@@ -308,6 +308,12 @@ export class PluginManager {
     for (const [, active] of this.activePlugins) {
       if (!active.instance.systemPrompts) continue;
 
+      // Skip plugins that define agents — their system prompts are
+      // delivered through the agent's context, not injected globally.
+      if (active.instance.agents && active.instance.agents.length > 0) {
+        continue;
+      }
+
       // Skip this plugin's prompts if any of its skills are already loaded
       // by the old skill system (avoids duplicate capability descriptions)
       if (excludeSet && active.instance.skills?.some((s) => excludeSet.has(s.name))) {
@@ -331,6 +337,64 @@ export class PluginManager {
     prompts.sort((a, b) => a.priority - b.priority);
 
     return prompts.map((p) => p.content);
+  }
+
+  // ─── Capability: Agents ─────────────────────────────────────────────────
+  //
+  // Plugin agents are pre-configured assistants. Each bundles a system prompt,
+  // skills, and tools into a selectable entity in the assistant management UI.
+  // The host converts these to AcpBackendConfig entries.
+
+  /**
+   * Collect all agents from active plugins.
+   *
+   * Returns agent definitions with their plugin ID attached so the host
+   * can construct namespaced assistant IDs (e.g., `plugin-aionui-plugin-pdf-pdf-tools`).
+   *
+   * For each agent, if it doesn't have an explicit systemPrompt, one is
+   * synthesized from the plugin's global systemPrompts[].
+   */
+  collectPluginAgents(): Array<PluginAgent & { pluginId: string }> {
+    const agents: Array<PluginAgent & { pluginId: string }> = [];
+
+    for (const [, active] of this.activePlugins) {
+      if (!active.instance.agents) continue;
+
+      for (const agent of active.instance.agents) {
+        // If agent doesn't define its own systemPrompt, synthesize one
+        // from the plugin's global systemPrompts[]
+        let systemPrompt = agent.systemPrompt;
+        if (!systemPrompt && active.instance.systemPrompts?.length) {
+          systemPrompt = active.instance.systemPrompts.map((p) => p.content).join('\n\n');
+        }
+
+        // If agent doesn't specify skills, default to all plugin skills
+        const skills = agent.skills ?? active.instance.skills?.map((s) => s.name);
+
+        // If agent doesn't specify tools, default to all plugin tools
+        const tools = agent.tools ?? active.instance.tools?.map((t) => t.name);
+
+        agents.push({
+          ...agent,
+          systemPrompt,
+          skills,
+          tools,
+          pluginId: active.entry.id,
+        });
+      }
+    }
+
+    return agents;
+  }
+
+  /**
+   * Check if a plugin defines agents.
+   * Used to determine whether the plugin's system prompts should be
+   * injected globally or delivered through agent contexts.
+   */
+  pluginHasAgents(pluginId: string): boolean {
+    const active = this.activePlugins.get(pluginId);
+    return !!(active?.instance.agents && active.instance.agents.length > 0);
   }
 
   // ─── Capability: Skills ─────────────────────────────────────────────────

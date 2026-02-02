@@ -115,6 +115,25 @@ describe('Built-in Plugin Registry', () => {
         expect(plugin!.tools!.length).toBeGreaterThan(0);
       }
     });
+
+    it('loaded plugins should have agents', () => {
+      for (const desc of BUILTIN_PLUGINS) {
+        const plugin = loadBuiltinPlugin(desc);
+        expect(plugin).not.toBeNull();
+        expect(plugin!.agents).toBeDefined();
+        expect(plugin!.agents!.length).toBeGreaterThan(0);
+
+        for (const agent of plugin!.agents!) {
+          expect(agent.id).toBeTruthy();
+          expect(agent.name).toBeTruthy();
+          expect(agent.description).toBeTruthy();
+          expect(agent.skills).toBeDefined();
+          expect(agent.skills!.length).toBeGreaterThan(0);
+          expect(agent.tools).toBeDefined();
+          expect(agent.tools!.length).toBeGreaterThan(0);
+        }
+      }
+    });
   });
 
   describe('createBuiltinRegistryEntry', () => {
@@ -315,7 +334,7 @@ describe('Plugin System Initialization', () => {
     expect(getPluginManager()).toBeNull();
   });
 
-  it('active plugins should have system prompts collectible', async () => {
+  it('collectSystemPrompts should skip plugins that define agents', async () => {
     const { initPluginSystem, getPluginManager, shutdownPluginSystem } = await import('../../src/plugin/initPluginSystem');
     await shutdownPluginSystem(); // Reset
 
@@ -327,8 +346,32 @@ describe('Plugin System Initialization', () => {
     const pm = getPluginManager()!;
     const prompts = pm.collectSystemPrompts();
 
-    // Each built-in plugin has at least 1 system prompt
-    expect(prompts.length).toBeGreaterThanOrEqual(4);
+    // Built-in plugins now define agents, so their system prompts
+    // are NOT injected globally (delivered via agent context instead)
+    expect(prompts.length).toBe(0);
+  });
+
+  it('active plugins should expose agents', async () => {
+    const { initPluginSystem, getPluginManager, shutdownPluginSystem } = await import('../../src/plugin/initPluginSystem');
+    await shutdownPluginSystem(); // Reset
+
+    await initPluginSystem({
+      skillsDir: path.join(tmpDir, 'skills'),
+      workspace: tmpDir,
+    });
+
+    const pm = getPluginManager()!;
+    const agents = pm.collectPluginAgents();
+
+    // Each built-in plugin has at least 1 agent
+    expect(agents.length).toBeGreaterThanOrEqual(4);
+
+    // Each agent should have a pluginId
+    for (const agent of agents) {
+      expect(agent.pluginId).toBeTruthy();
+      expect(agent.id).toBeTruthy();
+      expect(agent.name).toBeTruthy();
+    }
   });
 
   it('active plugins should have tools collectible', async () => {
@@ -405,33 +448,72 @@ describe('Plugin System Prompt Injection', () => {
     }
   });
 
-  it('collectSystemPrompts should return prompts from all built-in plugins', async () => {
+  it('collectSystemPrompts should skip built-in plugins that define agents', async () => {
     const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
     const pm = getPluginManager()!;
 
+    // All built-in plugins now define agents, so collectSystemPrompts returns 0
     const prompts = pm.collectSystemPrompts();
+    expect(prompts.length).toBe(0);
+  });
 
-    // Each of the 4 plugins contributes at least 1 system prompt
-    expect(prompts.length).toBeGreaterThanOrEqual(4);
+  it('collectPluginAgents should return agents from all built-in plugins', async () => {
+    const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
+    const pm = getPluginManager()!;
 
-    // Prompts should be non-empty strings
-    for (const prompt of prompts) {
-      expect(typeof prompt).toBe('string');
-      expect(prompt.length).toBeGreaterThan(10);
+    const agents = pm.collectPluginAgents();
+
+    // 4 built-in plugins, each with at least 1 agent
+    expect(agents.length).toBeGreaterThanOrEqual(4);
+
+    // Each agent should have synthesized systemPrompt (from plugin's systemPrompts[])
+    for (const agent of agents) {
+      expect(agent.systemPrompt).toBeTruthy();
+      expect(agent.systemPrompt!.length).toBeGreaterThan(10);
     }
   });
 
-  it('collectSystemPrompts should always return prompts (no dedup with enabledSkills)', async () => {
+  it('collectPluginAgents should include skills and tools from the plugin', async () => {
     const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
     const pm = getPluginManager()!;
 
-    // Plugin prompts are always injected (they describe tools, complementary to skill content)
-    const allPrompts = pm.collectSystemPrompts();
-    expect(allPrompts.length).toBeGreaterThanOrEqual(4);
+    const agents = pm.collectPluginAgents();
 
-    // Even with excludeSkillNames, prompts should still be filterable for future use
-    const filtered = pm.collectSystemPrompts(undefined, ['pdf', 'docx']);
-    expect(filtered.length).toBeLessThan(allPrompts.length);
+    // Find the PDF agent
+    const pdfAgent = agents.find((a) => a.pluginId === 'aionui-plugin-pdf');
+    expect(pdfAgent).toBeDefined();
+    expect(pdfAgent!.skills).toContain('pdf');
+    expect(pdfAgent!.tools).toContain('pdf_split');
+    expect(pdfAgent!.tools).toContain('pdf_merge');
+
+    // Find the PPTX agent
+    const pptxAgent = agents.find((a) => a.pluginId === 'aionui-plugin-pptx');
+    expect(pptxAgent).toBeDefined();
+    expect(pptxAgent!.skills).toContain('pptx');
+    expect(pptxAgent!.tools).toContain('pptx_create_from_html');
+  });
+
+  it('plugin agents should have correct presetAgentType', async () => {
+    const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
+    const pm = getPluginManager()!;
+
+    const agents = pm.collectPluginAgents();
+
+    for (const agent of agents) {
+      // All built-in plugin agents default to gemini
+      expect(agent.presetAgentType).toBe('gemini');
+    }
+  });
+
+  it('pluginHasAgents should return true for plugins with agents', async () => {
+    const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
+    const pm = getPluginManager()!;
+
+    expect(pm.pluginHasAgents('aionui-plugin-pdf')).toBe(true);
+    expect(pm.pluginHasAgents('aionui-plugin-pptx')).toBe(true);
+    expect(pm.pluginHasAgents('aionui-plugin-docx')).toBe(true);
+    expect(pm.pluginHasAgents('aionui-plugin-xlsx')).toBe(true);
+    expect(pm.pluginHasAgents('nonexistent-plugin')).toBe(false);
   });
 
   it('plugin skill installation should create skill files in skillsDir', async () => {

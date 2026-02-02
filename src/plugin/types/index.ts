@@ -28,13 +28,7 @@ export type PluginSource = 'npm' | 'github' | 'local';
 
 export type PluginState = 'installed' | 'active' | 'inactive' | 'error';
 
-export type PluginCategory =
-  | 'productivity'
-  | 'ai-tools'
-  | 'code-analysis'
-  | 'document'
-  | 'integration'
-  | 'other';
+export type PluginCategory = 'productivity' | 'ai-tools' | 'code-analysis' | 'document' | 'integration' | 'other';
 
 // ─── Capabilities: Skills ────────────────────────────────────────────────────
 
@@ -130,10 +124,7 @@ export interface PluginToolDefinition {
    * The function that executes when the agent calls this tool.
    * Receives the parsed parameters and a context object.
    */
-  handler: (
-    params: Record<string, unknown>,
-    context: ToolExecutionContext,
-  ) => Promise<ToolResult>;
+  handler: (params: Record<string, unknown>, context: ToolExecutionContext) => Promise<ToolResult>;
 
   /**
    * If set, this tool is only available when the active provider matches.
@@ -273,6 +264,17 @@ export interface PluginManifest {
    */
   tools?: Array<{ name: string; description: string }>;
 
+  /**
+   * Agents this plugin exposes (for display in UI before loading plugin code).
+   * Actual agent definitions come from the plugin's `agents[]` property.
+   */
+  agents?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    avatar?: string;
+  }>;
+
   /** Permissions the plugin requires */
   permissions?: PluginPermission[];
 
@@ -294,16 +296,7 @@ export interface PluginPackageJson {
 
 // ─── Plugin Permissions ──────────────────────────────────────────────────────
 
-export type PluginPermission =
-  | 'fs:read'
-  | 'fs:write'
-  | 'fs:global'
-  | 'network:fetch'
-  | 'shell:execute'
-  | 'ui:panel'
-  | 'ui:overlay'
-  | 'clipboard'
-  | 'mcp:server';
+export type PluginPermission = 'fs:read' | 'fs:write' | 'fs:global' | 'network:fetch' | 'shell:execute' | 'ui:panel' | 'ui:overlay' | 'clipboard' | 'mcp:server';
 
 // ─── Plugin Registry Entry ───────────────────────────────────────────────────
 
@@ -376,7 +369,10 @@ export interface PluginContext<TSettings = Record<string, unknown>> {
   fetch?(url: string, options?: RequestInit): Promise<Response>;
 
   /** Execute a shell command (requires shell:execute) */
-  exec?(command: string, options?: { cwd?: string; timeout?: number }): Promise<{
+  exec?(
+    command: string,
+    options?: { cwd?: string; timeout?: number }
+  ): Promise<{
     stdout: string;
     stderr: string;
     exitCode: number;
@@ -392,21 +388,106 @@ export interface PluginContext<TSettings = Record<string, unknown>> {
  */
 export interface PluginHooks {
   /** Runs before the first message is sent (can modify the message) */
-  onBeforeMessage?(ctx: {
-    message: string;
-    conversationId: string;
-    provider: AIProvider;
-  }): Promise<{ message: string; cancel?: boolean }> | { message: string; cancel?: boolean };
+  onBeforeMessage?(ctx: { message: string; conversationId: string; provider: AIProvider }): Promise<{ message: string; cancel?: boolean }> | { message: string; cancel?: boolean };
 
   /** Runs after a response is received */
-  onAfterResponse?(ctx: {
-    response: string;
-    conversationId: string;
-    provider: AIProvider;
-  }): Promise<{ response: string }> | { response: string };
+  onAfterResponse?(ctx: { response: string; conversationId: string; provider: AIProvider }): Promise<{ response: string }> | { response: string };
 
   /** When plugin settings change */
   onSettingsChanged?(settings: Record<string, unknown>): Promise<void> | void;
+}
+
+// ─── Plugin Agents ──────────────────────────────────────────────────────────
+
+/**
+ * A named agent that a plugin exposes.
+ *
+ * Each agent bundles a subset of the plugin's capabilities (system prompt,
+ * skills, tools) into a selectable assistant. When the user picks this agent
+ * in the assistant management UI, the host:
+ *   1. Injects the agent's systemPrompt as the preset context
+ *   2. Enables the agent's skills (loaded from the plugin)
+ *   3. Makes the agent's tools available for function calling
+ *
+ * This maps directly to AcpBackendConfig (the host's assistant type).
+ * Multiple agents can be defined per plugin — for example, a "Document"
+ * plugin could expose both a "PDF Expert" and a "DOCX Editor" agent.
+ *
+ * @example
+ * ```typescript
+ * agents: [
+ *   {
+ *     id: 'pdf-tools',
+ *     name: 'PDF Tools',
+ *     description: 'Split, merge, convert, and fill PDF forms.',
+ *     avatar: '📄',
+ *     systemPrompt: 'You have access to PDF processing tools...',
+ *     skills: ['pdf'],
+ *     tools: ['pdf_split', 'pdf_merge', 'pdf_to_images'],
+ *   },
+ * ]
+ * ```
+ */
+export interface PluginAgent {
+  /** Agent ID, unique within the plugin. Namespaced at runtime as `plugin-{pluginId}-{agentId}` */
+  id: string;
+
+  /** Display name shown in the assistant list */
+  name: string;
+
+  /** Localized names */
+  nameI18n?: Record<string, string>;
+
+  /** Short description shown in the assistant list */
+  description: string;
+
+  /** Localized descriptions */
+  descriptionI18n?: Record<string, string>;
+
+  /** Avatar — emoji string or image path */
+  avatar?: string;
+
+  /**
+   * The system prompt / context for this agent.
+   * Injected as [Assistant Rules] in the first message when this agent is selected.
+   * This is stored in AcpBackendConfig.context.
+   *
+   * If omitted, the plugin's global systemPrompts are joined and used instead.
+   */
+  systemPrompt?: string;
+
+  /** Localized system prompts */
+  systemPromptI18n?: Record<string, string>;
+
+  /**
+   * Skill names this agent uses (references PluginSkillDefinition.name).
+   * These become the assistant's enabledSkills list.
+   * If omitted, all plugin skills are enabled.
+   */
+  skills?: string[];
+
+  /**
+   * Tool names this agent uses (references PluginToolDefinition.name).
+   * Only these tools are registered when this agent is active.
+   * If omitted, all plugin tools are available.
+   */
+  tools?: string[];
+
+  /**
+   * Which AI provider this agent targets.
+   * Determines which conversation type to create (Gemini, Claude ACP, Codex, etc).
+   * Defaults to 'gemini'.
+   */
+  presetAgentType?: 'gemini' | 'claude' | 'codex' | 'opencode';
+
+  /** Example prompts shown in the UI */
+  prompts?: string[];
+
+  /** Localized example prompts */
+  promptsI18n?: Record<string, string[]>;
+
+  /** Whether this agent is enabled by default. Defaults to false. */
+  enabledByDefault?: boolean;
 }
 
 // ─── Main Plugin Interface ───────────────────────────────────────────────────
@@ -516,6 +597,21 @@ export interface AionPlugin<TSettings = Record<string, unknown>> {
    * The agent can use tools from these servers like any other MCP tool.
    */
   mcpServers?: PluginMcpServer[];
+
+  // ── Capability: Agents ────────────────────────────────────────────────────
+
+  /**
+   * Named agents this plugin exposes.
+   *
+   * Each agent is a pre-configured assistant that bundles a subset of the
+   * plugin's system prompt, skills, and tools into a selectable entity.
+   * Agents appear in the assistant management UI alongside built-in presets.
+   *
+   * When a plugin defines agents, the plugin-level systemPrompts[] are NOT
+   * injected globally — instead, each agent carries its own systemPrompt
+   * that is used as the assistant's context when selected.
+   */
+  agents?: PluginAgent[];
 
   // ── Optional: Hooks ───────────────────────────────────────────────────────
 

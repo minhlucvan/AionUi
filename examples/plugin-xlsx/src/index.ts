@@ -20,7 +20,7 @@
  *   Local: point to this directory
  */
 
-import type { AionPlugin, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
+import type { AionPlugin, PluginAgent, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -278,6 +278,33 @@ const xlsxPlugin: AionPlugin<XlsxPluginSettings> = {
       // Available for all providers — no filter needed
     },
   ] satisfies PluginToolDefinition[],
+
+  // ── Capability 4: Agents ──────────────────────────────────────────────────
+
+  agents: [
+    {
+      id: 'xlsx-tools',
+      name: 'Excel Tools',
+      nameI18n: {
+        'en-US': 'Excel Tools',
+        'zh-CN': 'Excel 工具',
+      },
+      description: 'Create, edit, and analyze spreadsheets with formula verification and data processing.',
+      descriptionI18n: {
+        'en-US': 'Create, edit, and analyze spreadsheets with formula verification and data processing.',
+        'zh-CN': '使用公式验证和数据处理来创建、编辑和分析电子表格。',
+      },
+      avatar: '📊',
+      skills: ['xlsx'],
+      tools: ['xlsx_recalculate'],
+      presetAgentType: 'gemini',
+      prompts: ['Create a budget spreadsheet', 'Recalculate formulas in report.xlsx'],
+      promptsI18n: {
+        'en-US': ['Create a budget spreadsheet', 'Recalculate formulas in report.xlsx'],
+        'zh-CN': ['创建一个预算电子表格', '重新计算 report.xlsx 中的公式'],
+      },
+    },
+  ] satisfies PluginAgent[],
 
   priority: 50,
 };
