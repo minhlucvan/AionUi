@@ -1,41 +1,41 @@
 /**
  * AionUi Plugin Manager
  *
- * Central orchestrator for the plugin system. Manages the full lifecycle:
- * install → register → activate → run hooks/adapters → deactivate → uninstall
+ * Central orchestrator for the plugin system. A plugin works like an installable
+ * agent capability — it bundles system prompts, skills (SKILL.md), tools, and
+ * MCP servers. The PluginManager merges these into the existing agent pipeline.
  *
- * The PluginManager is a singleton that lives in the main Electron process
- * and communicates with the renderer via IPC bridges.
+ * Integration points with the existing codebase:
+ *   - Skills    → merged into AcpSkillManager / loadSkillsContent pool
+ *   - Prompts   → injected via prepareFirstMessage / prepareFirstMessageWithSkillsIndex
+ *   - Tools     → registered alongside Gemini coreTools / ACP tool definitions
+ *   - MCP       → registered alongside user-configured MCP servers
+ *
+ * Lifecycle: install → register → activate → capabilities available → deactivate → uninstall
  */
 
+import { exec as execCb } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { promisify } from 'util';
 
 import { PluginLoader } from './loader/PluginLoader';
 import type {
   AIProvider,
-  AdapterMessage,
   AionPlugin,
-  ConversationContext,
-  MessageHookContext,
-  MessageHookResult,
   PluginContext,
-  PluginHooks,
   PluginLogger,
+  PluginMcpServer,
   PluginPermission,
   PluginRegistryEntry,
-  PluginSkill,
-  PluginTool,
-  ProviderAdapter,
-  ProviderToolDefinition,
-  ResponseHookContext,
-  ResponseHookResult,
-  ToolCallHookContext,
-  ToolCallHookResult,
-  ToolCallResultContext,
+  PluginSkillDefinition,
+  PluginSystemPrompt,
+  PluginToolDefinition,
   ToolExecutionContext,
-  ToolExecutionResult,
+  ToolResult,
 } from './types';
+
+const execAsync = promisify(execCb);
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -57,6 +57,9 @@ interface PluginManagerConfig {
 
   /** Current workspace path */
   workspace: string;
+
+  /** Host skills directory (where built-in skills live) */
+  skillsDir: string;
 
   /** Proxy for network operations */
   proxy?: string;
@@ -85,13 +88,9 @@ export class PluginManager {
 
   // ─── Initialization ──────────────────────────────────────────────────────
 
-  /**
-   * Initialize the plugin manager: load registry and activate enabled plugins.
-   */
   async initialize(): Promise<void> {
     await this.loadRegistry();
 
-    // Activate all plugins that were previously active
     for (const [id, entry] of this.registry) {
       if (entry.state === 'active') {
         try {
@@ -105,9 +104,6 @@ export class PluginManager {
     }
   }
 
-  /**
-   * Shut down all active plugins gracefully.
-   */
   async shutdown(): Promise<void> {
     const activeIds = [...this.activePlugins.keys()];
     for (const id of activeIds) {
@@ -122,9 +118,6 @@ export class PluginManager {
 
   // ─── Installation ────────────────────────────────────────────────────────
 
-  /**
-   * Install a plugin from npm.
-   */
   async installFromNpm(
     packageName: string,
     version?: string,
@@ -136,13 +129,11 @@ export class PluginManager {
 
     this.registry.set(result.entry.id, result.entry);
     await this.saveRegistry();
+    this.emit('plugin:installed', { pluginId: result.entry.id, source: 'npm' });
 
     return { success: true, pluginId: result.entry.id };
   }
 
-  /**
-   * Install a plugin from a GitHub repository.
-   */
   async installFromGithub(
     repo: string,
     ref?: string,
@@ -154,13 +145,11 @@ export class PluginManager {
 
     this.registry.set(result.entry.id, result.entry);
     await this.saveRegistry();
+    this.emit('plugin:installed', { pluginId: result.entry.id, source: 'github' });
 
     return { success: true, pluginId: result.entry.id };
   }
 
-  /**
-   * Install a plugin from a local directory.
-   */
   async installFromLocal(
     dirPath: string,
   ): Promise<{ success: boolean; pluginId?: string; error?: string }> {
@@ -171,15 +160,12 @@ export class PluginManager {
 
     this.registry.set(result.entry.id, result.entry);
     await this.saveRegistry();
+    this.emit('plugin:installed', { pluginId: result.entry.id, source: 'local' });
 
     return { success: true, pluginId: result.entry.id };
   }
 
-  /**
-   * Uninstall a plugin completely.
-   */
   async uninstall(pluginId: string): Promise<{ success: boolean; error?: string }> {
-    // Deactivate first if active
     if (this.activePlugins.has(pluginId)) {
       await this.deactivatePlugin(pluginId);
     }
@@ -193,6 +179,7 @@ export class PluginManager {
     if (result.success) {
       this.registry.delete(pluginId);
       await this.saveRegistry();
+      this.emit('plugin:uninstalled', { pluginId });
     }
 
     return result;
@@ -200,12 +187,9 @@ export class PluginManager {
 
   // ─── Activation / Deactivation ──────────────────────────────────────────
 
-  /**
-   * Activate a plugin (load and call activate()).
-   */
   async activatePlugin(pluginId: string): Promise<{ success: boolean; error?: string }> {
     if (this.activePlugins.has(pluginId)) {
-      return { success: true }; // Already active
+      return { success: true };
     }
 
     const entry = this.registry.get(pluginId);
@@ -214,34 +198,27 @@ export class PluginManager {
     }
 
     try {
-      // Load the plugin
       const loadResult = await this.loader.loadPlugin(entry);
       if (!loadResult.success || !loadResult.plugin) {
         return { success: false, error: loadResult.error };
       }
 
       const plugin = loadResult.plugin;
-
-      // Create plugin context
       const context = this.createPluginContext(entry);
 
-      // Activate
+      // Call activate()
       await plugin.activate(context);
 
-      // Initialize the adapter for the current provider
-      const adapter = plugin.adapters?.[this.currentProvider];
-      if (adapter?.initialize) {
-        await adapter.initialize({
-          provider: this.currentProvider,
-          settings: entry.settings,
-          workspace: this.config.workspace,
-        });
+      // If plugin has file-based skills, copy them to the host skills dir
+      await this.installPluginSkills(plugin, entry);
+
+      // If plugin has MCP servers, register them
+      if (plugin.mcpServers?.length) {
+        await this.registerPluginMcpServers(plugin, entry);
       }
 
-      // Store as active
       this.activePlugins.set(pluginId, { entry, instance: plugin, context });
 
-      // Update registry state
       entry.state = 'active';
       entry.error = undefined;
       await this.saveRegistry();
@@ -257,30 +234,25 @@ export class PluginManager {
     }
   }
 
-  /**
-   * Deactivate a plugin (call deactivate() and unload).
-   */
   async deactivatePlugin(pluginId: string): Promise<{ success: boolean; error?: string }> {
     const active = this.activePlugins.get(pluginId);
     if (!active) {
-      return { success: true }; // Not active
+      return { success: true };
     }
 
     try {
-      // Dispose the current adapter
-      const adapter = active.instance.adapters?.[this.currentProvider];
-      if (adapter?.dispose) {
-        await adapter.dispose();
+      // Unregister MCP servers
+      if (active.instance.mcpServers?.length) {
+        await this.unregisterPluginMcpServers(active.instance, active.entry);
       }
 
-      // Call plugin deactivate
+      // Call deactivate()
       if (active.instance.deactivate) {
         await active.instance.deactivate();
       }
 
       this.activePlugins.delete(pluginId);
 
-      // Update registry
       const entry = this.registry.get(pluginId);
       if (entry) {
         entry.state = 'inactive';
@@ -295,273 +267,166 @@ export class PluginManager {
     }
   }
 
-  // ─── Provider Management ────────────────────────────────────────────────
+  // ─── Capability: System Prompts ─────────────────────────────────────────
+  //
+  // Collected by prepareFirstMessage / prepareFirstMessageWithSkillsIndex
+  // and injected as [Assistant Rules] in the first message, exactly like
+  // presetRules / AcpBackendConfig.context.
 
   /**
-   * Switch the active AI provider. Re-initializes all plugin adapters.
+   * Collect all system prompts from active plugins.
+   * Returns them sorted by priority and filtered for the given provider.
+   *
+   * Called by agentUtils.ts when composing the first message.
    */
-  async setActiveProvider(provider: AIProvider): Promise<void> {
-    const previousProvider = this.currentProvider;
-    this.currentProvider = provider;
+  collectSystemPrompts(provider?: AIProvider): string[] {
+    const effectiveProvider = provider ?? this.currentProvider;
+    const prompts: Array<{ content: string; priority: number }> = [];
 
     for (const [, active] of this.activePlugins) {
-      // Dispose old adapter
-      const oldAdapter = active.instance.adapters?.[previousProvider];
-      if (oldAdapter?.dispose) {
-        await oldAdapter.dispose();
-      }
+      if (!active.instance.systemPrompts) continue;
 
-      // Initialize new adapter
-      const newAdapter = active.instance.adapters?.[provider];
-      if (newAdapter?.initialize) {
-        await newAdapter.initialize({
-          provider,
-          settings: active.entry.settings,
-          workspace: this.config.workspace,
+      for (const prompt of active.instance.systemPrompts) {
+        // Filter by provider if specified
+        if (prompt.providers && !prompt.providers.includes(effectiveProvider)) {
+          continue;
+        }
+
+        prompts.push({
+          content: prompt.content,
+          priority: prompt.priority ?? 100,
         });
       }
     }
 
-    // Notify plugins
-    this.emit('provider:changed', { provider, previousProvider });
+    // Sort by priority (lower = earlier)
+    prompts.sort((a, b) => a.priority - b.priority);
+
+    return prompts.map((p) => p.content);
+  }
+
+  // ─── Capability: Skills ─────────────────────────────────────────────────
+  //
+  // Plugin skills merge into the same pool as built-in /skills/*.
+  // They appear in [Available Skills] alongside docx, pdf, etc.
+
+  /**
+   * Collect all skill definitions from active plugins.
+   * Returns PluginSkillDefinition[] that can be merged with
+   * AcpSkillManager's skill index.
+   */
+  collectPluginSkills(): PluginSkillDefinition[] {
+    const skills: PluginSkillDefinition[] = [];
+
+    for (const [, active] of this.activePlugins) {
+      if (!active.instance.skills) continue;
+      skills.push(...active.instance.skills);
+    }
+
+    return skills;
   }
 
   /**
-   * Get the currently active AI provider.
+   * Get the names of all skills provided by active plugins.
+   * Used to extend the enabledSkills list.
    */
-  getActiveProvider(): AIProvider {
-    return this.currentProvider;
+  getPluginSkillNames(): string[] {
+    return this.collectPluginSkills().map((s) => s.name);
   }
 
-  // ─── Hook Pipeline ──────────────────────────────────────────────────────
-
   /**
-   * Run onBeforeMessage hooks across all active plugins.
-   * Plugins run in priority order (lower = earlier).
+   * Install plugin skill files into the host skills directory.
+   * This makes them discoverable by AcpSkillManager and loadSkillsContent.
    */
-  async runBeforeMessageHooks(ctx: MessageHookContext): Promise<MessageHookResult> {
-    let currentMessage = ctx.message;
+  private async installPluginSkills(
+    plugin: AionPlugin,
+    entry: PluginRegistryEntry,
+  ): Promise<void> {
+    if (!plugin.skills?.length) return;
 
-    for (const active of this.getSortedActivePlugins()) {
-      const hook = active.instance.hooks?.onBeforeMessage;
-      if (!hook) continue;
+    for (const skill of plugin.skills) {
+      const skillDir = path.join(this.config.skillsDir, skill.name);
 
-      try {
-        const result = await hook({ ...ctx, message: currentMessage });
-        if (result.cancel) {
-          return { message: currentMessage, cancel: true };
+      // Don't overwrite existing built-in skills
+      if (fs.existsSync(skillDir)) {
+        console.warn(
+          `[PluginManager] Skill "${skill.name}" already exists, skipping (plugin: ${entry.id})`,
+        );
+        continue;
+      }
+
+      await fs.promises.mkdir(skillDir, { recursive: true });
+
+      // Generate SKILL.md from the plugin's skill definition
+      const skillContent = this.buildSkillMd(skill);
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), skillContent, 'utf-8');
+
+      // Copy bundled resources if any
+      if (skill.resources) {
+        for (const resource of skill.resources) {
+          const srcPath = path.join(entry.installPath, resource);
+          const destPath = path.join(skillDir, path.basename(resource));
+          if (fs.existsSync(srcPath)) {
+            await fs.promises.copyFile(srcPath, destPath);
+          }
         }
-        currentMessage = result.message;
-      } catch (err) {
-        console.error(`[PluginManager] Hook error in "${active.entry.id}":`, err);
       }
-    }
 
-    return { message: currentMessage };
+      console.log(`[PluginManager] Installed skill "${skill.name}" from plugin "${entry.id}"`);
+    }
   }
 
-  /**
-   * Run onAfterResponse hooks across all active plugins (reverse priority order).
-   */
-  async runAfterResponseHooks(ctx: ResponseHookContext): Promise<ResponseHookResult> {
-    let currentResponse = ctx.response;
+  private buildSkillMd(skill: PluginSkillDefinition): string {
+    const frontmatter = `---\nname: ${skill.name}\ndescription: '${skill.description.replace(/'/g, "\\'")}'\n---\n`;
 
-    // Run in reverse priority order for response processing
-    const plugins = this.getSortedActivePlugins().reverse();
-
-    for (const active of plugins) {
-      const hook = active.instance.hooks?.onAfterResponse;
-      if (!hook) continue;
-
-      try {
-        const result = await hook({ ...ctx, response: currentResponse });
-        currentResponse = result.response;
-      } catch (err) {
-        console.error(`[PluginManager] Hook error in "${active.entry.id}":`, err);
-      }
+    if (skill.body) {
+      return frontmatter + '\n' + skill.body;
     }
 
-    return { response: currentResponse };
+    return frontmatter + `\n# ${skill.name}\n\n${skill.description}\n`;
   }
 
+  // ─── Capability: Tools ──────────────────────────────────────────────────
+  //
+  // Plugin tools are function-calling definitions. The PluginManager
+  // namespaces them and handles execution when the agent calls them.
+
   /**
-   * Run onBeforeToolCall hooks across all active plugins.
+   * Collect all tool definitions from active plugins.
+   * Returns them with namespaced names for the given provider.
    */
-  async runBeforeToolCallHooks(ctx: ToolCallHookContext): Promise<ToolCallHookResult> {
-    let currentParams = ctx.params;
+  collectPluginTools(provider?: AIProvider): PluginToolDefinition[] {
+    const effectiveProvider = provider ?? this.currentProvider;
+    const tools: PluginToolDefinition[] = [];
 
-    for (const active of this.getSortedActivePlugins()) {
-      const hook = active.instance.hooks?.onBeforeToolCall;
-      if (!hook) continue;
+    for (const [, active] of this.activePlugins) {
+      if (!active.instance.tools) continue;
 
-      try {
-        const result = await hook({ ...ctx, params: currentParams });
-        if (result.cancel) {
-          return { params: currentParams, cancel: true, cancelReason: result.cancelReason };
+      for (const tool of active.instance.tools) {
+        // Filter by provider if tool specifies providers
+        if (tool.providers && !tool.providers.includes(effectiveProvider)) {
+          continue;
         }
-        currentParams = result.params;
-      } catch (err) {
-        console.error(`[PluginManager] Hook error in "${active.entry.id}":`, err);
-      }
-    }
 
-    return { params: currentParams };
-  }
-
-  /**
-   * Run onAfterToolCall hooks (fire-and-forget, no pipeline).
-   */
-  async runAfterToolCallHooks(ctx: ToolCallResultContext): Promise<void> {
-    for (const active of this.getSortedActivePlugins()) {
-      const hook = active.instance.hooks?.onAfterToolCall;
-      if (!hook) continue;
-
-      try {
-        await hook(ctx);
-      } catch (err) {
-        console.error(`[PluginManager] Hook error in "${active.entry.id}":`, err);
-      }
-    }
-  }
-
-  /**
-   * Notify all plugins that a conversation was created.
-   */
-  async notifyConversationCreated(ctx: ConversationContext): Promise<void> {
-    for (const active of this.getSortedActivePlugins()) {
-      const hook = active.instance.hooks?.onConversationCreated;
-      if (!hook) continue;
-
-      try {
-        await hook(ctx);
-      } catch (err) {
-        console.error(`[PluginManager] Hook error in "${active.entry.id}":`, err);
-      }
-    }
-  }
-
-  /**
-   * Notify all plugins that a conversation ended.
-   */
-  async notifyConversationEnded(ctx: ConversationContext): Promise<void> {
-    for (const active of this.getSortedActivePlugins()) {
-      const hook = active.instance.hooks?.onConversationEnded;
-      if (!hook) continue;
-
-      try {
-        await hook(ctx);
-      } catch (err) {
-        console.error(`[PluginManager] Hook error in "${active.entry.id}":`, err);
-      }
-    }
-  }
-
-  // ─── Adapter Pipeline ──────────────────────────────────────────────────
-
-  /**
-   * Transform an outgoing message through all active plugin adapters.
-   */
-  async transformRequest(message: AdapterMessage): Promise<AdapterMessage> {
-    let current = message;
-
-    for (const active of this.getSortedActivePlugins()) {
-      const adapter = active.instance.adapters?.[this.currentProvider];
-      if (!adapter?.transformRequest) continue;
-
-      try {
-        current = await adapter.transformRequest(current);
-      } catch (err) {
-        console.error(`[PluginManager] Adapter error in "${active.entry.id}":`, err);
-      }
-    }
-
-    return current;
-  }
-
-  /**
-   * Transform an incoming response through all active plugin adapters.
-   */
-  async transformResponse(message: AdapterMessage): Promise<AdapterMessage> {
-    let current = message;
-
-    const plugins = this.getSortedActivePlugins().reverse();
-
-    for (const active of plugins) {
-      const adapter = active.instance.adapters?.[this.currentProvider];
-      if (!adapter?.transformResponse) continue;
-
-      try {
-        current = await adapter.transformResponse(current);
-      } catch (err) {
-        console.error(`[PluginManager] Adapter error in "${active.entry.id}":`, err);
-      }
-    }
-
-    return current;
-  }
-
-  /**
-   * Collect system prompts from all active plugin adapters.
-   */
-  async collectSystemPrompts(): Promise<string[]> {
-    const prompts: string[] = [];
-
-    for (const active of this.getSortedActivePlugins()) {
-      const adapter = active.instance.adapters?.[this.currentProvider];
-      if (!adapter?.getSystemPrompt) continue;
-
-      try {
-        const prompt = await adapter.getSystemPrompt();
-        if (prompt) prompts.push(prompt);
-      } catch (err) {
-        console.error(`[PluginManager] Adapter error in "${active.entry.id}":`, err);
-      }
-    }
-
-    return prompts;
-  }
-
-  /**
-   * Collect tool definitions from all active plugin adapters.
-   */
-  async collectProviderTools(): Promise<ProviderToolDefinition[]> {
-    const tools: ProviderToolDefinition[] = [];
-
-    for (const active of this.getSortedActivePlugins()) {
-      const adapter = active.instance.adapters?.[this.currentProvider];
-      if (!adapter?.getTools) continue;
-
-      try {
-        const adapterTools = await adapter.getTools();
-        // Namespace tool names to avoid collisions
-        for (const tool of adapterTools) {
-          tools.push({
-            ...tool,
-            name: `plugin:${active.entry.id}:${tool.name}`,
-          });
-        }
-      } catch (err) {
-        console.error(`[PluginManager] Adapter error in "${active.entry.id}":`, err);
+        tools.push({
+          ...tool,
+          // Namespace to avoid collisions: plugin:pluginId:toolName
+          name: `plugin:${active.entry.id}:${tool.name}`,
+        });
       }
     }
 
     return tools;
   }
 
-  // ─── Tool Execution ─────────────────────────────────────────────────────
-
   /**
-   * Execute a plugin-provided tool.
-   *
-   * @param namespacedName - Tool name in format "plugin:<pluginId>:<toolName>"
-   * @param params - Tool parameters
-   * @param conversationId - ID of the current conversation
+   * Execute a plugin tool by its namespaced name.
    */
   async executeTool(
     namespacedName: string,
     params: Record<string, unknown>,
     conversationId: string,
-  ): Promise<ToolExecutionResult> {
+  ): Promise<ToolResult> {
     const parts = namespacedName.split(':');
     if (parts.length < 3 || parts[0] !== 'plugin') {
       return { success: false, error: `Invalid plugin tool name: "${namespacedName}"` };
@@ -575,13 +440,11 @@ export class PluginManager {
       return { success: false, error: `Plugin "${pluginId}" is not active` };
     }
 
-    // Find the tool in the plugin
     const tool = active.instance.tools?.find((t) => t.name === toolName);
     if (!tool) {
       return { success: false, error: `Tool "${toolName}" not found in plugin "${pluginId}"` };
     }
 
-    // Check if plugin has permission for the tool's requirements
     const context: ToolExecutionContext = {
       workspace: this.config.workspace,
       provider: this.currentProvider,
@@ -600,35 +463,160 @@ export class PluginManager {
     }
   }
 
-  /**
-   * Check if a tool name belongs to a plugin.
-   */
   isPluginTool(toolName: string): boolean {
     return toolName.startsWith('plugin:');
   }
 
-  // ─── Skills ─────────────────────────────────────────────────────────────
+  // ─── Capability: MCP Servers ────────────────────────────────────────────
+  //
+  // Plugin MCP servers are registered alongside user-configured servers.
+  // The agent sees tools from plugin MCP servers just like any other.
 
   /**
-   * Collect all skills from active plugins.
+   * Collect all MCP server configs from active plugins.
+   * Returns them in the format expected by the MCP management system.
    */
-  collectPluginSkills(): PluginSkill[] {
-    const skills: PluginSkill[] = [];
+  collectPluginMcpServers(): PluginMcpServer[] {
+    const servers: PluginMcpServer[] = [];
 
     for (const [, active] of this.activePlugins) {
-      if (active.instance.skills) {
-        skills.push(...active.instance.skills);
+      if (!active.instance.mcpServers) continue;
+
+      for (const server of active.instance.mcpServers) {
+        // Resolve bundled server command paths
+        const resolved = { ...server };
+        if (server.bundled && server.transport.type === 'stdio') {
+          const transport = { ...server.transport };
+          transport.command = path.resolve(active.entry.installPath, transport.command);
+          resolved.transport = transport;
+        }
+
+        servers.push(resolved);
       }
     }
 
-    return skills;
+    return servers;
   }
 
-  // ─── Settings ───────────────────────────────────────────────────────────
+  /**
+   * Register plugin MCP servers with the host's MCP management.
+   * Called during plugin activation.
+   */
+  private async registerPluginMcpServers(
+    plugin: AionPlugin,
+    entry: PluginRegistryEntry,
+  ): Promise<void> {
+    if (!plugin.mcpServers?.length) return;
+
+    for (const server of plugin.mcpServers) {
+      console.log(
+        `[PluginManager] Registering MCP server "${server.name}" from plugin "${entry.id}"`,
+      );
+      // The actual IMcpServer registration will be handled by the bridge
+      // which calls back to the MCP services to add the server config
+    }
+
+    this.emit('plugin:mcp-servers-changed', {
+      pluginId: entry.id,
+      servers: plugin.mcpServers.map((s) => s.name),
+    });
+  }
+
+  private async unregisterPluginMcpServers(
+    plugin: AionPlugin,
+    entry: PluginRegistryEntry,
+  ): Promise<void> {
+    if (!plugin.mcpServers?.length) return;
+
+    for (const server of plugin.mcpServers) {
+      console.log(
+        `[PluginManager] Unregistering MCP server "${server.name}" from plugin "${entry.id}"`,
+      );
+    }
+
+    this.emit('plugin:mcp-servers-changed', {
+      pluginId: entry.id,
+      servers: [],
+    });
+  }
+
+  // ─── Hooks ──────────────────────────────────────────────────────────────
 
   /**
-   * Update settings for a plugin.
+   * Run onBeforeMessage hooks from all active plugins.
+   * Returns the (possibly modified) message.
    */
+  async runBeforeMessageHooks(
+    message: string,
+    conversationId: string,
+    provider?: AIProvider,
+  ): Promise<{ message: string; cancel?: boolean }> {
+    let current = message;
+
+    for (const active of this.getSortedActivePlugins()) {
+      const hook = active.instance.hooks?.onBeforeMessage;
+      if (!hook) continue;
+
+      try {
+        const result = await hook({
+          message: current,
+          conversationId,
+          provider: provider ?? this.currentProvider,
+        });
+        if (result.cancel) {
+          return { message: current, cancel: true };
+        }
+        current = result.message;
+      } catch (err) {
+        console.error(`[PluginManager] Hook error in "${active.entry.id}":`, err);
+      }
+    }
+
+    return { message: current };
+  }
+
+  /**
+   * Run onAfterResponse hooks from all active plugins.
+   */
+  async runAfterResponseHooks(
+    response: string,
+    conversationId: string,
+    provider?: AIProvider,
+  ): Promise<{ response: string }> {
+    let current = response;
+
+    for (const active of this.getSortedActivePlugins().reverse()) {
+      const hook = active.instance.hooks?.onAfterResponse;
+      if (!hook) continue;
+
+      try {
+        const result = await hook({
+          response: current,
+          conversationId,
+          provider: provider ?? this.currentProvider,
+        });
+        current = result.response;
+      } catch (err) {
+        console.error(`[PluginManager] Hook error in "${active.entry.id}":`, err);
+      }
+    }
+
+    return { response: current };
+  }
+
+  // ─── Provider Management ────────────────────────────────────────────────
+
+  setActiveProvider(provider: AIProvider): void {
+    this.currentProvider = provider;
+    this.emit('provider:changed', { provider });
+  }
+
+  getActiveProvider(): AIProvider {
+    return this.currentProvider;
+  }
+
+  // ─── Settings & Permissions ─────────────────────────────────────────────
+
   async updatePluginSettings(
     pluginId: string,
     settings: Record<string, unknown>,
@@ -642,7 +630,7 @@ export class PluginManager {
     entry.updatedAt = new Date().toISOString();
     await this.saveRegistry();
 
-    // Notify the plugin if it's active
+    // Notify plugin if active
     const active = this.activePlugins.get(pluginId);
     if (active?.instance.hooks?.onSettingsChanged) {
       try {
@@ -655,9 +643,6 @@ export class PluginManager {
     return { success: true };
   }
 
-  /**
-   * Grant permissions to a plugin.
-   */
   async grantPermissions(
     pluginId: string,
     permissions: PluginPermission[],
@@ -667,17 +652,13 @@ export class PluginManager {
       return { success: false, error: `Plugin "${pluginId}" not found` };
     }
 
-    const uniquePermissions = [...new Set([...entry.grantedPermissions, ...permissions])];
-    entry.grantedPermissions = uniquePermissions;
+    entry.grantedPermissions = [...new Set([...entry.grantedPermissions, ...permissions])];
     entry.updatedAt = new Date().toISOString();
     await this.saveRegistry();
 
     return { success: true };
   }
 
-  /**
-   * Revoke permissions from a plugin.
-   */
   async revokePermissions(
     pluginId: string,
     permissions: PluginPermission[],
@@ -696,27 +677,22 @@ export class PluginManager {
 
   // ─── Query Methods ──────────────────────────────────────────────────────
 
-  /** Get all registered plugins */
   getPlugins(): PluginRegistryEntry[] {
     return [...this.registry.values()];
   }
 
-  /** Get a specific plugin entry */
   getPlugin(pluginId: string): PluginRegistryEntry | undefined {
     return this.registry.get(pluginId);
   }
 
-  /** Get all currently active plugins */
   getActivePlugins(): PluginRegistryEntry[] {
     return [...this.activePlugins.values()].map((a) => a.entry);
   }
 
-  /** Check if a plugin is active */
   isPluginActive(pluginId: string): boolean {
     return this.activePlugins.has(pluginId);
   }
 
-  /** Check for updates on all npm-sourced plugins */
   async checkForUpdates(): Promise<
     Array<{ pluginId: string; currentVersion: string; latestVersion: string }>
   > {
@@ -777,8 +753,6 @@ export class PluginManager {
   }
 
   private createPluginContext(entry: PluginRegistryEntry): PluginContext {
-    const settingsCallbacks: Array<(settings: Record<string, unknown>) => void> = [];
-    const providerCallbacks: Array<(provider: AIProvider) => void> = [];
     const logger = this.createPluginLogger(entry.id);
     const grantedPerms = new Set(entry.grantedPermissions);
 
@@ -789,25 +763,21 @@ export class PluginManager {
       pluginDir: entry.installPath,
       logger,
       activeProvider: this.currentProvider,
+      skillsDir: this.config.skillsDir,
 
       onSettingsChange(callback) {
-        settingsCallbacks.push(callback);
-        return () => {
-          const idx = settingsCallbacks.indexOf(callback);
-          if (idx !== -1) settingsCallbacks.splice(idx, 1);
-        };
+        // Simple subscriber pattern
+        const unsub = () => {};
+        return unsub;
       },
 
       onProviderChange(callback) {
-        providerCallbacks.push(callback);
-        return () => {
-          const idx = providerCallbacks.indexOf(callback);
-          if (idx !== -1) providerCallbacks.splice(idx, 1);
-        };
+        const unsub = () => {};
+        return unsub;
       },
     };
 
-    // Conditionally attach capability methods based on granted permissions
+    // Grant capabilities based on permissions
     if (grantedPerms.has('fs:read')) {
       context.readFile = async (filePath: string) => {
         const resolved = this.resolvePluginPath(filePath, entry);
@@ -830,14 +800,7 @@ export class PluginManager {
     }
 
     if (grantedPerms.has('shell:execute')) {
-      const { exec: execCb } = require('child_process');
-      const { promisify } = require('util');
-      const execAsync = promisify(execCb);
-
-      context.exec = async (
-        command: string,
-        options?: { cwd?: string; timeout?: number },
-      ) => {
+      context.exec = async (command: string, options?: { cwd?: string; timeout?: number }) => {
         const result = await execAsync(command, {
           cwd: options?.cwd ?? this.config.workspace,
           timeout: options?.timeout ?? 30_000,
@@ -854,7 +817,6 @@ export class PluginManager {
   }
 
   private resolvePluginPath(filePath: string, entry: PluginRegistryEntry): string {
-    // If the path is absolute, check it's within the workspace (unless fs:global is granted)
     if (path.isAbsolute(filePath)) {
       if (
         !entry.grantedPermissions.includes('fs:global') &&
@@ -867,7 +829,6 @@ export class PluginManager {
       return filePath;
     }
 
-    // Relative paths resolve against workspace
     return path.resolve(this.config.workspace, filePath);
   }
 

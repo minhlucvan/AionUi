@@ -1,7 +1,7 @@
 {
   "name": "aionui-plugin-web-search",
   "version": "1.0.0",
-  "description": "Example AionUi plugin that adds web search capabilities across all AI providers",
+  "description": "AionUi plugin that adds web search capabilities — works with Claude Code, Gemini, Codex, and all ACP agents",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
@@ -11,24 +11,42 @@
   "aionui": {
     "pluginVersion": "1.0",
     "displayName": "Web Search",
-    "description": "Search the web from any AI provider in AionUi. Results are injected as context into the conversation.",
+    "description": "Search the web from any AI agent. Adds a web_search tool and a skill for search best practices.",
     "icon": "./assets/icon.png",
     "category": "ai-tools",
-    "capabilities": ["tools", "hooks", "adapters"],
     "minHostVersion": "1.7.0",
-    "adapters": {
-      "claude": "./dist/adapters/claude.js",
-      "gemini": "./dist/adapters/gemini.js",
-      "codex": "./dist/adapters/codex.js"
-    },
+    "skills": [
+      {
+        "name": "web-search",
+        "description": "Best practices for web searching: query formulation, source evaluation, and result synthesis"
+      }
+    ],
+    "tools": [
+      {
+        "name": "web_search",
+        "description": "Search the web and return relevant results"
+      },
+      {
+        "name": "web_fetch",
+        "description": "Fetch and extract text content from a URL"
+      }
+    ],
+    "mcpServers": [
+      {
+        "name": "web-search-mcp",
+        "description": "MCP server providing web search and fetch tools",
+        "transport": "stdio"
+      }
+    ],
     "permissions": [
-      "network:fetch"
+      "network:fetch",
+      "mcp:server"
     ],
     "settings": {
       "searchEngine": {
         "type": "select",
         "label": "Search Engine",
-        "description": "Which search engine to use for web queries",
+        "description": "Which search engine to use",
         "default": "google",
         "options": [
           { "label": "Google", "value": "google" },
@@ -41,11 +59,7 @@
         "label": "Max Results",
         "description": "Maximum number of search results to return",
         "default": 5,
-        "validation": {
-          "min": 1,
-          "max": 20,
-          "message": "Must be between 1 and 20"
-        }
+        "validation": { "min": 1, "max": 20 }
       },
       "apiKey": {
         "type": "string",
@@ -56,8 +70,5 @@
     }
   },
   "keywords": ["aionui", "plugin", "web-search"],
-  "license": "MIT",
-  "peerDependencies": {
-    "@aionui/plugin-sdk": "^1.0.0"
-  }
+  "license": "MIT"
 }

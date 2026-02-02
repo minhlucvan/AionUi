@@ -1,89 +1,98 @@
 # RFC: AionUi Plugin System Design
 
-> **Status**: Draft
+> **Status**: Draft (v2 — capability-based)
 > **Authors**: AionUi Team
 > **Created**: 2026-02-02
 
 ## 1. Summary
 
-This RFC proposes a plugin system for AionUi that allows users to install, configure, and
-manage plugins as **npm packages** or **GitHub repositories**. Each plugin ships with
-**AI-provider adapters** so it can work seamlessly with Claude Code, Gemini, Codex, and any
-future agent backend.
+A plugin is an **installable capability package** (npm or GitHub) that works
+like a current AionUi agent. It bundles **system prompts**, **skills**,
+**dedicated tools**, and **MCP servers**. When installed and activated, these
+capabilities become available to whichever AI agent the user is talking to —
+Claude Code, Gemini, Codex, or any ACP-compatible agent.
 
 ## 2. Motivation
 
-AionUi already supports multiple AI agent backends (Gemini, Codex, ACP/Claude) and a
-skills system for prompt-level customization. However, there is no standardized way for
-third-party developers to:
+AionUi already has a powerful agent architecture with skills (`/skills/*.md`),
+system prompts (`presetRules` / `AcpBackendConfig.context`), tools (Gemini
+coreTools, ACP function-calling), and MCP servers. But there's no standardized
+way to **package and distribute** these capabilities.
 
-- Package and distribute reusable functionality
-- Hook into the agent lifecycle (message transform, tool injection, post-processing)
-- Provide UI components that render in the AionUi interface
-- Adapt their functionality across all supported AI providers
+The plugin system wraps the same primitives into installable packages:
 
-The plugin system addresses these gaps with a first-class, type-safe architecture.
+| Plugin Capability | Existing AionUi Concept |
+|-------------------|-------------------------|
+| `systemPrompts[]` | `presetRules` / `AcpBackendConfig.context` |
+| `skills[]` | `/skills/{name}/SKILL.md` |
+| `tools[]` | Gemini coreTools / ACP tool_call |
+| `mcpServers[]` | IMcpServer in MCP management |
 
 ## 3. Design Principles
 
 | Principle | Description |
 |-----------|-------------|
-| **Install-anywhere** | Plugins install from npm (`npm install aionui-plugin-*`) or GitHub repos |
-| **Provider-agnostic** | Every plugin declares adapters per AI provider; the runtime picks the right one |
-| **Sandboxed** | Plugins declare capabilities; the host grants or denies them |
-| **Progressive** | Light plugins ship only prompt/skill content; rich plugins add tools + UI |
-| **Backward-compatible** | Existing skills (`/skills/*`) continue to work unchanged |
+| **Same primitives** | Plugins use the exact same skill/prompt/tool/MCP formats the host already supports |
+| **Provider-agnostic** | One plugin definition works across all agents — no per-provider adapters needed |
+| **Install-anywhere** | Install from npm, GitHub, or local filesystem |
+| **Progressive** | Start with just a skill, add tools later, add MCP when you need it |
+| **Sandboxed** | Plugins declare permissions; the host gates access |
 
-## 4. Architecture Overview
+## 4. Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     AionUi Host (Electron)                  │
-│                                                             │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐   │
-│  │ PluginLoader  │──▶│PluginManager │──▶│PluginRegistry│   │
-│  │ (npm/github)  │   │ (lifecycle)  │   │ (runtime)    │   │
-│  └──────────────┘   └──────┬───────┘   └──────────────┘   │
-│                            │                                │
-│           ┌────────────────┼────────────────┐              │
-│           ▼                ▼                ▼              │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐      │
-│  │ProviderAdapter│ │ProviderAdapter│ │ProviderAdapter│      │
-│  │   (Claude)    │ │   (Gemini)   │ │   (Codex)    │      │
-│  └──────────────┘ └──────────────┘ └──────────────┘      │
-│           │                │                │              │
-│           ▼                ▼                ▼              │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐      │
-│  │  ACP Agent    │ │ Gemini Agent │ │  Codex Agent │      │
-│  └──────────────┘ └──────────────┘ └──────────────┘      │
-│                                                             │
+┌──────────────────────────────────────────────────────────────┐
+│                      AionUi Host                             │
+│                                                              │
+│  ┌────────────┐    ┌───────────────┐    ┌──────────────┐    │
+│  │PluginLoader│───▶│PluginManager  │───▶│Plugin Registry│    │
+│  │(npm/github)│    │  (lifecycle)  │    │  (SQLite/JSON)│    │
+│  └────────────┘    └───────┬───────┘    └──────────────┘    │
+│                            │                                 │
+│         ┌──────────────────┼──────────────────┐             │
+│         ▼                  ▼                  ▼             │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ System      │  │ Skills       │  │ Tools        │      │
+│  │ Prompts     │  │ (SKILL.md)   │  │ (functions)  │      │
+│  │             │  │              │  │              │      │
+│  │ Injected as │  │ Merged into  │  │ Registered   │      │
+│  │ [Assistant  │  │ built-in     │  │ as agent     │      │
+│  │  Rules]     │  │ skill pool   │  │ tool defs    │      │
+│  └──────┬──────┘  └──────┬───────┘  └──────┬───────┘      │
+│         │                │                  │  ┌──────────┐ │
+│         │                │                  │  │MCP       │ │
+│         │                │                  │  │Servers   │ │
+│         │                │                  │  │          │ │
+│         │                │                  │  │Registered│ │
+│         │                │                  │  │alongside │ │
+│         │                │                  │  │user MCP  │ │
+│         │                │                  │  └────┬─────┘ │
+│         ▼                ▼                  ▼       ▼       │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │            Active AI Agent (any provider)            │  │
+│  │     Claude Code / Gemini / Codex / ACP agents        │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │                  Plugin IPC Bridge                    │  │
 │  │        (renderer ←→ main process communication)      │  │
 │  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## 5. Plugin Package Structure
 
-A plugin is an npm-compatible package with this structure:
-
 ```
 aionui-plugin-example/
-├── package.json              # npm metadata + aionui plugin manifest
+├── package.json              # npm metadata + "aionui" manifest
 ├── src/
-│   ├── index.ts              # Plugin entry point (exports AionPlugin)
-│   ├── adapters/
-│   │   ├── claude.ts         # Claude Code adapter
-│   │   ├── gemini.ts         # Gemini adapter
-│   │   └── codex.ts          # Codex adapter
-│   ├── tools/                # Custom tool definitions
-│   │   └── my-tool.ts
-│   └── ui/                   # Optional React components
-│       └── SettingsPanel.tsx
-├── skills/                   # Optional skill definitions (SKILL.md format)
-│   └── SKILL.md
-├── PLUGIN.md                 # Plugin documentation
+│   └── index.ts              # Plugin entry (exports AionPlugin)
+├── skills/                   # Skill files (same as /skills/ format)
+│   └── my-skill/
+│       ├── SKILL.md
+│       ├── scripts/          # Bundled scripts
+│       └── references/       # Reference docs
+├── PLUGIN.md
 └── tsconfig.json
 ```
 
@@ -93,199 +102,140 @@ aionui-plugin-example/
 {
   "name": "aionui-plugin-example",
   "version": "1.0.0",
+  "main": "./dist/index.js",
   "aionui": {
     "pluginVersion": "1.0",
     "displayName": "Example Plugin",
-    "description": "Demonstrates the plugin system",
-    "icon": "./assets/icon.png",
-    "category": "productivity",
-    "capabilities": ["tools", "skills", "ui"],
+    "description": "Demonstrates the plugin capability model",
+    "category": "ai-tools",
     "minHostVersion": "1.7.0",
-    "adapters": {
-      "claude": "./dist/adapters/claude.js",
-      "gemini": "./dist/adapters/gemini.js",
-      "codex": "./dist/adapters/codex.js"
-    },
-    "permissions": [
-      "fs:read",
-      "fs:write",
-      "network:fetch",
-      "shell:execute"
+    "skills": [
+      { "name": "my-skill", "description": "Does something useful" }
     ],
+    "tools": [
+      { "name": "my_tool", "description": "Performs an action" }
+    ],
+    "mcpServers": [
+      { "name": "my-mcp", "description": "MCP tools", "transport": "stdio" }
+    ],
+    "permissions": ["network:fetch", "mcp:server"],
     "settings": {
-      "apiKey": { "type": "string", "label": "API Key", "secret": true },
-      "maxResults": { "type": "number", "label": "Max Results", "default": 10 }
+      "apiKey": { "type": "string", "label": "API Key", "secret": true }
     }
-  },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts"
+  }
 }
 ```
 
-## 6. Core Interfaces
-
-### 6.1 Plugin Entry Point
+## 6. Core Interface
 
 ```typescript
-export interface AionPlugin<TSettings = Record<string, unknown>> {
-  /** Unique plugin identifier (npm package name) */
+interface AionPlugin<TSettings = Record<string, unknown>> {
   readonly id: string;
-
-  /** Semantic version */
   readonly version: string;
 
-  /** Called when the plugin is activated */
   activate(context: PluginContext<TSettings>): Promise<void> | void;
-
-  /** Called when the plugin is deactivated */
   deactivate?(): Promise<void> | void;
 
-  /** Provider-specific adapters */
-  adapters?: Partial<Record<AIProvider, ProviderAdapter>>;
+  // ── Capabilities (same primitives as the host) ──────────────────
+  systemPrompts?: PluginSystemPrompt[];   // → presetRules / context
+  skills?:        PluginSkillDefinition[]; // → /skills/SKILL.md
+  tools?:         PluginToolDefinition[];  // → coreTools / tool_call
+  mcpServers?:    PluginMcpServer[];       // → IMcpServer config
 
-  /** Custom tools the plugin provides */
-  tools?: PluginTool[];
-
-  /** Skill definitions (alternative to /skills/ directory) */
-  skills?: PluginSkill[];
-
-  /** Lifecycle hooks */
-  hooks?: PluginHooks;
+  hooks?:    PluginHooks;  // optional message hooks
+  priority?: number;       // ordering (lower = earlier)
 }
 ```
 
-### 6.2 Provider Adapter
+## 7. How Each Capability Integrates
 
-```typescript
-export type AIProvider = 'claude' | 'gemini' | 'codex' | 'acp' | string;
+### 7.1 System Prompts
 
-export interface ProviderAdapter {
-  /** Transform outgoing user messages before they reach the agent */
-  transformRequest?(message: AdapterMessage): AdapterMessage;
-
-  /** Transform incoming agent responses before they reach the UI */
-  transformResponse?(message: AdapterMessage): AdapterMessage;
-
-  /** Inject system prompt fragments for this provider */
-  getSystemPrompt?(): string;
-
-  /** Return provider-specific tool definitions */
-  getTools?(): ProviderToolDefinition[];
-
-  /** Handle a tool call result from the agent */
-  handleToolResult?(toolName: string, result: unknown): unknown;
-
-  /** Provider-specific initialization */
-  initialize?(config: ProviderAdapterConfig): Promise<void>;
-}
-```
-
-### 6.3 Plugin Lifecycle Hooks
-
-```typescript
-export interface PluginHooks {
-  /** Before a message is sent to any agent */
-  onBeforeMessage?(ctx: MessageHookContext): Promise<MessageHookResult>;
-
-  /** After a response is received from any agent */
-  onAfterResponse?(ctx: ResponseHookContext): Promise<ResponseHookResult>;
-
-  /** When a tool call is about to execute */
-  onBeforeToolCall?(ctx: ToolCallHookContext): Promise<ToolCallHookResult>;
-
-  /** After a tool call completes */
-  onAfterToolCall?(ctx: ToolCallResultContext): Promise<void>;
-
-  /** When a conversation is created */
-  onConversationCreated?(ctx: ConversationContext): Promise<void>;
-
-  /** When a conversation ends */
-  onConversationEnded?(ctx: ConversationContext): Promise<void>;
-
-  /** When plugin settings change */
-  onSettingsChanged?(settings: Record<string, unknown>): Promise<void>;
-}
-```
-
-## 7. Installation Flow
-
-### 7.1 npm Install
+Plugin system prompts are collected by `PluginManager.collectSystemPrompts()`
+and injected into the first message alongside `presetRules`:
 
 ```
-User clicks "Install Plugin" → enters package name
-         │
-         ▼
-PluginLoader.installFromNpm("aionui-plugin-example")
-         │
-         ▼
-npm install --save aionui-plugin-example   (in plugin directory)
-         │
-         ▼
-PluginLoader.loadManifest()   → validate package.json "aionui" field
-         │
-         ▼
-PluginManager.register()      → store in SQLite plugin registry
-         │
-         ▼
-PluginManager.activate()      → call plugin.activate(context)
-         │
-         ▼
-Plugin ready, adapters registered per active AI provider
+[Assistant Rules - You MUST follow these instructions]
+{presetRules}                    ← existing
+{plugin system prompts}          ← new: from active plugins
+{skills index}                   ← existing
+
+[User Request]
+{user message}
 ```
 
-### 7.2 GitHub Install
+### 7.2 Skills
+
+Plugin skills are installed as SKILL.md files in the host's skills directory
+(`getSkillsDir()`). The existing `AcpSkillManager` and `loadSkillsContent`
+discover them automatically — no changes needed to skill loading code.
 
 ```
-User clicks "Install from GitHub" → enters owner/repo or URL
-         │
-         ▼
-PluginLoader.installFromGithub("owner/repo")
-         │
-         ▼
-git clone --depth 1 https://github.com/owner/repo.git
-         │
-         ▼
-npm install && npm run build   (if build script exists)
-         │
-         ▼
-Same validation + registration flow as npm
+skills/
+├── docx/SKILL.md        ← built-in
+├── pdf/SKILL.md         ← built-in
+├── web-search/SKILL.md  ← from plugin!
+└── diagram/SKILL.md     ← from plugin!
 ```
 
-## 8. Runtime: How Adapters Work
+### 7.3 Tools
 
-When the user sends a message through AionUi:
+Plugin tools are function-calling definitions with handlers. The PluginManager
+collects them via `collectPluginTools()` and the agent bridge registers them
+alongside built-in tools. Tool names are namespaced: `plugin:pluginId:toolName`.
+
+### 7.4 MCP Servers
+
+Plugin MCP servers are collected via `collectPluginMcpServers()` and registered
+alongside user-configured MCP servers. They use the existing `IMcpServerTransport`
+types. For bundled servers, command paths are resolved relative to the plugin root.
+
+## 8. Installation Flow
+
+### npm Install
+```
+User → Settings → Plugins → Install
+     → enters "aionui-plugin-web-search"
+     → PluginLoader.installFromNpm()
+     → npm install in isolated directory
+     → validate package.json "aionui" field
+     → PluginManager.register()
+     → User clicks "Activate"
+     → plugin.activate(context)
+     → skills copied to /skills/
+     → MCP servers registered
+     → system prompts + tools available to all agents
+```
+
+### GitHub Install
+```
+User → Settings → Plugins → Install from GitHub
+     → enters "owner/repo"
+     → git clone --depth 1
+     → npm install && npm run build
+     → same validation + registration flow
+```
+
+## 9. Runtime Flow
+
+When the user sends a message:
 
 ```
 1. User types message in UI
-2. PluginManager.runHooks('onBeforeMessage', message)
-   → Each active plugin's hooks.onBeforeMessage() runs in priority order
-3. Determine current AI provider (e.g., 'claude')
-4. For each active plugin with adapters.claude:
-   a. adapter.transformRequest(message)     — modify the message
-   b. adapter.getSystemPrompt()             — inject system context
-   c. adapter.getTools()                    — register custom tools
-5. Send transformed message to the agent (ACP/Gemini/Codex)
-6. Agent responds with result
-7. For each active plugin (reverse order):
-   a. adapter.transformResponse(response)   — post-process
-8. PluginManager.runHooks('onAfterResponse', response)
-9. Render in UI
+2. PluginManager.runBeforeMessageHooks(message)
+3. PluginManager.collectSystemPrompts() → injected with presetRules
+4. Plugin skill names added to enabledSkills list
+5. prepareFirstMessage / prepareFirstMessageWithSkillsIndex runs
+   (now includes plugin prompts + plugin skills)
+6. Plugin tools registered with the active agent
+7. Plugin MCP server tools available to the agent
+8. Agent processes message with all capabilities
+9. If agent calls a plugin tool → PluginManager.executeTool()
+10. PluginManager.runAfterResponseHooks(response)
+11. Response rendered in UI
 ```
 
-If the agent calls a **plugin-provided tool**:
-
-```
-1. Agent issues tool_call for "plugin:example:myTool"
-2. PluginManager routes to the owning plugin
-3. Plugin's tool handler executes
-4. adapter.handleToolResult() post-processes if needed
-5. Result returned to agent
-```
-
-## 9. Permissions Model
-
-Plugins declare required permissions in the manifest. The host prompts the user
-to approve on first activation:
+## 10. Permissions Model
 
 | Permission | Description |
 |-----------|-------------|
@@ -299,64 +249,61 @@ to approve on first activation:
 | `clipboard` | Access system clipboard |
 | `mcp:server` | Register MCP server tools |
 
-## 10. Plugin Settings
+## 11. Compatibility
 
-Each plugin declares a settings schema in its manifest. The host renders a settings
-UI automatically and persists values in SQLite:
+- **Existing skills** (`/skills/*.md`) continue to work unchanged
+- **Existing MCP servers** continue to work unchanged
+- **Existing agents** (Gemini, ACP, Codex) continue to work unchanged
+- Plugin capabilities are additive — they merge into the existing pools
+- No changes required to the current agent code
 
+## 12. Examples
+
+### Skill-only Plugin (simplest)
 ```typescript
-export interface PluginSettingDefinition {
-  type: 'string' | 'number' | 'boolean' | 'select' | 'multiselect';
-  label: string;
-  description?: string;
-  default?: unknown;
-  secret?: boolean;           // masked input, encrypted storage
-  required?: boolean;
-  options?: Array<{ label: string; value: string | number }>;
-  validation?: {
-    min?: number;
-    max?: number;
-    pattern?: string;
-    message?: string;
-  };
-}
+const plugin: AionPlugin = {
+  id: 'aionui-plugin-mermaid',
+  version: '1.0.0',
+  activate(ctx) {},
+  skills: [{ name: 'mermaid', description: 'Create Mermaid diagrams' }],
+};
 ```
 
-## 11. Compatibility with Existing Skills
-
-The current `/skills/` directory with `SKILL.md` files continues to work. Plugins
-can optionally include skills in their package. The PluginManager merges both sources:
-
+### Tool Plugin
+```typescript
+const plugin: AionPlugin = {
+  id: 'aionui-plugin-jira',
+  version: '1.0.0',
+  activate(ctx) {},
+  systemPrompts: [{ content: 'You can create and manage Jira issues...' }],
+  tools: [{
+    name: 'jira_create_issue',
+    description: 'Create a Jira issue',
+    inputSchema: { type: 'object', properties: { title: { type: 'string' } } },
+    handler: async (params, ctx) => ({ success: true, data: { key: 'PROJ-123' } }),
+  }],
+};
 ```
-Skill Sources:
-  1. Built-in skills:  /skills/SKILL.md          (existing)
-  2. Plugin skills:    plugin.skills[]            (new)
-  3. Plugin skill dir: plugin-dir/skills/SKILL.md (new)
+
+### MCP Plugin
+```typescript
+const plugin: AionPlugin = {
+  id: 'aionui-plugin-postgres',
+  version: '1.0.0',
+  activate(ctx) {},
+  mcpServers: [{
+    name: 'postgres',
+    description: 'Query PostgreSQL databases',
+    transport: { type: 'stdio', command: 'npx', args: ['@mcp/server-postgres'] },
+  }],
+};
 ```
 
-## 12. Plugin SDK (npm package)
-
-A separate `@aionui/plugin-sdk` package provides:
-
-- TypeScript types and interfaces
-- Base adapter classes with defaults
-- Testing utilities (mock host, mock agents)
-- CLI scaffolding (`npx @aionui/plugin-sdk create my-plugin`)
-
-## 13. Security Considerations
-
-1. **Manifest validation** — Zod schema enforces correct structure
-2. **Permission gating** — All capabilities require explicit user approval
-3. **Sandboxed execution** — Plugins run in a constrained context
-4. **Version pinning** — Lock file tracks installed plugin versions
-5. **Signature verification** — Future: npm provenance / GPG signing
-
-## 14. Migration Path
+## 13. Migration Path
 
 | Phase | Scope |
 |-------|-------|
-| Phase 1 | Core interfaces, PluginManager, PluginLoader (npm + GitHub) |
-| Phase 2 | Provider adapters for Claude, Gemini, Codex |
+| Phase 1 | Core types, PluginManager, PluginLoader, IPC bridge |
+| Phase 2 | Skill/prompt/tool integration with agent managers |
 | Phase 3 | Plugin settings UI, permissions prompt |
 | Phase 4 | Plugin marketplace / discovery |
-| Phase 5 | Hot-reload, plugin dependencies, inter-plugin communication |

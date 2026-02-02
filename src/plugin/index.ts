@@ -1,9 +1,11 @@
 /**
  * AionUi Plugin System
  *
- * Public API for the plugin system. This module is used by the AionUi host
- * to manage plugins. Plugin authors should import from '@aionui/plugin-sdk'
- * instead (which re-exports the relevant types and base classes).
+ * A plugin works like a current agent — it bundles system prompts, skills,
+ * dedicated tools, and MCP servers. Users install plugins via npm or GitHub
+ * to add new capabilities that work across Claude Code, Gemini, Codex, etc.
+ *
+ * Public API for the AionUi host.
  */
 
 // Core manager
@@ -11,9 +13,6 @@ export { PluginManager } from './PluginManager';
 
 // Loader
 export { PluginLoader } from './loader/PluginLoader';
-
-// Adapter base classes
-export { BaseProviderAdapter, ClaudeAdapter, CodexAdapter, GeminiAdapter } from './adapters';
 
 // IPC bridge
 export { initPluginBridge, PLUGIN_CHANNELS } from './bridge/pluginBridge';
@@ -28,35 +27,25 @@ export {
 
 // Types (re-export everything for consumers)
 export type {
-  AdapterMessage,
   AIProvider,
   AionPlugin,
-  ConversationContext,
-  MessageHookContext,
-  MessageHookResult,
   PluginCategory,
   PluginContext,
   PluginHooks,
   PluginLogger,
   PluginManifest,
+  PluginMcpServer,
   PluginPackageJson,
   PluginPermission,
   PluginRegistryEntry,
   PluginSettingDefinition,
-  PluginSkill,
+  PluginSkillDefinition,
   PluginSource,
   PluginState,
-  PluginTool,
-  ProviderAdapter,
-  ProviderAdapterConfig,
-  ProviderToolDefinition,
-  ResponseHookContext,
-  ResponseHookResult,
-  ToolCallHookContext,
-  ToolCallHookResult,
-  ToolCallResultContext,
+  PluginSystemPrompt,
+  PluginToolDefinition,
   ToolExecutionContext,
-  ToolExecutionResult,
+  ToolResult,
 } from './types';
 
 export { AI_PROVIDERS } from './types';

@@ -2,6 +2,8 @@
  * AionUi Plugin Manifest - Zod Validation Schema
  *
  * Validates the "aionui" field in a plugin's package.json.
+ * The manifest declares what capabilities a plugin provides:
+ * skills, MCP servers, tools, system prompts, and settings.
  */
 
 import { z } from 'zod';
@@ -49,10 +51,6 @@ const permissionSchema = z.enum([
   'mcp:server',
 ]);
 
-// ─── Capability Schema ──────────────────────────────────────────────────────
-
-const capabilitySchema = z.enum(['tools', 'skills', 'ui', 'hooks', 'adapters']);
-
 // ─── Category Schema ─────────────────────────────────────────────────────────
 
 const categorySchema = z.enum([
@@ -61,50 +59,72 @@ const categorySchema = z.enum([
   'code-analysis',
   'document',
   'integration',
-  'theme',
   'other',
 ]);
 
+// ─── Skill Declaration Schema ────────────────────────────────────────────────
+
+const skillDeclarationSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+});
+
+// ─── MCP Server Declaration Schema ──────────────────────────────────────────
+
+const mcpServerDeclarationSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  transport: z.string().min(1),
+});
+
+// ─── Tool Declaration Schema ─────────────────────────────────────────────────
+
+const toolDeclarationSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+});
+
 // ─── Main Manifest Schema ────────────────────────────────────────────────────
 
-export const pluginManifestSchema = z
-  .object({
-    /** Plugin manifest schema version */
-    pluginVersion: z
-      .string()
-      .regex(/^\d+\.\d+$/, 'Plugin version must be in format "MAJOR.MINOR"'),
+export const pluginManifestSchema = z.object({
+  /** Plugin manifest schema version */
+  pluginVersion: z
+    .string()
+    .regex(/^\d+\.\d+$/, 'Plugin version must be in format "MAJOR.MINOR"'),
 
-    /** Human-readable display name */
-    displayName: z.string().min(1).max(100),
+  /** Human-readable display name */
+  displayName: z.string().min(1).max(100),
 
-    /** Short description */
-    description: z.string().min(1).max(500),
+  /** Short description */
+  description: z.string().min(1).max(500),
 
-    /** Path to icon (relative to package root) */
-    icon: z.string().optional(),
+  /** Path to icon */
+  icon: z.string().optional(),
 
-    /** Plugin category */
-    category: categorySchema.optional(),
+  /** Plugin category */
+  category: categorySchema.optional(),
 
-    /** Declared capabilities */
-    capabilities: z.array(capabilitySchema).optional(),
+  /** Minimum AionUi host version required */
+  minHostVersion: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$/, 'Must be a valid semver version')
+    .optional(),
 
-    /** Minimum AionUi host version required (semver) */
-    minHostVersion: z
-      .string()
-      .regex(/^\d+\.\d+\.\d+$/, 'Must be a valid semver version')
-      .optional(),
+  /** Skills: path to skills/ directory OR inline declarations */
+  skills: z.union([z.string(), z.array(skillDeclarationSchema)]).optional(),
 
-    /** Adapter entry points per provider */
-    adapters: z.record(z.string(), z.string()).optional(),
+  /** MCP server declarations */
+  mcpServers: z.array(mcpServerDeclarationSchema).optional(),
 
-    /** Required permissions */
-    permissions: z.array(permissionSchema).optional(),
+  /** Tool declarations */
+  tools: z.array(toolDeclarationSchema).optional(),
 
-    /** Settings schema */
-    settings: z.record(z.string(), settingDefinitionSchema).optional(),
-  })
-  .strict();
+  /** Required permissions */
+  permissions: z.array(permissionSchema).optional(),
+
+  /** Settings schema */
+  settings: z.record(z.string(), settingDefinitionSchema).optional(),
+});
 
 // ─── Package.json Schema ─────────────────────────────────────────────────────
 
