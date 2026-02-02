@@ -421,6 +421,36 @@ describe('Plugin System Prompt Injection', () => {
     }
   });
 
+  it('collectSystemPrompts should exclude plugins whose skills overlap with enabledSkills', async () => {
+    const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
+    const pm = getPluginManager()!;
+
+    const allPrompts = pm.collectSystemPrompts();
+
+    // Exclude plugins that provide pdf and docx skills
+    const filtered = pm.collectSystemPrompts(undefined, ['pdf', 'docx']);
+
+    // Should have fewer prompts (pdf and docx plugins excluded)
+    expect(filtered.length).toBeLessThan(allPrompts.length);
+
+    // Exclude all 4 built-in skill names
+    const none = pm.collectSystemPrompts(undefined, ['pdf', 'pptx', 'docx', 'xlsx']);
+
+    // All built-in plugins should be excluded — no prompts from them
+    expect(none.length).toBe(0);
+  });
+
+  it('collectSystemPrompts should not exclude plugins for unrelated skill names', async () => {
+    const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
+    const pm = getPluginManager()!;
+
+    const allPrompts = pm.collectSystemPrompts();
+    const filtered = pm.collectSystemPrompts(undefined, ['skill-creator', 'custom-thing']);
+
+    // No built-in plugin has 'skill-creator' or 'custom-thing' as a skill
+    expect(filtered.length).toBe(allPrompts.length);
+  });
+
   it('collectPluginTools should return namespaced tools ready for function calling', async () => {
     const { getPluginManager } = await import('../../src/plugin/initPluginSystem');
     const pm = getPluginManager()!;

@@ -288,13 +288,25 @@ export class PluginManager {
    * Returns them sorted by priority and filtered for the given provider.
    *
    * Called by agentUtils.ts when composing the first message.
+   *
+   * @param provider - Filter prompts for a specific AI provider
+   * @param excludeSkillNames - Skip prompts from plugins whose skills overlap
+   *   with these names. This prevents duplication when the old skill system
+   *   already injects content for the same capabilities (e.g. pdf, pptx).
    */
-  collectSystemPrompts(provider?: AIProvider): string[] {
+  collectSystemPrompts(provider?: AIProvider, excludeSkillNames?: string[]): string[] {
     const effectiveProvider = provider ?? this.currentProvider;
+    const excludeSet = excludeSkillNames ? new Set(excludeSkillNames) : null;
     const prompts: Array<{ content: string; priority: number }> = [];
 
     for (const [, active] of this.activePlugins) {
       if (!active.instance.systemPrompts) continue;
+
+      // Skip this plugin's prompts if any of its skills are already loaded
+      // by the old skill system (avoids duplicate capability descriptions)
+      if (excludeSet && active.instance.skills?.some((s) => excludeSet.has(s.name))) {
+        continue;
+      }
 
       for (const prompt of active.instance.systemPrompts) {
         // Filter by provider if specified
