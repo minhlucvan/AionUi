@@ -20,7 +20,8 @@ import * as path from 'path';
 import { promisify } from 'util';
 
 import { PluginLoader } from './loader/PluginLoader';
-import type { AIProvider, AionPlugin, PluginAgent, PluginContext, PluginLogger, PluginMcpServer, PluginPermission, PluginRegistryEntry, PluginSkillDefinition, PluginToolDefinition, ToolExecutionContext, ToolResult } from './types';
+import type { AIProvider, AionPlugin, PluginContext, PluginLogger, PluginMcpServer, PluginPermission, PluginRegistryEntry, PluginSkillDefinition, PluginToolDefinition, ResolvedPluginAgent, ToolExecutionContext, ToolResult } from './types';
+import { isPluginAgentInstance } from './types';
 
 const execAsync = promisify(execCb);
 
@@ -344,47 +345,110 @@ export class PluginManager {
   // Plugin agents are pre-configured assistants. Each bundles a system prompt,
   // skills, and tools into a selectable entity in the assistant management UI.
   // The host converts these to AcpBackendConfig entries.
+  //
+  // Agents can be:
+  //   1. Class-based (IPluginAgent) — with lifecycle hooks, dynamic capabilities
+  //   2. Config-based (PluginAgentConfig) — static plain objects
+  //
+  // Both are resolved into ResolvedPluginAgent for the host to consume.
 
   /**
-   * Collect all agents from active plugins.
+   * Collect all agents from active plugins, resolved into flat data.
    *
-   * Returns agent definitions with their plugin ID attached so the host
-   * can construct namespaced assistant IDs (e.g., `plugin-aionui-plugin-pdf-pdf-tools`).
+   * Handles both class-based agents (IPluginAgent instances with lifecycle
+   * hooks) and static config objects (PluginAgentConfig). Returns a flat
+   * ResolvedPluginAgent[] that the host can convert to AcpBackendConfig.
    *
-   * For each agent, if it doesn't have an explicit systemPrompt, one is
-   * synthesized from the plugin's global systemPrompts[].
+   * For class-based agents:
+   *   - Calls getSkills(), getToolNames(), getCustomSkillNames()
+   *   - Uses systemPrompt/systemPromptI18n/ruleFiles from the instance
+   *   - Preserves the agentInstance reference for runtime hook invocation
+   *
+   * For config-based agents:
+   *   - Uses static skills[], tools[], systemPrompt, etc.
+   *
+   * For both types, if no systemPrompt is set, one is synthesized from
+   * the plugin's global systemPrompts[].
    */
-  collectPluginAgents(): Array<PluginAgent & { pluginId: string }> {
-    const agents: Array<PluginAgent & { pluginId: string }> = [];
+  collectPluginAgents(): ResolvedPluginAgent[] {
+    const resolved: ResolvedPluginAgent[] = [];
 
     for (const [, active] of this.activePlugins) {
       if (!active.instance.agents) continue;
 
+      // Synthesize a fallback system prompt from the plugin's global prompts
+      const fallbackPrompt = active.instance.systemPrompts?.length ? active.instance.systemPrompts.map((p) => p.content).join('\n\n') : undefined;
+
+      // Default skill names and tool names from the plugin
+      const pluginSkillNames = active.instance.skills?.map((s) => s.name);
+      const pluginToolNames = active.instance.tools?.map((t) => t.name);
+
       for (const agent of active.instance.agents) {
-        // If agent doesn't define its own systemPrompt, synthesize one
-        // from the plugin's global systemPrompts[]
-        let systemPrompt = agent.systemPrompt;
-        if (!systemPrompt && active.instance.systemPrompts?.length) {
-          systemPrompt = active.instance.systemPrompts.map((p) => p.content).join('\n\n');
+        if (isPluginAgentInstance(agent)) {
+          // ── Class-based agent (IPluginAgent) ──────────────────────────
+          const skills = agent.getSkills?.() ?? pluginSkillNames;
+          const tools = agent.getToolNames?.() ?? pluginToolNames;
+          const customSkillNames = agent.getCustomSkillNames?.();
+
+          // System prompt resolution order:
+          // 1. getSystemPrompt() (dynamic)
+          // 2. systemPrompt (static on class)
+          // 3. fallback from plugin's systemPrompts[]
+          // ruleFiles and systemPromptI18n are passed through as-is
+          const dynamicPrompt = agent.getSystemPrompt?.();
+          const systemPrompt = dynamicPrompt ?? agent.systemPrompt ?? fallbackPrompt;
+
+          resolved.push({
+            id: agent.id,
+            pluginId: active.entry.id,
+            name: agent.name,
+            nameI18n: agent.nameI18n,
+            description: agent.description,
+            descriptionI18n: agent.descriptionI18n,
+            avatar: agent.avatar,
+            systemPrompt,
+            systemPromptI18n: agent.systemPromptI18n,
+            ruleFiles: agent.ruleFiles,
+            skills,
+            customSkillNames,
+            tools,
+            presetAgentType: agent.presetAgentType,
+            prompts: agent.prompts,
+            promptsI18n: agent.promptsI18n,
+            enabledByDefault: agent.enabledByDefault,
+            models: agent.models,
+            agentInstance: agent,
+          });
+        } else {
+          // ── Config-based agent (PluginAgentConfig) ────────────────────
+          const systemPrompt = agent.systemPrompt ?? fallbackPrompt;
+          const skills = agent.skills ?? pluginSkillNames;
+          const tools = agent.tools ?? pluginToolNames;
+
+          resolved.push({
+            id: agent.id,
+            pluginId: active.entry.id,
+            name: agent.name,
+            nameI18n: agent.nameI18n,
+            description: agent.description,
+            descriptionI18n: agent.descriptionI18n,
+            avatar: agent.avatar,
+            systemPrompt,
+            systemPromptI18n: agent.systemPromptI18n,
+            ruleFiles: agent.ruleFiles,
+            skills,
+            tools,
+            presetAgentType: agent.presetAgentType,
+            prompts: agent.prompts,
+            promptsI18n: agent.promptsI18n,
+            enabledByDefault: agent.enabledByDefault,
+            models: agent.models,
+          });
         }
-
-        // If agent doesn't specify skills, default to all plugin skills
-        const skills = agent.skills ?? active.instance.skills?.map((s) => s.name);
-
-        // If agent doesn't specify tools, default to all plugin tools
-        const tools = agent.tools ?? active.instance.tools?.map((t) => t.name);
-
-        agents.push({
-          ...agent,
-          systemPrompt,
-          skills,
-          tools,
-          pluginId: active.entry.id,
-        });
       }
     }
 
-    return agents;
+    return resolved;
   }
 
   /**
@@ -395,6 +459,26 @@ export class PluginManager {
   pluginHasAgents(pluginId: string): boolean {
     const active = this.activePlugins.get(pluginId);
     return !!(active?.instance.agents && active.instance.agents.length > 0);
+  }
+
+  /**
+   * Get the agent instance for a given agent ID.
+   * Used by the host to invoke lifecycle hooks at runtime
+   * (onConversationStart, onBeforeMessage, etc.).
+   *
+   * @param pluginId - The plugin ID
+   * @param agentId - The agent ID within the plugin
+   */
+  getAgentInstance(pluginId: string, agentId: string): import('./types').IPluginAgent | undefined {
+    const active = this.activePlugins.get(pluginId);
+    if (!active?.instance.agents) return undefined;
+
+    for (const agent of active.instance.agents) {
+      if (isPluginAgentInstance(agent) && agent.id === agentId) {
+        return agent;
+      }
+    }
+    return undefined;
   }
 
   // ─── Capability: Skills ─────────────────────────────────────────────────

@@ -18,6 +18,7 @@ import type { IMcpServerTransport, IMcpTool } from '@common/storage';
 // ─── AI Provider Types ───────────────────────────────────────────────────────
 
 /** Agent backends the plugin's capabilities work with */
+// eslint-disable-next-line @typescript-eslint/ban-types
 export type AIProvider = 'claude' | 'gemini' | 'codex' | 'acp' | (string & {});
 
 export const AI_PROVIDERS = ['claude', 'gemini', 'codex', 'acp'] as const;
@@ -398,20 +399,345 @@ export interface PluginHooks {
 }
 
 // ─── Plugin Agents ──────────────────────────────────────────────────────────
+//
+// A plugin exposes one or more agents — each agent is a self-contained
+// assistant with its own system prompt, skills, tools, and lifecycle hooks.
+// Agents live in the plugin's `agents/` directory, one folder per agent:
+//
+//   plugin-pdf/
+//     src/
+//       index.ts                  # Plugin entry — lists agents
+//       agents/
+//         pdf-tools/
+//           index.ts              # Exports agent class
+//           rules/                # Locale-keyed system prompts
+//             en-US.md
+//             zh-CN.md
+//           resources/            # Additional agent resources
+//     skills/
+//       pdf/SKILL.md              # Shared skill files
+//
+
+/** Provider type for agent routing (matches PresetAgentType from host) */
+export type AgentProviderType = 'gemini' | 'claude' | 'codex' | 'opencode';
+
+// ─── Agent Context ──────────────────────────────────────────────────────────
 
 /**
- * A named agent that a plugin exposes.
+ * Context given to an agent at activation time.
+ * Extends the plugin context with agent-specific information.
+ */
+export interface AgentContext<TSettings = Record<string, unknown>> {
+  /** Agent's own ID */
+  agentId: string;
+
+  /** Parent plugin ID */
+  pluginId: string;
+
+  /** Current agent settings (subset of plugin settings) */
+  settings: TSettings;
+
+  /** Workspace root path */
+  workspace: string;
+
+  /** Absolute path to the agent's directory (e.g., .../agents/pdf-tools) */
+  agentDir: string;
+
+  /** Absolute path to the plugin's install directory */
+  pluginDir: string;
+
+  /** Logger scoped to this agent */
+  logger: PluginLogger;
+
+  /** Currently active AI provider */
+  activeProvider: AIProvider;
+
+  /** Path to the host's skills directory */
+  skillsDir: string;
+
+  /** Subscribe to settings changes */
+  onSettingsChange(callback: (settings: TSettings) => void): () => void;
+
+  /** Subscribe to provider changes */
+  onProviderChange(callback: (provider: AIProvider) => void): () => void;
+
+  /** Read a file from the workspace (requires fs:read) */
+  readFile?(path: string): Promise<string>;
+
+  /** Write a file to the workspace (requires fs:write) */
+  writeFile?(path: string, content: string): Promise<void>;
+
+  /** Make an HTTP request (requires network:fetch) */
+  fetch?(url: string, options?: RequestInit): Promise<Response>;
+
+  /** Execute a shell command (requires shell:execute) */
+  exec?(
+    command: string,
+    options?: { cwd?: string; timeout?: number }
+  ): Promise<{
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+  }>;
+}
+
+// ─── Agent Hook Contexts ────────────────────────────────────────────────────
+
+/** Context passed to conversation lifecycle hooks */
+export interface ConversationHookContext {
+  conversationId: string;
+  provider: AIProvider;
+}
+
+/** Context passed to the onBeforeMessage hook */
+export interface MessageHookContext {
+  message: string;
+  conversationId: string;
+  provider: AIProvider;
+  /** True when this is the very first message in the conversation */
+  isFirstMessage: boolean;
+}
+
+/** Result from the onBeforeMessage hook */
+export interface MessageHookResult {
+  message: string;
+  /** Set to true to prevent the message from being sent */
+  cancel?: boolean;
+}
+
+/** Context passed to the onAfterResponse hook */
+export interface ResponseHookContext {
+  response: string;
+  conversationId: string;
+  provider: AIProvider;
+}
+
+/** Result from the onAfterResponse hook */
+export interface ResponseHookResult {
+  response: string;
+}
+
+/** Context passed to the onToolCall hook */
+export interface ToolCallHookContext {
+  toolName: string;
+  params: Record<string, unknown>;
+  conversationId: string;
+  provider: AIProvider;
+}
+
+// ─── IPluginAgent — Rich Agent Interface ────────────────────────────────────
+
+/**
+ * IPluginAgent — The interface every class-based agent implements.
  *
- * Each agent bundles a subset of the plugin's capabilities (system prompt,
- * skills, tools) into a selectable assistant. When the user picks this agent
- * in the assistant management UI, the host:
- *   1. Injects the agent's systemPrompt as the preset context
- *   2. Enables the agent's skills (loaded from the plugin)
- *   3. Makes the agent's tools available for function calling
+ * An agent is a self-contained assistant: it bundles a system prompt, skills,
+ * tools, and lifecycle hooks into a selectable entity. Agents live in the
+ * plugin's `agents/` directory, each in its own folder with an `index.ts`.
  *
- * This maps directly to AcpBackendConfig (the host's assistant type).
- * Multiple agents can be defined per plugin — for example, a "Document"
- * plugin could expose both a "PDF Expert" and a "DOCX Editor" agent.
+ * The host converts each agent to an AcpBackendConfig for the assistant
+ * management UI. When the user selects an agent, the host:
+ *   1. Calls agent.activate() with an AgentContext
+ *   2. Reads the system prompt (from ruleFiles or getSystemPrompt())
+ *   3. Enables the agent's skills
+ *   4. Registers the agent's tools for function calling
+ *   5. Fires lifecycle hooks during the conversation
+ *
+ * @example Class-based agent in agents/pdf-tools/index.ts
+ * ```typescript
+ * import { PluginAgentBase } from 'aionui-plugin-sdk';
+ *
+ * export default class PdfToolsAgent extends PluginAgentBase {
+ *   id = 'pdf-tools';
+ *   name = 'PDF Tools';
+ *   description = 'Split, merge, convert, and fill PDF forms.';
+ *   avatar = '📄';
+ *
+ *   async activate(ctx) {
+ *     ctx.logger.info('PDF agent ready');
+ *   }
+ *
+ *   getSkills() { return ['pdf']; }
+ *   getTools() { return [...pdfTools]; }
+ *
+ *   async onBeforeMessage(ctx) {
+ *     ctx.logger.info('Processing message...');
+ *     return { message: ctx.message };
+ *   }
+ * }
+ * ```
+ */
+export interface IPluginAgent<TSettings = Record<string, unknown>> {
+  // ── Identity ────────────────────────────────────────────────────────────
+
+  /** Agent ID, unique within the plugin. Namespaced at runtime as `plugin-{pluginId}-{agentId}` */
+  readonly id: string;
+
+  /** Display name shown in the assistant list */
+  readonly name: string;
+
+  /** Localized names — keys are locale codes (e.g., 'en-US', 'zh-CN') */
+  readonly nameI18n?: Record<string, string>;
+
+  /** Short description shown in the assistant list */
+  readonly description: string;
+
+  /** Localized descriptions */
+  readonly descriptionI18n?: Record<string, string>;
+
+  /** Avatar — emoji string (e.g., '📄') or image filename (e.g., 'pdf-tools.svg') */
+  readonly avatar?: string;
+
+  // ── Configuration ───────────────────────────────────────────────────────
+
+  /**
+   * Which AI provider this agent targets.
+   * Determines which conversation type to create.
+   * Defaults to 'gemini'.
+   */
+  readonly presetAgentType?: AgentProviderType;
+
+  /** Whether this agent is enabled by default when first registered. Defaults to false. */
+  readonly enabledByDefault?: boolean;
+
+  /** Available model IDs for this agent (uses system defaults if omitted). */
+  readonly models?: string[];
+
+  // ── System Prompt / Rules ───────────────────────────────────────────────
+
+  /**
+   * Static system prompt. If set, used as AcpBackendConfig.context.
+   * For localized prompts, use `systemPromptI18n` or `ruleFiles` instead.
+   */
+  readonly systemPrompt?: string;
+
+  /** Localized system prompts — keys are locale codes */
+  readonly systemPromptI18n?: Record<string, string>;
+
+  /**
+   * Rule files for the system prompt, keyed by locale.
+   * Paths are relative to the agent's directory.
+   * Takes precedence over systemPrompt/systemPromptI18n.
+   *
+   * @example { 'en-US': 'rules/en-US.md', 'zh-CN': 'rules/zh-CN.md' }
+   */
+  readonly ruleFiles?: Record<string, string>;
+
+  // ── Example Prompts ─────────────────────────────────────────────────────
+
+  /** Example prompts shown in the UI when this agent is selected */
+  readonly prompts?: string[];
+
+  /** Localized example prompts */
+  readonly promptsI18n?: Record<string, string[]>;
+
+  // ── Lifecycle ───────────────────────────────────────────────────────────
+
+  /**
+   * Called when the agent is activated (plugin loaded, agent registered).
+   * Use to initialize resources, bind context, set up state.
+   */
+  activate(context: AgentContext<TSettings>): Promise<void> | void;
+
+  /**
+   * Called when the agent is deactivated (plugin shutdown, agent disabled).
+   * Use to clean up resources, close connections, flush state.
+   */
+  deactivate?(): Promise<void> | void;
+
+  // ── Dynamic Capabilities ────────────────────────────────────────────────
+  //
+  // These methods let the agent dynamically provide capabilities.
+  // They override the static config (skills, tools, etc.) when defined.
+  // The host calls them after activate() and caches the result.
+
+  /**
+   * Return the system prompt for a given locale.
+   * If defined, overrides systemPrompt/systemPromptI18n/ruleFiles.
+   */
+  getSystemPrompt?(locale?: string): string | undefined;
+
+  /**
+   * Return skill names this agent uses.
+   * These become the assistant's enabledSkills list.
+   * If not defined, falls back to the plugin's skill names.
+   */
+  getSkills?(): string[];
+
+  /**
+   * Return custom skill names the agent provides on top of built-in skills.
+   * These appear as "Custom" skills in the UI.
+   */
+  getCustomSkillNames?(): string[];
+
+  /**
+   * Return tool names this agent uses (selected from the plugin's tools).
+   * If not defined, all plugin tools are available.
+   * Use this when the agent picks from the plugin's existing tools.
+   */
+  getToolNames?(): string[];
+
+  /**
+   * Return additional tool definitions this agent provides dynamically.
+   * These are registered alongside the plugin's static tools.
+   */
+  getTools?(): PluginToolDefinition[];
+
+  /**
+   * Return MCP server configs this agent provides.
+   * These are registered alongside user-configured MCP servers.
+   */
+  getMcpServers?(): PluginMcpServer[];
+
+  // ── Conversation Lifecycle Hooks ────────────────────────────────────────
+  //
+  // These hooks fire during the conversation lifecycle when this agent
+  // is the active assistant. They let the agent intercept and transform
+  // messages, respond to events, and track conversation state.
+
+  /** Called when a new conversation starts with this agent */
+  onConversationStart?(ctx: ConversationHookContext): Promise<void> | void;
+
+  /** Called when a conversation ends (user closes it or starts a new one) */
+  onConversationEnd?(ctx: ConversationHookContext): Promise<void> | void;
+
+  /**
+   * Called before each user message is sent to the AI.
+   * Can modify the message or cancel it entirely.
+   */
+  onBeforeMessage?(ctx: MessageHookContext): Promise<MessageHookResult> | MessageHookResult;
+
+  /**
+   * Called after the AI response is received but before displaying to user.
+   * Can modify the response.
+   */
+  onAfterResponse?(ctx: ResponseHookContext): Promise<ResponseHookResult> | ResponseHookResult;
+
+  /**
+   * Called when the AI invokes a tool during this agent's conversation.
+   * Useful for logging, analytics, or side effects.
+   */
+  onToolCall?(ctx: ToolCallHookContext): Promise<void> | void;
+
+  // ── Settings & Provider Hooks ───────────────────────────────────────────
+
+  /** Called when plugin/agent settings change */
+  onSettingsChanged?(settings: TSettings): Promise<void> | void;
+
+  /** Called when the active AI provider changes */
+  onProviderChanged?(provider: AIProvider): Promise<void> | void;
+}
+
+// ─── PluginAgentConfig — Static Agent Definition ────────────────────────────
+//
+// For simple agents that don't need lifecycle hooks, use a plain object
+// instead of a class. The host wraps it in an adapter that implements
+// IPluginAgent. This is backward-compatible with the original PluginAgent type.
+
+/**
+ * Static agent configuration — a plain object alternative to IPluginAgent.
+ *
+ * Use this when the agent doesn't need lifecycle hooks or dynamic capabilities.
+ * The host automatically wraps it in an IPluginAgent adapter.
  *
  * @example
  * ```typescript
@@ -421,64 +747,105 @@ export interface PluginHooks {
  *     name: 'PDF Tools',
  *     description: 'Split, merge, convert, and fill PDF forms.',
  *     avatar: '📄',
- *     systemPrompt: 'You have access to PDF processing tools...',
  *     skills: ['pdf'],
- *     tools: ['pdf_split', 'pdf_merge', 'pdf_to_images'],
+ *     tools: ['pdf_split', 'pdf_merge'],
  *   },
  * ]
  * ```
  */
-export interface PluginAgent {
-  /** Agent ID, unique within the plugin. Namespaced at runtime as `plugin-{pluginId}-{agentId}` */
+export interface PluginAgentConfig {
+  id: string;
+  name: string;
+  nameI18n?: Record<string, string>;
+  description: string;
+  descriptionI18n?: Record<string, string>;
+  avatar?: string;
+  systemPrompt?: string;
+  systemPromptI18n?: Record<string, string>;
+  ruleFiles?: Record<string, string>;
+  skills?: string[];
+  tools?: string[];
+  presetAgentType?: AgentProviderType;
+  prompts?: string[];
+  promptsI18n?: Record<string, string[]>;
+  enabledByDefault?: boolean;
+  models?: string[];
+}
+
+/**
+ * Union type: an agent can be either a class instance (IPluginAgent)
+ * or a static config object (PluginAgentConfig).
+ *
+ * The host detects which one by checking for an `activate` method.
+ */
+export type PluginAgent = IPluginAgent | PluginAgentConfig;
+
+/** Type guard: is this agent a class instance (has activate method)? */
+export function isPluginAgentInstance(agent: PluginAgent): agent is IPluginAgent {
+  return typeof (agent as IPluginAgent).activate === 'function';
+}
+
+// ─── ResolvedPluginAgent — Flattened Agent Data ─────────────────────────────
+//
+// The host resolves class-based and config-based agents into this flat type
+// before creating AcpBackendConfig entries. This decouples the plugin system
+// from the host's assistant management internals.
+
+/**
+ * A fully resolved agent with all capabilities flattened into plain data.
+ * Produced by PluginManager.collectResolvedAgents().
+ */
+export interface ResolvedPluginAgent {
+  /** Agent ID (e.g., 'pdf-tools') */
   id: string;
 
-  /** Display name shown in the assistant list */
+  /** Parent plugin ID (e.g., 'aionui-plugin-pdf') */
+  pluginId: string;
+
+  /** Display name */
   name: string;
 
   /** Localized names */
   nameI18n?: Record<string, string>;
 
-  /** Short description shown in the assistant list */
+  /** Short description */
   description: string;
 
   /** Localized descriptions */
   descriptionI18n?: Record<string, string>;
 
-  /** Avatar — emoji string or image path */
+  /** Avatar emoji or image filename */
   avatar?: string;
 
-  /**
-   * The system prompt / context for this agent.
-   * Injected as [Assistant Rules] in the first message when this agent is selected.
-   * This is stored in AcpBackendConfig.context.
-   *
-   * If omitted, the plugin's global systemPrompts are joined and used instead.
-   */
+  /** Static system prompt (used as AcpBackendConfig.context) */
   systemPrompt?: string;
 
   /** Localized system prompts */
   systemPromptI18n?: Record<string, string>;
 
   /**
-   * Skill names this agent uses (references PluginSkillDefinition.name).
-   * These become the assistant's enabledSkills list.
-   * If omitted, all plugin skills are enabled.
+   * Rule files for the system prompt, keyed by locale.
+   * Paths are relative to the agent's directory.
    */
+  ruleFiles?: Record<string, string>;
+
+  /**
+   * Absolute path to the agent's directory (for resolving rule file paths).
+   * Set for class-based agents that live in agents/{id}/ folders.
+   */
+  agentDir?: string;
+
+  /** Skill names this agent uses */
   skills?: string[];
 
-  /**
-   * Tool names this agent uses (references PluginToolDefinition.name).
-   * Only these tools are registered when this agent is active.
-   * If omitted, all plugin tools are available.
-   */
+  /** Custom skill names */
+  customSkillNames?: string[];
+
+  /** Tool names this agent uses */
   tools?: string[];
 
-  /**
-   * Which AI provider this agent targets.
-   * Determines which conversation type to create (Gemini, Claude ACP, Codex, etc).
-   * Defaults to 'gemini'.
-   */
-  presetAgentType?: 'gemini' | 'claude' | 'codex' | 'opencode';
+  /** AI provider for routing */
+  presetAgentType?: AgentProviderType;
 
   /** Example prompts shown in the UI */
   prompts?: string[];
@@ -486,8 +853,18 @@ export interface PluginAgent {
   /** Localized example prompts */
   promptsI18n?: Record<string, string[]>;
 
-  /** Whether this agent is enabled by default. Defaults to false. */
+  /** Whether enabled by default */
   enabledByDefault?: boolean;
+
+  /** Available model IDs */
+  models?: string[];
+
+  /**
+   * Reference to the class-based agent instance, if this was resolved
+   * from an IPluginAgent. Used by the host to invoke lifecycle hooks
+   * (onConversationStart, onBeforeMessage, etc.) at runtime.
+   */
+  agentInstance?: IPluginAgent;
 }
 
 // ─── Main Plugin Interface ───────────────────────────────────────────────────

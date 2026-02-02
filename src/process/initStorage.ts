@@ -722,6 +722,8 @@ const initStorage = async () => {
             isBuiltin: true,
             presetAgentType: agent.presetAgentType ?? 'gemini',
             enabledSkills: agent.skills,
+            customSkillNames: agent.customSkillNames,
+            models: agent.models,
             prompts: agent.prompts,
             promptsI18n: agent.promptsI18n,
           };

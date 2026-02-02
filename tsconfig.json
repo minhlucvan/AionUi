@@ -15,7 +15,11 @@
       "@/*": ["./src/*"],
       "@process/*": ["./src/process/*"],
       "@renderer/*": ["./src/renderer/*"],
-      "@worker/*": ["./src/worker/*"]
+      "@worker/*": ["./src/worker/*"],
+      "@common/*": ["./src/common/*"],
+      "@mcp/*": ["./src/common/*"],
+      "@mcp/models/*": ["./src/common/models/*"],
+      "@mcp/types/*": ["./src/common/*"]
     }
   },
   "include": ["src/**/*", "uno.config.ts", "src/renderer/types.d.ts"]

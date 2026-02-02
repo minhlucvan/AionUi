@@ -14,9 +14,12 @@
  * This works across all AI agents: Claude Code, Gemini, Codex, etc.
  */
 
-import type { AionPlugin, PluginAgent, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
+import type { AionPlugin, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
 
 import * as path from 'path';
+
+// ─── Class-based agents (loaded from agents/ folder) ─────────────────────────
+import PdfToolsAgent from './agents/pdf-tools';
 
 // ─── Plugin State ───────────────────────────────────────────────────────────
 
@@ -373,30 +376,8 @@ const pdfPlugin: AionPlugin = {
   // When a user selects this agent, they get the PDF system prompt,
   // pdf skill enabled, and all PDF tools available.
 
-  agents: [
-    {
-      id: 'pdf-tools',
-      name: 'PDF Tools',
-      nameI18n: {
-        'en-US': 'PDF Tools',
-        'zh-CN': 'PDF 工具',
-      },
-      description: 'PDF processing: split, merge, convert to images, extract and fill forms.',
-      descriptionI18n: {
-        'en-US': 'PDF processing: split, merge, convert to images, extract and fill forms.',
-        'zh-CN': 'PDF 处理：拆分、合并、转换为图片、提取和填充表单。',
-      },
-      avatar: '📄',
-      skills: ['pdf'],
-      tools: ['pdf_split', 'pdf_merge', 'pdf_to_images', 'pdf_extract_form_fields', 'pdf_fill_form', 'pdf_check_fields'],
-      presetAgentType: 'gemini',
-      prompts: ['Split this PDF into individual pages', 'Extract form fields from document.pdf'],
-      promptsI18n: {
-        'en-US': ['Split this PDF into individual pages', 'Extract form fields from document.pdf'],
-        'zh-CN': ['将这个PDF拆分为单独的页面', '从document.pdf中提取表单字段'],
-      },
-    },
-  ] satisfies PluginAgent[],
+  // Agents loaded from agents/ folder — class-based with lifecycle hooks
+  agents: [new PdfToolsAgent()],
 
   priority: 50,
 };

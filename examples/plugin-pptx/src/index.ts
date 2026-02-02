@@ -26,7 +26,10 @@
  *   Local: point to this directory
  */
 
-import type { AionPlugin, PluginAgent, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
+import type { AionPlugin, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
+
+// ─── Class-based agents (loaded from agents/ folder) ─────────────────────────
+import PptxToolsAgent from './agents/pptx-tools';
 
 // ─── Path Helpers ─────────────────────────────────────────────────────────────
 
@@ -623,30 +626,8 @@ const pptxPlugin: AionPlugin = {
   // When a user selects this agent, they get the PPTX system prompt,
   // pptx skill enabled, and all PPTX tools available.
 
-  agents: [
-    {
-      id: 'pptx-tools',
-      name: 'PPTX Generator',
-      nameI18n: {
-        'en-US': 'PPTX Generator',
-        'zh-CN': 'PPTX 生成器',
-      },
-      description: 'Create, edit, and analyze PowerPoint presentations with HTML conversion, OOXML editing, and template workflows.',
-      descriptionI18n: {
-        'en-US': 'Create, edit, and analyze PowerPoint presentations with HTML conversion, OOXML editing, and template workflows.',
-        'zh-CN': '使用 HTML 转换、OOXML 编辑和模板工作流创建、编辑和分析 PowerPoint 演示文稿。',
-      },
-      avatar: '📊',
-      skills: ['pptx'],
-      tools: ['pptx_create_from_html', 'pptx_extract_text', 'pptx_thumbnail', 'pptx_rearrange', 'pptx_replace_text', 'pptx_unpack', 'pptx_pack', 'pptx_validate'],
-      presetAgentType: 'gemini',
-      prompts: ['Create a slide deck about AI trends', 'Generate a PPT for quarterly report'],
-      promptsI18n: {
-        'en-US': ['Create a slide deck about AI trends', 'Generate a PPT for quarterly report'],
-        'zh-CN': ['创建一个关于AI趋势的幻灯片', '生成季度报告PPT'],
-      },
-    },
-  ] satisfies PluginAgent[],
+  // Agents loaded from agents/ folder — class-based with lifecycle hooks
+  agents: [new PptxToolsAgent()],
 
   priority: 80,
 };
