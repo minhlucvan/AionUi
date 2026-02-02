@@ -5,6 +5,7 @@
  */
 
 import { getSkillsDir, loadSkillsContent } from '@process/initStorage';
+import { getPluginManager } from '../../plugin/initPluginSystem';
 import { AcpSkillManager, buildSkillsIndexText } from './AcpSkillManager';
 
 /**
@@ -38,6 +39,15 @@ export async function buildSystemInstructions(config: FirstMessageConfig): Promi
     const skillsContent = await loadSkillsContent(config.enabledSkills);
     if (skillsContent) {
       instructions.push(skillsContent);
+    }
+  }
+
+  // 注入插件系统提示 / Inject plugin system prompts
+  const pm = getPluginManager();
+  if (pm) {
+    const pluginPrompts = pm.collectSystemPrompts();
+    if (pluginPrompts.length > 0) {
+      instructions.push(pluginPrompts.join('\n\n'));
     }
   }
 
@@ -114,6 +124,15 @@ To use a skill, read its SKILL.md file when needed:
 For example, to use the "pptx" skill, read: ${skillsDir}/pptx/SKILL.md`;
 
       instructions.push(skillsInstruction);
+    }
+  }
+
+  // 注入插件系统提示 / Inject plugin system prompts
+  const pm = getPluginManager();
+  if (pm) {
+    const pluginPrompts = pm.collectSystemPrompts();
+    if (pluginPrompts.length > 0) {
+      instructions.push(pluginPrompts.join('\n\n'));
     }
   }
 

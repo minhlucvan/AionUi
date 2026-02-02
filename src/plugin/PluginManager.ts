@@ -20,20 +20,7 @@ import * as path from 'path';
 import { promisify } from 'util';
 
 import { PluginLoader } from './loader/PluginLoader';
-import type {
-  AIProvider,
-  AionPlugin,
-  PluginContext,
-  PluginLogger,
-  PluginMcpServer,
-  PluginPermission,
-  PluginRegistryEntry,
-  PluginSkillDefinition,
-  PluginSystemPrompt,
-  PluginToolDefinition,
-  ToolExecutionContext,
-  ToolResult,
-} from './types';
+import type { AIProvider, AionPlugin, PluginContext, PluginLogger, PluginMcpServer, PluginPermission, PluginRegistryEntry, PluginSkillDefinition, PluginToolDefinition, ToolExecutionContext, ToolResult } from './types';
 
 const execAsync = promisify(execCb);
 
@@ -118,10 +105,38 @@ export class PluginManager {
 
   // ─── Installation ────────────────────────────────────────────────────────
 
-  async installFromNpm(
-    packageName: string,
-    version?: string,
-  ): Promise<{ success: boolean; pluginId?: string; error?: string }> {
+  /**
+   * Register a built-in plugin directly (bypasses install/load flow).
+   *
+   * Used by initPluginSystem to register the built-in skill plugins
+   * (pdf, pptx, docx, xlsx) that are bundled with the app. These plugins
+   * are pre-activated during startup so their system prompts and tools
+   * are immediately available.
+   *
+   * Unlike installFromNpm/Github, this does NOT:
+   *   - Download or copy files
+   *   - Validate the manifest
+   *   - Copy skill files (they're already in getSkillsDir via initBuiltinAssistantRules)
+   *   - Persist to the registry file (built-in plugins are re-registered each startup)
+   */
+  registerBuiltinPlugin(plugin: AionPlugin, entry: PluginRegistryEntry): void {
+    // Add to registry (in-memory only, not persisted)
+    this.registry.set(entry.id, entry);
+
+    // Create the plugin context
+    const context = this.createPluginContext(entry);
+
+    // Register as active
+    this.activePlugins.set(entry.id, {
+      entry,
+      instance: plugin,
+      context,
+    });
+
+    this.emit('plugin:activated', { pluginId: entry.id, builtin: true });
+  }
+
+  async installFromNpm(packageName: string, version?: string): Promise<{ success: boolean; pluginId?: string; error?: string }> {
     const result = await this.loader.installFromNpm(packageName, version);
     if (!result.success || !result.entry) {
       return { success: false, error: result.error };
@@ -134,10 +149,7 @@ export class PluginManager {
     return { success: true, pluginId: result.entry.id };
   }
 
-  async installFromGithub(
-    repo: string,
-    ref?: string,
-  ): Promise<{ success: boolean; pluginId?: string; error?: string }> {
+  async installFromGithub(repo: string, ref?: string): Promise<{ success: boolean; pluginId?: string; error?: string }> {
     const result = await this.loader.installFromGithub(repo, ref);
     if (!result.success || !result.entry) {
       return { success: false, error: result.error };
@@ -150,9 +162,7 @@ export class PluginManager {
     return { success: true, pluginId: result.entry.id };
   }
 
-  async installFromLocal(
-    dirPath: string,
-  ): Promise<{ success: boolean; pluginId?: string; error?: string }> {
+  async installFromLocal(dirPath: string): Promise<{ success: boolean; pluginId?: string; error?: string }> {
     const result = await this.loader.installFromLocal(dirPath);
     if (!result.success || !result.entry) {
       return { success: false, error: result.error };
@@ -214,7 +224,7 @@ export class PluginManager {
 
       // If plugin has MCP servers, register them
       if (plugin.mcpServers?.length) {
-        await this.registerPluginMcpServers(plugin, entry);
+        this.registerPluginMcpServers(plugin, entry);
       }
 
       this.activePlugins.set(pluginId, { entry, instance: plugin, context });
@@ -243,7 +253,7 @@ export class PluginManager {
     try {
       // Unregister MCP servers
       if (active.instance.mcpServers?.length) {
-        await this.unregisterPluginMcpServers(active.instance, active.entry);
+        this.unregisterPluginMcpServers(active.instance, active.entry);
       }
 
       // Call deactivate()
@@ -347,10 +357,7 @@ export class PluginManager {
    * can be packaged as plugins and their entire skill directories (SKILL.md +
    * scripts + references + schemas) are installed into the host skills dir.
    */
-  private async installPluginSkills(
-    plugin: AionPlugin,
-    entry: PluginRegistryEntry,
-  ): Promise<void> {
+  private async installPluginSkills(plugin: AionPlugin, entry: PluginRegistryEntry): Promise<void> {
     if (!plugin.skills?.length) return;
 
     for (const skill of plugin.skills) {
@@ -358,9 +365,7 @@ export class PluginManager {
 
       // Don't overwrite existing built-in skills
       if (fs.existsSync(destSkillDir)) {
-        console.warn(
-          `[PluginManager] Skill "${skill.name}" already exists, skipping (plugin: ${entry.id})`,
-        );
+        console.warn(`[PluginManager] Skill "${skill.name}" already exists, skipping (plugin: ${entry.id})`);
         continue;
       }
 
@@ -372,18 +377,12 @@ export class PluginManager {
         // ── File-based skill: copy the entire directory tree ──────────────
         // This preserves scripts/, references/, schemas/, templates/, etc.
         await this.copyDirectoryRecursive(pluginSkillDir, destSkillDir);
-        console.log(
-          `[PluginManager] Installed skill "${skill.name}" from plugin "${entry.id}" (file-based, full directory)`,
-        );
+        console.log(`[PluginManager] Installed skill "${skill.name}" from plugin "${entry.id}" (file-based, full directory)`);
       } else {
         // ── Code-based skill: generate SKILL.md from inline definition ────
         await fs.promises.mkdir(destSkillDir, { recursive: true });
         const skillContent = this.buildSkillMd(skill);
-        await fs.promises.writeFile(
-          path.join(destSkillDir, 'SKILL.md'),
-          skillContent,
-          'utf-8',
-        );
+        await fs.promises.writeFile(path.join(destSkillDir, 'SKILL.md'), skillContent, 'utf-8');
 
         // Copy bundled resources if any (flattened into skill dir)
         if (skill.resources) {
@@ -396,9 +395,7 @@ export class PluginManager {
           }
         }
 
-        console.log(
-          `[PluginManager] Installed skill "${skill.name}" from plugin "${entry.id}" (code-based)`,
-        );
+        console.log(`[PluginManager] Installed skill "${skill.name}" from plugin "${entry.id}" (code-based)`);
       }
     }
   }
@@ -475,11 +472,7 @@ export class PluginManager {
    * permission, the context also includes `exec` and `pluginDir` so tool
    * handlers can run bundled scripts without storing module-level state.
    */
-  async executeTool(
-    namespacedName: string,
-    params: Record<string, unknown>,
-    conversationId: string,
-  ): Promise<ToolResult> {
+  async executeTool(namespacedName: string, params: Record<string, unknown>, conversationId: string): Promise<ToolResult> {
     const parts = namespacedName.split(':');
     if (parts.length < 3 || parts[0] !== 'plugin') {
       return { success: false, error: `Invalid plugin tool name: "${namespacedName}"` };
@@ -568,16 +561,11 @@ export class PluginManager {
    * Register plugin MCP servers with the host's MCP management.
    * Called during plugin activation.
    */
-  private async registerPluginMcpServers(
-    plugin: AionPlugin,
-    entry: PluginRegistryEntry,
-  ): Promise<void> {
+  private registerPluginMcpServers(plugin: AionPlugin, entry: PluginRegistryEntry): void {
     if (!plugin.mcpServers?.length) return;
 
     for (const server of plugin.mcpServers) {
-      console.log(
-        `[PluginManager] Registering MCP server "${server.name}" from plugin "${entry.id}"`,
-      );
+      console.log(`[PluginManager] Registering MCP server "${server.name}" from plugin "${entry.id}"`);
       // The actual IMcpServer registration will be handled by the bridge
       // which calls back to the MCP services to add the server config
     }
@@ -588,16 +576,11 @@ export class PluginManager {
     });
   }
 
-  private async unregisterPluginMcpServers(
-    plugin: AionPlugin,
-    entry: PluginRegistryEntry,
-  ): Promise<void> {
+  private unregisterPluginMcpServers(plugin: AionPlugin, entry: PluginRegistryEntry): void {
     if (!plugin.mcpServers?.length) return;
 
     for (const server of plugin.mcpServers) {
-      console.log(
-        `[PluginManager] Unregistering MCP server "${server.name}" from plugin "${entry.id}"`,
-      );
+      console.log(`[PluginManager] Unregistering MCP server "${server.name}" from plugin "${entry.id}"`);
     }
 
     this.emit('plugin:mcp-servers-changed', {
@@ -612,11 +595,7 @@ export class PluginManager {
    * Run onBeforeMessage hooks from all active plugins.
    * Returns the (possibly modified) message.
    */
-  async runBeforeMessageHooks(
-    message: string,
-    conversationId: string,
-    provider?: AIProvider,
-  ): Promise<{ message: string; cancel?: boolean }> {
+  async runBeforeMessageHooks(message: string, conversationId: string, provider?: AIProvider): Promise<{ message: string; cancel?: boolean }> {
     let current = message;
 
     for (const active of this.getSortedActivePlugins()) {
@@ -644,11 +623,7 @@ export class PluginManager {
   /**
    * Run onAfterResponse hooks from all active plugins.
    */
-  async runAfterResponseHooks(
-    response: string,
-    conversationId: string,
-    provider?: AIProvider,
-  ): Promise<{ response: string }> {
+  async runAfterResponseHooks(response: string, conversationId: string, provider?: AIProvider): Promise<{ response: string }> {
     let current = response;
 
     for (const active of this.getSortedActivePlugins().reverse()) {
@@ -683,10 +658,7 @@ export class PluginManager {
 
   // ─── Settings & Permissions ─────────────────────────────────────────────
 
-  async updatePluginSettings(
-    pluginId: string,
-    settings: Record<string, unknown>,
-  ): Promise<{ success: boolean; error?: string }> {
+  async updatePluginSettings(pluginId: string, settings: Record<string, unknown>): Promise<{ success: boolean; error?: string }> {
     const entry = this.registry.get(pluginId);
     if (!entry) {
       return { success: false, error: `Plugin "${pluginId}" not found` };
@@ -709,10 +681,7 @@ export class PluginManager {
     return { success: true };
   }
 
-  async grantPermissions(
-    pluginId: string,
-    permissions: PluginPermission[],
-  ): Promise<{ success: boolean; error?: string }> {
+  async grantPermissions(pluginId: string, permissions: PluginPermission[]): Promise<{ success: boolean; error?: string }> {
     const entry = this.registry.get(pluginId);
     if (!entry) {
       return { success: false, error: `Plugin "${pluginId}" not found` };
@@ -725,10 +694,7 @@ export class PluginManager {
     return { success: true };
   }
 
-  async revokePermissions(
-    pluginId: string,
-    permissions: PluginPermission[],
-  ): Promise<{ success: boolean; error?: string }> {
+  async revokePermissions(pluginId: string, permissions: PluginPermission[]): Promise<{ success: boolean; error?: string }> {
     const entry = this.registry.get(pluginId);
     if (!entry) {
       return { success: false, error: `Plugin "${pluginId}" not found` };
@@ -759,9 +725,7 @@ export class PluginManager {
     return this.activePlugins.has(pluginId);
   }
 
-  async checkForUpdates(): Promise<
-    Array<{ pluginId: string; currentVersion: string; latestVersion: string }>
-  > {
+  async checkForUpdates(): Promise<Array<{ pluginId: string; currentVersion: string; latestVersion: string }>> {
     const updates: Array<{
       pluginId: string;
       currentVersion: string;
@@ -813,9 +777,7 @@ export class PluginManager {
   // ─── Private Helpers ────────────────────────────────────────────────────
 
   private getSortedActivePlugins(): ActivePlugin[] {
-    return [...this.activePlugins.values()].sort(
-      (a, b) => (a.instance.priority ?? 100) - (b.instance.priority ?? 100),
-    );
+    return [...this.activePlugins.values()].sort((a, b) => (a.instance.priority ?? 100) - (b.instance.priority ?? 100));
   }
 
   private createPluginContext(entry: PluginRegistryEntry): PluginContext {
@@ -831,13 +793,13 @@ export class PluginManager {
       activeProvider: this.currentProvider,
       skillsDir: this.config.skillsDir,
 
-      onSettingsChange(callback) {
+      onSettingsChange(_callback) {
         // Simple subscriber pattern
         const unsub = () => {};
         return unsub;
       },
 
-      onProviderChange(callback) {
+      onProviderChange(_callback) {
         const unsub = () => {};
         return unsub;
       },
@@ -847,7 +809,7 @@ export class PluginManager {
     if (grantedPerms.has('fs:read')) {
       context.readFile = async (filePath: string) => {
         const resolved = this.resolvePluginPath(filePath, entry);
-        return fs.promises.readFile(resolved, 'utf-8');
+        return await fs.promises.readFile(resolved, 'utf-8');
       };
     }
 
@@ -861,7 +823,7 @@ export class PluginManager {
 
     if (grantedPerms.has('network:fetch')) {
       context.fetch = async (url: string, options?: RequestInit) => {
-        return globalThis.fetch(url, options);
+        return await globalThis.fetch(url, options);
       };
     }
 
@@ -884,13 +846,8 @@ export class PluginManager {
 
   private resolvePluginPath(filePath: string, entry: PluginRegistryEntry): string {
     if (path.isAbsolute(filePath)) {
-      if (
-        !entry.grantedPermissions.includes('fs:global') &&
-        !filePath.startsWith(this.config.workspace)
-      ) {
-        throw new Error(
-          `Plugin "${entry.id}" cannot access files outside workspace without fs:global permission`,
-        );
+      if (!entry.grantedPermissions.includes('fs:global') && !filePath.startsWith(this.config.workspace)) {
+        throw new Error(`Plugin "${entry.id}" cannot access files outside workspace without fs:global permission`);
       }
       return filePath;
     }
@@ -932,11 +889,7 @@ export class PluginManager {
       await fs.promises.mkdir(dir, { recursive: true });
 
       const entries = [...this.registry.values()];
-      await fs.promises.writeFile(
-        this.config.registryPath,
-        JSON.stringify(entries, null, 2),
-        'utf-8',
-      );
+      await fs.promises.writeFile(this.config.registryPath, JSON.stringify(entries, null, 2), 'utf-8');
     } catch (err) {
       console.error('[PluginManager] Failed to save registry:', err);
     }

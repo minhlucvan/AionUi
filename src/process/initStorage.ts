@@ -614,6 +614,18 @@ const initStorage = async () => {
     // Initialize builtin assistant rule files to user directory
     await initBuiltinAssistantRules();
 
+    // 5.1.1 初始化插件系统（加载内置插件，注册系统提示和工具）
+    // Initialize plugin system (load built-in plugins, register system prompts and tools)
+    try {
+      const { initPluginSystem } = await import('../plugin/initPluginSystem');
+      await initPluginSystem({
+        skillsDir: getSkillsDir(),
+        workspace: getCliSafePath(),
+      });
+    } catch (pluginError) {
+      console.error('[AionUi] Failed to initialize plugin system:', pluginError);
+    }
+
     // 5.2 初始化助手配置（只包含元数据，不包含 context）
     // Initialize assistant config (metadata only, no context)
     const existingAgents = (await configFile.get('acp.customAgents').catch((): undefined => undefined)) || [];
