@@ -1186,3 +1186,329 @@ describe('Plugin Agent Skill Loading Pipeline', () => {
     expect(fs.existsSync(path.join(skillsDir, 'xlsx', 'recalc.py'))).toBe(true);
   });
 });
+
+// ── Plugin Agent Rule File Installation Tests ─────────────────────────────────
+// Verifies that the plugin system acts as a dynamic loader, bridging new plugin
+// agent concepts to the legacy file-based rule loading flow:
+//   - installPluginAgentRules writes locale-keyed rule files to assistantsDir
+//   - Rule files use the legacy naming convention: {agentId}.{locale}.md
+//   - Relative skills/ paths are resolved to absolute paths
+//   - The PluginManager with assistantsDir properly bridges both flows
+
+describe('Plugin Agent Rule File Installation (Legacy Bridge)', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-rules-install-'));
+  });
+
+  afterEach(() => {
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  });
+
+  function createTestManager(overrides?: Partial<{ assistantsDir: string; skillsDir: string }>) {
+    return new PluginManager({
+      pluginsDir: path.join(tmpDir, 'plugins'),
+      registryPath: path.join(tmpDir, 'registry.json'),
+      hostVersion: '1.7.0',
+      workspace: tmpDir,
+      skillsDir: overrides?.skillsDir ?? path.join(tmpDir, 'skills'),
+      assistantsDir: overrides?.assistantsDir ?? path.join(tmpDir, 'assistants'),
+    });
+  }
+
+  it('should write locale-keyed rule files from systemPromptI18n', async () => {
+    const manager = createTestManager();
+    const assistantsDir = path.join(tmpDir, 'assistants');
+
+    const agents: ResolvedPluginAgent[] = [
+      {
+        id: 'pdf-tools',
+        pluginId: 'aionui-plugin-pdf',
+        name: 'PDF Tools',
+        description: 'PDF processing tools',
+        systemPromptI18n: {
+          'en-US': 'You are a PDF expert.',
+          'zh-CN': '你是PDF专家。',
+        },
+      },
+    ];
+
+    await manager.installPluginAgentRules(agents);
+
+    const enFile = path.join(assistantsDir, 'plugin-aionui-plugin-pdf-pdf-tools.en-US.md');
+    const zhFile = path.join(assistantsDir, 'plugin-aionui-plugin-pdf-pdf-tools.zh-CN.md');
+
+    expect(fs.existsSync(enFile)).toBe(true);
+    expect(fs.existsSync(zhFile)).toBe(true);
+    expect(fs.readFileSync(enFile, 'utf-8')).toBe('You are a PDF expert.');
+    expect(fs.readFileSync(zhFile, 'utf-8')).toBe('你是PDF专家。');
+  });
+
+  it('should write en-US rule file from systemPrompt when no i18n', async () => {
+    const manager = createTestManager();
+    const assistantsDir = path.join(tmpDir, 'assistants');
+
+    const agents: ResolvedPluginAgent[] = [
+      {
+        id: 'docx-tools',
+        pluginId: 'aionui-plugin-docx',
+        name: 'DOCX Tools',
+        description: 'Word document tools',
+        systemPrompt: 'You are a Word document expert.',
+      },
+    ];
+
+    await manager.installPluginAgentRules(agents);
+
+    const enFile = path.join(assistantsDir, 'plugin-aionui-plugin-docx-docx-tools.en-US.md');
+    expect(fs.existsSync(enFile)).toBe(true);
+    expect(fs.readFileSync(enFile, 'utf-8')).toBe('You are a Word document expert.');
+  });
+
+  it('should not write any files if agent has no systemPrompt', async () => {
+    const manager = createTestManager();
+    const assistantsDir = path.join(tmpDir, 'assistants');
+
+    const agents: ResolvedPluginAgent[] = [
+      {
+        id: 'no-prompt',
+        pluginId: 'test-plugin',
+        name: 'No Prompt Agent',
+        description: 'Agent without prompt',
+      },
+    ];
+
+    await manager.installPluginAgentRules(agents);
+
+    // assistantsDir was created (mkdir) but should have no files
+    if (fs.existsSync(assistantsDir)) {
+      const files = fs.readdirSync(assistantsDir);
+      const agentFiles = files.filter((f) => f.startsWith('plugin-test-plugin-no-prompt'));
+      expect(agentFiles).toHaveLength(0);
+    }
+  });
+
+  it('should resolve skills/ paths to absolute skillsDir in rule content', async () => {
+    // Use a path without 'skills' in it to avoid substring false positives
+    const skillsDir = path.join(tmpDir, 'user-data', 'abilities');
+    const manager = createTestManager({ skillsDir });
+    const assistantsDir = path.join(tmpDir, 'assistants');
+
+    const agents: ResolvedPluginAgent[] = [
+      {
+        id: 'path-test',
+        pluginId: 'test-plugin',
+        name: 'Path Test',
+        description: 'Tests path resolution',
+        systemPrompt: 'Use the script at skills/pdf/scripts/convert.py to convert.',
+      },
+    ];
+
+    await manager.installPluginAgentRules(agents);
+
+    const content = fs.readFileSync(path.join(assistantsDir, 'plugin-test-plugin-path-test.en-US.md'), 'utf-8');
+    expect(content).toContain(skillsDir + '/pdf/');
+    // The literal 'skills/' prefix should be replaced with absolute path
+    expect(content).toContain('abilities/pdf/scripts/convert.py');
+    expect(content).toMatch(new RegExp(skillsDir.replace(/[/\\]/g, '.')));
+  });
+
+  it('should resolve skills/ paths in i18n content', async () => {
+    // Use a path without 'skills' in it to avoid substring false positives
+    const skillsDir = path.join(tmpDir, 'user-data', 'abilities');
+    const manager = createTestManager({ skillsDir });
+    const assistantsDir = path.join(tmpDir, 'assistants');
+
+    const agents: ResolvedPluginAgent[] = [
+      {
+        id: 'i18n-path',
+        pluginId: 'test-plugin',
+        name: 'I18n Path Test',
+        description: 'Tests i18n path resolution',
+        systemPromptI18n: {
+          'en-US': 'Run skills/xlsx/recalc.py to recalculate.',
+          'zh-CN': '运行 skills/xlsx/recalc.py 来重新计算。',
+        },
+      },
+    ];
+
+    await manager.installPluginAgentRules(agents);
+
+    const enContent = fs.readFileSync(path.join(assistantsDir, 'plugin-test-plugin-i18n-path.en-US.md'), 'utf-8');
+    const zhContent = fs.readFileSync(path.join(assistantsDir, 'plugin-test-plugin-i18n-path.zh-CN.md'), 'utf-8');
+
+    // Both locales should have absolute path resolved
+    expect(enContent).toContain(skillsDir + '/xlsx/recalc.py');
+    expect(zhContent).toContain(skillsDir + '/xlsx/recalc.py');
+    // Original relative 'skills/' prefix should be replaced
+    expect(enContent).toContain('abilities/xlsx/recalc.py');
+    expect(zhContent).toContain('abilities/xlsx/recalc.py');
+  });
+
+  it('should not install rules when assistantsDir is not configured', async () => {
+    // Create a manager WITHOUT assistantsDir
+    const manager = new PluginManager({
+      pluginsDir: path.join(tmpDir, 'plugins'),
+      registryPath: path.join(tmpDir, 'registry.json'),
+      hostVersion: '1.7.0',
+      workspace: tmpDir,
+      skillsDir: path.join(tmpDir, 'skills'),
+    });
+
+    const agents: ResolvedPluginAgent[] = [
+      {
+        id: 'pdf-tools',
+        pluginId: 'aionui-plugin-pdf',
+        name: 'PDF Tools',
+        description: 'PDF processing tools',
+        systemPrompt: 'You are a PDF expert.',
+      },
+    ];
+
+    // Should not throw, just silently skip
+    await manager.installPluginAgentRules(agents);
+
+    // No assistants directory should exist
+    const assistantsDir = path.join(tmpDir, 'assistants');
+    expect(fs.existsSync(assistantsDir)).toBe(false);
+  });
+
+  it('should create assistantsDir if it does not exist', async () => {
+    const assistantsDir = path.join(tmpDir, 'deep', 'nested', 'assistants');
+    const manager = createTestManager({ assistantsDir });
+
+    const agents: ResolvedPluginAgent[] = [
+      {
+        id: 'test',
+        pluginId: 'test-plugin',
+        name: 'Test',
+        description: 'Test',
+        systemPrompt: 'Hello',
+      },
+    ];
+
+    await manager.installPluginAgentRules(agents);
+
+    expect(fs.existsSync(assistantsDir)).toBe(true);
+    expect(fs.existsSync(path.join(assistantsDir, 'plugin-test-plugin-test.en-US.md'))).toBe(true);
+  });
+
+  it('rule files should follow legacy naming convention: {agentId}.{locale}.md', async () => {
+    const manager = createTestManager();
+    const assistantsDir = path.join(tmpDir, 'assistants');
+
+    const agents: ResolvedPluginAgent[] = [
+      {
+        id: 'xlsx-tools',
+        pluginId: 'aionui-plugin-xlsx',
+        name: 'Excel Tools',
+        description: 'Excel processing',
+        systemPromptI18n: {
+          'en-US': 'Excel expert.',
+          'ja-JP': 'エクセル専門家。',
+        },
+      },
+    ];
+
+    await manager.installPluginAgentRules(agents);
+
+    const files = fs.readdirSync(assistantsDir);
+
+    // Should match the legacy pattern: {id}.{locale}.md
+    expect(files).toContain('plugin-aionui-plugin-xlsx-xlsx-tools.en-US.md');
+    expect(files).toContain('plugin-aionui-plugin-xlsx-xlsx-tools.ja-JP.md');
+
+    // The naming pattern should be parseable by the legacy readAssistantResource:
+    // fileNamePattern = (id, loc) => `${id}.${loc}.md`
+    for (const file of files) {
+      expect(file).toMatch(/^plugin-[a-z-]+-[a-z-]+\.[a-z]{2}(-[A-Z]{2})?\.(md)$/);
+    }
+  });
+});
+
+// ── End-to-end: initPluginSystem with assistantsDir ───────────────────────────
+// Verifies the full integration: initPluginSystem → registerBuiltinPlugins →
+// installPluginAgentRules → locale-keyed rule files in assistantsDir.
+
+describe('initPluginSystem with assistantsDir integration', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'plugin-rules-e2e-'));
+    const { initPluginSystem, getPluginManager, shutdownPluginSystem } = await import('../../src/plugin/initPluginSystem');
+    await shutdownPluginSystem();
+    await initPluginSystem({
+      skillsDir: path.join(tmpDir, 'skills'),
+      assistantsDir: path.join(tmpDir, 'assistants'),
+      workspace: tmpDir,
+    });
+    // Wait for background installations (skills + rules)
+    await getPluginManager()!.waitForSkillInstallation();
+  });
+
+  afterEach(async () => {
+    try {
+      const { shutdownPluginSystem } = await import('../../src/plugin/initPluginSystem');
+      await shutdownPluginSystem();
+    } catch {
+      /* ignore */
+    }
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it('should install rule files for all 4 built-in plugin agents', async () => {
+    const assistantsDir = path.join(tmpDir, 'assistants');
+    expect(fs.existsSync(assistantsDir)).toBe(true);
+
+    const files = fs.readdirSync(assistantsDir);
+
+    // Each built-in plugin agent should have at least an en-US rule file
+    const expectedAgentIds = ['plugin-aionui-plugin-pdf-pdf-tools', 'plugin-aionui-plugin-pptx-pptx-tools', 'plugin-aionui-plugin-docx-docx-tools', 'plugin-aionui-plugin-xlsx-xlsx-tools'];
+
+    for (const agentId of expectedAgentIds) {
+      const agentFiles = files.filter((f) => f.startsWith(agentId));
+      expect(agentFiles.length).toBeGreaterThanOrEqual(1);
+      // At least one file should be an en-US.md rule file
+      expect(agentFiles.some((f) => f.endsWith('.en-US.md'))).toBe(true);
+    }
+  });
+
+  it('installed rule files should contain the plugin system prompt content', async () => {
+    const assistantsDir = path.join(tmpDir, 'assistants');
+
+    // PDF agent's rule file should contain the PDF system prompt
+    const pdfRuleFile = path.join(assistantsDir, 'plugin-aionui-plugin-pdf-pdf-tools.en-US.md');
+    expect(fs.existsSync(pdfRuleFile)).toBe(true);
+
+    const content = fs.readFileSync(pdfRuleFile, 'utf-8');
+    // Should contain the PDF plugin's system prompt text
+    expect(content).toContain('PDF');
+    expect(content.length).toBeGreaterThan(10);
+  });
+
+  it('installed rule files should be loadable via the legacy readAssistantRule pattern', async () => {
+    const assistantsDir = path.join(tmpDir, 'assistants');
+
+    // Simulate the legacy readAssistantResource pattern:
+    // fileNamePattern = (id, loc) => `${id}.${loc}.md`
+    const ruleFilePattern = (id: string, loc: string) => `${id}.${loc}.md`;
+
+    const agentId = 'plugin-aionui-plugin-pdf-pdf-tools';
+    const locale = 'en-US';
+    const fileName = ruleFilePattern(agentId, locale);
+    const filePath = path.join(assistantsDir, fileName);
+
+    expect(fs.existsSync(filePath)).toBe(true);
+    const content = fs.readFileSync(filePath, 'utf-8');
+    expect(content.length).toBeGreaterThan(0);
+  });
+});

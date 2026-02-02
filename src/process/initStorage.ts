@@ -618,6 +618,7 @@ const initStorage = async () => {
       const { initPluginSystem } = await import('../plugin/initPluginSystem');
       await initPluginSystem({
         skillsDir: getSkillsDir(),
+        assistantsDir: getAssistantsDir(),
         workspace: getCliSafePath(),
       });
     } catch (pluginError) {
@@ -708,6 +709,16 @@ const initStorage = async () => {
           const agentId = `plugin-${agent.pluginId}-${agent.id}`;
           const existingIdx = updatedAgents.findIndex((a: AcpBackendConfig) => a.id === agentId);
 
+          // Resolve relative skills/ paths to absolute paths in context,
+          // matching what initBuiltinAssistantRules does for legacy presets.
+          const skillsDirPath = getSkillsDir();
+          const resolveSkillPaths = (content: string | undefined): string | undefined => {
+            if (!content) return content;
+            return content.replace(/skills\//g, skillsDirPath + '/');
+          };
+
+          const resolvedContextI18n = agent.systemPromptI18n ? Object.fromEntries(Object.entries(agent.systemPromptI18n).map(([loc, txt]) => [loc, resolveSkillPaths(txt) ?? txt])) : undefined;
+
           const agentConfig: AcpBackendConfig = {
             id: agentId,
             name: agent.name,
@@ -715,8 +726,8 @@ const initStorage = async () => {
             description: agent.description,
             descriptionI18n: agent.descriptionI18n,
             avatar: agent.avatar,
-            context: agent.systemPrompt,
-            contextI18n: agent.systemPromptI18n,
+            context: resolveSkillPaths(agent.systemPrompt),
+            contextI18n: resolvedContextI18n,
             enabled: agent.enabledByDefault ?? false,
             isPreset: true,
             isBuiltin: true,

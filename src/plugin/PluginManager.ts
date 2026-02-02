@@ -49,6 +49,9 @@ interface PluginManagerConfig {
   /** Host skills directory (where built-in skills live) */
   skillsDir: string;
 
+  /** Host assistants directory (where rule files are stored for readAssistantRule) */
+  assistantsDir?: string;
+
   /** Proxy for network operations */
   proxy?: string;
 }
@@ -141,6 +144,19 @@ export class PluginManager {
       console.error(`[PluginManager] Failed to install skills for built-in plugin "${entry.id}":`, err);
     });
     this.pendingSkillInstalls.push(installPromise);
+
+    // Install agent rule files to the assistants directory so the legacy
+    // readAssistantRule IPC can find them. This bridges plugin agents to
+    // the old file-based rule loading flow.
+    if (this.config.assistantsDir && plugin.agents?.length) {
+      const agents = this.collectPluginAgents().filter((a) => a.pluginId === entry.id);
+      if (agents.length > 0) {
+        const rulesPromise = this.installPluginAgentRules(agents).catch((err) => {
+          console.error(`[PluginManager] Failed to install agent rules for "${entry.id}":`, err);
+        });
+        this.pendingSkillInstalls.push(rulesPromise);
+      }
+    }
 
     this.emit('plugin:activated', { pluginId: entry.id, builtin: true });
   }
@@ -237,6 +253,14 @@ export class PluginManager {
       }
 
       this.activePlugins.set(pluginId, { entry, instance: plugin, context });
+
+      // Install agent rule files to the assistants directory
+      if (this.config.assistantsDir && plugin.agents?.length) {
+        const agents = this.collectPluginAgents().filter((a) => a.pluginId === entry.id);
+        if (agents.length > 0) {
+          await this.installPluginAgentRules(agents);
+        }
+      }
 
       entry.state = 'active';
       entry.error = undefined;
@@ -596,6 +620,68 @@ export class PluginManager {
     }
 
     return frontmatter + `\n# ${skill.name}\n\n${skill.description}\n`;
+  }
+
+  // ─── Capability: Agent Rule Files ───────────────────────────────────────
+  //
+  // Plugin agents need their rule files (system prompts) installed to the
+  // host's assistants directory so the legacy readAssistantRule IPC can find
+  // them. This bridges the new plugin agent concept to the old file-based
+  // rule loading flow that the frontend uses.
+
+  /**
+   * Install plugin agent rule files to the host's assistants directory.
+   *
+   * The legacy system expects locale-keyed rule files at:
+   *   {assistantsDir}/{agentId}.{locale}.md
+   *
+   * This method bridges plugin agents to that convention by writing each
+   * agent's system prompt (from systemPromptI18n or systemPrompt) as a
+   * rule file. It also resolves relative `skills/` path references to
+   * absolute paths, matching what initBuiltinAssistantRules does for
+   * legacy preset assistants.
+   *
+   * Called during builtin plugin registration and plugin activation.
+   */
+  async installPluginAgentRules(agents: ResolvedPluginAgent[]): Promise<void> {
+    const assistantsDir = this.config.assistantsDir;
+    if (!assistantsDir) return;
+
+    await fs.promises.mkdir(assistantsDir, { recursive: true });
+
+    for (const agent of agents) {
+      const agentId = `plugin-${agent.pluginId}-${agent.id}`;
+
+      if (agent.systemPromptI18n && Object.keys(agent.systemPromptI18n).length > 0) {
+        // Write locale-keyed rule files from systemPromptI18n
+        for (const [locale, content] of Object.entries(agent.systemPromptI18n)) {
+          const fileName = `${agentId}.${locale}.md`;
+          const filePath = path.join(assistantsDir, fileName);
+          const resolved = this.resolveSkillPaths(content);
+          await fs.promises.writeFile(filePath, resolved, 'utf-8');
+        }
+      } else if (agent.systemPrompt) {
+        // Write the default system prompt as en-US rule file
+        const fileName = `${agentId}.en-US.md`;
+        const filePath = path.join(assistantsDir, fileName);
+        const resolved = this.resolveSkillPaths(agent.systemPrompt);
+        await fs.promises.writeFile(filePath, resolved, 'utf-8');
+      }
+    }
+  }
+
+  /**
+   * Resolve relative `skills/` path references to absolute paths.
+   *
+   * Matches the behavior of initBuiltinAssistantRules which does:
+   *   content.replace(/skills\//g, userSkillsDir + '/')
+   *
+   * This ensures that skill script paths in agent rule files resolve
+   * correctly when the agent reads them at runtime.
+   */
+  private resolveSkillPaths(content: string): string {
+    if (!this.config.skillsDir) return content;
+    return content.replace(/skills\//g, this.config.skillsDir + '/');
   }
 
   // ─── Capability: Tools ──────────────────────────────────────────────────

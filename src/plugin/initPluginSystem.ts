@@ -47,6 +47,9 @@ export interface PluginSystemConfig {
   /** Current workspace path */
   workspace: string;
 
+  /** Path to the host's assistants directory (getAssistantsDir()) */
+  assistantsDir?: string;
+
   /** AionUi host version */
   hostVersion?: string;
 
@@ -89,6 +92,7 @@ export async function initPluginSystem(config: PluginSystemConfig): Promise<void
     hostVersion: config.hostVersion ?? '1.7.0',
     workspace: config.workspace,
     skillsDir: config.skillsDir,
+    assistantsDir: config.assistantsDir,
     proxy: config.proxy,
   });
 
