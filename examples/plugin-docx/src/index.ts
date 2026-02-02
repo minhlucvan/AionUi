@@ -20,15 +20,7 @@
  *   Local: point to this directory
  */
 
-import type {
-  AionPlugin,
-  PluginContext,
-  PluginSkillDefinition,
-  PluginSystemPrompt,
-  PluginToolDefinition,
-  ToolExecutionContext,
-  ToolResult,
-} from '../../src/plugin/types';
+import type { AionPlugin, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,19 +35,13 @@ function pluginPath(context: ToolExecutionContext, ...segments: string[]): strin
  * Execute a shell command via the host's exec capability.
  * All tool handlers funnel through this so error handling is consistent.
  */
-async function execCommand(
-  command: string,
-  context: ToolExecutionContext,
-  cwd?: string,
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+async function execCommand(command: string, context: ToolExecutionContext, cwd?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   // The host provides exec via the context settings bridge.
   // In production, PluginContext.exec is used during activation to create
   // a scoped executor; here we re-derive the working directory.
   const exec = (context as unknown as { exec: PluginContext['exec'] }).exec;
   if (!exec) {
-    throw new Error(
-      'Shell execution is not available. Ensure the plugin has the shell:execute permission.',
-    );
+    throw new Error('Shell execution is not available. Ensure the plugin has the shell:execute permission.');
   }
   return exec(command, { cwd: cwd ?? context.workspace, timeout: 120_000 });
 }
@@ -71,10 +57,7 @@ async function execCommand(
  * a flat directory structure that can be inspected and edited directly.
  * It also suggests an RSID to use for tracked changes.
  */
-async function handleDocxUnpack(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleDocxUnpack(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const docxPath = params.docx_path as string | undefined;
   const outputDir = params.output_dir as string | undefined;
 
@@ -89,10 +72,7 @@ async function handleDocxUnpack(
 
   try {
     const scriptPath = pluginPath(context, 'skills', 'docx', 'ooxml', 'scripts', 'unpack.py');
-    const result = await execCommand(
-      `python "${scriptPath}" "${docxPath}" "${outputDir}"`,
-      context,
-    );
+    const result = await execCommand(`python "${scriptPath}" "${docxPath}" "${outputDir}"`, context);
 
     if (result.exitCode !== 0) {
       return {
@@ -122,10 +102,7 @@ async function handleDocxUnpack(
  * After editing XML files in the unpacked directory, this re-assembles
  * the DOCX archive with correct content types and relationships.
  */
-async function handleDocxPack(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleDocxPack(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputDir = params.input_dir as string | undefined;
   const outputPath = params.output_path as string | undefined;
 
@@ -140,10 +117,7 @@ async function handleDocxPack(
 
   try {
     const scriptPath = pluginPath(context, 'skills', 'docx', 'ooxml', 'scripts', 'pack.py');
-    const result = await execCommand(
-      `python "${scriptPath}" "${inputDir}" "${outputPath}"`,
-      context,
-    );
+    const result = await execCommand(`python "${scriptPath}" "${inputDir}" "${outputPath}"`, context);
 
     if (result.exitCode !== 0) {
       return {
@@ -174,10 +148,7 @@ async function handleDocxPack(
  * the ISO/IEC 29500 and Microsoft extension schemas bundled with the plugin.
  * Reports schema violations, missing relationships, and structural issues.
  */
-async function handleDocxValidate(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleDocxValidate(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const target = params.target as string | undefined;
   const strict = params.strict as boolean | undefined;
 
@@ -190,10 +161,7 @@ async function handleDocxValidate(
   try {
     const scriptPath = pluginPath(context, 'skills', 'docx', 'ooxml', 'scripts', 'validate.py');
     const strictFlag = strict ? ' --strict' : '';
-    const result = await execCommand(
-      `python "${scriptPath}" "${target}"${strictFlag}`,
-      context,
-    );
+    const result = await execCommand(`python "${scriptPath}" "${target}"${strictFlag}`, context);
 
     // validate.py may return exit code 1 for validation errors (not failures)
     const hasErrors = result.exitCode !== 0;
@@ -208,9 +176,7 @@ async function handleDocxValidate(
       },
       display: {
         type: 'markdown',
-        content: hasErrors
-          ? `**Validation found issues:**\n\n\`\`\`\n${result.stdout || result.stderr}\n\`\`\``
-          : `**Validation passed.**\n\n${result.stdout}`,
+        content: hasErrors ? `**Validation found issues:**\n\n\`\`\`\n${result.stdout || result.stderr}\n\`\`\`` : `**Validation passed.**\n\n${result.stdout}`,
       },
     };
   } catch (err) {
@@ -226,10 +192,7 @@ async function handleDocxValidate(
  * Uses pandoc to convert DOCX to markdown, preserving document structure.
  * Supports track-changes modes: accept, reject, all.
  */
-async function handleDocxToText(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleDocxToText(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const docxPath = params.docx_path as string | undefined;
   const trackChanges = (params.track_changes as string | undefined) ?? 'accept';
 
@@ -248,10 +211,7 @@ async function handleDocxToText(
   context.logger.info(`Extracting text from "${docxPath}" (track-changes: ${trackChanges})`);
 
   try {
-    const result = await execCommand(
-      `pandoc --track-changes=${trackChanges} "${docxPath}" -t markdown`,
-      context,
-    );
+    const result = await execCommand(`pandoc --track-changes=${trackChanges} "${docxPath}" -t markdown`, context);
 
     if (result.exitCode !== 0) {
       return {
@@ -282,10 +242,7 @@ async function handleDocxToText(
  *
  * Returns the list of generated image file paths.
  */
-async function handleDocxToImages(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleDocxToImages(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const docxPath = params.docx_path as string | undefined;
   const outputDir = params.output_dir as string | undefined;
   const dpi = (params.dpi as number | undefined) ?? 150;
@@ -312,10 +269,7 @@ async function handleDocxToImages(
 
   try {
     // Step 1: DOCX -> PDF via LibreOffice
-    const pdfResult = await execCommand(
-      `soffice --headless --convert-to pdf --outdir "${outputDir}" "${docxPath}"`,
-      context,
-    );
+    const pdfResult = await execCommand(`soffice --headless --convert-to pdf --outdir "${outputDir}" "${docxPath}"`, context);
 
     if (pdfResult.exitCode !== 0) {
       return {
@@ -325,7 +279,11 @@ async function handleDocxToImages(
     }
 
     // Derive PDF filename from the DOCX filename
-    const docxBasename = docxPath.split('/').pop()?.replace(/\.docx$/i, '') ?? 'document';
+    const docxBasename =
+      docxPath
+        .split('/')
+        .pop()
+        ?.replace(/\.docx$/i, '') ?? 'document';
     const pdfPath = `${outputDir}/${docxBasename}.pdf`;
 
     // Step 2: PDF -> images via pdftoppm
@@ -335,10 +293,7 @@ async function handleDocxToImages(
     if (lastPage !== undefined) pageFlags += ` -l ${lastPage}`;
 
     const imagePrefix = `${outputDir}/page`;
-    const imageResult = await execCommand(
-      `pdftoppm ${formatFlag} -r ${dpi}${pageFlags} "${pdfPath}" "${imagePrefix}"`,
-      context,
-    );
+    const imageResult = await execCommand(`pdftoppm ${formatFlag} -r ${dpi}${pageFlags} "${pdfPath}" "${imagePrefix}"`, context);
 
     if (imageResult.exitCode !== 0) {
       return {
@@ -349,21 +304,19 @@ async function handleDocxToImages(
 
     // List generated image files
     const ext = format === 'jpeg' ? 'jpg' : 'png';
-    const listResult = await execCommand(
-      `ls -1 "${outputDir}"/page-*.${ext} 2>/dev/null || ls -1 "${outputDir}"/page*.${ext} 2>/dev/null || echo "(no images found)"`,
-      context,
-    );
+    const listResult = await execCommand(`ls -1 "${outputDir}"/page-*.${ext} 2>/dev/null || ls -1 "${outputDir}"/page*.${ext} 2>/dev/null || echo "(no images found)"`, context);
 
-    const imageFiles = listResult.stdout.trim().split('\n').filter(f => f && !f.startsWith('('));
+    const imageFiles = listResult.stdout
+      .trim()
+      .split('\n')
+      .filter((f) => f && !f.startsWith('('));
 
     return {
       success: true,
       data: { docxPath, pdfPath, outputDir, dpi, format, imageFiles },
       display: {
         type: 'markdown',
-        content: imageFiles.length > 0
-          ? `**Converted ${imageFiles.length} page(s) to ${format.toUpperCase()}:**\n\n${imageFiles.map(f => `- \`${f}\``).join('\n')}`
-          : `Conversion completed but no image files were found in "${outputDir}".`,
+        content: imageFiles.length > 0 ? `**Converted ${imageFiles.length} page(s) to ${format.toUpperCase()}:**\n\n${imageFiles.map((f) => `- \`${f}\``).join('\n')}` : `Conversion completed but no image files were found in "${outputDir}".`,
       },
     };
   } catch (err) {
@@ -383,7 +336,7 @@ const DOCX_SYSTEM_PROMPT = [
   'comments, formatting, or metadata, use `docx_unpack` to access raw XML.',
   '',
   '## Workflow 2: Create New Document',
-  'Use the docx-js JavaScript library (documented in the docx skill\'s',
+  "Use the docx-js JavaScript library (documented in the docx skill's",
   'docx-js.md reference). Create a .js/.ts file using Document, Paragraph,',
   'TextRun components and export via Packer.toBuffer().',
   '',
@@ -457,17 +410,9 @@ const docxPlugin: AionPlugin = {
   skills: [
     {
       name: 'docx',
-      description:
-        'Comprehensive document creation, editing, and analysis with support for tracked changes, ' +
-        'comments, formatting preservation, and text extraction. When you need to work with ' +
-        'professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or ' +
-        'editing content, (3) Working with tracked changes, (4) Adding comments, or any other ' +
-        'document tasks.',
+      description: 'Comprehensive document creation, editing, and analysis with support for tracked changes, ' + 'comments, formatting preservation, and text extraction. When you need to work with ' + 'professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or ' + 'editing content, (3) Working with tracked changes, (4) Adding comments, or any other ' + 'document tasks.',
       // body is omitted — the host loads from skills/docx/SKILL.md
-      resources: [
-        'skills/docx/docx-js.md',
-        'skills/docx/ooxml.md',
-      ],
+      resources: ['skills/docx/docx-js.md', 'skills/docx/ooxml.md'],
     },
   ] satisfies PluginSkillDefinition[],
 
@@ -480,9 +425,7 @@ const docxPlugin: AionPlugin = {
     // ── docx_unpack ─────────────────────────────────────────────────────────
     {
       name: 'docx_unpack',
-      description:
-        'Unpack a DOCX file into a directory for XML editing. Extracts all XML parts, ' +
-        'media, relationships, and content types. Also suggests an RSID for tracked changes.',
+      description: 'Unpack a DOCX file into a directory for XML editing. Extracts all XML parts, ' + 'media, relationships, and content types. Also suggests an RSID for tracked changes.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -503,9 +446,7 @@ const docxPlugin: AionPlugin = {
     // ── docx_pack ───────────────────────────────────────────────────────────
     {
       name: 'docx_pack',
-      description:
-        'Pack an unpacked directory back into a DOCX file. Re-assembles the ZIP archive ' +
-        'with correct content types and relationships after XML editing.',
+      description: 'Pack an unpacked directory back into a DOCX file. Re-assembles the ZIP archive ' + 'with correct content types and relationships after XML editing.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -526,10 +467,7 @@ const docxPlugin: AionPlugin = {
     // ── docx_validate ───────────────────────────────────────────────────────
     {
       name: 'docx_validate',
-      description:
-        'Validate DOCX XML against OOXML schemas (ISO/IEC 29500 and Microsoft extensions). ' +
-        'Reports schema violations, missing relationships, and structural issues. ' +
-        'Accepts either a .docx file or an unpacked directory.',
+      description: 'Validate DOCX XML against OOXML schemas (ISO/IEC 29500 and Microsoft extensions). ' + 'Reports schema violations, missing relationships, and structural issues. ' + 'Accepts either a .docx file or an unpacked directory.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -550,10 +488,7 @@ const docxPlugin: AionPlugin = {
     // ── docx_to_text ────────────────────────────────────────────────────────
     {
       name: 'docx_to_text',
-      description:
-        'Extract text content from a DOCX file as markdown using pandoc. ' +
-        'Preserves document structure (headings, lists, tables). ' +
-        'Supports tracked changes modes: accept (default), reject, or all.',
+      description: 'Extract text content from a DOCX file as markdown using pandoc. ' + 'Preserves document structure (headings, lists, tables). ' + 'Supports tracked changes modes: accept (default), reject, or all.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -564,9 +499,7 @@ const docxPlugin: AionPlugin = {
           track_changes: {
             type: 'string',
             enum: ['accept', 'reject', 'all'],
-            description:
-              'How to handle tracked changes: "accept" (default) applies all changes, ' +
-              '"reject" reverts all changes, "all" shows both insertions and deletions',
+            description: 'How to handle tracked changes: "accept" (default) applies all changes, ' + '"reject" reverts all changes, "all" shows both insertions and deletions',
           },
         },
         required: ['docx_path'],
@@ -577,10 +510,7 @@ const docxPlugin: AionPlugin = {
     // ── docx_to_images ──────────────────────────────────────────────────────
     {
       name: 'docx_to_images',
-      description:
-        'Convert DOCX pages to PNG or JPEG images for visual analysis. ' +
-        'Two-step process: LibreOffice converts DOCX to PDF, then pdftoppm ' +
-        'converts PDF pages to images. Supports page range selection and DPI control.',
+      description: 'Convert DOCX pages to PNG or JPEG images for visual analysis. ' + 'Two-step process: LibreOffice converts DOCX to PDF, then pdftoppm ' + 'converts PDF pages to images. Supports page range selection and DPI control.',
       inputSchema: {
         type: 'object',
         properties: {

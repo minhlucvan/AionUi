@@ -12,21 +12,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
 
-import type {
-  AionPlugin,
-  PluginManifest,
-  PluginRegistryEntry,
-  PluginSource,
-} from '../types';
+import type { AionPlugin, PluginManifest, PluginRegistryEntry, PluginSource } from '../types';
 import { validatePluginPackageJson } from '../types/manifest';
 
 const exec = promisify(execCb);
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const PLUGIN_DIR_NAME = 'plugins';
-const PLUGIN_PACKAGE_PREFIX = 'aionui-plugin-';
-const PLUGIN_SCOPED_PREFIX = '@aionui/plugin-';
+const _PLUGIN_DIR_NAME = 'plugins';
+const _PLUGIN_PACKAGE_PREFIX = 'aionui-plugin-';
+const _PLUGIN_SCOPED_PREFIX = '@aionui/plugin-';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -77,10 +72,7 @@ export class PluginLoader {
 
       // Initialize a minimal package.json so npm install works
       const initPkg = { name: `aionui-host-${packageName}`, version: '1.0.0', private: true };
-      await fs.promises.writeFile(
-        path.join(pluginDir, 'package.json'),
-        JSON.stringify(initPkg, null, 2),
-      );
+      await fs.promises.writeFile(path.join(pluginDir, 'package.json'), JSON.stringify(initPkg, null, 2));
 
       // Run npm install
       const npmArgs = ['install', spec, '--save', '--production'];
@@ -94,11 +86,7 @@ export class PluginLoader {
       });
 
       // Load the installed plugin
-      return this.loadFromDirectory(
-        path.join(pluginDir, 'node_modules', packageName),
-        'npm',
-        packageName,
-      );
+      return this.loadFromDirectory(path.join(pluginDir, 'node_modules', packageName), 'npm', packageName);
     } catch (err) {
       return {
         success: false,
@@ -175,10 +163,10 @@ export class PluginLoader {
    *
    * @param dirPath - Absolute path to the plugin directory
    */
-  async installFromLocal(dirPath: string): Promise<LoadPluginResult> {
+  installFromLocal(dirPath: string): Promise<LoadPluginResult> {
     const resolvedPath = path.resolve(dirPath);
     if (!fs.existsSync(resolvedPath)) {
-      return { success: false, error: `Directory does not exist: "${resolvedPath}"` };
+      return Promise.resolve({ success: false, error: `Directory does not exist: "${resolvedPath}"` });
     }
 
     return this.loadFromDirectory(resolvedPath, 'local', resolvedPath);
@@ -189,7 +177,7 @@ export class PluginLoader {
    *
    * @param entry - Registry entry for the installed plugin
    */
-  async loadPlugin(entry: PluginRegistryEntry): Promise<LoadPluginResult> {
+  loadPlugin(entry: PluginRegistryEntry): Promise<LoadPluginResult> {
     return this.loadFromDirectory(entry.installPath, entry.source, entry.sourceRef);
   }
 
@@ -199,10 +187,7 @@ export class PluginLoader {
   async uninstall(entry: PluginRegistryEntry): Promise<{ success: boolean; error?: string }> {
     try {
       // For npm installs, the plugin is nested inside a host directory
-      const dirToRemove =
-        entry.source === 'npm'
-          ? path.resolve(entry.installPath, '..', '..')
-          : entry.installPath;
+      const dirToRemove = entry.source === 'npm' ? path.resolve(entry.installPath, '..', '..') : entry.installPath;
 
       if (fs.existsSync(dirToRemove)) {
         await fs.promises.rm(dirToRemove, { recursive: true, force: true });
@@ -217,10 +202,7 @@ export class PluginLoader {
   /**
    * Check if a newer version is available for an npm plugin.
    */
-  async checkForUpdate(
-    packageName: string,
-    currentVersion: string,
-  ): Promise<{ available: boolean; latestVersion?: string }> {
+  async checkForUpdate(packageName: string, currentVersion: string): Promise<{ available: boolean; latestVersion?: string }> {
     try {
       const { stdout } = await exec(`npm view ${packageName} version`, { timeout: 15_000 });
       const latestVersion = stdout.trim();
@@ -287,11 +269,7 @@ export class PluginLoader {
 
   // ─── Private Methods ────────────────────────────────────────────────────────
 
-  private async loadFromDirectory(
-    dirPath: string,
-    source: PluginSource,
-    sourceRef: string,
-  ): Promise<LoadPluginResult> {
+  private async loadFromDirectory(dirPath: string, source: PluginSource, sourceRef: string): Promise<LoadPluginResult> {
     try {
       // 1. Read and validate package.json
       const pkgJsonPath = path.join(dirPath, 'package.json');
@@ -315,10 +293,7 @@ export class PluginLoader {
 
       // 2. Check host version compatibility
       if (manifest.minHostVersion) {
-        const compatible = this.checkVersionCompatibility(
-          this.config.hostVersion,
-          manifest.minHostVersion,
-        );
+        const compatible = this.checkVersionCompatibility(this.config.hostVersion, manifest.minHostVersion);
         if (!compatible) {
           return {
             success: false,
@@ -350,32 +325,17 @@ export class PluginLoader {
         };
       }
 
-      // 5. Load provider adapters from manifest paths
-      if (manifest.adapters) {
-        plugin.adapters = plugin.adapters || {};
-        for (const [provider, adapterPath] of Object.entries(manifest.adapters)) {
-          if (plugin.adapters[provider]) continue; // already set in code
-
-          const resolvedAdapterPath = path.resolve(dirPath, adapterPath);
-          if (fs.existsSync(resolvedAdapterPath)) {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const adapterModule = require(resolvedAdapterPath);
-            plugin.adapters[provider] = adapterModule.default || adapterModule;
-          }
-        }
-      }
-
-      // 6. Build registry entry
+      // 5. Build registry entry
       const entry: PluginRegistryEntry = {
         id: packageJson.name,
         version: packageJson.version,
         source,
         sourceRef,
         installPath: dirPath,
-        manifest,
+        manifest: manifest as PluginManifest,
         state: 'installed',
         grantedPermissions: [],
-        settings: this.extractDefaultSettings(manifest),
+        settings: this.extractDefaultSettings(manifest as PluginManifest),
         installedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -406,9 +366,7 @@ export class PluginLoader {
 
   private normalizeGithubRepo(input: string): string | null {
     // Handle full URLs
-    const urlMatch = input.match(
-      /(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+)/,
-    );
+    const urlMatch = input.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+)/);
     if (urlMatch) {
       return urlMatch[1].replace(/\.git$/, '');
     }

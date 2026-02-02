@@ -14,15 +14,7 @@
  * This works across all AI agents: Claude Code, Gemini, Codex, etc.
  */
 
-import type {
-  AionPlugin,
-  PluginContext,
-  PluginSkillDefinition,
-  PluginSystemPrompt,
-  PluginToolDefinition,
-  ToolExecutionContext,
-  ToolResult,
-} from '../../src/plugin/types';
+import type { AionPlugin, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
 
 import * as path from 'path';
 
@@ -50,16 +42,11 @@ function scriptPath(scriptName: string): string {
  * Uses the host-provided `exec()` from PluginContext (granted via the
  * `shell:execute` permission declared in package.json).
  */
-async function runPythonScript(
-  scriptName: string,
-  args: string[],
-  logger: ToolExecutionContext['logger'],
-): Promise<ToolResult> {
+async function runPythonScript(scriptName: string, args: string[], logger: ToolExecutionContext['logger']): Promise<ToolResult> {
   if (!execCommand) {
     return {
       success: false,
-      error:
-        'Shell execution is not available. Ensure the plugin has the "shell:execute" permission.',
+      error: 'Shell execution is not available. Ensure the plugin has the "shell:execute" permission.',
     };
   }
 
@@ -93,10 +80,7 @@ async function runPythonScript(
 
 // ─── Tool Handlers ──────────────────────────────────────────────────────────
 
-async function handlePdfSplit(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handlePdfSplit(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputPdf = params.inputPdf as string;
   const outputPath = params.outputPath as string;
   const pages = params.pages as string | undefined;
@@ -114,33 +98,21 @@ async function handlePdfSplit(
   return runPythonScript('split_pdf.py', args, context.logger);
 }
 
-async function handlePdfMerge(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handlePdfMerge(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const outputPdf = params.outputPdf as string;
   const inputPdfs = params.inputPdfs as string[];
 
-  if (
-    !outputPdf ||
-    !inputPdfs ||
-    !Array.isArray(inputPdfs) ||
-    inputPdfs.length < 2
-  ) {
+  if (!outputPdf || !inputPdfs || !Array.isArray(inputPdfs) || inputPdfs.length < 2) {
     return {
       success: false,
-      error:
-        'Missing required parameters: outputPdf, inputPdfs (array of at least 2 paths)',
+      error: 'Missing required parameters: outputPdf, inputPdfs (array of at least 2 paths)',
     };
   }
 
   return runPythonScript('merge_pdfs.py', [outputPdf, ...inputPdfs], context.logger);
 }
 
-async function handlePdfToImages(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handlePdfToImages(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputPdf = params.inputPdf as string;
   const outputDir = params.outputDir as string;
   const dpi = params.dpi as number | undefined;
@@ -158,10 +130,7 @@ async function handlePdfToImages(
   return runPythonScript('convert_pdf_to_images.py', args, context.logger);
 }
 
-async function handleExtractFormFields(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleExtractFormFields(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputPdf = params.inputPdf as string;
   const outputJson = params.outputJson as string;
 
@@ -172,17 +141,10 @@ async function handleExtractFormFields(
     };
   }
 
-  return runPythonScript(
-    'extract_form_field_info.py',
-    [inputPdf, outputJson],
-    context.logger,
-  );
+  return runPythonScript('extract_form_field_info.py', [inputPdf, outputJson], context.logger);
 }
 
-async function handleFillForm(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleFillForm(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputPdf = params.inputPdf as string;
   const fieldsJson = params.fieldsJson as string;
   const outputPdf = params.outputPdf as string;
@@ -197,22 +159,12 @@ async function handleFillForm(
 
   // Choose the correct script based on whether the PDF has native form fields.
   // Default to fillable (native fields); pass fillable=false for annotation-based.
-  const scriptName =
-    fillable !== false
-      ? 'fill_fillable_fields.py'
-      : 'fill_pdf_form_with_annotations.py';
+  const scriptName = fillable !== false ? 'fill_fillable_fields.py' : 'fill_pdf_form_with_annotations.py';
 
-  return runPythonScript(
-    scriptName,
-    [inputPdf, fieldsJson, outputPdf],
-    context.logger,
-  );
+  return runPythonScript(scriptName, [inputPdf, fieldsJson, outputPdf], context.logger);
 }
 
-async function handleCheckFields(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleCheckFields(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputPdf = params.inputPdf as string;
 
   if (!inputPdf) {
@@ -241,9 +193,7 @@ const pdfPlugin: AionPlugin = {
     context.logger.info(`Plugin directory: ${pluginDir}`);
 
     if (!execCommand) {
-      context.logger.warn(
-        'Shell execution not available — PDF tools that run Python scripts will not work.',
-      );
+      context.logger.warn('Shell execution not available — PDF tools that run Python scripts will not work.');
     }
   },
 
@@ -260,20 +210,7 @@ const pdfPlugin: AionPlugin = {
 
   systemPrompts: [
     {
-      content: [
-        'You have access to PDF processing tools provided by the PDF Tools plugin.',
-        'You can split, merge, convert to images, extract form fields, and fill PDF forms.',
-        '',
-        'Available tools:',
-        '- pdf_split: Split a PDF into pages or extract page ranges',
-        '- pdf_merge: Merge multiple PDFs into one file',
-        '- pdf_to_images: Convert PDF pages to PNG images',
-        '- pdf_extract_form_fields: Extract form field metadata to JSON',
-        '- pdf_fill_form: Fill form fields (fillable or annotation-based)',
-        '- pdf_check_fields: Check if a PDF has fillable form fields',
-        '',
-        'For detailed PDF processing guidance, activate the "pdf" skill.',
-      ].join('\n'),
+      content: ['You have access to PDF processing tools provided by the PDF Tools plugin.', 'You can split, merge, convert to images, extract form fields, and fill PDF forms.', '', 'Available tools:', '- pdf_split: Split a PDF into pages or extract page ranges', '- pdf_merge: Merge multiple PDFs into one file', '- pdf_to_images: Convert PDF pages to PNG images', '- pdf_extract_form_fields: Extract form field metadata to JSON', '- pdf_fill_form: Fill form fields (fillable or annotation-based)', '- pdf_check_fields: Check if a PDF has fillable form fields', '', 'For detailed PDF processing guidance, activate the "pdf" skill.'].join('\n'),
       priority: 50,
     },
   ] satisfies PluginSystemPrompt[],
@@ -287,10 +224,7 @@ const pdfPlugin: AionPlugin = {
   skills: [
     {
       name: 'pdf',
-      description:
-        'Comprehensive PDF processing: extract text and tables, create PDFs, ' +
-        'merge/split documents, handle forms (fillable and non-fillable), ' +
-        'OCR scanned documents, and convert to images.',
+      description: 'Comprehensive PDF processing: extract text and tables, create PDFs, ' + 'merge/split documents, handle forms (fillable and non-fillable), ' + 'OCR scanned documents, and convert to images.',
       // body omitted — loaded from skills/pdf/SKILL.md at runtime
       resources: ['reference.md', 'forms.md'],
     },
@@ -304,8 +238,7 @@ const pdfPlugin: AionPlugin = {
   tools: [
     {
       name: 'pdf_split',
-      description:
-        'Split a PDF into individual pages or extract specific page ranges.',
+      description: 'Split a PDF into individual pages or extract specific page ranges.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -315,13 +248,11 @@ const pdfPlugin: AionPlugin = {
           },
           outputPath: {
             type: 'string',
-            description:
-              'Output directory (split all pages) or output file path (extract range)',
+            description: 'Output directory (split all pages) or output file path (extract range)',
           },
           pages: {
             type: 'string',
-            description:
-              'Page range to extract (e.g., "1-5" or "1,3,5"). Omit to split all pages.',
+            description: 'Page range to extract (e.g., "1-5" or "1,3,5"). Omit to split all pages.',
           },
         },
         required: ['inputPdf', 'outputPath'],
@@ -341,8 +272,7 @@ const pdfPlugin: AionPlugin = {
           inputPdfs: {
             type: 'array',
             items: { type: 'string' },
-            description:
-              'Array of input PDF file paths to merge (minimum 2)',
+            description: 'Array of input PDF file paths to merge (minimum 2)',
           },
         },
         required: ['outputPdf', 'inputPdfs'],
@@ -351,8 +281,7 @@ const pdfPlugin: AionPlugin = {
     },
     {
       name: 'pdf_to_images',
-      description:
-        'Convert PDF pages to PNG images. Creates one PNG per page.',
+      description: 'Convert PDF pages to PNG images. Creates one PNG per page.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -375,8 +304,7 @@ const pdfPlugin: AionPlugin = {
     },
     {
       name: 'pdf_extract_form_fields',
-      description:
-        'Extract form field metadata (field IDs, types, positions) from a PDF to JSON.',
+      description: 'Extract form field metadata (field IDs, types, positions) from a PDF to JSON.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -395,9 +323,7 @@ const pdfPlugin: AionPlugin = {
     },
     {
       name: 'pdf_fill_form',
-      description:
-        'Fill a PDF form with values from a JSON file. Supports both fillable ' +
-        '(native form fields) and non-fillable (annotation-based) PDFs.',
+      description: 'Fill a PDF form with values from a JSON file. Supports both fillable ' + '(native form fields) and non-fillable (annotation-based) PDFs.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -415,8 +341,7 @@ const pdfPlugin: AionPlugin = {
           },
           fillable: {
             type: 'boolean',
-            description:
-              'true for native fillable form fields (default), false for annotation-based filling',
+            description: 'true for native fillable form fields (default), false for annotation-based filling',
           },
         },
         required: ['inputPdf', 'fieldsJson', 'outputPdf'],
@@ -425,8 +350,7 @@ const pdfPlugin: AionPlugin = {
     },
     {
       name: 'pdf_check_fields',
-      description:
-        'Check if a PDF has fillable form fields. Returns field names and types if found.',
+      description: 'Check if a PDF has fillable form fields. Returns field names and types if found.',
       inputSchema: {
         type: 'object',
         properties: {

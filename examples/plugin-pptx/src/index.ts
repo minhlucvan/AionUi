@@ -26,15 +26,7 @@
  *   Local: point to this directory
  */
 
-import type {
-  AionPlugin,
-  PluginContext,
-  PluginSkillDefinition,
-  PluginSystemPrompt,
-  PluginToolDefinition,
-  ToolExecutionContext,
-  ToolResult,
-} from '../../src/plugin/types';
+import type { AionPlugin, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
 
 // ─── Path Helpers ─────────────────────────────────────────────────────────────
 
@@ -55,11 +47,7 @@ function ooxmlScriptPath(relativePath: string): string {
  * Execute a shell command via the plugin context's exec() method.
  * Returns a ToolResult wrapping stdout/stderr.
  */
-async function runCommand(
-  command: string,
-  context: ToolExecutionContext,
-  options?: { cwd?: string },
-): Promise<ToolResult> {
+async function runCommand(command: string, context: ToolExecutionContext, options?: { cwd?: string }): Promise<ToolResult> {
   // The exec method is provided when the shell:execute permission is granted.
   // Cast the context to access it — in the real host this is typed; for the
   // POC we reach through the tool context to the plugin context's exec().
@@ -68,8 +56,7 @@ async function runCommand(
   if (!exec) {
     return {
       success: false,
-      error:
-        'Shell execution is not available. Ensure the plugin has the "shell:execute" permission.',
+      error: 'Shell execution is not available. Ensure the plugin has the "shell:execute" permission.',
     };
   }
 
@@ -114,10 +101,7 @@ async function runCommand(
  * The converter renders each slide in a headless browser, extracts element
  * positions, and creates matching PPTX slides via pptxgenjs.
  */
-async function handleCreateFromHtml(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleCreateFromHtml(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const htmlFile = params.html_file as string | undefined;
   const outputFile = params.output_file as string | undefined;
 
@@ -138,20 +122,7 @@ async function handleCreateFromHtml(
   //   2. Calls html2pptx(htmlFile, pptx) for each HTML file
   //   3. Writes the output
   const script = scriptPath('html2pptx.js');
-  const command = [
-    'node',
-    '-e',
-    `"const pptxgen = require('pptxgenjs');` +
-      `const { html2pptx } = require('${script}');` +
-      `(async () => {` +
-      `  const pptx = new pptxgen();` +
-      `  pptx.layout = 'LAYOUT_16x9';` +
-      `  const files = '${htmlFile}'.split(',');` +
-      `  for (const f of files) { await html2pptx(f.trim(), pptx); }` +
-      `  await pptx.writeFile({ fileName: '${outputFile}' });` +
-      `  console.log('Created: ${outputFile}');` +
-      `})()"`,
-  ].join(' ');
+  const command = ['node', '-e', `"const pptxgen = require('pptxgenjs');` + `const { html2pptx } = require('${script}');` + `(async () => {` + `  const pptx = new pptxgen();` + `  pptx.layout = 'LAYOUT_16x9';` + `  const files = '${htmlFile}'.split(',');` + `  for (const f of files) { await html2pptx(f.trim(), pptx); }` + `  await pptx.writeFile({ fileName: '${outputFile}' });` + `  console.log('Created: ${outputFile}');` + `})()"`].join(' ');
 
   return runCommand(command, context);
 }
@@ -163,10 +134,7 @@ async function handleCreateFromHtml(
  * Uses inventory.py to produce a structured JSON with slide-by-slide text,
  * paragraph formatting, shape positions, and dimensions.
  */
-async function handleExtractText(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleExtractText(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputFile = params.input_file as string | undefined;
   const outputFile = params.output_file as string | undefined;
   const issuesOnly = params.issues_only as boolean | undefined;
@@ -195,10 +163,7 @@ async function handleExtractText(
  * Useful for quick visual overview and slide identification.
  * Outputs JPEG grid(s) — multiple grids for large presentations.
  */
-async function handleThumbnail(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleThumbnail(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputFile = params.input_file as string | undefined;
   const outputPrefix = params.output_prefix as string | undefined;
   const cols = params.cols as number | undefined;
@@ -233,10 +198,7 @@ async function handleThumbnail(
  * Takes a comma-separated sequence of 0-based slide indices.
  * Slides can be repeated (duplicated) or omitted (deleted).
  */
-async function handleRearrange(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleRearrange(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const templateFile = params.template_file as string | undefined;
   const outputFile = params.output_file as string | undefined;
   const sequence = params.sequence as string | undefined;
@@ -266,10 +228,7 @@ async function handleRearrange(
  * The JSON should have the structure produced by inventory.py (extract_text),
  * with modified paragraph text for shapes that should be updated.
  */
-async function handleReplaceText(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleReplaceText(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputFile = params.input_file as string | undefined;
   const replacementsFile = params.replacements_file as string | undefined;
   const outputFile = params.output_file as string | undefined;
@@ -299,10 +258,7 @@ async function handleReplaceText(
  * This enables direct XML editing of slide content, themes, layouts, etc.
  * The unpacked directory can be repacked with pptx_pack after editing.
  */
-async function handleUnpack(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleUnpack(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputFile = params.input_file as string | undefined;
   const outputDir = params.output_dir as string | undefined;
 
@@ -327,10 +283,7 @@ async function handleUnpack(
  * Validates XML against OOXML schemas before packing (unless --force is used).
  * The directory should have been created by pptx_unpack.
  */
-async function handlePack(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handlePack(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const inputDir = params.input_dir as string | undefined;
   const outputFile = params.output_file as string | undefined;
   const force = params.force as boolean | undefined;
@@ -360,10 +313,7 @@ async function handlePack(
  * Checks that all XML files conform to the Office Open XML standard.
  * Requires the original PPTX file for comparison.
  */
-async function handleValidate(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleValidate(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const unpackedDir = params.unpacked_dir as string | undefined;
   const originalFile = params.original_file as string | undefined;
   const verbose = params.verbose as boolean | undefined;
@@ -396,9 +346,7 @@ const pptxPlugin: AionPlugin = {
 
   activate(context: PluginContext) {
     pluginDir = context.pluginDir;
-    context.logger.info(
-      `PPTX plugin activated (pluginDir: ${pluginDir})`,
-    );
+    context.logger.info(`PPTX plugin activated (pluginDir: ${pluginDir})`);
   },
 
   deactivate() {
@@ -459,26 +407,9 @@ const pptxPlugin: AionPlugin = {
   skills: [
     {
       name: 'pptx',
-      description:
-        'Presentation creation, editing, and analysis. When the agent needs to work with ' +
-        'presentations (.pptx files) for: (1) Creating new presentations from HTML, ' +
-        '(2) Modifying or editing content via OOXML, (3) Working with templates using ' +
-        'extract/replace workflows, (4) Adding comments or speaker notes, or any other ' +
-        'presentation tasks.',
+      description: 'Presentation creation, editing, and analysis. When the agent needs to work with ' + 'presentations (.pptx files) for: (1) Creating new presentations from HTML, ' + '(2) Modifying or editing content via OOXML, (3) Working with templates using ' + 'extract/replace workflows, (4) Adding comments or speaker notes, or any other ' + 'presentation tasks.',
       // body omitted — loads from skills/pptx/SKILL.md in the plugin directory
-      resources: [
-        'skills/pptx/html2pptx.md',
-        'skills/pptx/ooxml.md',
-        'skills/pptx/LICENSE.txt',
-        'skills/pptx/scripts/html2pptx.js',
-        'skills/pptx/scripts/inventory.py',
-        'skills/pptx/scripts/replace.py',
-        'skills/pptx/scripts/thumbnail.py',
-        'skills/pptx/scripts/rearrange.py',
-        'skills/pptx/ooxml/scripts/unpack.py',
-        'skills/pptx/ooxml/scripts/pack.py',
-        'skills/pptx/ooxml/scripts/validate.py',
-      ],
+      resources: ['skills/pptx/html2pptx.md', 'skills/pptx/ooxml.md', 'skills/pptx/LICENSE.txt', 'skills/pptx/scripts/html2pptx.js', 'skills/pptx/scripts/inventory.py', 'skills/pptx/scripts/replace.py', 'skills/pptx/scripts/thumbnail.py', 'skills/pptx/scripts/rearrange.py', 'skills/pptx/ooxml/scripts/unpack.py', 'skills/pptx/ooxml/scripts/pack.py', 'skills/pptx/ooxml/scripts/validate.py'],
     },
   ] satisfies PluginSkillDefinition[],
 
@@ -492,18 +423,13 @@ const pptxPlugin: AionPlugin = {
     // ── Create from HTML ──────────────────────────────────────────────────
     {
       name: 'pptx_create_from_html',
-      description:
-        'Convert HTML slide files to a PowerPoint presentation. The HTML should contain ' +
-        'slides with CSS-positioned elements. Uses Playwright to render and pptxgenjs to ' +
-        'create the PPTX with accurate positioning. Multiple HTML files can be specified ' +
-        'as a comma-separated list for multi-slide presentations.',
+      description: 'Convert HTML slide files to a PowerPoint presentation. The HTML should contain ' + 'slides with CSS-positioned elements. Uses Playwright to render and pptxgenjs to ' + 'create the PPTX with accurate positioning. Multiple HTML files can be specified ' + 'as a comma-separated list for multi-slide presentations.',
       inputSchema: {
         type: 'object',
         properties: {
           html_file: {
             type: 'string',
-            description:
-              'Path to HTML file(s) to convert. Use comma-separated paths for multiple slides.',
+            description: 'Path to HTML file(s) to convert. Use comma-separated paths for multiple slides.',
           },
           output_file: {
             type: 'string',
@@ -518,11 +444,7 @@ const pptxPlugin: AionPlugin = {
     // ── Extract Text ──────────────────────────────────────────────────────
     {
       name: 'pptx_extract_text',
-      description:
-        'Extract all text content and shape information from a PowerPoint presentation ' +
-        'into a structured JSON file. Includes paragraph formatting, shape positions, ' +
-        'dimensions, fonts, colors, and bullet levels. Use --issues-only to extract only ' +
-        'shapes with potential formatting issues.',
+      description: 'Extract all text content and shape information from a PowerPoint presentation ' + 'into a structured JSON file. Includes paragraph formatting, shape positions, ' + 'dimensions, fonts, colors, and bullet levels. Use --issues-only to extract only ' + 'shapes with potential formatting issues.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -547,10 +469,7 @@ const pptxPlugin: AionPlugin = {
     // ── Thumbnail ─────────────────────────────────────────────────────────
     {
       name: 'pptx_thumbnail',
-      description:
-        'Create a visual thumbnail grid image (JPEG) of all slides in a presentation. ' +
-        'Useful for quick visual overview, slide identification, and layout analysis. ' +
-        'Large presentations produce multiple grid files automatically.',
+      description: 'Create a visual thumbnail grid image (JPEG) of all slides in a presentation. ' + 'Useful for quick visual overview, slide identification, and layout analysis. ' + 'Large presentations produce multiple grid files automatically.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -560,9 +479,7 @@ const pptxPlugin: AionPlugin = {
           },
           output_prefix: {
             type: 'string',
-            description:
-              'Prefix for output file(s). Defaults to "thumbnails". ' +
-              'Single grid: {prefix}.jpg. Multiple grids: {prefix}-1.jpg, {prefix}-2.jpg, etc.',
+            description: 'Prefix for output file(s). Defaults to "thumbnails". ' + 'Single grid: {prefix}.jpg. Multiple grids: {prefix}-1.jpg, {prefix}-2.jpg, etc.',
           },
           cols: {
             type: 'number',
@@ -570,8 +487,7 @@ const pptxPlugin: AionPlugin = {
           },
           outline_placeholders: {
             type: 'boolean',
-            description:
-              'If true, draw red outlines around text placeholders in the thumbnails.',
+            description: 'If true, draw red outlines around text placeholders in the thumbnails.',
           },
         },
         required: ['input_file'],
@@ -582,11 +498,7 @@ const pptxPlugin: AionPlugin = {
     // ── Rearrange ─────────────────────────────────────────────────────────
     {
       name: 'pptx_rearrange',
-      description:
-        'Rearrange, duplicate, or remove slides from a presentation. Takes a comma-separated ' +
-        'sequence of 0-based slide indices. Slides can be repeated (duplicated) or omitted ' +
-        '(effectively deleted). Example: "0,3,3,5,1" creates a new presentation with those ' +
-        'slides in that order.',
+      description: 'Rearrange, duplicate, or remove slides from a presentation. Takes a comma-separated ' + 'sequence of 0-based slide indices. Slides can be repeated (duplicated) or omitted ' + '(effectively deleted). Example: "0,3,3,5,1" creates a new presentation with those ' + 'slides in that order.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -600,9 +512,7 @@ const pptxPlugin: AionPlugin = {
           },
           sequence: {
             type: 'string',
-            description:
-              'Comma-separated sequence of 0-based slide indices. ' +
-              'Example: "0,2,2,5,3" — first slide, third slide twice, sixth slide, fourth slide.',
+            description: 'Comma-separated sequence of 0-based slide indices. ' + 'Example: "0,2,2,5,3" — first slide, third slide twice, sixth slide, fourth slide.',
           },
         },
         required: ['template_file', 'output_file', 'sequence'],
@@ -613,11 +523,7 @@ const pptxPlugin: AionPlugin = {
     // ── Replace Text ──────────────────────────────────────────────────────
     {
       name: 'pptx_replace_text',
-      description:
-        'Apply text replacements to a PowerPoint presentation using a JSON mapping file. ' +
-        'The JSON should follow the structure produced by pptx_extract_text (inventory.py). ' +
-        'All shapes identified in the inventory will have their text cleared unless ' +
-        '"paragraphs" is specified in the replacements for that shape.',
+      description: 'Apply text replacements to a PowerPoint presentation using a JSON mapping file. ' + 'The JSON should follow the structure produced by pptx_extract_text (inventory.py). ' + 'All shapes identified in the inventory will have their text cleared unless ' + '"paragraphs" is specified in the replacements for that shape.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -627,8 +533,7 @@ const pptxPlugin: AionPlugin = {
           },
           replacements_file: {
             type: 'string',
-            description:
-              'Path to the JSON file containing text replacements (same structure as inventory output).',
+            description: 'Path to the JSON file containing text replacements (same structure as inventory output).',
           },
           output_file: {
             type: 'string',
@@ -643,10 +548,7 @@ const pptxPlugin: AionPlugin = {
     // ── Unpack ────────────────────────────────────────────────────────────
     {
       name: 'pptx_unpack',
-      description:
-        'Unpack a PPTX file into a directory of pretty-printed XML files for direct editing. ' +
-        'This extracts and formats all XML, .rels, and media files from the PPTX archive. ' +
-        'Edit the XML files directly, then repack with pptx_pack.',
+      description: 'Unpack a PPTX file into a directory of pretty-printed XML files for direct editing. ' + 'This extracts and formats all XML, .rels, and media files from the PPTX archive. ' + 'Edit the XML files directly, then repack with pptx_pack.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -667,10 +569,7 @@ const pptxPlugin: AionPlugin = {
     // ── Pack ──────────────────────────────────────────────────────────────
     {
       name: 'pptx_pack',
-      description:
-        'Pack an unpacked directory back into a PPTX file. Validates XML against OOXML schemas ' +
-        'before packing to prevent corrupt output. Use force=true to skip validation. ' +
-        'The directory should have been created by pptx_unpack.',
+      description: 'Pack an unpacked directory back into a PPTX file. Validates XML against OOXML schemas ' + 'before packing to prevent corrupt output. Use force=true to skip validation. ' + 'The directory should have been created by pptx_unpack.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -695,11 +594,7 @@ const pptxPlugin: AionPlugin = {
     // ── Validate ──────────────────────────────────────────────────────────
     {
       name: 'pptx_validate',
-      description:
-        'Validate the XML in an unpacked PPTX directory against OOXML XSD schemas. ' +
-        'Checks that all XML files conform to the Office Open XML standard. ' +
-        'Requires the original PPTX file for comparison. Use before pptx_pack to ' +
-        'catch XML errors early.',
+      description: 'Validate the XML in an unpacked PPTX directory against OOXML XSD schemas. ' + 'Checks that all XML files conform to the Office Open XML standard. ' + 'Requires the original PPTX file for comparison. Use before pptx_pack to ' + 'catch XML errors early.',
       inputSchema: {
         type: 'object',
         properties: {

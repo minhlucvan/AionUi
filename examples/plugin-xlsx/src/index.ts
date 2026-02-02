@@ -20,15 +20,7 @@
  *   Local: point to this directory
  */
 
-import type {
-  AionPlugin,
-  PluginContext,
-  PluginSkillDefinition,
-  PluginSystemPrompt,
-  PluginToolDefinition,
-  ToolExecutionContext,
-  ToolResult,
-} from '../../src/plugin/types';
+import type { AionPlugin, PluginContext, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,10 +32,7 @@ interface RecalcResult {
   status?: 'success' | 'errors_found';
   total_errors?: number;
   total_formulas?: number;
-  error_summary?: Record<
-    string,
-    { count: number; locations: string[] }
-  >;
+  error_summary?: Record<string, { count: number; locations: string[] }>;
   error?: string;
 }
 
@@ -69,10 +58,7 @@ function isExcelPath(filePath: string): boolean {
  * capability (requires shell:execute permission). Parses the JSON output
  * from recalc.py and returns a structured ToolResult.
  */
-async function handleRecalculate(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleRecalculate(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const excelFile = params.excelFile as string | undefined;
   const timeout = params.timeout as number | undefined;
 
@@ -101,7 +87,7 @@ async function handleRecalculate(
 
   // ── Build command ─────────────────────────────────────────────────────────
 
-  const scriptPath = recalcScriptPath(context.settings._pluginDir as string || '.');
+  const scriptPath = recalcScriptPath((context.settings._pluginDir as string) || '.');
   const args = [scriptPath, excelFile];
   if (timeout) {
     args.push(String(timeout));
@@ -116,8 +102,11 @@ async function handleRecalculate(
   try {
     // context.exec is provided by the host (requires shell:execute permission)
     // We use a type assertion because exec is optional on the base context type
-    const exec = (context as Record<string, unknown>).exec as
-      | ((cmd: string, opts?: { cwd?: string; timeout?: number }) => Promise<{
+    const exec = (context as unknown as Record<string, unknown>).exec as
+      | ((
+          cmd: string,
+          opts?: { cwd?: string; timeout?: number }
+        ) => Promise<{
           stdout: string;
           stderr: string;
           exitCode: number;
@@ -127,8 +116,7 @@ async function handleRecalculate(
     if (!exec) {
       return {
         success: false,
-        error:
-          'Shell execution is not available. The plugin requires the shell:execute permission.',
+        error: 'Shell execution is not available. The plugin requires the shell:execute permission.',
       };
     }
 
@@ -257,13 +245,9 @@ const xlsxPlugin: AionPlugin<XlsxPluginSettings> = {
   skills: [
     {
       name: 'xlsx',
-      description:
-        'Comprehensive spreadsheet creation, editing, and analysis with support for formulas, formatting, data analysis, and visualization. When you need to work with spreadsheets (.xlsx, .xlsm, .csv, .tsv) for creating new spreadsheets with formulas and formatting, reading or analyzing data, modifying existing spreadsheets while preserving formulas, data analysis, or recalculating formulas.',
+      description: 'Comprehensive spreadsheet creation, editing, and analysis with support for formulas, formatting, data analysis, and visualization. When you need to work with spreadsheets (.xlsx, .xlsm, .csv, .tsv) for creating new spreadsheets with formulas and formatting, reading or analyzing data, modifying existing spreadsheets while preserving formulas, data analysis, or recalculating formulas.',
       // body is omitted — the host loads from skills/xlsx/SKILL.md
-      resources: [
-        'skills/xlsx/recalc.py',
-        'skills/xlsx/LICENSE.txt',
-      ],
+      resources: ['skills/xlsx/recalc.py', 'skills/xlsx/LICENSE.txt'],
     },
   ] satisfies PluginSkillDefinition[],
 
@@ -275,23 +259,17 @@ const xlsxPlugin: AionPlugin<XlsxPluginSettings> = {
   tools: [
     {
       name: 'xlsx_recalculate',
-      description:
-        'Recalculate all formulas in an Excel file using LibreOffice and report any formula errors. ' +
-        'Returns a JSON summary with total formulas, total errors, and error locations by type ' +
-        '(#REF!, #DIV/0!, #VALUE!, #NAME?, #NULL!, #NUM!, #N/A). ' +
-        'MUST be run after creating or modifying any Excel file that contains formulas.',
+      description: 'Recalculate all formulas in an Excel file using LibreOffice and report any formula errors. ' + 'Returns a JSON summary with total formulas, total errors, and error locations by type ' + '(#REF!, #DIV/0!, #VALUE!, #NAME?, #NULL!, #NUM!, #N/A). ' + 'MUST be run after creating or modifying any Excel file that contains formulas.',
       inputSchema: {
         type: 'object',
         properties: {
           excelFile: {
             type: 'string',
-            description:
-              'Path to the Excel file (.xlsx, .xlsm, or .xls) to recalculate',
+            description: 'Path to the Excel file (.xlsx, .xlsm, or .xls) to recalculate',
           },
           timeout: {
             type: 'number',
-            description:
-              'Maximum time in seconds to wait for LibreOffice recalculation (default: 30)',
+            description: 'Maximum time in seconds to wait for LibreOffice recalculation (default: 30)',
           },
         },
         required: ['excelFile'],

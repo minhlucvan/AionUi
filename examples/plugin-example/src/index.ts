@@ -18,16 +18,7 @@
  *   Local: point to this directory
  */
 
-import type {
-  AionPlugin,
-  PluginContext,
-  PluginMcpServer,
-  PluginSkillDefinition,
-  PluginSystemPrompt,
-  PluginToolDefinition,
-  ToolExecutionContext,
-  ToolResult,
-} from '../../src/plugin/types';
+import type { AionPlugin, PluginContext, PluginMcpServer, PluginSkillDefinition, PluginSystemPrompt, PluginToolDefinition, ToolExecutionContext, ToolResult } from '../../../src/plugin/types';
 
 // ─── Settings Type ───────────────────────────────────────────────────────────
 
@@ -39,10 +30,7 @@ interface WebSearchSettings {
 
 // ─── Tool Handlers ───────────────────────────────────────────────────────────
 
-async function handleWebSearch(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleWebSearch(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const query = params.query as string;
   const settings = context.settings as WebSearchSettings;
 
@@ -68,9 +56,7 @@ async function handleWebSearch(
       data: { query, results, totalResults: results.length },
       display: {
         type: 'markdown',
-        content: results
-          .map((r, i) => `${i + 1}. **[${r.title}](${r.url})**\n   ${r.snippet}`)
-          .join('\n\n'),
+        content: results.map((r, i) => `${i + 1}. **[${r.title}](${r.url})**\n   ${r.snippet}`).join('\n\n'),
       },
     };
   } catch (err) {
@@ -78,10 +64,7 @@ async function handleWebSearch(
   }
 }
 
-async function handleWebFetch(
-  params: Record<string, unknown>,
-  context: ToolExecutionContext,
-): Promise<ToolResult> {
+async function handleWebFetch(params: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
   const url = params.url as string;
 
   if (!url || typeof url !== 'string') {
@@ -111,9 +94,7 @@ const webSearchPlugin: AionPlugin<WebSearchSettings> = {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   activate(context: PluginContext<WebSearchSettings>) {
-    context.logger.info(
-      `Web Search plugin activated (engine: ${context.settings.searchEngine})`,
-    );
+    context.logger.info(`Web Search plugin activated (engine: ${context.settings.searchEngine})`);
 
     context.onSettingsChange((settings) => {
       context.logger.info(`Settings updated (engine: ${settings.searchEngine})`);
@@ -132,18 +113,7 @@ const webSearchPlugin: AionPlugin<WebSearchSettings> = {
 
   systemPrompts: [
     {
-      content: [
-        'You have access to web search tools provided by the Web Search plugin.',
-        'When the user asks about current events, recent documentation, or',
-        'anything that would benefit from up-to-date information, use the',
-        'web_search tool to find relevant results.',
-        '',
-        'Available tools:',
-        '- web_search: Search the web for information',
-        '- web_fetch: Fetch full content from a specific URL',
-        '',
-        'Always cite your sources with URLs when using search results.',
-      ].join('\n'),
+      content: ['You have access to web search tools provided by the Web Search plugin.', 'When the user asks about current events, recent documentation, or', 'anything that would benefit from up-to-date information, use the', 'web_search tool to find relevant results.', '', 'Available tools:', '- web_search: Search the web for information', '- web_fetch: Fetch full content from a specific URL', '', 'Always cite your sources with URLs when using search results.'].join('\n'),
       priority: 50,
       // Works with all providers — no filter needed
     },
@@ -158,8 +128,7 @@ const webSearchPlugin: AionPlugin<WebSearchSettings> = {
   skills: [
     {
       name: 'web-search',
-      description:
-        'Best practices for web searching: query formulation, source evaluation, and result synthesis. When you need to find current information, verify facts, or research a topic.',
+      description: 'Best practices for web searching: query formulation, source evaluation, and result synthesis. When you need to find current information, verify facts, or research a topic.',
       // body is omitted — the host loads from skills/web-search/SKILL.md
     },
   ] satisfies PluginSkillDefinition[],
@@ -173,8 +142,7 @@ const webSearchPlugin: AionPlugin<WebSearchSettings> = {
   tools: [
     {
       name: 'web_search',
-      description:
-        'Search the web for current information. Returns results with titles, URLs, and snippets.',
+      description: 'Search the web for current information. Returns results with titles, URLs, and snippets.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -193,8 +161,7 @@ const webSearchPlugin: AionPlugin<WebSearchSettings> = {
     },
     {
       name: 'web_fetch',
-      description:
-        'Fetch and extract text content from a URL. Use when you need the full page content.',
+      description: 'Fetch and extract text content from a URL. Use when you need the full page content.',
       inputSchema: {
         type: 'object',
         properties: {
