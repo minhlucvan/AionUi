@@ -205,6 +205,26 @@ export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
 };
 
+// Plugin management (updated)
+export const plugin = {
+  list: bridge.buildProvider<IBridgeResponse<import('@/plugin/types').PluginRegistryEntry[]>, void>('plugin:list'),
+  get: bridge.buildProvider<IBridgeResponse<import('@/plugin/types').PluginRegistryEntry | undefined>, { pluginId: string }>('plugin:get'),
+  listActive: bridge.buildProvider<IBridgeResponse<import('@/plugin/types').PluginRegistryEntry[]>, void>('plugin:list-active'),
+  installNpm: bridge.buildProvider<IBridgeResponse<{ pluginId: string }>, { packageName: string; version?: string }>('plugin:install-npm'),
+  installGithub: bridge.buildProvider<IBridgeResponse<{ pluginId: string }>, { repo: string; ref?: string }>('plugin:install-github'),
+  installLocal: bridge.buildProvider<IBridgeResponse<{ pluginId: string }>, { dirPath: string }>('plugin:install-local'),
+  uninstall: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('plugin:uninstall'),
+  activate: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('plugin:activate'),
+  deactivate: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('plugin:deactivate'),
+  updateSettings: bridge.buildProvider<IBridgeResponse, { pluginId: string; settings: Record<string, unknown> }>('plugin:update-settings'),
+  grantPermissions: bridge.buildProvider<IBridgeResponse, { pluginId: string; permissions: import('@/plugin/types').PluginPermission[] }>('plugin:grant-permissions'),
+  revokePermissions: bridge.buildProvider<IBridgeResponse, { pluginId: string; permissions: import('@/plugin/types').PluginPermission[] }>('plugin:revoke-permissions'),
+  checkUpdates: bridge.buildProvider<IBridgeResponse<Array<{ pluginId: string; currentVersion: string; latestVersion: string }>>, void>('plugin:check-updates'),
+  pluginActivated: bridge.buildEmitter<{ pluginId: string }>('plugin:event:activated'),
+  pluginDeactivated: bridge.buildEmitter<{ pluginId: string }>('plugin:event:deactivated'),
+  pluginError: bridge.buildEmitter<{ pluginId: string; error: string }>('plugin:event:error'),
+};
+
 // 窗口控制相关接口 / Window controls API
 export const windowControls = {
   minimize: bridge.buildProvider<void, void>('window-controls:minimize'),
