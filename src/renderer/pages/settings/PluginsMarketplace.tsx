@@ -29,12 +29,15 @@ const PluginsMarketplace: React.FC = () => {
 
   // Category definitions
   const categories: Array<{ id: CategoryFilter; label: string; icon: string; count?: number }> = useMemo(() => {
-    const installed = plugins.filter(p => p.state !== 'error').length;
-    const byCat = plugins.reduce((acc, p) => {
-      const cat = (p.manifest.category || 'other') as CategoryFilter;
-      acc[cat] = (acc[cat] || 0) + 1;
-      return acc;
-    }, {} as Record<CategoryFilter, number>);
+    const installed = plugins.filter((p) => p.state !== 'error').length;
+    const byCat = plugins.reduce(
+      (acc, p) => {
+        const cat = (p.manifest.category || 'other') as CategoryFilter;
+        acc[cat] = (acc[cat] || 0) + 1;
+        return acc;
+      },
+      {} as Record<CategoryFilter, number>
+    );
 
     return [
       { id: 'all', label: 'All Plugins', icon: '📦', count: plugins.length },
@@ -54,19 +57,15 @@ const PluginsMarketplace: React.FC = () => {
 
     // Category filter
     if (selectedCategory === 'installed') {
-      result = result.filter(p => p.state !== 'error');
+      result = result.filter((p) => p.state !== 'error');
     } else if (selectedCategory !== 'all') {
-      result = result.filter(p => (p.manifest.category || 'other') === selectedCategory);
+      result = result.filter((p) => (p.manifest.category || 'other') === selectedCategory);
     }
 
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(p =>
-        p.manifest.displayName.toLowerCase().includes(query) ||
-        p.manifest.description.toLowerCase().includes(query) ||
-        p.id.toLowerCase().includes(query)
-      );
+      result = result.filter((p) => p.manifest.displayName.toLowerCase().includes(query) || p.manifest.description.toLowerCase().includes(query) || p.id.toLowerCase().includes(query));
     }
 
     return result;
@@ -78,15 +77,13 @@ const PluginsMarketplace: React.FC = () => {
     } else {
       await deactivate(plugin.id);
     }
-    refetch();
+    void refetch();
   };
 
   if (loading && plugins.length === 0) {
     return (
       <SettingsPageWrapper contentClassName='max-w-1400px'>
-        <div className='p-20px text-center text-t-secondary'>
-          Loading plugins...
-        </div>
+        <div className='p-20px text-center text-t-secondary'>Loading plugins...</div>
       </SettingsPageWrapper>
     );
   }
@@ -95,9 +92,7 @@ const PluginsMarketplace: React.FC = () => {
     return (
       <SettingsPageWrapper contentClassName='max-w-1400px'>
         <div className='p-20px'>
-          <div className='p-16px bg-red-500/10 border border-red-500/20 rd-8px text-red-600 dark:text-red-400'>
-            Error loading plugins: {error}
-          </div>
+          <div className='p-16px bg-red-500/10 border border-red-500/20 rd-8px text-red-600 dark:text-red-400'>Error loading plugins: {error}</div>
         </div>
       </SettingsPageWrapper>
     );
@@ -109,10 +104,7 @@ const PluginsMarketplace: React.FC = () => {
         {/* Sidebar - Categories */}
         <aside className='w-240px border-r border-border flex-shrink-0 p-16px overflow-y-auto'>
           <div className='mb-16px'>
-            <button
-              onClick={() => setShowInstallDialog(true)}
-              className='w-full px-12px py-8px bg-primary hover:bg-primary/80 text-white rd-8px text-14px font-500 transition-colors'
-            >
+            <button onClick={() => setShowInstallDialog(true)} className='w-full px-12px py-8px bg-primary hover:bg-primary/80 text-white rd-8px text-14px font-500 transition-colors'>
               + Install Plugin
             </button>
           </div>
@@ -125,19 +117,14 @@ const PluginsMarketplace: React.FC = () => {
                 className={`
                   w-full px-12px py-8px rd-8px text-14px text-left transition-colors
                   flex items-center justify-between
-                  ${selectedCategory === category.id
-                    ? 'bg-primary/10 text-primary font-500'
-                    : 'hover:bg-aou-1 text-t-secondary'
-                  }
+                  ${selectedCategory === category.id ? 'bg-primary/10 text-primary font-500' : 'hover:bg-aou-1 text-t-secondary'}
                 `}
               >
                 <span>
                   <span className='mr-8px'>{category.icon}</span>
                   {category.label}
                 </span>
-                {category.count !== undefined && category.count > 0 && (
-                  <span className='text-12px opacity-60'>{category.count}</span>
-                )}
+                {category.count !== undefined && category.count > 0 && <span className='text-12px opacity-60'>{category.count}</span>}
               </button>
             ))}
           </div>
@@ -148,27 +135,15 @@ const PluginsMarketplace: React.FC = () => {
           <div className='p-20px'>
             {/* Header */}
             <div className='mb-20px'>
-              <h2 className='text-24px font-600 mb-8px'>
-                {categories.find(c => c.id === selectedCategory)?.label || 'Plugins'}
-              </h2>
-              <p className='text-14px text-t-secondary'>
-                Browse and install plugins to extend AionUi functionality
-              </p>
+              <h2 className='text-24px font-600 mb-8px'>{categories.find((c) => c.id === selectedCategory)?.label || 'Plugins'}</h2>
+              <p className='text-14px text-t-secondary'>Browse and install plugins to extend AionUi functionality</p>
             </div>
 
             {/* Search Bar */}
             <div className='mb-20px'>
               <div className='relative'>
-                <input
-                  type='text'
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder='Search plugins by name, description, or ID...'
-                  className='w-full px-16px py-10px pl-40px bg-aou-1 border border-border rd-12px focus:outline-none focus:border-primary text-14px'
-                />
-                <span className='absolute left-16px top-50% -translate-y-50% text-t-tertiary'>
-                  🔍
-                </span>
+                <input type='text' value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder='Search plugins by name, description, or ID...' className='w-full px-16px py-10px pl-40px bg-aou-1 border border-border rd-12px focus:outline-none focus:border-primary text-14px' />
+                <span className='absolute left-16px top-50% -translate-y-50% text-t-tertiary'>🔍</span>
               </div>
             </div>
 
@@ -176,31 +151,15 @@ const PluginsMarketplace: React.FC = () => {
             {filteredPlugins.length > 0 ? (
               <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-16px'>
                 {filteredPlugins.map((plugin) => (
-                  <PluginCard
-                    key={plugin.id}
-                    plugin={plugin}
-                    onActivate={() => handlePluginAction(plugin, 'activate')}
-                    onDeactivate={() => handlePluginAction(plugin, 'deactivate')}
-                    onViewDetails={() => setSelectedPlugin(plugin)}
-                  />
+                  <PluginCard key={plugin.id} plugin={plugin} onActivate={() => handlePluginAction(plugin, 'activate')} onDeactivate={() => handlePluginAction(plugin, 'deactivate')} onViewDetails={() => setSelectedPlugin(plugin)} />
                 ))}
               </div>
             ) : (
               <div className='text-center py-60px'>
                 <div className='text-48px mb-16px opacity-20'>📦</div>
                 <h3 className='text-18px font-500 mb-8px'>No plugins found</h3>
-                <p className='text-14px text-t-secondary mb-20px'>
-                  {searchQuery
-                    ? `No plugins match "${searchQuery}"`
-                    : selectedCategory === 'installed'
-                    ? 'You have no installed plugins yet'
-                    : `No plugins in the "${categories.find(c => c.id === selectedCategory)?.label}" category`
-                  }
-                </p>
-                <button
-                  onClick={() => setShowInstallDialog(true)}
-                  className='px-20px py-10px bg-primary hover:bg-primary/80 text-white rd-8px text-14px transition-colors'
-                >
+                <p className='text-14px text-t-secondary mb-20px'>{searchQuery ? `No plugins match "${searchQuery}"` : selectedCategory === 'installed' ? 'You have no installed plugins yet' : `No plugins in the "${categories.find((c) => c.id === selectedCategory)?.label}" category`}</p>
+                <button onClick={() => setShowInstallDialog(true)} className='px-20px py-10px bg-primary hover:bg-primary/80 text-white rd-8px text-14px transition-colors'>
                   Install a Plugin
                 </button>
               </div>
@@ -215,7 +174,7 @@ const PluginsMarketplace: React.FC = () => {
           plugin={selectedPlugin}
           onClose={() => setSelectedPlugin(null)}
           onPluginUpdated={() => {
-            refetch();
+            void refetch();
             setSelectedPlugin(null);
           }}
         />
@@ -226,7 +185,7 @@ const PluginsMarketplace: React.FC = () => {
         visible={showInstallDialog}
         onClose={() => setShowInstallDialog(false)}
         onInstalled={() => {
-          refetch();
+          void refetch();
           setShowInstallDialog(false);
         }}
       />

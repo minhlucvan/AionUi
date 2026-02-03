@@ -13,12 +13,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { plugin } from '@/common/ipcBridge';
 import type { PluginRegistryEntry, PluginPermission } from '@/plugin/types';
 
-interface BridgeResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  msg?: string;
-}
-
 /**
  * Hook for querying and managing the full plugin list
  */
@@ -263,9 +257,7 @@ export function usePluginActions() {
  * Hook for checking plugin updates
  */
 export function usePluginUpdates() {
-  const [updates, setUpdates] = useState<
-    Array<{ pluginId: string; currentVersion: string; latestVersion: string }>
-  >([]);
+  const [updates, setUpdates] = useState<Array<{ pluginId: string; currentVersion: string; latestVersion: string }>>([]);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -321,7 +313,7 @@ export function usePluginPermissions(pluginId: string) {
         setLoading(false);
       }
     },
-    [pluginId],
+    [pluginId]
   );
 
   const revokePermissions = useCallback(
@@ -344,7 +336,7 @@ export function usePluginPermissions(pluginId: string) {
         setLoading(false);
       }
     },
-    [pluginId],
+    [pluginId]
   );
 
   return {
@@ -354,4 +346,3 @@ export function usePluginPermissions(pluginId: string) {
     error,
   };
 }
-
