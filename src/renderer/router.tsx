@@ -11,6 +11,7 @@ import GeminiSettings from './pages/settings/GeminiSettings';
 import ModeSettings from './pages/settings/ModeSettings';
 import SystemSettings from './pages/settings/SystemSettings';
 import ToolsSettings from './pages/settings/ToolsSettings';
+import PluginsSettings from './pages/settings/PluginsSettings';
 import LoginPage from './pages/login';
 import ComponentsShowcase from './pages/test/ComponentsShowcase';
 
@@ -46,6 +47,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/system' element={<SystemSettings />} />
           <Route path='/settings/about' element={<About />} />
           <Route path='/settings/tools' element={<ToolsSettings />} />
+          <Route path='/settings/plugins' element={<PluginsSettings />} />
           <Route path='/settings' element={<Navigate to='/settings/gemini' replace />} />
           <Route path='/test/components' element={<ComponentsShowcase />} />
         </Route>

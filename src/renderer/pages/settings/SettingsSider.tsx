@@ -1,5 +1,5 @@
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
-import { Computer, Gemini, Info, LinkCloud, System, Toolkit, Robot } from '@icon-park/react';
+import { Computer, Gemini, Info, LinkCloud, System, Toolkit, Robot, Plug } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +32,11 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
         label: t('settings.tools'),
         icon: <Toolkit />,
         path: 'tools',
+      },
+      {
+        label: t('settings.plugins', { defaultValue: 'Plugins' }),
+        icon: <Plug />,
+        path: 'plugins',
       },
       {
         label: t('settings.display'),

@@ -1,0 +1,20 @@
+{
+  "name": "aionui-plugin-creators",
+  "version": "1.0.0",
+  "description": "Creative content generation: 3D games, interactive experiences, animations",
+  "main": "src/index.ts",
+  "license": "Apache-2.0",
+  "aionui": {
+    "displayName": "Creators",
+    "description": "Generate creative content: 3D platform games, interactive experiences, and animations",
+    "category": "creative",
+    "permissions": []
+  },
+  "keywords": [
+    "aionui-plugin",
+    "game",
+    "3d",
+    "creative",
+    "interactive"
+  ]
+}

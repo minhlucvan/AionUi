@@ -334,10 +334,10 @@ distributed as installable plugins:
 
 | Built-in Skill | Plugin Package | Tools | Scripts |
 |---------------|----------------|-------|---------|
-| `skills/pdf/` | `examples/plugin-pdf/` | 6 (split, merge, images, forms...) | 10 Python scripts |
-| `skills/pptx/` | `examples/plugin-pptx/` | 8 (create, extract, thumbnail, ooxml...) | 5 Python + 1 Node |
-| `skills/docx/` | `examples/plugin-docx/` | 5 (unpack, pack, validate, text, images) | 3 Python + templates |
-| `skills/xlsx/` | `examples/plugin-xlsx/` | 1 (recalculate) | 1 Python (recalc.py) |
+| `skills/pdf/` | `plugins/plugin-pdf/` | 6 (split, merge, images, forms...) | 10 Python scripts |
+| `skills/pptx/` | `plugins/plugin-pptx/` | 8 (create, extract, thumbnail, ooxml...) | 5 Python + 1 Node |
+| `skills/docx/` | `plugins/plugin-docx/` | 5 (unpack, pack, validate, text, images) | 3 Python + templates |
+| `skills/xlsx/` | `plugins/plugin-xlsx/` | 1 (recalculate) | 1 Python (recalc.py) |
 
 ### Key Migration Patterns
 

@@ -1,0 +1,20 @@
+{
+  "name": "aionui-plugin-content-converters",
+  "version": "1.0.0",
+  "description": "Content conversion workflows between document formats (PDF to PPT, etc.)",
+  "main": "src/index.ts",
+  "license": "Apache-2.0",
+  "aionui": {
+    "displayName": "Content Converters",
+    "description": "Convert documents between formats: PDF to PowerPoint, DOCX to PDF, and more",
+    "category": "productivity",
+    "permissions": []
+  },
+  "keywords": [
+    "aionui-plugin",
+    "pdf",
+    "powerpoint",
+    "conversion",
+    "document"
+  ]
+}

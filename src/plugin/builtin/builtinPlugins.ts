@@ -68,19 +68,33 @@ export const BUILTIN_PLUGINS: BuiltinPluginDescriptor[] = [
     skillNames: ['xlsx'],
     displayName: 'Excel Tools',
   },
+  // ── New plugins providing assistants ───────────────────────────────────
+  {
+    dirName: 'plugin-content-converters',
+    id: 'aionui-plugin-content-converters',
+    skillNames: ['pdf', 'pptx'], // Uses skills from other plugins
+    displayName: 'Content Converters',
+  },
+  {
+    dirName: 'plugin-creators',
+    id: 'aionui-plugin-creators',
+    skillNames: [],
+    displayName: 'Creators',
+  },
 ];
 
 /**
  * Resolve the directory where built-in plugin packages live.
  *
  * In packaged app: {app.asar.unpacked}/builtin-plugins/
- * In development:  {projectRoot}/examples/
+ * In development:  {projectRoot}/plugins/
  */
 export function resolveBuiltinPluginsDir(): string {
   // In production, plugins would be under builtin-plugins/ in the app bundle
-  // For now, use the examples/ directory for development
-  const examplesDir = path.resolve(__dirname, '../../../examples');
-  return examplesDir;
+  // In development, use process.cwd() to get the project root
+  // (because __dirname points to .webpack/main which is not reliable)
+  const pluginsDir = path.join(process.cwd(), 'plugins');
+  return pluginsDir;
 }
 
 /**
@@ -94,15 +108,24 @@ export function loadBuiltinPlugin(descriptor: BuiltinPluginDescriptor): AionPlug
   const pluginDir = path.join(pluginsDir, descriptor.dirName);
 
   try {
-    // Try compiled output first, then source
+    // Use eval('require') to prevent webpack from intercepting the require() call
+    // This allows us to load external plugins at runtime
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-eval
+    const dynamicRequire = eval('require');
+
+    // Try compiled output first
     let pluginModule: { default?: AionPlugin };
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      pluginModule = require(path.join(pluginDir, 'dist', 'index'));
-    } catch {
-      // Fallback to source (for development / ts-node / jest)
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      pluginModule = require(path.join(pluginDir, 'src', 'index'));
+      const distPath = path.join(pluginDir, 'dist', 'index.js');
+      pluginModule = dynamicRequire(distPath);
+    } catch (distErr) {
+      // Fallback to source if dist not available
+      try {
+        const srcPath = path.join(pluginDir, 'src', 'index.js');
+        pluginModule = dynamicRequire(srcPath);
+      } catch (srcErr) {
+        throw new Error(`Failed to load from dist or src: ${(distErr as Error).message}`);
+      }
     }
 
     const plugin = (pluginModule.default || pluginModule) as AionPlugin;

@@ -40,72 +40,10 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': ['分析项目结构', '自动化构建流程'],
     },
   },
-  {
-    id: 'pptx-generator',
-    avatar: '📊',
-    presetAgentType: 'gemini',
-    resourceDir: 'assistant/pptx-generator',
-    ruleFiles: {
-      'en-US': 'pptx-generator.md',
-      'zh-CN': 'pptx-generator.zh-CN.md',
-    },
-    nameI18n: {
-      'en-US': 'PPTX Generator',
-      'zh-CN': 'PPTX 生成器',
-    },
-    descriptionI18n: {
-      'en-US': 'Generate local PPTX assets and structure for pptxgenjs.',
-      'zh-CN': '生成本地 PPTX 资产与结构（pptxgenjs）。',
-    },
-    promptsI18n: {
-      'en-US': ['Create a slide deck about AI trends', 'Generate a PPT for quarterly report'],
-      'zh-CN': ['创建一个关于AI趋势的幻灯片', '生成季度报告PPT'],
-    },
-  },
-  {
-    id: 'pdf-to-ppt',
-    avatar: '📄',
-    presetAgentType: 'gemini',
-    resourceDir: 'assistant/pdf-to-ppt',
-    ruleFiles: {
-      'en-US': 'pdf-to-ppt.md',
-      'zh-CN': 'pdf-to-ppt.zh-CN.md',
-    },
-    nameI18n: {
-      'en-US': 'PDF to PPT',
-      'zh-CN': 'PDF 转 PPT',
-    },
-    descriptionI18n: {
-      'en-US': 'Convert PDF to PPT with watermark removal rules.',
-      'zh-CN': 'PDF 转 PPT 并去除水印规则',
-    },
-    promptsI18n: {
-      'en-US': ['Convert report.pdf to slides', 'Extract charts from whitepaper.pdf'],
-      'zh-CN': ['将 report.pdf 转换为幻灯片', '从白皮书提取图表'],
-    },
-  },
-  {
-    id: 'game-3d',
-    avatar: '🎮',
-    presetAgentType: 'gemini',
-    resourceDir: 'assistant/game-3d',
-    ruleFiles: {
-      'en-US': 'game-3d.md',
-      'zh-CN': 'game-3d.zh-CN.md',
-    },
-    nameI18n: {
-      'en-US': '3D Game',
-      'zh-CN': '3D 游戏生成',
-    },
-    descriptionI18n: {
-      'en-US': 'Generate a complete 3D platform collection game in one HTML file.',
-      'zh-CN': '用单个 HTML 文件生成完整的 3D 平台收集游戏。',
-    },
-    promptsI18n: {
-      'en-US': ['Create a 3D platformer game', 'Make a coin collection game'],
-      'zh-CN': ['创建一个3D平台游戏', '制作一个金币收集游戏'],
-    },
-  },
+  // MIGRATED TO PLUGINS:
+  // - pptx-generator → plugin-pptx (agent: pptx-generator)
+  // - pdf-to-ppt → plugin-content-converters (agent: pdf-to-ppt)
+  // - game-3d → plugin-creators (agent: game-3d)
   {
     id: 'ui-ux-pro-max',
     avatar: '🎨',
