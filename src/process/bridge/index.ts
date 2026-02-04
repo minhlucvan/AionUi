@@ -22,6 +22,8 @@ import { initModelBridge } from './modelBridge';
 import { initPreviewHistoryBridge } from './previewHistoryBridge';
 import { initShellBridge } from './shellBridge';
 import { initWindowControlsBridge } from './windowControlsBridge';
+import { initPluginBridge } from '@/plugin/bridge/pluginBridge';
+import { getPluginManager } from '@/plugin/initPluginSystem';
 
 /**
  * 初始化所有IPC桥接模块
@@ -45,6 +47,15 @@ export function initAllBridges(): void {
   initPreviewHistoryBridge();
   initDocumentBridge();
   initWindowControlsBridge();
+
+  // Initialize plugin IPC bridge if plugin manager is available
+  const pluginManager = getPluginManager();
+  if (pluginManager) {
+    initPluginBridge(pluginManager);
+    console.log('[Bridge] Plugin IPC bridge initialized');
+  } else {
+    console.warn('[Bridge] Plugin manager not initialized, skipping plugin bridge');
+  }
 }
 
 /**
