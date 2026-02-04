@@ -29,7 +29,7 @@ export function usePlugins() {
       if (result.success && result.data) {
         setPlugins(result.data);
       } else {
-        setError(result.msg || 'Failed to fetch plugins');
+        setError(result.error || 'Failed to fetch plugins');
       }
     } catch (err) {
       setError((err as Error).message);
@@ -80,7 +80,7 @@ export function useActivePlugins() {
       if (result.success && result.data) {
         setPlugins(result.data);
       } else {
-        setError(result.msg || 'Failed to fetch active plugins');
+        setError(result.error || 'Failed to fetch active plugins');
       }
     } catch (err) {
       setError((err as Error).message);
@@ -113,12 +113,12 @@ export function usePluginInstall() {
       setInstalling(true);
       setError(null);
       const result = await plugin.installNpm.invoke({ packageName, version });
-      const errorMsg = result.msg;
+      const errorMsg = result.error;
       if (!result.success) {
         setError(errorMsg || 'Failed to install plugin');
         return { success: false, error: errorMsg };
       }
-      return { success: true, pluginId: result.data?.pluginId };
+      return { success: true };
     } catch (err) {
       const errorMsg = (err as Error).message;
       setError(errorMsg);
@@ -128,17 +128,17 @@ export function usePluginInstall() {
     }
   }, []);
 
-  const installFromGithub = useCallback(async (repo: string, ref?: string) => {
+  const installFromGithub = useCallback(async (repository: string, ref?: string) => {
     try {
       setInstalling(true);
       setError(null);
-      const result = await plugin.installGithub.invoke({ repo, ref });
-      const errorMsg = result.msg;
+      const result = await plugin.installGithub.invoke({ repository, ref });
+      const errorMsg = result.error;
       if (!result.success) {
         setError(errorMsg || 'Failed to install plugin');
         return { success: false, error: errorMsg };
       }
-      return { success: true, pluginId: result.data?.pluginId };
+      return { success: true };
     } catch (err) {
       const errorMsg = (err as Error).message;
       setError(errorMsg);
@@ -148,17 +148,17 @@ export function usePluginInstall() {
     }
   }, []);
 
-  const installFromLocal = useCallback(async (dirPath: string) => {
+  const installFromLocal = useCallback(async (path: string) => {
     try {
       setInstalling(true);
       setError(null);
-      const result = await plugin.installLocal.invoke({ dirPath });
-      const errorMsg = result.msg;
+      const result = await plugin.installLocal.invoke({ path });
+      const errorMsg = result.error;
       if (!result.success) {
         setError(errorMsg || 'Failed to install plugin');
         return { success: false, error: errorMsg };
       }
-      return { success: true, pluginId: result.data?.pluginId };
+      return { success: true };
     } catch (err) {
       const errorMsg = (err as Error).message;
       setError(errorMsg);
@@ -189,7 +189,7 @@ export function usePluginActions() {
       setLoading(true);
       setError(null);
       const result = await plugin.activate.invoke({ pluginId });
-      const errorMsg = result.msg;
+      const errorMsg = result.error;
       if (!result.success) {
         setError(errorMsg || 'Failed to activate plugin');
         return { success: false, error: errorMsg };
@@ -209,7 +209,7 @@ export function usePluginActions() {
       setLoading(true);
       setError(null);
       const result = await plugin.deactivate.invoke({ pluginId });
-      const errorMsg = result.msg;
+      const errorMsg = result.error;
       if (!result.success) {
         setError(errorMsg || 'Failed to deactivate plugin');
         return { success: false, error: errorMsg };
@@ -229,7 +229,7 @@ export function usePluginActions() {
       setLoading(true);
       setError(null);
       const result = await plugin.uninstall.invoke({ pluginId });
-      const errorMsg = result.msg;
+      const errorMsg = result.error;
       if (!result.success) {
         setError(errorMsg || 'Failed to uninstall plugin');
         return { success: false, error: errorMsg };
@@ -269,7 +269,7 @@ export function usePluginUpdates() {
       if (result.success && result.data) {
         setUpdates(result.data);
       } else {
-        setError(result.msg || 'Failed to check updates');
+        setError(result.error || 'Failed to check updates');
       }
     } catch (err) {
       setError((err as Error).message);
@@ -299,7 +299,7 @@ export function usePluginPermissions(pluginId: string) {
         setLoading(true);
         setError(null);
         const result = await plugin.grantPermissions.invoke({ pluginId, permissions });
-        const errorMsg = result.msg;
+        const errorMsg = result.error;
         if (!result.success) {
           setError(errorMsg || 'Failed to grant permissions');
           return { success: false, error: errorMsg };
@@ -322,7 +322,7 @@ export function usePluginPermissions(pluginId: string) {
         setLoading(true);
         setError(null);
         const result = await plugin.revokePermissions.invoke({ pluginId, permissions });
-        const errorMsg = result.msg;
+        const errorMsg = result.error;
         if (!result.success) {
           setError(errorMsg || 'Failed to revoke permissions');
           return { success: false, error: errorMsg };
