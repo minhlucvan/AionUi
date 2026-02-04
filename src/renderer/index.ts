@@ -10,13 +10,6 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import '../adapter/browser';
 import Main from './main';
-
-// Force webpack to include plugin export - MUST be at entry point
-import { plugin as __pluginBridge } from '@/common/ipcBridge';
-if (typeof window !== 'undefined') {
-  (window as any).__AIONUI_PLUGIN_BRIDGE_LOADED__ = !!__pluginBridge;
-  console.log('[AionUi] Plugin bridge initialized:', Object.keys(__pluginBridge).length, 'methods');
-}
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PreviewProvider } from './pages/conversation/preview';

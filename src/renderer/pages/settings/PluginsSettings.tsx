@@ -11,25 +11,12 @@ import PluginCard from '@/renderer/components/plugins/PluginCard';
 import PluginDetailModal from '@/renderer/components/plugins/PluginDetailModal';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import type { PluginRegistryEntry } from '@/plugin/types';
-// Force webpack to include plugin export
-import { plugin as _pluginBridge } from '@/common/ipcBridge';
 
 const PluginsSettings: React.FC = () => {
   const navigate = useNavigate();
   const { plugins, loading, error, refetch } = usePlugins();
   const { activate, deactivate, uninstall } = usePluginActions();
   const [selectedPlugin, setSelectedPlugin] = useState<PluginRegistryEntry | null>(null);
-
-  // Force webpack to include plugin export by actually using it
-  React.useEffect(() => {
-    if (typeof window !== 'undefined' && !(window as any).__PLUGIN_BRIDGE_LOADED__) {
-      console.log('[PluginsSettings] Plugin bridge loaded:', {
-        methods: Object.keys(_pluginBridge),
-        hasList: typeof _pluginBridge.list !== 'undefined',
-      });
-      (window as any).__PLUGIN_BRIDGE_LOADED__ = true;
-    }
-  }, []);
 
   const installedPlugins = plugins.filter((p) => p.state !== 'error');
   const activePlugins = plugins.filter((p) => p.state === 'active');
