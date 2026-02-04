@@ -358,11 +358,155 @@ distributed as installable plugins:
    and agent code required no modifications. Plugin skills merge seamlessly
    into the built-in pool.
 
-## 15. Migration Path
+## 15. Plugin UI and User Interface
 
-| Phase | Scope |
-|-------|-------|
-| Phase 1 | Core types, PluginManager, PluginLoader, IPC bridge |
-| Phase 2 | Skill/prompt/tool integration with agent managers |
-| Phase 3 | Plugin settings UI, permissions prompt |
-| Phase 4 | Plugin marketplace / discovery |
+### 15.1 IPC Bridge
+
+The plugin system exposes a complete IPC bridge (`src/common/ipcBridge.ts`) for
+renderer-to-main process communication:
+
+```typescript
+export const plugin = {
+  // Query operations
+  list: bridge.buildProvider<IBridgeResponse<PluginRegistryEntry[]>, void>('plugin:list'),
+  get: bridge.buildProvider<IBridgeResponse<PluginRegistryEntry | undefined>, { pluginId: string }>('plugin:get'),
+  listActive: bridge.buildProvider<IBridgeResponse<PluginRegistryEntry[]>, void>('plugin:list-active'),
+
+  // Installation operations
+  installNpm: bridge.buildProvider<IBridgeResponse<{ pluginId: string }>, { packageName: string; version?: string }>('plugin:install-npm'),
+  installGithub: bridge.buildProvider<IBridgeResponse<{ pluginId: string }>, { repo: string; ref?: string }>('plugin:install-github'),
+  installLocal: bridge.buildProvider<IBridgeResponse<{ pluginId: string }>, { dirPath: string }>('plugin:install-local'),
+
+  // Lifecycle operations
+  activate: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('plugin:activate'),
+  deactivate: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('plugin:deactivate'),
+  uninstall: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('plugin:uninstall'),
+
+  // Configuration
+  updateSettings: bridge.buildProvider<IBridgeResponse, { pluginId: string; settings: Record<string, unknown> }>('plugin:update-settings'),
+  grantPermissions: bridge.buildProvider<IBridgeResponse, { pluginId: string; permissions: PluginPermission[] }>('plugin:grant-permissions'),
+  revokePermissions: bridge.buildProvider<IBridgeResponse, { pluginId: string; permissions: PluginPermission[] }>('plugin:revoke-permissions'),
+
+  // Updates
+  checkUpdates: bridge.buildProvider<IBridgeResponse<Array<{ pluginId: string; currentVersion: string; latestVersion: string }>>, void>('plugin:check-updates'),
+
+  // Events
+  pluginActivated: bridge.buildEmitter<{ pluginId: string }>('plugin:event:activated'),
+  pluginDeactivated: bridge.buildEmitter<{ pluginId: string }>('plugin:event:deactivated'),
+  pluginError: bridge.buildEmitter<{ pluginId: string; error: string }>('plugin:event:error'),
+};
+```
+
+### 15.2 React Hooks
+
+The `src/renderer/hooks/usePlugins.ts` module provides a complete set of React
+hooks for plugin management:
+
+- `usePlugins()` - Query all installed plugins with real-time updates via event listeners
+- `useActivePlugins()` - Query only active plugins
+- `usePluginInstall()` - Install plugins from npm, GitHub, or local sources
+- `usePluginActions()` - Activate, deactivate, and uninstall plugins
+- `usePluginUpdates()` - Check for available plugin updates
+- `usePluginPermissions(pluginId)` - Grant and revoke plugin permissions
+
+### 15.3 Plugin Marketplace UI
+
+**Location**: `src/renderer/pages/settings/PluginsMarketplace.tsx`
+
+A VS Code-style marketplace interface with:
+
+- **Hybrid Navigation**: Category sidebar (All Plugins, Installed, Document, Productivity, AI Tools, Code Analysis, Integration, Other) with live counts + global search bar
+- **Plugin Grid**: Responsive 3-column grid (1 column on mobile, 2 on tablet, 3 on desktop) showing plugin cards with category badges, state indicators, and action buttons
+- **Real-time Search**: Filter plugins by name, description, or ID with instant results
+- **Installation Dialog**: Three-tab interface (npm, GitHub, local) with file picker for local plugins
+- **Plugin Detail Modal**: Three-tab modal (Overview, Capabilities, Permissions) showing full plugin information
+
+### 15.4 Plugin Settings UI
+
+**Location**: `src/renderer/pages/settings/PluginsSettings.tsx`
+
+Management interface for installed plugins with:
+
+- **Dashboard Stats**: Total plugins, active plugins, inactive plugins counts
+- **Plugin Grid**: 2-column responsive grid showing all installed plugins
+- **Quick Actions**: Activate, deactivate, uninstall buttons with confirmation dialogs
+- **Plugin Details**: Click any plugin to view full details, capabilities, and permissions
+
+### 15.5 UI Components
+
+**Location**: `src/renderer/components/plugins/`
+
+- **PluginCard.tsx**: Reusable card component showing plugin metadata, state badge (Active/Installed/Available/Error), source badge (npm/GitHub/local), capability counts, and action buttons
+- **PluginDetailModal.tsx**: Comprehensive modal with tabbed interface for viewing plugin overview (description, requirements, installation details), capabilities (all tools/skills/agents/MCP servers), and permissions
+- **PluginInstallDialog.tsx**: Multi-source installation dialog with npm package search, GitHub repository input, and local directory picker with permission approval display
+
+### 15.6 Navigation
+
+Plugins are accessible via Settings in two locations:
+
+- **Settings → Plugins**: Shows installed plugins dashboard
+- **Settings → Plugins → Browse Marketplace**: Full marketplace interface with category browsing and search
+
+## 16. Implementation Status
+
+### ✅ Completed (Phases 1-3)
+
+1. **Core Types** (`src/plugin/types/index.ts`)
+   - `AionPlugin` interface with systemPrompts, skills, tools, mcpServers
+   - `PluginContext` with workspace, logger, settings, exec
+   - Permission types and manifest definitions
+
+2. **Plugin Manager** (`src/plugin/PluginManager.ts`)
+   - Plugin lifecycle management (register, activate, deactivate, uninstall)
+   - Capability collection (system prompts, skills, tools, MCP servers)
+   - Permission enforcement and settings management
+   - Event emission for UI reactivity
+
+3. **Plugin Loader** (`src/plugin/PluginLoader.ts`)
+   - Installation from npm packages with version support
+   - Installation from GitHub repositories (owner/repo or full URLs)
+   - Installation from local directories (development mode)
+   - Manifest validation and dependency resolution
+
+4. **IPC Bridge** (`src/common/ipcBridge.ts`)
+   - Complete bidirectional communication layer
+   - 15 provider endpoints for plugin operations
+   - 3 event emitters for real-time updates
+   - Type-safe request/response with IBridgeResponse
+
+5. **Built-in Plugins** (`src/plugin/builtin/`)
+   - 6 migrated plugins (PDF, PPTX, DOCX, XLSX, Content Converters, Creators)
+   - Proof-of-concept showing skill/tool/agent bundling
+   - Demonstrates script execution and file-based skill loading
+
+6. **React Hooks** (`src/renderer/hooks/usePlugins.ts`)
+   - 6 specialized hooks for different use cases
+   - Real-time event listening with automatic cleanup
+   - Error handling and loading states
+
+7. **UI Components** (`src/renderer/components/plugins/`)
+   - 3 production-ready React components
+   - UnoCSS styling matching app theme
+   - Accessibility features (keyboard navigation, ARIA labels)
+
+8. **Settings Pages** (`src/renderer/pages/settings/`)
+   - Complete plugin marketplace with category browsing
+   - Installed plugins dashboard with stats
+   - Responsive design for all screen sizes
+
+### 🚧 Remaining Work (Phase 4)
+
+- **Plugin Discovery**: Public plugin registry/marketplace backend
+- **Plugin Updates**: Automated update checking and installation
+- **Plugin Dependencies**: Dependency resolution between plugins
+- **Plugin Sandboxing**: Process isolation for untrusted plugins
+- **Plugin Testing**: Automated testing framework for plugin validation
+
+## 17. Migration Path
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| Phase 1 | Core types, PluginManager, PluginLoader, IPC bridge | ✅ Complete |
+| Phase 2 | Skill/prompt/tool integration with agent managers | ✅ Complete |
+| Phase 3 | Plugin UI (marketplace, settings, components) | ✅ Complete |
+| Phase 4 | Plugin discovery, automated updates, sandboxing | 🚧 Planned |
