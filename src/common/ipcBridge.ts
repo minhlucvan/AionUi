@@ -321,3 +321,10 @@ interface IBridgeResponse<D = {}> {
   data?: D;
   msg?: string;
 }
+
+// Prevent tree-shaking of plugin export
+// This forces webpack to include the plugin export in the bundle
+if (typeof window !== 'undefined') {
+  // @ts-expect-error - Side effect to prevent tree-shaking
+  window.__AIONUI_PLUGIN_BRIDGE__ = plugin;
+}
