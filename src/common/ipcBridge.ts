@@ -205,8 +205,36 @@ export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
 };
 
-// Plugin management is handled by @/plugin/bridge/pluginBridge
-// See src/renderer/hooks/usePlugins.ts for direct IPC usage
+// Plugin management - handlers initialized in @/plugin/bridge/pluginBridge
+export const plugin = {
+  // Query
+  list: bridge.buildProvider<{ success: boolean; data?: import('@/plugin/types').PluginRegistryEntry[]; error?: string }, void>('plugin:list'),
+  get: bridge.buildProvider<{ success: boolean; data?: import('@/plugin/types').PluginRegistryEntry; error?: string }, { pluginId: string }>('plugin:get'),
+  listActive: bridge.buildProvider<{ success: boolean; data?: import('@/plugin/types').PluginRegistryEntry[]; error?: string }, void>('plugin:list-active'),
+
+  // Installation
+  installNpm: bridge.buildProvider<{ success: boolean; error?: string }, { packageName: string; version?: string }>('plugin:install-npm'),
+  installGithub: bridge.buildProvider<{ success: boolean; error?: string }, { repository: string; ref?: string }>('plugin:install-github'),
+  installLocal: bridge.buildProvider<{ success: boolean; error?: string }, { path: string }>('plugin:install-local'),
+  uninstall: bridge.buildProvider<{ success: boolean; error?: string }, { pluginId: string }>('plugin:uninstall'),
+
+  // Lifecycle
+  activate: bridge.buildProvider<{ success: boolean; error?: string }, { pluginId: string }>('plugin:activate'),
+  deactivate: bridge.buildProvider<{ success: boolean; error?: string }, { pluginId: string }>('plugin:deactivate'),
+
+  // Settings & Permissions
+  updateSettings: bridge.buildProvider<{ success: boolean; error?: string }, { pluginId: string; settings: Record<string, unknown> }>('plugin:update-settings'),
+  grantPermissions: bridge.buildProvider<{ success: boolean; error?: string }, { pluginId: string; permissions: import('@/plugin/types').PluginPermission[] }>('plugin:grant-permissions'),
+  revokePermissions: bridge.buildProvider<{ success: boolean; error?: string }, { pluginId: string; permissions: import('@/plugin/types').PluginPermission[] }>('plugin:revoke-permissions'),
+
+  // Updates
+  checkUpdates: bridge.buildProvider<{ success: boolean; data?: Array<{ pluginId: string; currentVersion: string; latestVersion: string }>; error?: string }, void>('plugin:check-updates'),
+
+  // Events (main → renderer)
+  pluginActivated: bridge.buildEmitter<{ pluginId: string }>('plugin:event:activated'),
+  pluginDeactivated: bridge.buildEmitter<{ pluginId: string }>('plugin:event:deactivated'),
+  pluginError: bridge.buildEmitter<{ pluginId: string; error: string }>('plugin:event:error'),
+};
 
 // 窗口控制相关接口 / Window controls API
 export const windowControls = {
