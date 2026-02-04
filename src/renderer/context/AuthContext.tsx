@@ -35,7 +35,14 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const AUTH_USER_ENDPOINT = '/api/auth/user';
 
-const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
+// Check if running in Electron desktop app (multiple checks for reliability)
+const isDesktopRuntime =
+  typeof window !== 'undefined' &&
+  (Boolean(window.electronAPI) ||
+    // Fallback: check for electron-specific user agent or other indicators
+    /electron/i.test(navigator.userAgent) ||
+    // Another fallback: process is typically exposed in Electron
+    typeof (window as any).process !== 'undefined');
 
 async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> {
   try {
