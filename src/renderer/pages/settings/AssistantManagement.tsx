@@ -28,6 +28,14 @@ interface PendingSkill {
   description: string;
 }
 
+// Workspace info type
+interface WorkspaceInfo {
+  skills: Array<{ id: string; name: string; description?: string }>;
+  commands: Array<{ name: string; description?: string }>;
+  agents: Array<{ id: string; name: string; description?: string }>;
+  hooks: Array<{ type: string; name: string; description?: string }>;
+}
+
 interface AssistantManagementProps {
   message: ReturnType<typeof Message.useMessage>[0];
 }
@@ -56,6 +64,8 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   const [pendingSkills, setPendingSkills] = useState<PendingSkill[]>([]); // 待导入的 skills / Pending skills to import
   const [deletePendingSkillName, setDeletePendingSkillName] = useState<string | null>(null); // 待删除的 pending skill 名称 / Pending skill name to delete
   const [deleteCustomSkillName, setDeleteCustomSkillName] = useState<string | null>(null); // 待从助手移除的 custom skill 名称 / Custom skill to remove from assistant
+  const [workspaceInfo, setWorkspaceInfo] = useState<WorkspaceInfo | null>(null); // 助手工作区信息 / Assistant workspace info
+  const [workspaceLoading, setWorkspaceLoading] = useState(false); // 工作区加载状态 / Workspace loading state
   const textareaWrapperRef = useRef<HTMLDivElement>(null);
   const localeKey = resolveLocaleKey(i18n.language);
   const avatarImageMap: Record<string, string> = {
@@ -224,6 +234,30 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
       setEditSkills('');
       setAvailableSkills([]);
       setSelectedSkills([]);
+    }
+
+    // 加载助手工作区信息 / Load assistant workspace info
+    console.log('[AssistantManagement] assistant.isPreset:', assistant.isPreset, 'assistant.id:', assistant.id);
+    if (assistant.isPreset) {
+      setWorkspaceLoading(true);
+      setWorkspaceInfo(null);
+      try {
+        console.log('[AssistantManagement] Loading workspace for assistant:', assistant.id);
+        const result = await ipcBridge.assistantBridge.loadWorkspace.invoke(assistant.id);
+        console.log('[AssistantManagement] Workspace load result:', result);
+        if (result.success && result.workspace) {
+          setWorkspaceInfo(result.workspace);
+        } else {
+          setWorkspaceInfo(null);
+        }
+      } catch (error) {
+        console.error('Failed to load workspace:', error);
+        setWorkspaceInfo(null);
+      } finally {
+        setWorkspaceLoading(false);
+      }
+    } else {
+      setWorkspaceInfo(null);
     }
   };
 
@@ -591,6 +625,118 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
                 </div>
               </div>
             </div>
+            {/* 工作区信息 / Workspace Information */}
+            {activeAssistant?.isPreset && (workspaceInfo || workspaceLoading) && (
+              <div className='flex-shrink-0 mt-16px'>
+                <Typography.Text bold>Workspace</Typography.Text>
+                {workspaceLoading ? (
+                  <div className='text-13px text-t-secondary mt-12px'>Loading workspace...</div>
+                ) : workspaceInfo ? (
+                  <Collapse className='mt-12px' defaultActiveKey={[]}>
+                    <Collapse.Item
+                      header={
+                        <div className='flex items-center gap-8px text-13px font-medium'>
+                          <span>Workspace Capabilities</span>
+                          <span className='text-12px text-t-secondary'>
+                            {workspaceInfo.skills.length + workspaceInfo.commands.length + workspaceInfo.agents.length + workspaceInfo.hooks.length} items
+                          </span>
+                        </div>
+                      }
+                      name='workspace'
+                    >
+                      <div className='space-y-16px px-12px py-8px'>
+                        {/* Skills */}
+                        {workspaceInfo.skills.length > 0 && (
+                          <div>
+                            <div className='text-12px font-600 text-t-secondary mb-8px flex items-center gap-4px'>
+                              <span>📚 Skills</span>
+                              <span className='text-11px px-4px py-1px bg-fill-2 rounded'>
+                                {workspaceInfo.skills.length}
+                              </span>
+                            </div>
+                            <div className='space-y-4px'>
+                              {workspaceInfo.skills.map((skill) => (
+                                <div key={skill.id} className='text-13px p-8px hover:bg-fill-1 rounded-4px'>
+                                  <div className='font-medium text-t-primary'>{skill.name}</div>
+                                  {skill.description && (
+                                    <div className='text-12px text-t-secondary mt-2px'>{skill.description}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Commands */}
+                        {workspaceInfo.commands.length > 0 && (
+                          <div>
+                            <div className='text-12px font-600 text-t-secondary mb-8px flex items-center gap-4px'>
+                              <span>⚡ Commands</span>
+                              <span className='text-11px px-4px py-1px bg-fill-2 rounded'>
+                                {workspaceInfo.commands.length}
+                              </span>
+                            </div>
+                            <div className='space-y-4px'>
+                              {workspaceInfo.commands.map((command) => (
+                                <div key={command.name} className='text-13px p-8px hover:bg-fill-1 rounded-4px'>
+                                  <div className='font-medium text-t-primary'>/{command.name}</div>
+                                  {command.description && (
+                                    <div className='text-12px text-t-secondary mt-2px'>{command.description}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Agents */}
+                        {workspaceInfo.agents.length > 0 && (
+                          <div>
+                            <div className='text-12px font-600 text-t-secondary mb-8px flex items-center gap-4px'>
+                              <span>🤖 Agents</span>
+                              <span className='text-11px px-4px py-1px bg-fill-2 rounded'>
+                                {workspaceInfo.agents.length}
+                              </span>
+                            </div>
+                            <div className='space-y-4px'>
+                              {workspaceInfo.agents.map((agent) => (
+                                <div key={agent.id} className='text-13px p-8px hover:bg-fill-1 rounded-4px'>
+                                  <div className='font-medium text-t-primary'>{agent.name}</div>
+                                  {agent.description && (
+                                    <div className='text-12px text-t-secondary mt-2px'>{agent.description}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Hooks */}
+                        {workspaceInfo.hooks.length > 0 && (
+                          <div>
+                            <div className='text-12px font-600 text-t-secondary mb-8px flex items-center gap-4px'>
+                              <span>🔗 Hooks</span>
+                              <span className='text-11px px-4px py-1px bg-fill-2 rounded'>
+                                {workspaceInfo.hooks.length}
+                              </span>
+                            </div>
+                            <div className='space-y-4px'>
+                              {workspaceInfo.hooks.map((hook, idx) => (
+                                <div key={`${hook.type}-${hook.name}-${idx}`} className='text-13px p-8px hover:bg-fill-1 rounded-4px'>
+                                  <div className='font-medium text-t-primary'>
+                                    {hook.type}: {hook.name}
+                                  </div>
+                                  {hook.description && (
+                                    <div className='text-12px text-t-secondary mt-2px'>{hook.description}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </Collapse.Item>
+                  </Collapse>
+                ) : null}
+              </div>
+            )}
             {/* 创建助手或编辑 cowork/自定义助手时显示技能选择 / Show skills selection when creating or editing cowork/custom assistant */}
             {(isCreating || activeAssistantId === 'builtin-cowork' || (activeAssistant && !activeAssistant.isBuiltin)) && (
               <div className='flex-shrink-0 mt-16px'>

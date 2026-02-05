@@ -621,6 +621,10 @@ const initStorage = async () => {
         assistantsDir: getAssistantsDir(),
         workspace: getCliSafePath(),
       });
+
+      // Initialize plugin IPC bridge immediately after plugin system is ready
+      const { initPluginBridgeIfReady } = await import('./bridge');
+      initPluginBridgeIfReady();
     } catch (pluginError) {
       console.error('[AionUi] Failed to initialize plugin system:', pluginError);
     }

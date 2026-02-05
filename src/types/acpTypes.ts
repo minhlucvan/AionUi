@@ -274,6 +274,39 @@ export interface AcpBackendConfig {
    * These skills will be displayed in the Custom Skills section even after being imported.
    */
   customSkillNames?: string[];
+
+  /**
+   * Claude Code 工作空间路径（仅 id='claude' 且 isPreset=true 时生效）
+   * 指向包含 Claude Code 插件、技能、命令、代理等的完整工作空间目录
+   *
+   * Claude Code workspace path (only applies when id='claude' and isPreset=true).
+   * Points to a complete workspace directory containing Claude Code plugins, skills, commands, agents, etc.
+   *
+   * 工作空间结构 / Workspace structure:
+   * - .claude-plugin/plugin.json (可选插件清单 / Optional plugin manifest)
+   * - skills/ (技能定义 / Skill definitions)
+   * - commands/ (斜杠命令 / Slash commands)
+   * - agents/ (专用代理 / Specialized agents)
+   * - hooks/ (生命周期钩子 / Lifecycle hooks)
+   *   - SessionStart/
+   *   - PreToolUse/
+   *   - PostToolUse/
+   *   - Stop/
+   * - .mcp.json (MCP 服务器配置 / MCP server config)
+   *
+   * 可以是绝对路径或相对于项目根目录的路径
+   * Can be an absolute path or relative to project root
+   */
+  claudeCodeWorkspacePath?: string;
+
+  /**
+   * 是否为 Claude Code 助手（从工作空间加载的预配置助手）
+   * 当为 true 时，系统会在对话开始时加载整个 Claude Code 工作空间
+   *
+   * Whether this is a Claude Code assistant (pre-configured assistant loaded from workspace).
+   * When true, the system will load the entire Claude Code workspace when conversation starts.
+   */
+  isClaudeCodeAssistant?: boolean;
 }
 
 // 所有后端配置 - 包括暂时禁用的 / All backend configurations - including temporarily disabled ones

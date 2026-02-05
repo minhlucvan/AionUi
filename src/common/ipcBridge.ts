@@ -246,6 +246,25 @@ export const windowControls = {
   maximizedChanged: bridge.buildEmitter<{ isMaximized: boolean }>('window-controls:maximized-changed'),
 };
 
+// 助手管理相关接口 / Assistant management API
+export const assistantBridge = {
+  loadWorkspace: bridge.buildProvider<
+    {
+      success: boolean;
+      workspace?: {
+        path: string;
+        skills: Array<{ id: string; name: string; description?: string }>;
+        commands: Array<{ name: string; description?: string }>;
+        agents: Array<{ id: string; name: string; description?: string }>;
+        hooks: Array<{ type: string; name: string; description?: string }>;
+      };
+      warnings?: string[];
+      error?: string;
+    },
+    string
+  >('assistantBridge:loadWorkspace'),
+};
+
 interface ISendMessageParams {
   input: string;
   msg_id: string;
@@ -291,6 +310,8 @@ export interface ICreateConversationParams {
     presetContext?: string;
     /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
     presetAssistantId?: string;
+    /** 助手工作区模板 ID，用于标识使用的工作区模板来源 / Assistant workspace template ID for identifying the workspace template source */
+    assistantWorkspaceId?: string;
   };
 }
 interface IResetConversationParams {

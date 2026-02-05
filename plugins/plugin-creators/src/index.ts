@@ -2,10 +2,9 @@
  * aionui-plugin-creators
  *
  * Plugin for creative content generation: games, interactive experiences, animations.
- * Currently provides 3D game generation.
+ * Placeholder for future creative agents.
  *
  * Capabilities:
- *   - Agents: 3D Game Creator
  *   - Self-contained: no external tools required
  *   - Generates standalone HTML files
  *
@@ -16,9 +15,6 @@
  */
 
 import type { AionPlugin, PluginContext } from '../../../src/plugin/types';
-
-// ─── Class-based agents ───────────────────────────────────────────────────────
-import Game3dAgent from './agents/game-3d';
 
 // ─── Plugin Definition ────────────────────────────────────────────────────────
 
@@ -38,13 +34,13 @@ const creatorsPlugin: AionPlugin = {
 
   // ── Capability 1: System Prompts ──────────────────────────────────────────
   //
-  // Minimal system prompt — the agent's rules handle the specifics
+  // Minimal system prompt — placeholder for future agents
 
   systemPrompts: [
     {
       content: [
         'You have access to creative content generation capabilities.',
-        'Use the 3D Game Creator to generate complete platform games in standalone HTML files.',
+        'Currently no creators are available in this plugin.',
       ].join('\n'),
       priority: 70,
     },
@@ -64,10 +60,9 @@ const creatorsPlugin: AionPlugin = {
 
   // ── Capability 4: Agents ──────────────────────────────────────────────────
   //
-  // 3D Game Creator agent
   // Future: 2D Game Creator, Animation Creator, etc.
 
-  agents: [new Game3dAgent()],
+  agents: [],
 
   priority: 70,
 };

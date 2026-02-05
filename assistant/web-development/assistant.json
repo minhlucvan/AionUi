@@ -1,0 +1,10 @@
+{
+  "id": "web-development",
+  "name": "Web Development Assistant",
+  "version": "1.0.0",
+  "description": "Full-stack web development assistant with React, TypeScript, Node.js expertise. Includes code review agents, API generators, and development workflow commands.",
+  "author": "AionUi",
+  "workspacePath": "./workspace",
+  "tags": ["react", "typescript", "nodejs", "fullstack", "web"],
+  "presetAgentType": "claude"
+}

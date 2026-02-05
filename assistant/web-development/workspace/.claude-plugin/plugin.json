@@ -1,0 +1,8 @@
+{
+  "name": "web-development-assistant",
+  "version": "1.0.0",
+  "displayName": "Web Development Assistant",
+  "description": "A comprehensive Claude Code workspace for modern web development with React, TypeScript, and Node.js",
+  "author": "AionUi",
+  "license": "Apache-2.0"
+}

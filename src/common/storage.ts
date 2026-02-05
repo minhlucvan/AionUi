@@ -104,6 +104,8 @@ export type TChatConversation =
         enabledSkills?: string[];
         /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
         presetAssistantId?: string;
+        /** 助手工作区模板 ID，用于标识使用的工作区模板来源 / Assistant workspace template ID for identifying the workspace template source */
+        assistantWorkspaceId?: string;
       }
     >
   | Omit<
@@ -121,6 +123,8 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
           presetAssistantId?: string;
+          /** 助手工作区模板 ID，用于标识使用的工作区模板来源 / Assistant workspace template ID for identifying the workspace template source */
+          assistantWorkspaceId?: string;
         }
       >,
       'model'
@@ -138,6 +142,8 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
           presetAssistantId?: string;
+          /** 助手工作区模板 ID，用于标识使用的工作区模板来源 / Assistant workspace template ID for identifying the workspace template source */
+          assistantWorkspaceId?: string;
         }
       >,
       'model'

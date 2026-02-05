@@ -244,10 +244,88 @@ export function usePluginActions() {
     }
   }, []);
 
+  const activateBulk = useCallback(async (pluginIds: string[]) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const results = await Promise.allSettled(
+        pluginIds.map((pluginId) => plugin.activate.invoke({ pluginId }))
+      );
+
+      const failed = results.filter((r) => r.status === 'rejected' || !r.value.success);
+      if (failed.length > 0) {
+        const errorMsg = `Failed to activate ${failed.length} of ${pluginIds.length} plugins`;
+        setError(errorMsg);
+        return { success: false, error: errorMsg };
+      }
+
+      return { success: true };
+    } catch (err) {
+      const errorMsg = (err as Error).message;
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const deactivateBulk = useCallback(async (pluginIds: string[]) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const results = await Promise.allSettled(
+        pluginIds.map((pluginId) => plugin.deactivate.invoke({ pluginId }))
+      );
+
+      const failed = results.filter((r) => r.status === 'rejected' || !r.value.success);
+      if (failed.length > 0) {
+        const errorMsg = `Failed to deactivate ${failed.length} of ${pluginIds.length} plugins`;
+        setError(errorMsg);
+        return { success: false, error: errorMsg };
+      }
+
+      return { success: true };
+    } catch (err) {
+      const errorMsg = (err as Error).message;
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const uninstallBulk = useCallback(async (pluginIds: string[]) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const results = await Promise.allSettled(
+        pluginIds.map((pluginId) => plugin.uninstall.invoke({ pluginId }))
+      );
+
+      const failed = results.filter((r) => r.status === 'rejected' || !r.value.success);
+      if (failed.length > 0) {
+        const errorMsg = `Failed to uninstall ${failed.length} of ${pluginIds.length} plugins`;
+        setError(errorMsg);
+        return { success: false, error: errorMsg };
+      }
+
+      return { success: true };
+    } catch (err) {
+      const errorMsg = (err as Error).message;
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     activate,
     deactivate,
     uninstall,
+    activateBulk,
+    deactivateBulk,
+    uninstallBulk,
     loading,
     error,
   };

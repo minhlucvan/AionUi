@@ -11,6 +11,7 @@ import { getDatabase } from '@process/database';
 import path from 'path';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
+import { cleanupChatWorkspace } from '../../claudecode/WorkspaceTemplateCopy';
 import { createAcpAgent, createCodexAgent, createGeminiAgent } from '../initAgent';
 import { ProcessChat } from '../initStorage';
 import type AcpAgentManager from '../task/AcpAgentManager';
@@ -28,6 +29,7 @@ export function initConversationBridge(): void {
           presetRules?: string;
           enabledSkills?: string[];
           presetAssistantId?: string;
+          assistantWorkspaceId?: string;
         };
         let contextFileName = extra.contextFileName;
         // Resolve relative paths to CWD (usually project root in dev)
@@ -40,7 +42,8 @@ export function initConversationBridge(): void {
         const presetRules = extraWithPresets.presetRules || extraWithPresets.presetContext || extraWithPresets.context;
         const enabledSkills = extraWithPresets.enabledSkills;
         const presetAssistantId = extraWithPresets.presetAssistantId;
-        return createGeminiAgent(model, extra.workspace, extra.defaultFiles, extra.webSearchEngine, extra.customWorkspace, contextFileName, presetRules, enabledSkills, presetAssistantId);
+        const assistantWorkspaceId = extraWithPresets.assistantWorkspaceId;
+        return createGeminiAgent(model, extra.workspace, extra.defaultFiles, extra.webSearchEngine, extra.customWorkspace, contextFileName, presetRules, enabledSkills, presetAssistantId, assistantWorkspaceId);
       }
       if (type === 'acp') return createAcpAgent(params);
       if (type === 'codex') return createCodexAgent(params);
@@ -218,19 +221,27 @@ export function initConversationBridge(): void {
     }
   });
 
-  ipcBridge.conversation.remove.provider(({ id }) => {
+  ipcBridge.conversation.remove.provider(async ({ id }) => {
     try {
       // Kill the running task if exists
       WorkerManage.kill(id);
 
-      // Delete from database only
+      // Get conversation data before deletion to access workspace info
       const db = getDatabase();
+      const conversationResult = db.getConversation(id);
+      const conversation = conversationResult.success ? conversationResult.data : undefined;
 
       // Delete conversation from database (will cascade delete messages due to foreign key)
       const result = db.deleteConversation(id);
       if (!result.success) {
         console.error('[conversationBridge] Failed to delete conversation from database:', result.error);
         return Promise.resolve(false);
+      }
+
+      // Cleanup workspace if it's a temp workspace (not custom)
+      if (conversation?.extra?.workspace) {
+        const isCustomWorkspace = conversation.extra.customWorkspace === true;
+        await cleanupChatWorkspace(conversation.extra.workspace, isCustomWorkspace);
       }
 
       return Promise.resolve(true);

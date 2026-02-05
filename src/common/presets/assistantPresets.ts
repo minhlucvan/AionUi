@@ -40,10 +40,31 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': ['分析项目结构', '自动化构建流程'],
     },
   },
+  {
+    id: 'game-3d',
+    avatar: '🎮',
+    presetAgentType: 'gemini',
+    resourceDir: 'assistant/game-3d',
+    ruleFiles: {
+      'en-US': 'game-3d.md',
+      'zh-CN': 'game-3d.zh-CN.md',
+    },
+    nameI18n: {
+      'en-US': '3D Game',
+      'zh-CN': '3D 游戏生成',
+    },
+    descriptionI18n: {
+      'en-US': 'Generate a complete 3D platform collection game in one HTML file.',
+      'zh-CN': '用单个 HTML 文件生成完整的 3D 平台收集游戏。',
+    },
+    promptsI18n: {
+      'en-US': ['Create a 3D platformer game', 'Make a coin collection game'],
+      'zh-CN': ['创建一个3D平台游戏', '制作一个金币收集游戏'],
+    },
+  },
   // MIGRATED TO PLUGINS:
   // - pptx-generator → plugin-pptx (agent: pptx-generator)
   // - pdf-to-ppt → plugin-content-converters (agent: pdf-to-ppt)
-  // - game-3d → plugin-creators (agent: game-3d)
   {
     id: 'ui-ux-pro-max',
     avatar: '🎨',

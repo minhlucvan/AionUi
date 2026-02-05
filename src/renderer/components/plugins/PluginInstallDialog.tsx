@@ -71,8 +71,10 @@ const PluginInstallDialog: React.FC<PluginInstallDialogProps> = ({ visible, onCl
         break;
     }
 
-    if (result?.success && result.pluginId) {
-      onInstalled?.(result.pluginId);
+    if (result?.success) {
+      // Installation successful - trigger refresh by calling with empty string
+      // The parent component should refetch the plugin list
+      onInstalled?.('');
       handleReset();
       onClose();
     }

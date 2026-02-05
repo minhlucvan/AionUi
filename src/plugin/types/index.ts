@@ -315,6 +315,8 @@ export interface PluginRegistryEntry {
   installedAt: string;
   updatedAt: string;
   error?: string;
+  // UI compatibility field - computed from state and error
+  isActive?: boolean;
 }
 
 // ─── Plugin Logger ───────────────────────────────────────────────────────────
