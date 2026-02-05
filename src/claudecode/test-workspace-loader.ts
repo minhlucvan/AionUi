@@ -15,13 +15,13 @@ import { loadClaudeCodeWorkspace } from './WorkspaceLoader';
 async function testWorkspaceLoader() {
   console.log('🔍 Testing Claude Code Workspace Loader\n');
 
-  const workspacePath = path.join(__dirname, '../../assistant/web-development/workspace');
+  const workspacePath = path.join(__dirname, '../../assistant/game-3d/workspace');
   console.log(`📂 Loading workspace from: ${workspacePath}\n`);
 
   const result = await loadClaudeCodeWorkspace(workspacePath);
 
   if (!result.success) {
-    console.error('❌ Failed to load workspace:',result.error);
+    console.error('❌ Failed to load workspace:', result.error);
     if (result.warnings) {
       console.warn('\n⚠️  Warnings:', result.warnings);
     }

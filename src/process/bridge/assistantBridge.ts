@@ -22,9 +22,7 @@ async function getAssistantWorkspacePath(assistantId: string): Promise<string | 
   const appPath = app.getAppPath();
 
   // Handle unpacked resources when packaged
-  const basePath = app.isPackaged && appPath.includes('.asar')
-    ? appPath.replace('app.asar', 'app.asar.unpacked')
-    : appPath;
+  const basePath = app.isPackaged && appPath.includes('.asar') ? appPath.replace('app.asar', 'app.asar.unpacked') : appPath;
 
   // Strip 'builtin-' prefix if present (assistant IDs are stored as "builtin-{preset-id}")
   const presetId = assistantId.startsWith('builtin-') ? assistantId.slice(8) : assistantId;
@@ -53,6 +51,7 @@ async function getAssistantWorkspacePath(assistantId: string): Promise<string | 
 export function initAssistantBridge(): void {
   // Load assistant workspace information
   ipcBridge.assistantBridge.loadWorkspace.provider(async (assistantId: string) => {
+    console.log('[assistantBridge] >>>>> PROVIDER CALLED with assistantId:', assistantId);
     try {
       const workspacePath = await getAssistantWorkspacePath(assistantId);
 
@@ -78,25 +77,29 @@ export function initAssistantBridge(): void {
         success: true,
         workspace: {
           path: workspacePath,
-          skills: result.workspace?.skills.map(s => ({
-            id: s.id,
-            name: s.name,
-            description: s.description,
-          })) || [],
-          commands: result.workspace?.commands.map(c => ({
-            name: c.name,
-            description: c.description,
-          })) || [],
-          agents: result.workspace?.agents.map(a => ({
-            id: a.id,
-            name: a.name,
-            description: a.description,
-          })) || [],
-          hooks: result.workspace?.hooks.map(h => ({
-            type: h.type,
-            name: h.name,
-            description: h.description,
-          })) || [],
+          skills:
+            result.workspace?.skills.map((s) => ({
+              id: s.id,
+              name: s.name,
+              description: s.description,
+            })) || [],
+          commands:
+            result.workspace?.commands.map((c) => ({
+              name: c.name,
+              description: c.description,
+            })) || [],
+          agents:
+            result.workspace?.agents.map((a) => ({
+              id: a.id,
+              name: a.name,
+              description: a.description,
+            })) || [],
+          hooks:
+            result.workspace?.hooks.map((h) => ({
+              type: h.type,
+              name: h.name,
+              description: h.description,
+            })) || [],
         },
         warnings: result.warnings,
       };
@@ -111,4 +114,3 @@ export function initAssistantBridge(): void {
 
   console.log('[assistantBridge] Assistant IPC bridge initialized');
 }
-
