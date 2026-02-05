@@ -18,3 +18,4 @@ config/webpack/
 scripts/
 src/agent/gemini/cli/
 examples/
+assistant/
