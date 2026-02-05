@@ -25,6 +25,13 @@ export const plugins: WebpackPluginInstance[] = [
   }),
   new ForkTsCheckerWebpackPlugin({
     logger: 'webpack-infrastructure',
+    async: true, // Don't block compilation on type errors
+    typescript: {
+      diagnosticOptions: {
+        semantic: true,
+        syntactic: true,
+      },
+    },
   }),
   new webpack.DefinePlugin({
     'process.env.env': JSON.stringify(process.env.env),

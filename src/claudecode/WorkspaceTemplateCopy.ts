@@ -12,15 +12,51 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { app } from 'electron';
 import { copyDirectoryRecursively } from '../process/utils';
-import { loadAssistantById } from './AssistantLoader';
+import type { AssistantMetadata } from './types';
+
+/**
+ * Resolve builtin directory path (handles both dev and packaged modes)
+ */
+function resolveBuiltinDir(dirPath: string): string {
+  const appPath = app.getAppPath();
+  let candidates: string[];
+
+  if (app.isPackaged) {
+    // asarUnpack extracts files to app.asar.unpacked directory
+    const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
+    candidates = [path.join(unpackedPath, dirPath), path.join(appPath, dirPath)];
+  } else {
+    // Development mode: try various paths relative to app path
+    candidates = [path.join(appPath, dirPath), path.join(appPath, '..', dirPath), path.join(appPath, '..', '..', dirPath), path.join(appPath, '..', '..', '..', dirPath), path.join(process.cwd(), dirPath)];
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  console.warn(`[WorkspaceTemplate] Could not find builtin ${dirPath} directory, tried:`, candidates);
+  return candidates[0];
+}
+
+/**
+ * Get the assistant root directory path
+ */
+function getAssistantRootPath(assistantId: string): string {
+  // Strip 'builtin-' prefix if present (presets are stored as "builtin-{id}" but directories are just "{id}")
+  const resolvedId = assistantId.startsWith('builtin-') ? assistantId.slice(8) : assistantId;
+  // Assistant directories are at assistant/{id}
+  return resolveBuiltinDir(`assistant/${resolvedId}`);
+}
 
 /**
  * Copy workspace template from an assistant to a chat workspace directory
  *
- * @param assistantId - Assistant ID (e.g., 'web-development')
+ * @param assistantId - Assistant ID (e.g., 'web-development' or 'builtin-web-development')
  * @param targetWorkspace - Target workspace path for the chat
- * @param assistantsDir - Optional custom assistants directory
  * @returns Promise<boolean> - true if copy succeeded, false otherwise
  *
  * @example
@@ -34,27 +70,44 @@ import { loadAssistantById } from './AssistantLoader';
  * }
  * ```
  */
-export async function copyWorkspaceTemplate(
-  assistantId: string,
-  targetWorkspace: string,
-  assistantsDir?: string
-): Promise<boolean> {
+export async function copyWorkspaceTemplate(assistantId: string, targetWorkspace: string): Promise<boolean> {
   try {
     console.log(`[WorkspaceTemplate] Copying workspace template for assistant: ${assistantId}`);
     console.log(`[WorkspaceTemplate] Target workspace: ${targetWorkspace}`);
 
-    // Load assistant metadata
-    const assistantResult = await loadAssistantById(assistantId, assistantsDir, false);
+    // Find the assistant root folder
+    const assistantPath = getAssistantRootPath(assistantId);
+    console.log(`[WorkspaceTemplate] Assistant path: ${assistantPath}`);
 
-    if (!assistantResult.success || !assistantResult.assistant) {
-      console.error(`[WorkspaceTemplate] Failed to load assistant: ${assistantResult.error}`);
+    if (!fs.existsSync(assistantPath)) {
+      console.error(`[WorkspaceTemplate] Assistant directory not found: ${assistantPath}`);
       return false;
     }
 
-    const assistant = assistantResult.assistant;
-    const workspaceTemplatePath = path.isAbsolute(assistant.metadata.workspacePath)
-      ? assistant.metadata.workspacePath
-      : path.join(assistant.assistantPath, assistant.metadata.workspacePath);
+    // Read assistant.json to get workspace config
+    const configPath = path.join(assistantPath, 'assistant.json');
+    if (!fs.existsSync(configPath)) {
+      console.error(`[WorkspaceTemplate] Assistant config not found: ${configPath}`);
+      return false;
+    }
+
+    let config: AssistantMetadata;
+    try {
+      const configContent = fs.readFileSync(configPath, 'utf-8');
+      config = JSON.parse(configContent);
+    } catch (error) {
+      console.error(`[WorkspaceTemplate] Failed to parse assistant.json:`, error);
+      return false;
+    }
+
+    // Check if workspace path is configured
+    if (!config.workspacePath) {
+      console.log(`[WorkspaceTemplate] No workspace configured for assistant: ${assistantId}`);
+      return false;
+    }
+
+    // Resolve workspace template path
+    const workspaceTemplatePath = path.isAbsolute(config.workspacePath) ? config.workspacePath : path.join(assistantPath, config.workspacePath);
 
     console.log(`[WorkspaceTemplate] Workspace template source: ${workspaceTemplatePath}`);
 
@@ -81,7 +134,7 @@ export async function copyWorkspaceTemplate(
     const mcpTargetPath = path.join(targetWorkspace, '.mcp.json');
 
     if (fs.existsSync(mcpTemplatePath)) {
-      await mergeMcpConfig(mcpTemplatePath, mcpTargetPath);
+      mergeMcpConfig(mcpTemplatePath, mcpTargetPath);
     }
 
     return true;
@@ -97,7 +150,7 @@ export async function copyWorkspaceTemplate(
  * @param templatePath - Path to template .mcp.json
  * @param targetPath - Path to target .mcp.json
  */
-async function mergeMcpConfig(templatePath: string, targetPath: string): Promise<void> {
+function mergeMcpConfig(templatePath: string, targetPath: string): void {
   try {
     const templateContent = fs.readFileSync(templatePath, 'utf-8');
     const templateConfig = JSON.parse(templateContent);
@@ -142,10 +195,7 @@ async function mergeMcpConfig(templatePath: string, targetPath: string): Promise
  * await cleanupChatWorkspace('/tmp/chat-workspace-12345', false);
  * ```
  */
-export async function cleanupChatWorkspace(
-  workspacePath: string,
-  isCustomWorkspace: boolean = false
-): Promise<boolean> {
+export async function cleanupChatWorkspace(workspacePath: string, isCustomWorkspace: boolean = false): Promise<boolean> {
   try {
     // Never delete custom workspaces - they're user-specified directories
     if (isCustomWorkspace) {
@@ -176,24 +226,36 @@ export async function cleanupChatWorkspace(
  * Get workspace template info for an assistant
  *
  * @param assistantId - Assistant ID
- * @param assistantsDir - Optional custom assistants directory
- * @returns Promise with template info or null
+ * @returns Template info or null
  */
-export async function getWorkspaceTemplateInfo(
-  assistantId: string,
-  assistantsDir?: string
-): Promise<{ templatePath: string; exists: boolean } | null> {
+export function getWorkspaceTemplateInfo(assistantId: string): { templatePath: string; exists: boolean } | null {
   try {
-    const assistantResult = await loadAssistantById(assistantId, assistantsDir, false);
+    // Find the assistant root folder
+    const assistantPath = getAssistantRootPath(assistantId);
 
-    if (!assistantResult.success || !assistantResult.assistant) {
+    if (!fs.existsSync(assistantPath)) {
       return null;
     }
 
-    const assistant = assistantResult.assistant;
-    const templatePath = path.isAbsolute(assistant.metadata.workspacePath)
-      ? assistant.metadata.workspacePath
-      : path.join(assistant.assistantPath, assistant.metadata.workspacePath);
+    // Read assistant.json to get workspace config
+    const configPath = path.join(assistantPath, 'assistant.json');
+    if (!fs.existsSync(configPath)) {
+      return null;
+    }
+
+    let config: AssistantMetadata;
+    try {
+      const configContent = fs.readFileSync(configPath, 'utf-8');
+      config = JSON.parse(configContent);
+    } catch {
+      return null;
+    }
+
+    if (!config.workspacePath) {
+      return null;
+    }
+
+    const templatePath = path.isAbsolute(config.workspacePath) ? config.workspacePath : path.join(assistantPath, config.workspacePath);
 
     return {
       templatePath,

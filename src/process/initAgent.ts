@@ -13,7 +13,7 @@ import path from 'path';
 import { getSystemDir } from './initStorage';
 import { copyWorkspaceTemplate } from '@/claudecode/WorkspaceTemplateCopy';
 
-const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?: string, defaultFiles?: string[], providedCustomWorkspace?: boolean, assistantWorkspaceId?: string) => {
+const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?: string, defaultFiles?: string[], providedCustomWorkspace?: boolean, presetAssistantId?: string) => {
   // 使用前端提供的customWorkspace标志，如果没有则根据workspace参数判断
   const customWorkspace = providedCustomWorkspace !== undefined ? providedCustomWorkspace : !!workspace;
 
@@ -26,12 +26,12 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     workspace = path.resolve(workspace);
   }
 
-  // Copy workspace template if assistantWorkspaceId is provided
-  if (assistantWorkspaceId) {
-    console.log(`[AionUi] Copying workspace template from assistant: ${assistantWorkspaceId}`);
-    const copySuccess = await copyWorkspaceTemplate(assistantWorkspaceId, workspace);
+  // Copy workspace template if presetAssistantId is provided (auto-resolve from assistant config)
+  if (presetAssistantId) {
+    console.log(`[AionUi] Copying workspace template from assistant: ${presetAssistantId}`);
+    const copySuccess = await copyWorkspaceTemplate(presetAssistantId, workspace);
     if (!copySuccess) {
-      console.warn(`[AionUi] Failed to copy workspace template for assistant: ${assistantWorkspaceId}`);
+      console.warn(`[AionUi] Failed to copy workspace template for assistant: ${presetAssistantId}`);
     } else {
       console.log(`[AionUi] Successfully copied workspace template to: ${workspace}`);
     }
@@ -74,8 +74,9 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   return { workspace, customWorkspace };
 };
 
-export const createGeminiAgent = async (model: TProviderWithModel, workspace?: string, defaultFiles?: string[], webSearchEngine?: 'google' | 'default', customWorkspace?: boolean, contextFileName?: string, presetRules?: string, enabledSkills?: string[], presetAssistantId?: string, assistantWorkspaceId?: string): Promise<TChatConversation> => {
-  const { workspace: newWorkspace, customWorkspace: finalCustomWorkspace } = await buildWorkspaceWidthFiles(`gemini-temp-${Date.now()}`, workspace, defaultFiles, customWorkspace, assistantWorkspaceId);
+export const createGeminiAgent = async (model: TProviderWithModel, workspace?: string, defaultFiles?: string[], webSearchEngine?: 'google' | 'default', customWorkspace?: boolean, contextFileName?: string, presetRules?: string, enabledSkills?: string[], presetAssistantId?: string): Promise<TChatConversation> => {
+  // Use presetAssistantId as workspace template source (resolves automatically)
+  const { workspace: newWorkspace, customWorkspace: finalCustomWorkspace } = await buildWorkspaceWidthFiles(`gemini-temp-${Date.now()}`, workspace, defaultFiles, customWorkspace, presetAssistantId);
 
   return {
     type: 'gemini',
@@ -91,11 +92,9 @@ export const createGeminiAgent = async (model: TProviderWithModel, workspace?: s
       contextContent: presetRules,
       // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
       enabledSkills,
-      // 预设助手 ID，用于在会话面板显示助手名称和头像
-      // Preset assistant ID for displaying name and avatar in conversation panel
+      // 预设助手 ID，用于在会话面板显示助手名称和头像，同时用于复制工作空间模板
+      // Preset assistant ID for displaying name and avatar in conversation panel, also used for workspace template
       presetAssistantId,
-      // 助手工作区模板 ID / Assistant workspace template ID
-      assistantWorkspaceId,
     },
     desc: finalCustomWorkspace ? newWorkspace : '',
     createTime: Date.now(),
@@ -107,7 +106,8 @@ export const createGeminiAgent = async (model: TProviderWithModel, workspace?: s
 
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
-  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.assistantWorkspaceId);
+  // Use presetAssistantId as workspace template source (resolves automatically)
+  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
   return {
     type: 'acp',
     extra: {
@@ -120,8 +120,9 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       presetContext: extra.presetContext, // 智能助手的预设规则/提示词
       // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
       enabledSkills: extra.enabledSkills,
-      // 助手工作区模板 ID / Assistant workspace template ID
-      assistantWorkspaceId: extra.assistantWorkspaceId,
+      // 预设助手 ID，用于在会话面板显示助手名称和头像，同时用于复制工作空间模板
+      // Preset assistant ID for displaying name and avatar in conversation panel, also used for workspace template
+      presetAssistantId: extra.presetAssistantId,
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
@@ -132,7 +133,8 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
 
 export const createCodexAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
-  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`codex-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.assistantWorkspaceId);
+  // Use presetAssistantId as workspace template source (resolves automatically)
+  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`codex-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
   return {
     type: 'codex',
     extra: {
@@ -143,11 +145,9 @@ export const createCodexAgent = async (options: ICreateConversationParams): Prom
       presetContext: extra.presetContext, // 智能助手的预设规则/提示词
       // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
       enabledSkills: extra.enabledSkills,
-      // 预设助手 ID，用于在会话面板显示助手名称和头像
-      // Preset assistant ID for displaying name and avatar in conversation panel
+      // 预设助手 ID，用于在会话面板显示助手名称和头像，同时用于复制工作空间模板
+      // Preset assistant ID for displaying name and avatar in conversation panel, also used for workspace template
       presetAssistantId: extra.presetAssistantId,
-      // 助手工作区模板 ID / Assistant workspace template ID
-      assistantWorkspaceId: extra.assistantWorkspaceId,
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
