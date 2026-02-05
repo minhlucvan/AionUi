@@ -1,86 +1,136 @@
-# 3D Game Development Workspace
+# 3D Game Development Starter
 
-This workspace is designed to help you create 3D games using Three.js, Babylon.js, and other WebGL technologies.
+Complete starter template for building 3D games with Three.js, physics, and shaders. Includes Claude Code integration for AI-assisted development.
 
-## Getting Started
+## Quick Start
 
-### Prerequisites
+### 1. Install Dependencies
 
 ```bash
-npm install three
-npm install cannon-es  # For physics
-npm install stats.js   # For performance monitoring
+npm install
 ```
 
-### Quick Start
+### 2. Choose a Template
 
-1. Use the `/create-scene` command to generate a basic Three.js scene
-2. Use the `/add-physics` command to add physics simulation
-3. Start building your game!
+Pick a starter template based on your needs:
 
-## Workspace Structure
+```bash
+# Basic Three.js scene with lighting and controls
+cp -r templates/basic-scene/* .
 
-```
-.claude-plugin/         - Plugin configuration
-skills/                 - Specialized knowledge modules
-  threejs-scene-setup.md
-  game-physics.md
-  shader-programming.md
-  performance-optimization.md
-commands/               - Quick action commands
-  create-scene.md
-  add-physics.md
-  optimize-game.md
-agents/                 - Expert AI agents
-  graphics-expert.md
-  physics-engineer.md
-hooks/                  - Session hooks
-  SessionStart/
-    welcome.md
+# Physics-enabled game with Cannon.js
+cp -r templates/physics-game/* .
+
+# Shader examples and effects
+cp -r templates/shader-examples/* .
 ```
 
-## Skills Available
+### 3. Start Development
 
-- **Three.js Scene Setup**: Camera, renderer, lighting, and basic scene configuration
-- **Game Physics**: Physics engine integration with Cannon.js
-- **Shader Programming**: Custom GLSL shaders for visual effects
-- **Performance Optimization**: Techniques to achieve 60 FPS
+```bash
+npm run dev
+```
+
+Your game will be running at `http://localhost:5173`
+
+## What's Included
+
+- **Three.js Templates**: Pre-configured scenes with camera, renderer, lighting
+- **Physics Integration**: Cannon.js with collision detection
+- **Shader Examples**: GLSL shaders for water, fire, and effects
+- **Build Tools**: Vite dev server with hot reload
+- **Claude Code Integration**: AI skills, commands, and agents
+
+## Project Structure
+
+```
+.
+├── .claude/              # Claude Code configuration
+│   ├── config.json      # Skills, commands, agents config
+│   ├── skills/          # Specialized knowledge
+│   ├── commands/        # Quick actions
+│   └── agents/          # Expert AI agents
+├── templates/           # Starter templates
+│   ├── basic-scene/     # Simple Three.js scene
+│   ├── physics-game/    # Physics simulation
+│   └── shader-examples/ # Shader showcases
+├── docs/                # Documentation
+├── package.json         # Dependencies
+├── vite.config.js       # Build configuration
+└── claude.md            # Main context file
+```
+
+## Available Claude Code Skills
+
+- **threejs-scene-setup** - Scene, camera, renderer configuration
+- **game-physics** - Cannon.js integration and collision handling
+- **shader-programming** - Custom GLSL shader development
+- **performance-optimization** - FPS monitoring, instancing, LOD
 
 ## Commands
 
-- `/create-scene` - Generate a complete Three.js scene setup
-- `/add-physics` - Add physics simulation to your project
-- `/optimize-game` - Analyze and optimize performance
+- `/create-scene` - Generate new Three.js scene
+- `/add-physics` - Add physics simulation
+- `/optimize-game` - Performance analysis and optimization
 
 ## Expert Agents
 
-- **graphics-expert** - For advanced rendering and shader questions
-- **physics-engineer** - For complex physics simulations
+- **graphics-expert** - Advanced rendering and shaders
+- **physics-engineer** - Complex physics simulations
 
-## Example Projects
+## Templates
 
-### Basic 3D Scene
-A simple rotating cube with lighting and camera controls.
+### Basic Scene
 
-### Physics Sandbox
-Interactive physics simulation with falling objects and collisions.
+- Rotating cube and sphere
+- Orbit controls
+- Shadow mapping
+- FPS counter
+- Responsive canvas
 
-### Shader Playground
-Custom shader effects including water, fire, and particles.
+### Physics Game
+
+- Click to spawn objects
+- Realistic physics simulation
+- Collision detection
+- Reset functionality
+
+### Shader Examples
+
+- Basic animated shaders
+- Water surface effect
+- Custom vertex/fragment shaders
+
+## Development
+
+```bash
+npm run dev      # Start dev server
+npm run build    # Build for production
+npm run preview  # Preview production build
+```
 
 ## Resources
 
 - [Three.js Documentation](https://threejs.org/docs/)
-- [Cannon.js Physics](https://schteppe.github.io/cannon.js/)
+- [Cannon.js Physics](https://github.com/schteppe/cannon.js)
 - [WebGL Fundamentals](https://webglfundamentals.org/)
 - [The Book of Shaders](https://thebookofshaders.com/)
 
-## Tips
+## Best Practices
 
-1. Always start with a simple scene and add complexity gradually
-2. Profile performance early and often
-3. Use simple collision shapes for better physics performance
-4. Implement LOD (Level of Detail) for large scenes
-5. Test on target hardware regularly
+1. **Performance**: Always use `renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))`
+2. **Memory**: Dispose of geometries, materials, and textures when removing objects
+3. **Physics**: Use simple collision shapes (boxes, spheres) for better performance
+4. **Shadows**: Enable shadows only when necessary
+5. **Testing**: Profile early and test on target hardware
 
-Happy game development!
+## Getting Help
+
+- Read `claude.md` for comprehensive project overview
+- Check `docs/` for detailed guides
+- Use Claude Code skills for expert guidance
+- Ask agents for complex problem-solving
+
+---
+
+**Ready to build 3D games!** Start with a template and let Claude Code assist you every step of the way.

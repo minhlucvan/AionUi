@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Physics Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+        #webgl {
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+        #info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="webgl"></canvas>
+    <div id="info">
+        <h3>Physics Demo</h3>
+        <p>FPS: <span id="fps">60</span></p>
+        <p>Objects: <span id="objects">0</span></p>
+    </div>
+    <div id="controls">
+        <p><strong>Controls:</strong></p>
+        <p>Click to spawn boxes</p>
+        <p>R: Reset scene</p>
+    </div>
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
