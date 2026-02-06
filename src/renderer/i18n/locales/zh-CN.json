@@ -847,7 +847,7 @@
       "step4": "授权成功后，你可以通过飞书与 AI 助手聊天！",
       "waitingConnection": "WebSocket 连接正在建立，请稍候..."
     },
-    "mezon": {
+    "bots": {
       "quickSetup": "快速配置指南",
       "quickSetupStep1": "打开 Mezon 开发者门户",
       "quickSetupStep2": "创建机器人应用并复制其令牌",

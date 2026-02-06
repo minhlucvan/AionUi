@@ -21,7 +21,7 @@ import { useSettingsViewMode } from '../settingsViewContext';
 import ChannelItem from './channels/ChannelItem';
 import type { ChannelConfig } from './channels/types';
 import LarkConfigForm from './LarkConfigForm';
-import MezonConfigForm from './MezonConfigForm';
+import BotsConfigForm from './BotsConfigForm';
 import TelegramConfigForm from './TelegramConfigForm';
 
 /**
@@ -293,7 +293,7 @@ const ChannelModalContent: React.FC = () => {
       if (enabled) {
         // Check if we have credentials - already saved in database
         if (!mezonPluginStatus?.hasToken) {
-          Message.warning(t('settings.mezon.credentialsRequired', 'Please configure Mezon credentials first'));
+          Message.warning(t('settings.bots.credentialsRequired', 'Please configure bot credentials first'));
           setMezonEnableLoading(false);
           return;
         }
@@ -304,19 +304,19 @@ const ChannelModalContent: React.FC = () => {
         });
 
         if (result.success) {
-          Message.success(t('settings.mezon.pluginEnabled', 'Mezon bot enabled'));
+          Message.success(t('settings.bots.pluginEnabled', 'Mezon bot enabled'));
           await loadPluginStatus();
         } else {
-          Message.error(result.msg || t('settings.mezon.enableFailed', 'Failed to enable Mezon plugin'));
+          Message.error(result.msg || t('settings.bots.enableFailed', 'Failed to enable bot'));
         }
       } else {
         const result = await channel.disablePlugin.invoke({ pluginId: 'mezon_default' });
 
         if (result.success) {
-          Message.success(t('settings.mezon.pluginDisabled', 'Mezon bot disabled'));
+          Message.success(t('settings.bots.pluginDisabled', 'Mezon bot disabled'));
           await loadPluginStatus();
         } else {
-          Message.error(result.msg || t('settings.mezon.disableFailed', 'Failed to disable Mezon plugin'));
+          Message.error(result.msg || t('settings.bots.disableFailed', 'Failed to disable bot'));
         }
       }
     } catch (error: any) {
@@ -362,7 +362,7 @@ const ChannelModalContent: React.FC = () => {
       disabled: mezonEnableLoading,
       isConnected: mezonPluginStatus?.connected || false,
       defaultModel: mezonSelectedModel?.useModel,
-      content: <MezonConfigForm pluginStatus={mezonPluginStatus} modelList={modelList || []} selectedModel={mezonSelectedModel} onStatusChange={setMezonPluginStatus} onModelChange={setMezonSelectedModel} />,
+      content: <BotsConfigForm pluginStatus={mezonPluginStatus} modelList={modelList || []} selectedModel={mezonSelectedModel} onStatusChange={setMezonPluginStatus} onModelChange={setMezonSelectedModel} />,
     };
 
     const comingSoonChannels: ChannelConfig[] = [
