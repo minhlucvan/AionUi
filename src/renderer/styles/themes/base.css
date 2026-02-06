@@ -231,11 +231,6 @@ body,
     height: auto !important;
   }
 
-  /* 侧边栏头部固定高度 */
-  .layout-sider-header {
-    flex-shrink: 0 !important;
-  }
-
   /* 侧边栏内容区域填充剩余空间 */
   .layout-sider-content {
     flex: 1 !important;
