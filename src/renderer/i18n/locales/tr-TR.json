@@ -348,6 +348,11 @@
       "request_sent": "İstek ajana gönderildi",
       "failed": "Oluşturulamadı",
       "preset_registered": "Ajan hazır ayarı başarıyla kaydedildi!"
+    },
+    "skills": {
+      "title": "Yetenekler",
+      "noSkills": "Kullanılabilir yetenek yok",
+      "custom": "Özel"
     }
   },
   "settings": {

@@ -442,6 +442,11 @@
     },
     "contextUsage": {
       "contextUsed": "コンテキスト使用量"
+    },
+    "skills": {
+      "title": "スキル",
+      "noSkills": "利用可能なスキルがありません",
+      "custom": "カスタム"
     }
   },
   "settings": {
