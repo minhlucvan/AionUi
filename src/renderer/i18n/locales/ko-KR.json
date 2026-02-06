@@ -339,6 +339,11 @@
       "request_sent": "에이전트에게 요청이 전송되었습니다",
       "failed": "생성 실패",
       "preset_registered": "에이전트 프리셋이 성공적으로 등록되었습니다!"
+    },
+    "skills": {
+      "title": "스킬",
+      "noSkills": "사용 가능한 스킬이 없습니다",
+      "custom": "사용자 정의"
     }
   },
   "settings": {

@@ -339,6 +339,11 @@
       "request_sent": "Request sent to agent",
       "failed": "Failed to generate",
       "preset_registered": "Agent preset registered successfully!"
+    },
+    "skills": {
+      "title": "Skills",
+      "noSkills": "No skills available",
+      "custom": "Custom"
     }
   },
   "settings": {

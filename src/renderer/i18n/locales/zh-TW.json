@@ -413,6 +413,11 @@
     },
     "contextUsage": {
       "contextUsed": "上下文已使用"
+    },
+    "skills": {
+      "title": "技能",
+      "noSkills": "暫無可用技能",
+      "custom": "自訂"
     }
   },
   "settings": {
