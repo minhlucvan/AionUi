@@ -5,7 +5,7 @@
  */
 
 import { Button, Collapse, Drawer, Empty, Input, Message, Modal, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
-import { Close, FolderOpen, Search, SettingOne, UploadOne } from '@icon-park/react';
+import { Close, Download, FolderOpen, Search, SettingOne, UploadOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -49,6 +49,11 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
   const [skillPath, setSkillPath] = useState('');
   const [commonPaths, setCommonPaths] = useState<Array<{ name: string; path: string }>>([]);
   const [importing, setImporting] = useState(false);
+
+  // Install from URL modal state
+  const [urlInstallVisible, setUrlInstallVisible] = useState(false);
+  const [skillUrl, setSkillUrl] = useState('');
+  const [urlInstalling, setUrlInstalling] = useState(false);
 
   // API key state
   const [apiKey, setApiKey] = useState('');
@@ -191,6 +196,37 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
     message.success(t('settings.skillsmpApiKeySaved', { defaultValue: 'SkillsMP API key saved' }));
   }, [apiKey, message, t]);
 
+  const handleInstallFromUrl = useCallback(async () => {
+    const trimmed = skillUrl.trim();
+    if (!trimmed) {
+      message.warning(t('settings.skillUrlEmpty', { defaultValue: 'Please enter a skill URL or shorthand' }));
+      return;
+    }
+
+    setUrlInstalling(true);
+    try {
+      const response = await ipcBridge.fs.installSkillFromUrl.invoke({ input: trimmed });
+      if (response.success && response.data) {
+        message.success(
+          t('settings.skillUrlInstallSuccess', {
+            name: response.data.skillName,
+            defaultValue: `Skill "${response.data.skillName}" installed successfully`,
+          })
+        );
+        setSkillUrl('');
+        setUrlInstallVisible(false);
+        void loadSkills();
+      } else {
+        message.error(response.msg || t('settings.skillUrlInstallFailed', { defaultValue: 'Failed to install skill from URL' }));
+      }
+    } catch (error) {
+      console.error('Failed to install skill from URL:', error);
+      message.error(t('settings.skillUrlInstallFailed', { defaultValue: 'Failed to install skill from URL' }));
+    } finally {
+      setUrlInstalling(false);
+    }
+  }, [skillUrl, message, t, loadSkills]);
+
   const handleViewDetail = useCallback((skill: SkillInfo) => {
     setDetailSkill(skill);
     setDetailVisible(true);
@@ -212,6 +248,18 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
         name='installed-skills'
         extra={
           <div className='flex items-center gap-6px'>
+            <Button
+              type='text'
+              size='small'
+              style={{ color: 'var(--text-primary)' }}
+              icon={<Download size={14} fill='currentColor' />}
+              onClick={(e) => {
+                e.stopPropagation();
+                setUrlInstallVisible(true);
+              }}
+            >
+              {t('settings.installFromUrl', { defaultValue: 'Install from URL' })}
+            </Button>
             <Button
               type='text'
               size='small'
@@ -495,6 +543,63 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
               >
                 {t('common.browse', { defaultValue: 'Browse' })}
               </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ================================================================ */}
+      {/* Install from URL Modal (skills.sh / GitHub / shorthand) */}
+      {/* ================================================================ */}
+      <Modal
+        visible={urlInstallVisible}
+        onCancel={() => {
+          setSkillUrl('');
+          setUrlInstallVisible(false);
+        }}
+        title={t('settings.skillUrlInstallTitle', { defaultValue: 'Install from URL' })}
+        okText={t('settings.skillUrlInstallBtn', { defaultValue: 'Install' })}
+        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
+        onOk={() => void handleInstallFromUrl()}
+        okButtonProps={{ loading: urlInstalling, disabled: !skillUrl.trim() }}
+        className='w-[90vw] md:w-[520px]'
+        wrapStyle={{ zIndex: 2500 }}
+        maskStyle={{ zIndex: 2490 }}
+      >
+        <div className='space-y-16px'>
+          <div className='space-y-12px'>
+            <Typography.Text>{t('settings.skillUrlLabel', { defaultValue: 'Skill URL or shorthand' })}</Typography.Text>
+            <Input
+              value={skillUrl}
+              onChange={(value) => setSkillUrl(value)}
+              placeholder='owner/repo, skills.sh/owner/repo/skill, or GitHub URL'
+              onPressEnter={() => {
+                if (skillUrl.trim()) void handleInstallFromUrl();
+              }}
+            />
+          </div>
+
+          <div className='bg-fill-2 rounded-lg p-12px space-y-8px'>
+            <div className='text-12px text-t-secondary font-medium'>{t('settings.skillUrlFormatsTitle', { defaultValue: 'Supported formats' })}</div>
+            <div className='space-y-6px text-12px text-t-tertiary font-mono'>
+              {[
+                'vercel-labs/agent-skills',
+                'https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices',
+                'https://github.com/owner/repo --skill skill-name',
+                'npx skills add openclaw/openclaw',
+              ].map((example) => (
+                <div
+                  key={example}
+                  className='cursor-pointer hover:text-primary transition-colors truncate'
+                  title={example}
+                  onClick={() => setSkillUrl(example)}
+                >
+                  {example}
+                </div>
+              ))}
+            </div>
+            <div className='text-11px text-t-quaternary mt-4px'>
+              {t('settings.skillUrlFormatsHint', { defaultValue: 'Click an example to use it. Supports skills.sh, GitHub, and owner/repo shorthand.' })}
             </div>
           </div>
         </div>
