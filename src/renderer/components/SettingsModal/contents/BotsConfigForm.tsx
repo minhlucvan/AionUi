@@ -55,7 +55,7 @@ const PreferenceRow: React.FC<{
   </div>
 );
 
-interface MezonConfigFormProps {
+interface BotsConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
   modelList: IProvider[];
   selectedModel: TProviderWithModel | null;
@@ -63,7 +63,7 @@ interface MezonConfigFormProps {
   onModelChange: (model: TProviderWithModel | null) => void;
 }
 
-const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusChange }) => {
+const BotsConfigForm: React.FC<BotsConfigFormProps> = ({ modelList, onStatusChange }) => {
   const { t } = useTranslation();
 
   // Bot list state
@@ -102,7 +102,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
       const savedBots = await ConfigStorage.get('mezon.bots');
       setBots(savedBots || []);
     } catch (error) {
-      console.error('[MezonConfig] Failed to load bots:', error);
+      console.error('[BotsConfig] Failed to load bots:', error);
     }
   }, []);
 
@@ -112,7 +112,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
       const agents = (await ConfigStorage.get('acp.customAgents')) || [];
       setAssistants(agents.filter((a) => a.isPreset && a.enabled !== false));
     } catch (error) {
-      console.error('[MezonConfig] Failed to load assistants:', error);
+      console.error('[BotsConfig] Failed to load assistants:', error);
     }
   }, []);
 
@@ -124,7 +124,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
         setPluginStatuses(result.data.filter((p) => p.type === 'mezon'));
       }
     } catch (error) {
-      console.error('[MezonConfig] Failed to load plugin statuses:', error);
+      console.error('[BotsConfig] Failed to load plugin statuses:', error);
     }
   }, []);
 
@@ -163,7 +163,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
         setPendingPairings(result.data.filter((p) => p.platformType === 'mezon'));
       }
     } catch (error) {
-      console.error('[MezonConfig] Failed to load pending pairings:', error);
+      console.error('[BotsConfig] Failed to load pending pairings:', error);
     } finally {
       setPairingLoading(false);
     }
@@ -178,7 +178,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
         setAuthorizedUsers(result.data.filter((u) => u.platformType === 'mezon'));
       }
     } catch (error) {
-      console.error('[MezonConfig] Failed to load authorized users:', error);
+      console.error('[BotsConfig] Failed to load authorized users:', error);
     } finally {
       setUsersLoading(false);
     }
@@ -223,7 +223,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
   // Get assistant name for display
   const getAssistantName = useCallback(
     (assistantId?: string): string => {
-      if (!assistantId) return t('settings.mezon.noAssistant', 'Not assigned');
+      if (!assistantId) return t('settings.bots.noAssistant', 'Not assigned');
       const assistant = assistants.find((a) => a.id === assistantId);
       return assistant?.name || assistantId;
     },
@@ -268,7 +268,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
   // Test connection
   const handleTestConnection = async () => {
     if (!editToken.trim() || !editBotId.trim()) {
-      Message.warning(t('settings.mezon.credentialsRequired', 'Please enter Bot Token and Bot ID'));
+      Message.warning(t('settings.bots.credentialsRequired', 'Please enter Bot Token and Bot ID'));
       return;
     }
 
@@ -284,12 +284,12 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
 
       if (result.success && result.data?.success) {
         setCredentialsTested(true);
-        Message.success(t('settings.mezon.connectionSuccess', 'Connected to Mezon!'));
+        Message.success(t('settings.bots.connectionSuccess', 'Bot connected successfully!'));
       } else {
-        Message.error(result.data?.error || t('settings.mezon.connectionFailed', 'Connection failed'));
+        Message.error(result.data?.error || t('settings.bots.connectionFailed', 'Connection failed'));
       }
     } catch (error: any) {
-      Message.error(error.message || t('settings.mezon.connectionFailed', 'Connection failed'));
+      Message.error(error.message || t('settings.bots.connectionFailed', 'Connection failed'));
     } finally {
       setTestLoading(false);
     }
@@ -298,12 +298,12 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
   // Save bot (create or update)
   const handleSave = async () => {
     if (!editName.trim()) {
-      Message.warning(t('settings.mezon.nameRequired', 'Please enter a bot name'));
+      Message.warning(t('settings.bots.nameRequired', 'Please enter a bot name'));
       return;
     }
 
     if (isCreating && (!editToken.trim() || !editBotId.trim())) {
-      Message.warning(t('settings.mezon.credentialsRequired', 'Please enter Bot Token and Bot ID'));
+      Message.warning(t('settings.bots.credentialsRequired', 'Please enter Bot Token and Bot ID'));
       return;
     }
 
@@ -350,9 +350,9 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
         });
 
         if (result.success) {
-          Message.success(t('settings.mezon.botSaved', 'Mezon bot saved and connected'));
+          Message.success(t('settings.bots.botSaved', 'Bot saved and connected'));
         } else {
-          Message.warning(t('settings.mezon.botSavedNoConnect', 'Bot saved but failed to connect: ') + (result.msg || ''));
+          Message.warning(t('settings.bots.botSavedNoConnect', 'Bot saved but failed to connect: ') + (result.msg || ''));
         }
         await loadPluginStatuses();
       } else if (!isCreating) {
@@ -362,15 +362,15 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
           await channel.enablePlugin.invoke({ pluginId, config: {} });
           await loadPluginStatuses();
         }
-        Message.success(t('settings.mezon.botSaved', 'Mezon bot saved'));
+        Message.success(t('settings.bots.botSaved', 'Bot saved'));
       } else {
-        Message.success(t('settings.mezon.botSaved', 'Mezon bot saved'));
+        Message.success(t('settings.bots.botSaved', 'Bot saved'));
       }
 
       setEditVisible(false);
     } catch (error: any) {
-      console.error('[MezonConfig] Failed to save bot:', error);
-      Message.error(error.message || t('settings.mezon.saveFailed', 'Failed to save bot'));
+      console.error('[BotsConfig] Failed to save bot:', error);
+      Message.error(error.message || t('settings.bots.saveFailed', 'Failed to save bot'));
     }
   };
 
@@ -381,18 +381,18 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
       if (enabled) {
         const status = getBotStatus(bot);
         if (!status?.hasToken) {
-          Message.warning(t('settings.mezon.credentialsRequired', 'Please configure credentials first'));
+          Message.warning(t('settings.bots.credentialsRequired', 'Please configure credentials first'));
           return;
         }
         const result = await channel.enablePlugin.invoke({ pluginId, config: {} });
         if (!result.success) {
-          Message.error(result.msg || t('settings.mezon.enableFailed', 'Failed to enable bot'));
+          Message.error(result.msg || t('settings.bots.enableFailed', 'Failed to enable bot'));
           return;
         }
       } else {
         const result = await channel.disablePlugin.invoke({ pluginId });
         if (!result.success) {
-          Message.error(result.msg || t('settings.mezon.disableFailed', 'Failed to disable bot'));
+          Message.error(result.msg || t('settings.bots.disableFailed', 'Failed to disable bot'));
           return;
         }
       }
@@ -421,11 +421,11 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
 
       setDeleteConfirmVisible(false);
       setBotToDelete(null);
-      Message.success(t('settings.mezon.botDeleted', 'Bot deleted'));
+      Message.success(t('settings.bots.botDeleted', 'Bot deleted'));
       await loadPluginStatuses();
     } catch (error: any) {
-      console.error('[MezonConfig] Failed to delete bot:', error);
-      Message.error(error.message || t('settings.mezon.deleteFailed', 'Failed to delete bot'));
+      console.error('[BotsConfig] Failed to delete bot:', error);
+      Message.error(error.message || t('settings.bots.deleteFailed', 'Failed to delete bot'));
     }
   };
 
@@ -510,16 +510,16 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
     <div className='flex flex-col gap-16px'>
       {/* Bot List Header */}
       <div className='flex items-center justify-between'>
-        <span className='text-14px text-t-secondary'>{t('settings.mezon.botsList', 'Configured Bots')}</span>
+        <span className='text-14px text-t-secondary'>{t('settings.bots.botsList', 'Configured Bots')}</span>
         <Button type='outline' size='small' icon={<Plus size={14} />} shape='round' onClick={handleAddBot}>
-          {t('settings.mezon.addBot', 'Add Bot')}
+          {t('settings.bots.addBot', 'Add Bot')}
         </Button>
       </div>
 
       {/* Bot List */}
       {bots.length === 0 ? (
         <div className='text-center py-24px text-t-secondary text-14px bg-fill-2 rd-12px'>
-          {t('settings.mezon.noBots', 'No Mezon bots configured. Click "Add Bot" to get started.')}
+          {t('settings.bots.noBots', 'No bots configured. Click "Add Bot" to get started.')}
         </div>
       ) : (
         <div className='bg-fill-2 rounded-2xl p-16px'>
@@ -546,7 +546,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
                           <span
                             className={`text-10px px-6px py-1px rounded-full ${isConnected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : hasError ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
                           >
-                            {isConnected ? t('settings.mezon.connected', 'Connected') : hasError ? t('settings.mezon.error', 'Error') : t('settings.mezon.offline', 'Offline')}
+                            {isConnected ? t('settings.bots.connected', 'Connected') : hasError ? t('settings.bots.error', 'Error') : t('settings.bots.offline', 'Offline')}
                           </span>
                         </div>
                         <div className='text-12px text-t-secondary truncate'>
@@ -668,15 +668,15 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
       {bots.length > 0 && !hasConnectedBot && (
         <div className='bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rd-12px p-16px'>
           <div className='text-14px text-t-secondary space-y-6px'>
-            <p className='m-0 font-500'>{t('settings.mezon.setupSteps', 'Setup Steps')}:</p>
+            <p className='m-0 font-500'>{t('settings.bots.setupSteps', 'Setup Steps')}:</p>
             <p className='m-0'>
-              <strong>1.</strong> {t('settings.mezon.step1', 'Open Mezon and find your bot')}
+              <strong>1.</strong> {t('settings.bots.step1', 'Open the Mezon platform and find your bot')}
             </p>
             <p className='m-0'>
-              <strong>2.</strong> {t('settings.mezon.step2', 'Send any message or /start to initiate pairing')}
+              <strong>2.</strong> {t('settings.bots.step2', 'Send any message or /start to initiate pairing')}
             </p>
             <p className='m-0'>
-              <strong>3.</strong> {t('settings.mezon.step3', 'A pairing request will appear below. Click "Approve" to authorize the user.')}
+              <strong>3.</strong> {t('settings.bots.step3', 'A pairing request will appear below. Click "Approve" to authorize the user.')}
             </p>
           </div>
         </div>
@@ -684,7 +684,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
 
       {/* Edit/Create Bot Modal */}
       <Modal
-        title={isCreating ? t('settings.mezon.addBot', 'Add Mezon Bot') : t('settings.mezon.editBot', 'Edit Mezon Bot')}
+        title={isCreating ? t('settings.bots.addBot', 'Add Bot') : t('settings.bots.editBot', 'Edit Bot')}
         visible={editVisible}
         onCancel={() => setEditVisible(false)}
         onOk={handleSave}
@@ -695,12 +695,12 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
       >
         <div className='flex flex-col gap-4px'>
           {/* Bot Name */}
-          <PreferenceRow label={t('settings.mezon.botName', 'Bot Name')} description={t('settings.mezon.botNameDesc', 'A display name for this bot')} required>
-            <Input value={editName} onChange={setEditName} placeholder={t('settings.mezon.botNamePlaceholder', 'e.g. My Assistant Bot')} style={{ width: 220 }} />
+          <PreferenceRow label={t('settings.bots.botName', 'Bot Name')} description={t('settings.bots.botNameDesc', 'A display name for this bot')} required>
+            <Input value={editName} onChange={setEditName} placeholder={t('settings.bots.botNamePlaceholder', 'e.g. My Assistant Bot')} style={{ width: 220 }} />
           </PreferenceRow>
 
           {/* Bot Token */}
-          <PreferenceRow label={t('settings.mezon.botToken', 'Bot Token')} description={t('settings.mezon.botTokenDesc', 'Token from Mezon Developer Portal')} required={isCreating}>
+          <PreferenceRow label={t('settings.bots.botToken', 'Bot Token')} description={t('settings.bots.botTokenDesc', 'Token from the Mezon Developer Portal')} required={isCreating}>
             <Input.Password
               value={editToken}
               onChange={(value) => {
@@ -714,7 +714,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
           </PreferenceRow>
 
           {/* Bot ID */}
-          <PreferenceRow label={t('settings.mezon.botId', 'Bot ID')} description={t('settings.mezon.botIdDesc', 'Bot ID from Mezon Developer Portal')} required={isCreating}>
+          <PreferenceRow label={t('settings.bots.botId', 'Bot ID')} description={t('settings.bots.botIdDesc', 'Bot ID from the Mezon Developer Portal')} required={isCreating}>
             <Input
               value={editBotId}
               onChange={(value) => {
@@ -730,17 +730,17 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
           {(editToken.trim() || editBotId.trim()) && (
             <div className='flex justify-end py-8px'>
               <Button type='outline' loading={testLoading} onClick={handleTestConnection} size='small'>
-                {credentialsTested ? t('settings.mezon.tested', 'Tested') : t('settings.mezon.testConnection', 'Test Connection')}
+                {credentialsTested ? t('settings.bots.tested', 'Tested') : t('settings.bots.testConnection', 'Test Connection')}
               </Button>
             </div>
           )}
 
           {/* Assign Assistant */}
-          <PreferenceRow label={t('settings.mezon.assignAssistant', 'Assigned Assistant')} description={t('settings.mezon.assignAssistantDesc', 'Route messages to this assistant')}>
+          <PreferenceRow label={t('settings.bots.assignAssistant', 'Assigned Assistant')} description={t('settings.bots.assignAssistantDesc', 'The assistant this bot will automatically run')}>
             <Select
               value={editAssistantId || ''}
               onChange={(value) => setEditAssistantId(value || undefined)}
-              placeholder={t('settings.mezon.selectAssistant', 'Select Assistant')}
+              placeholder={t('settings.bots.selectAssistant', 'Select Assistant')}
               style={{ width: 220 }}
               allowClear
             >
@@ -753,7 +753,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
           </PreferenceRow>
 
           {/* Default Model */}
-          <PreferenceRow label={t('settings.assistant.defaultModel', 'Default Model')} description={t('settings.mezon.defaultModelDesc', 'Model used for conversations')}>
+          <PreferenceRow label={t('settings.assistant.defaultModel', 'Default Model')} description={t('settings.bots.defaultModelDesc', 'Model used for bot conversations')}>
             <Dropdown
               trigger='click'
               position='br'
@@ -792,7 +792,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
 
       {/* Delete Confirmation Modal */}
       <Modal
-        title={t('settings.mezon.deleteBot', 'Delete Bot')}
+        title={t('settings.bots.deleteBot', 'Delete Bot')}
         visible={deleteConfirmVisible}
         onCancel={() => {
           setDeleteConfirmVisible(false);
@@ -803,11 +803,11 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
         okText={t('common.delete', 'Delete')}
         cancelText={t('common.cancel', 'Cancel')}
       >
-        <p>{t('settings.mezon.deleteBotConfirm', 'Are you sure you want to delete this bot? This will disconnect it and remove all settings.')}</p>
+        <p>{t('settings.bots.deleteBotConfirm', 'Are you sure you want to delete this bot? This will disconnect it and remove all settings.')}</p>
         {botToDelete && <strong className='block mt-8px'>{botToDelete.name}</strong>}
       </Modal>
     </div>
   );
 };
 
-export default MezonConfigForm;
+export default BotsConfigForm;
