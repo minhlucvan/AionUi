@@ -794,7 +794,15 @@
     "skillsmpApiKeyTitle": "SkillsMP API 金鑰",
     "skillsmpApiKeyDesc": "輸入 SkillsMP API 金鑰以搜尋技能市場。可在 skillsmp.com 免費取得。",
     "skillsmpGetKey": "取得 API 金鑰",
-    "skillsmpApiKeySaved": "SkillsMP API 金鑰已儲存"
+    "skillsmpApiKeySaved": "SkillsMP API 金鑰已儲存",
+    "uploadSkill": "上傳",
+    "skillDetailTitle": "技能詳情",
+    "skillDetailName": "名稱",
+    "skillDetailDescription": "描述",
+    "skillDetailLocation": "位置",
+    "skillDetailEnabled": "啟用",
+    "skillTypeCustom": "自訂",
+    "skillTypeBuiltin": "內建"
   },
   "messages": {
     "fileChanges": "檔案變更",

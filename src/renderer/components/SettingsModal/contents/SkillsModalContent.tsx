@@ -4,14 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Collapse, Empty, Input, Message, Modal, Tag, Typography, Spin } from '@arco-design/web-react';
-import { Delete, FolderOpen, Plus, Search, Star, Download } from '@icon-park/react';
+import { Button, Drawer, Empty, Input, Message, Modal, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
+import { Close, Delete, FolderOpen, Search, SettingOne, UploadOne } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import SkillBrowseModal from '@/renderer/pages/settings/components/SkillBrowseModal';
 import { useSettingsViewMode } from '../settingsViewContext';
 
 interface SkillInfo {
@@ -21,464 +22,140 @@ interface SkillInfo {
   isCustom: boolean;
 }
 
-interface SkillsMPSkill {
-  id: string;
-  name: string;
-  description: string;
-  author?: string;
-  stars?: number;
-  updatedAt?: number;
-  tags?: string[];
-  githubUrl?: string;
-  skillUrl?: string;
-}
-
 type MessageInstance = ReturnType<typeof Message.useMessage>[0];
 
 // ============================================================================
-// Installed Skills Section
+// Skill Detail Drawer
 // ============================================================================
-const InstalledSkillsSection: React.FC<{
-  message: MessageInstance;
-  skills: SkillInfo[];
-  loading: boolean;
-  onRefresh: () => void;
-  isPageMode?: boolean;
-}> = ({ message, skills, loading, onRefresh, isPageMode }) => {
+const SkillDetailDrawer: React.FC<{
+  skill: SkillInfo | null;
+  visible: boolean;
+  onClose: () => void;
+  onDelete: () => void;
+  isEnabled: boolean;
+  onToggleEnabled: (enabled: boolean) => void;
+}> = ({ skill, visible, onClose, onDelete, isEnabled, onToggleEnabled }) => {
   const { t } = useTranslation();
-  const [deleteSkillName, setDeleteSkillName] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [drawerWidth, setDrawerWidth] = useState(460);
 
-  const builtinSkills = skills.filter((s) => !s.isCustom);
-  const customSkills = skills.filter((s) => s.isCustom);
+  useEffect(() => {
+    const updateWidth = () => {
+      if (typeof window === 'undefined') return;
+      setDrawerWidth(Math.min(460, Math.max(320, Math.floor(window.innerWidth - 32))));
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
-  const handleDelete = useCallback(async () => {
-    if (!deleteSkillName) return;
-    setDeleting(true);
-    try {
-      const response = await ipcBridge.fs.deleteCustomSkill.invoke({ skillName: deleteSkillName });
-      if (response.success) {
-        message.success(t('settings.skillDeleteSuccess', { name: deleteSkillName, defaultValue: `Skill "${deleteSkillName}" deleted` }));
-        onRefresh();
-      } else {
-        message.error(response.msg || t('settings.skillDeleteFailed', { defaultValue: 'Failed to delete skill' }));
-      }
-    } catch (error) {
-      console.error('Failed to delete skill:', error);
-      message.error(t('settings.skillDeleteFailed', { defaultValue: 'Failed to delete skill' }));
-    } finally {
-      setDeleting(false);
-      setDeleteSkillName(null);
-    }
-  }, [deleteSkillName, message, t, onRefresh]);
+  if (!skill) return null;
 
   return (
-    <div className='flex flex-col gap-16px min-h-0'>
-      <div className='flex gap-8px items-center justify-between'>
-        <div className='text-14px text-t-primary'>{t('settings.skillsInstalledTitle', { defaultValue: 'Installed Skills' })}</div>
-        <div className='text-12px text-t-secondary'>
-          {t('settings.skillsInstalledCount', { count: skills.length, defaultValue: `${skills.length} skills` })}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className='flex items-center justify-center py-40px'>
-          <Spin size={24} />
-        </div>
-      ) : skills.length === 0 ? (
-        <div className='py-24px text-center text-t-secondary text-14px border border-dashed border-border-2 rd-12px'>
-          {t('settings.skillsNoneInstalled', { defaultValue: 'No skills installed yet. Browse SkillsMP or import from a local folder.' })}
-        </div>
-      ) : (
-        <AionScrollArea className={classNames('max-h-500px', isPageMode && 'max-h-none')} disableOverflow={isPageMode}>
-          <Collapse defaultActiveKey={['custom-skills', 'builtin-skills']}>
-            {customSkills.length > 0 && (
-              <Collapse.Item
-                header={<span className='text-13px font-medium'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>}
-                name='custom-skills'
-                extra={<span className='text-12px text-t-secondary'>{customSkills.length}</span>}
-              >
-                <div className='space-y-4px'>
-                  {customSkills.map((skill) => (
-                    <div key={skill.name} className='flex items-start gap-10px p-10px hover:bg-fill-1 rounded-8px group transition-colors'>
-                      <div className='flex-1 min-w-0'>
-                        <div className='flex items-center gap-6px'>
-                          <div className='text-13px font-medium text-t-primary'>{skill.name}</div>
-                          <Tag size='small' color='orangered' className='text-10px'>
-                            Custom
-                          </Tag>
-                        </div>
-                        {skill.description && <div className='text-12px text-t-secondary mt-2px line-clamp-2'>{skill.description}</div>}
-                        <div className='text-11px text-t-quaternary mt-4px truncate'>{skill.location}</div>
-                      </div>
-                      <button
-                        className='opacity-0 group-hover:opacity-100 transition-opacity p-4px hover:bg-fill-2 rounded-4px flex-shrink-0'
-                        onClick={() => setDeleteSkillName(skill.name)}
-                        title={t('common.delete', { defaultValue: 'Delete' })}
-                      >
-                        <Delete size={16} fill='var(--color-text-3)' />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </Collapse.Item>
-            )}
-            <Collapse.Item
-              header={<span className='text-13px font-medium'>{t('settings.builtinSkills', { defaultValue: 'Builtin Skills' })}</span>}
-              name='builtin-skills'
-              extra={<span className='text-12px text-t-secondary'>{builtinSkills.length}</span>}
-            >
-              {builtinSkills.length > 0 ? (
-                <div className='space-y-4px'>
-                  {builtinSkills.map((skill) => (
-                    <div key={skill.name} className='flex items-start gap-10px p-10px hover:bg-fill-1 rounded-8px transition-colors'>
-                      <div className='flex-1 min-w-0'>
-                        <div className='flex items-center gap-6px'>
-                          <div className='text-13px font-medium text-t-primary'>{skill.name}</div>
-                          <Tag size='small' color='arcoblue' className='text-10px'>
-                            Builtin
-                          </Tag>
-                        </div>
-                        {skill.description && <div className='text-12px text-t-secondary mt-2px line-clamp-2'>{skill.description}</div>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className='text-center text-t-secondary text-12px py-16px'>
-                  {t('settings.noBuiltinSkills', { defaultValue: 'No builtin skills available' })}
-                </div>
-              )}
-            </Collapse.Item>
-          </Collapse>
-        </AionScrollArea>
-      )}
-
-      {/* Delete Confirmation */}
-      <Modal
-        visible={deleteSkillName !== null}
-        onCancel={() => setDeleteSkillName(null)}
-        title={t('settings.skillDeleteTitle', { defaultValue: 'Delete Skill' })}
-        okButtonProps={{ status: 'danger', loading: deleting }}
-        okText={t('common.delete', { defaultValue: 'Delete' })}
-        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
-        onOk={handleDelete}
-        style={{ width: 400 }}
-      >
-        <p>
-          {t('settings.skillDeleteConfirm', {
-            name: deleteSkillName,
-            defaultValue: `Are you sure you want to delete "${deleteSkillName}"? This will remove the skill files from disk.`,
-          })}
-        </p>
-      </Modal>
-    </div>
-  );
-};
-
-// ============================================================================
-// SkillsMP Browse Section
-// ============================================================================
-const SkillsMPBrowseSection: React.FC<{
-  message: MessageInstance;
-  onInstalled: () => void;
-  installedSkillNames: string[];
-  isPageMode?: boolean;
-}> = ({ message, onInstalled, installedSkillNames, isPageMode }) => {
-  const { t } = useTranslation();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [results, setResults] = useState<SkillsMPSkill[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [installing, setInstalling] = useState<string | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasNext, setHasNext] = useState(false);
-
-  const handleSearch = useCallback(
-    async (pageNum = 1, sortBy?: 'stars' | 'recent') => {
-      const query = searchQuery.trim();
-      if (!query) return;
-
-      setLoading(true);
-      setHasSearched(true);
-      try {
-        const apiKey = ConfigStorage.get('skillsmp.apiKey') || '';
-        const response = await ipcBridge.fs.searchSkillsMPSkills.invoke({
-          query,
-          page: pageNum,
-          perPage: 20,
-          sortBy,
-          apiKey: apiKey || undefined,
-        });
-        if (response.success && response.data) {
-          if (pageNum === 1) {
-            setResults(response.data.items);
-          } else {
-            setResults((prev) => [...prev, ...response.data!.items]);
-          }
-          setTotalCount(response.data.total_count);
-          setPage(pageNum);
-          setHasNext(response.data.hasNext ?? false);
-        } else {
-          message.error(response.msg || t('settings.skillBrowseSearchFailed', { defaultValue: 'Search failed' }));
-        }
-      } catch {
-        message.error(t('settings.skillBrowseSearchFailed', { defaultValue: 'Search failed' }));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [searchQuery, message, t]
-  );
-
-  const handleInstall = useCallback(
-    async (skill: SkillsMPSkill) => {
-      if (!skill.githubUrl) {
-        message.error(t('settings.skillBrowseNoGitHub', { defaultValue: 'No GitHub URL available for this skill' }));
-        return;
-      }
-      const cloneUrl = skill.githubUrl.endsWith('.git') ? skill.githubUrl : `${skill.githubUrl}.git`;
-      setInstalling(skill.id);
-      try {
-        const response = await ipcBridge.fs.installSkillFromGitHub.invoke({
-          cloneUrl,
-          repoName: skill.name,
-        });
-        if (response.success && response.data) {
-          message.success(
-            t('settings.skillBrowseInstallSuccess', {
-              name: response.data.skillName,
-              defaultValue: `Skill "${response.data.skillName}" installed successfully`,
-            })
-          );
-          onInstalled();
-        } else {
-          message.error(response.msg || t('settings.skillBrowseInstallFailed', { defaultValue: 'Installation failed' }));
-        }
-      } catch {
-        message.error(t('settings.skillBrowseInstallFailed', { defaultValue: 'Installation failed' }));
-      } finally {
-        setInstalling(null);
-      }
-    },
-    [message, t, onInstalled]
-  );
-
-  const handleTagClick = useCallback(
-    (query: string, sortBy?: 'stars' | 'recent') => {
-      setSearchQuery(query);
-      setLoading(true);
-      setHasSearched(true);
-      void (async () => {
-        try {
-          const apiKey = ConfigStorage.get('skillsmp.apiKey') || '';
-          const response = await ipcBridge.fs.searchSkillsMPSkills.invoke({
-            query,
-            page: 1,
-            perPage: 20,
-            sortBy,
-            apiKey: apiKey || undefined,
-          });
-          if (response.success && response.data) {
-            setResults(response.data.items);
-            setTotalCount(response.data.total_count);
-            setPage(1);
-            setHasNext(response.data.hasNext ?? false);
-          }
-        } catch {
-          // ignore
-        } finally {
-          setLoading(false);
-        }
-      })();
-    },
-    []
-  );
-
-  const formatStars = (count?: number) => {
-    if (!count) return '0';
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
-    return String(count);
-  };
-
-  const formatDate = (timestamp?: number) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp * 1000);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return 'Today';
-    if (diffDays < 30) return `${diffDays}d ago`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
-    return `${Math.floor(diffDays / 365)}y ago`;
-  };
-
-  return (
-    <div className='flex flex-col gap-16px min-h-0'>
-      <div className='flex items-center gap-8px'>
-        <div className='text-14px text-t-primary'>{t('settings.skillBrowseTitle', { defaultValue: 'Browse Skills on SkillsMP' })}</div>
-        <span
-          className='text-11px text-primary cursor-pointer hover:underline'
-          onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com')}
-        >
-          skillsmp.com
-        </span>
-      </div>
-
-      {/* Search bar */}
-      <div className='flex gap-8px'>
-        <Input
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder={t('settings.skillBrowseSearchPlaceholder', { defaultValue: 'Search 145k+ agent skills...' })}
-          onPressEnter={() => void handleSearch(1)}
-          prefix={<Search size={16} />}
-          className='flex-1'
-          allowClear
-        />
-        <Button type='primary' loading={loading && !results.length} onClick={() => void handleSearch(1)}>
-          {t('common.search', { defaultValue: 'Search' })}
-        </Button>
-      </div>
-
-      {/* Category presets */}
-      <div className='flex flex-wrap gap-6px'>
-        {[
-          { label: 'Popular', query: 'SKILL.md', sortBy: 'stars' as const },
-          { label: 'Recent', query: 'SKILL.md', sortBy: 'recent' as const },
-          { label: 'Claude', query: 'claude skills' },
-          { label: 'Gemini', query: 'gemini skills' },
-          { label: 'Coding', query: 'coding development' },
-        ].map((preset) => (
-          <Tag
-            key={`${preset.query}-${preset.sortBy || ''}`}
-            className='cursor-pointer'
-            color='arcoblue'
-            onClick={() => handleTagClick(preset.query, preset.sortBy)}
+    <Drawer
+      title={
+        <>
+          <span>{t('settings.skillDetailTitle', { defaultValue: 'Skill Details' })}</span>
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className='absolute right-4 top-2 cursor-pointer text-t-secondary hover:text-t-primary transition-colors p-1'
+            style={{ zIndex: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
-            {preset.label}
-          </Tag>
-        ))}
-      </div>
-
-      {/* Results */}
-      <AionScrollArea className={classNames('max-h-400px', isPageMode && 'max-h-none')} disableOverflow={isPageMode}>
-        {loading && results.length === 0 ? (
-          <div className='flex items-center justify-center py-40px'>
-            <Spin size={24} />
+            <Close size={18} />
           </div>
-        ) : results.length > 0 ? (
-          <div className='space-y-8px'>
-            <div className='text-12px text-t-secondary mb-4px'>
-              {t('settings.skillBrowseResultCount', { count: totalCount, defaultValue: `${totalCount} skills found` })}
+        </>
+      }
+      closable={false}
+      visible={visible}
+      placement='right'
+      width={drawerWidth}
+      zIndex={1200}
+      autoFocus={false}
+      onCancel={onClose}
+      headerStyle={{ background: 'var(--color-bg-1)' }}
+      bodyStyle={{ background: 'var(--color-bg-1)' }}
+      footer={
+        skill.isCustom ? (
+          <div className='flex items-center justify-between w-full'>
+            <div />
+            <Button status='danger' onClick={onDelete} className='rounded-[100px]' style={{ backgroundColor: 'rgb(var(--danger-1))' }}>
+              <Delete size={14} className='mr-4px' />
+              {t('common.delete', { defaultValue: 'Delete' })}
+            </Button>
+          </div>
+        ) : null
+      }
+    >
+      <div className='flex flex-col h-full overflow-hidden'>
+        <div className='flex flex-col flex-1 gap-20px bg-fill-2 rounded-16px p-20px overflow-y-auto'>
+          {/* Name & Type */}
+          <div>
+            <Typography.Text bold>{t('settings.skillDetailName', { defaultValue: 'Name' })}</Typography.Text>
+            <div className='mt-8px flex items-center gap-8px'>
+              <span className='text-14px text-t-primary font-medium'>{skill.name}</span>
+              <Tag size='small' color={skill.isCustom ? 'orangered' : 'arcoblue'}>
+                {skill.isCustom ? t('settings.skillTypeCustom', { defaultValue: 'Custom' }) : t('settings.skillTypeBuiltin', { defaultValue: 'Builtin' })}
+              </Tag>
             </div>
-            {results.map((skill) => {
-              const isInstalled = installedSkillNames.some((n) => n === skill.name);
-              return (
-                <div key={skill.id || skill.name} className='border border-border-2 rounded-8px p-12px hover:bg-fill-1 transition-colors'>
-                  <div className='flex items-start gap-10px'>
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-center gap-6px flex-wrap'>
-                        <Typography.Text
-                          bold
-                          className='text-14px text-primary cursor-pointer hover:underline'
-                          onClick={() => {
-                            const url = skill.skillUrl || skill.githubUrl;
-                            if (url) void ipcBridge.shell.openExternal.invoke(url);
-                          }}
-                        >
-                          {skill.name}
-                        </Typography.Text>
-                        {skill.author && <span className='text-12px text-t-secondary'>by {skill.author}</span>}
-                        {(skill.stars ?? 0) > 0 && (
-                          <span className='flex items-center gap-2px text-12px text-t-secondary'>
-                            <Star size={12} fill='var(--color-text-3)' />
-                            {formatStars(skill.stars)}
-                          </span>
-                        )}
-                        {skill.updatedAt && <span className='text-12px text-t-secondary'>{formatDate(skill.updatedAt)}</span>}
-                      </div>
-                      {skill.description && <div className='text-12px text-t-secondary mt-4px line-clamp-2'>{skill.description}</div>}
-                      {skill.tags && skill.tags.length > 0 && (
-                        <div className='flex flex-wrap gap-4px mt-6px'>
-                          {skill.tags.slice(0, 6).map((tag) => (
-                            <Tag key={tag} size='small' color='green' className='text-11px'>
-                              {tag}
-                            </Tag>
-                          ))}
-                          {skill.tags.length > 6 && (
-                            <Tag size='small' color='gray' className='text-11px'>
-                              +{skill.tags.length - 6}
-                            </Tag>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {isInstalled ? (
-                      <Tag color='green' size='small' className='flex-shrink-0'>
-                        {t('settings.skillAlreadyInstalled', { defaultValue: 'Installed' })}
-                      </Tag>
-                    ) : (
-                      <Button
-                        type='outline'
-                        size='small'
-                        className='flex-shrink-0'
-                        loading={installing === skill.id}
-                        disabled={!skill.githubUrl}
-                        icon={<Download size={14} />}
-                        onClick={() => void handleInstall(skill)}
-                      >
-                        {t('settings.skillBrowseInstall', { defaultValue: 'Install' })}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {hasNext && (
-              <div className='flex justify-center pt-8px'>
-                <Button type='text' loading={loading} onClick={() => void handleSearch(page + 1)}>
-                  {t('settings.skillBrowseLoadMore', { defaultValue: 'Load more' })}
-                </Button>
-              </div>
-            )}
           </div>
-        ) : hasSearched ? (
-          <Empty description={t('settings.skillBrowseNoResults', { defaultValue: 'No skills found. Try different keywords.' })} className='py-40px' />
-        ) : (
-          <div className='text-center text-t-secondary py-32px text-13px'>
-            {t('settings.skillBrowseHint', { defaultValue: 'Search 145k+ community skills on SkillsMP, or click a category above to browse.' })}
+
+          {/* Description */}
+          {skill.description && (
+            <div>
+              <Typography.Text bold>{t('settings.skillDetailDescription', { defaultValue: 'Description' })}</Typography.Text>
+              <div className='mt-8px text-13px text-t-secondary'>{skill.description}</div>
+            </div>
+          )}
+
+          {/* Location */}
+          {skill.location && (
+            <div>
+              <Typography.Text bold>{t('settings.skillDetailLocation', { defaultValue: 'Location' })}</Typography.Text>
+              <div className='mt-8px text-12px text-t-quaternary break-all font-mono bg-bg-1 p-8px rounded-8px'>{skill.location}</div>
+            </div>
+          )}
+
+          {/* Enabled Toggle */}
+          <div className='flex items-center justify-between'>
+            <Typography.Text bold>{t('settings.skillDetailEnabled', { defaultValue: 'Enabled' })}</Typography.Text>
+            <Switch checked={isEnabled} onChange={onToggleEnabled} />
           </div>
-        )}
-      </AionScrollArea>
-    </div>
+        </div>
+      </div>
+    </Drawer>
   );
 };
 
 // ============================================================================
-// Import from Folder Section
+// Import Skill Modal
 // ============================================================================
-const ImportFolderSection: React.FC<{
-  message: MessageInstance;
+const ImportSkillModal: React.FC<{
+  visible: boolean;
+  onClose: () => void;
   onImported: () => void;
-}> = ({ message, onImported }) => {
+  message: MessageInstance;
+}> = ({ visible, onClose, onImported, message }) => {
   const { t } = useTranslation();
   const [skillPath, setSkillPath] = useState('');
   const [commonPaths, setCommonPaths] = useState<Array<{ name: string; path: string }>>([]);
   const [importing, setImporting] = useState(false);
 
   useEffect(() => {
-    void (async () => {
-      try {
-        const response = await ipcBridge.fs.detectCommonSkillPaths.invoke();
-        if (response.success && response.data) {
-          setCommonPaths(response.data);
+    if (visible) {
+      void (async () => {
+        try {
+          const response = await ipcBridge.fs.detectCommonSkillPaths.invoke();
+          if (response.success && response.data) {
+            setCommonPaths(response.data);
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
-      }
-    })();
-  }, []);
+      })();
+    }
+  }, [visible]);
 
   const handleImport = useCallback(async () => {
     const paths = skillPath
@@ -502,11 +179,8 @@ const ImportFolderSection: React.FC<{
 
         for (const skill of scanResult.data) {
           const importResult = await ipcBridge.fs.importSkill.invoke({ skillPath: skill.path });
-          if (importResult.success) {
-            totalAdded++;
-          } else {
-            totalSkipped++;
-          }
+          if (importResult.success) totalAdded++;
+          else totalSkipped++;
         }
       }
 
@@ -515,6 +189,7 @@ const ImportFolderSection: React.FC<{
         message.success(t('settings.skillsImported', { count: totalAdded, skipped: skippedText, defaultValue: `${totalAdded} skills imported${skippedText}` }));
         setSkillPath('');
         onImported();
+        onClose();
       } else if (totalSkipped > 0) {
         message.warning(t('settings.allSkillsExist', { defaultValue: 'All found skills already exist' }));
       } else {
@@ -526,67 +201,76 @@ const ImportFolderSection: React.FC<{
     } finally {
       setImporting(false);
     }
-  }, [skillPath, message, t, onImported]);
+  }, [skillPath, message, t, onImported, onClose]);
 
   return (
-    <div className='flex flex-col gap-16px min-h-0'>
-      <div className='text-14px text-t-primary'>{t('settings.skillsImportTitle', { defaultValue: 'Import from Folder' })}</div>
+    <Modal
+      visible={visible}
+      onCancel={() => {
+        setSkillPath('');
+        onClose();
+      }}
+      title={t('settings.skillsImportTitle', { defaultValue: 'Import from Folder' })}
+      okText={t('settings.skillsImportBtn', { defaultValue: 'Import' })}
+      cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
+      onOk={() => void handleImport()}
+      okButtonProps={{ loading: importing }}
+      style={{ width: 500 }}
+    >
+      <div className='space-y-16px'>
+        {commonPaths.length > 0 && (
+          <div>
+            <div className='text-12px text-t-secondary mb-8px'>{t('settings.quickScan', { defaultValue: 'Quick Scan Common Paths' })}</div>
+            <div className='flex flex-wrap gap-8px'>
+              {commonPaths.map((cp) => (
+                <Button
+                  key={cp.path}
+                  size='small'
+                  type='secondary'
+                  className='rounded-[100px] bg-fill-2 hover:bg-fill-3'
+                  onClick={() => {
+                    if (skillPath.includes(cp.path)) return;
+                    setSkillPath(skillPath ? `${skillPath}, ${cp.path}` : cp.path);
+                  }}
+                >
+                  {cp.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
-      {commonPaths.length > 0 && (
-        <div>
-          <div className='text-12px text-t-secondary mb-8px'>{t('settings.quickScan', { defaultValue: 'Quick Scan Common Paths' })}</div>
-          <div className='flex flex-wrap gap-8px'>
-            {commonPaths.map((cp) => (
-              <Button
-                key={cp.path}
-                size='small'
-                type='secondary'
-                className='rounded-[100px] bg-fill-2 hover:bg-fill-3'
-                onClick={() => {
-                  if (skillPath.includes(cp.path)) return;
-                  setSkillPath(skillPath ? `${skillPath}, ${cp.path}` : cp.path);
-                }}
-              >
-                {cp.name}
-              </Button>
-            ))}
+        <div className='space-y-12px'>
+          <Typography.Text>{t('settings.skillFolderPath', { defaultValue: 'Skill Folder Path' })}</Typography.Text>
+          <div className='flex items-center gap-8px'>
+            <Input
+              value={skillPath}
+              onChange={(value) => setSkillPath(value)}
+              placeholder={t('settings.skillPathPlaceholder', { defaultValue: 'Enter or browse skill folder path' })}
+              className='flex-1'
+            />
+            <Button
+              type='outline'
+              icon={<FolderOpen size={16} />}
+              onClick={async () => {
+                try {
+                  const result = await ipcBridge.dialog.showOpen.invoke({
+                    properties: ['openDirectory', 'multiSelections'],
+                  });
+                  if (result && result.length > 0) {
+                    setSkillPath(result.join(', '));
+                  }
+                } catch (error) {
+                  console.error('Failed to open directory dialog:', error);
+                }
+              }}
+            >
+              {t('common.browse', { defaultValue: 'Browse' })}
+            </Button>
           </div>
         </div>
-      )}
-
-      <div className='space-y-12px'>
-        <Typography.Text>{t('settings.skillFolderPath', { defaultValue: 'Skill Folder Path' })}</Typography.Text>
-        <div className='flex items-center gap-8px'>
-          <Input
-            value={skillPath}
-            onChange={(value) => setSkillPath(value)}
-            placeholder={t('settings.skillPathPlaceholder', { defaultValue: 'Enter or browse skill folder path' })}
-            className='flex-1'
-          />
-          <Button
-            type='outline'
-            icon={<FolderOpen size={16} />}
-            onClick={async () => {
-              try {
-                const result = await ipcBridge.dialog.showOpen.invoke({
-                  properties: ['openDirectory', 'multiSelections'],
-                });
-                if (result && result.length > 0) {
-                  setSkillPath(result.join(', '));
-                }
-              } catch (error) {
-                console.error('Failed to open directory dialog:', error);
-              }
-            }}
-          >
-            {t('common.browse', { defaultValue: 'Browse' })}
-          </Button>
-          <Button type='primary' loading={importing} onClick={() => void handleImport()}>
-            {t('settings.skillsImportBtn', { defaultValue: 'Import' })}
-          </Button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -606,10 +290,7 @@ const ApiKeySection: React.FC<{ message: MessageInstance }> = ({ message }) => {
     <div className='flex flex-col gap-12px min-h-0'>
       <div className='flex items-center gap-8px'>
         <div className='text-14px text-t-primary'>{t('settings.skillsmpApiKeyTitle', { defaultValue: 'SkillsMP API Key' })}</div>
-        <span
-          className='text-11px text-primary cursor-pointer hover:underline'
-          onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com/docs/api')}
-        >
+        <span className='text-11px text-primary cursor-pointer hover:underline' onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com/docs/api')}>
           {t('settings.skillsmpGetKey', { defaultValue: 'Get API key' })}
         </span>
       </div>
@@ -617,15 +298,51 @@ const ApiKeySection: React.FC<{ message: MessageInstance }> = ({ message }) => {
         {t('settings.skillsmpApiKeyDesc', { defaultValue: 'Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.' })}
       </div>
       <div className='flex items-center gap-8px'>
-        <Input.Password
-          value={apiKey}
-          onChange={setApiKey}
-          placeholder='sk_live_...'
-          className='flex-1'
-        />
+        <Input.Password value={apiKey} onChange={setApiKey} placeholder='sk_live_...' className='flex-1' />
         <Button type='primary' onClick={handleSave}>
           {t('common.save', { defaultValue: 'Save' })}
         </Button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// Skill List Item
+// ============================================================================
+const SkillListItem: React.FC<{
+  skill: SkillInfo;
+  isEnabled: boolean;
+  onToggleEnabled: (enabled: boolean) => void;
+  onClickDetail: () => void;
+}> = ({ skill, isEnabled, onToggleEnabled, onClickDetail }) => {
+  return (
+    <div
+      className='group bg-fill-0 rounded-lg px-16px py-12px flex items-center justify-between cursor-pointer hover:bg-fill-1 transition-colors'
+      onClick={onClickDetail}
+    >
+      <div className='flex items-center gap-12px min-w-0 flex-1'>
+        <div className='min-w-0 flex-1'>
+          <div className='flex items-center gap-6px'>
+            <span className='font-medium text-t-primary truncate'>{skill.name}</span>
+            <Tag size='small' color={skill.isCustom ? 'orangered' : 'arcoblue'} className='text-10px flex-shrink-0'>
+              {skill.isCustom ? 'Custom' : 'Builtin'}
+            </Tag>
+          </div>
+          {skill.description && <div className='text-12px text-t-secondary truncate mt-2px'>{skill.description}</div>}
+        </div>
+      </div>
+      <div className='flex items-center gap-12px text-t-secondary flex-shrink-0'>
+        <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} onClick={(e) => e.stopPropagation()} />
+        <Button
+          type='text'
+          size='small'
+          icon={<SettingOne size={16} />}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClickDetail();
+          }}
+        />
       </div>
     </div>
   );
@@ -639,6 +356,17 @@ const SkillsModalContent: React.FC = () => {
   const [message, messageContext] = Message.useMessage({ maxCount: 10 });
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [disabledSkills, setDisabledSkills] = useState<string[]>(() => {
+    return ConfigStorage.get('skills.disabledSkills') || [];
+  });
+
+  // Modal/Drawer states
+  const [browseVisible, setBrowseVisible] = useState(false);
+  const [importVisible, setImportVisible] = useState(false);
+  const [detailSkill, setDetailSkill] = useState<SkillInfo | null>(null);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [deleteSkillName, setDeleteSkillName] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
@@ -659,7 +387,45 @@ const SkillsModalContent: React.FC = () => {
     void loadSkills();
   }, [loadSkills]);
 
+  const handleToggleEnabled = useCallback(
+    (skillName: string, enabled: boolean) => {
+      let updated: string[];
+      if (enabled) {
+        updated = disabledSkills.filter((s) => s !== skillName);
+      } else {
+        updated = [...disabledSkills, skillName];
+      }
+      setDisabledSkills(updated);
+      ConfigStorage.set('skills.disabledSkills', updated);
+    },
+    [disabledSkills]
+  );
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteSkillName) return;
+    setDeleting(true);
+    try {
+      const response = await ipcBridge.fs.deleteCustomSkill.invoke({ skillName: deleteSkillName });
+      if (response.success) {
+        message.success(t('settings.skillDeleteSuccess', { name: deleteSkillName, defaultValue: `Skill "${deleteSkillName}" deleted` }));
+        setDetailVisible(false);
+        setDetailSkill(null);
+        void loadSkills();
+      } else {
+        message.error(response.msg || t('settings.skillDeleteFailed', { defaultValue: 'Failed to delete skill' }));
+      }
+    } catch (error) {
+      console.error('Failed to delete skill:', error);
+      message.error(t('settings.skillDeleteFailed', { defaultValue: 'Failed to delete skill' }));
+    } finally {
+      setDeleting(false);
+      setDeleteSkillName(null);
+    }
+  }, [deleteSkillName, message, t, loadSkills]);
+
   const installedSkillNames = skills.map((s) => s.name);
+  const customSkills = skills.filter((s) => s.isCustom);
+  const builtinSkills = skills.filter((s) => !s.isCustom);
 
   return (
     <div className='flex flex-col h-full w-full'>
@@ -667,27 +433,148 @@ const SkillsModalContent: React.FC = () => {
 
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
         <div className='space-y-16px'>
-          {/* Installed Skills */}
+          {/* Skills List Section */}
           <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-border-2'>
-            <InstalledSkillsSection message={message} skills={skills} loading={loading} onRefresh={loadSkills} isPageMode={isPageMode} />
+            {/* Header */}
+            <div className='flex items-center justify-between mb-16px'>
+              <div className='flex items-center gap-8px'>
+                <div className='text-14px text-t-primary font-medium'>{t('settings.skillsInstalledTitle', { defaultValue: 'Installed Skills' })}</div>
+                <span className='text-12px text-t-secondary'>{t('settings.skillsInstalledCount', { count: skills.length, defaultValue: `${skills.length} skills` })}</span>
+              </div>
+              <div className='flex items-center gap-8px'>
+                <Button size='small' type='outline' icon={<UploadOne size={14} />} onClick={() => setImportVisible(true)} className='rounded-[100px]'>
+                  {t('settings.uploadSkill', { defaultValue: 'Upload' })}
+                </Button>
+                <Button size='small' type='outline' icon={<Search size={14} />} onClick={() => setBrowseVisible(true)} className='rounded-[100px]'>
+                  {t('settings.browseSkillsMP', { defaultValue: 'Browse SkillsMP' })}
+                </Button>
+              </div>
+            </div>
+
+            {/* Skill List */}
+            {loading ? (
+              <div className='flex items-center justify-center py-40px'>
+                <Spin size={24} />
+              </div>
+            ) : skills.length === 0 ? (
+              <div className='py-32px text-center'>
+                <Empty description={t('settings.skillsNoneInstalled', { defaultValue: 'No skills installed yet. Browse SkillsMP or import from a local folder.' })} />
+                <div className='mt-16px flex items-center justify-center gap-12px'>
+                  <Button type='outline' icon={<UploadOne size={14} />} onClick={() => setImportVisible(true)}>
+                    {t('settings.uploadSkill', { defaultValue: 'Upload' })}
+                  </Button>
+                  <Button type='primary' icon={<Search size={14} />} onClick={() => setBrowseVisible(true)}>
+                    {t('settings.browseSkillsMP', { defaultValue: 'Browse SkillsMP' })}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className='bg-fill-2 rounded-2xl p-20px'>
+                <div className='space-y-8px'>
+                  {/* Custom Skills */}
+                  {customSkills.length > 0 && (
+                    <>
+                      <div className='text-12px text-t-secondary mb-4px'>
+                        {t('settings.customSkills', { defaultValue: 'Custom Skills' })} ({customSkills.length})
+                      </div>
+                      {customSkills.map((skill) => (
+                        <SkillListItem
+                          key={skill.name}
+                          skill={skill}
+                          isEnabled={!disabledSkills.includes(skill.name)}
+                          onToggleEnabled={(enabled) => handleToggleEnabled(skill.name, enabled)}
+                          onClickDetail={() => {
+                            setDetailSkill(skill);
+                            setDetailVisible(true);
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {/* Builtin Skills */}
+                  {builtinSkills.length > 0 && (
+                    <>
+                      <div className={classNames('text-12px text-t-secondary mb-4px', customSkills.length > 0 && 'mt-12px')}>
+                        {t('settings.builtinSkills', { defaultValue: 'Builtin Skills' })} ({builtinSkills.length})
+                      </div>
+                      {builtinSkills.map((skill) => (
+                        <SkillListItem
+                          key={skill.name}
+                          skill={skill}
+                          isEnabled={!disabledSkills.includes(skill.name)}
+                          onToggleEnabled={(enabled) => handleToggleEnabled(skill.name, enabled)}
+                          onClickDetail={() => {
+                            setDetailSkill(skill);
+                            setDetailVisible(true);
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Browse SkillsMP */}
-          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-border-2'>
-            <SkillsMPBrowseSection message={message} onInstalled={loadSkills} installedSkillNames={installedSkillNames} isPageMode={isPageMode} />
-          </div>
-
-          {/* Import from Folder */}
-          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-border-2'>
-            <ImportFolderSection message={message} onImported={loadSkills} />
-          </div>
-
-          {/* SkillsMP API Key */}
+          {/* API Key Section */}
           <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-border-2'>
             <ApiKeySection message={message} />
           </div>
         </div>
       </AionScrollArea>
+
+      {/* Skill Detail Drawer */}
+      <SkillDetailDrawer
+        skill={detailSkill}
+        visible={detailVisible}
+        onClose={() => {
+          setDetailVisible(false);
+          setDetailSkill(null);
+        }}
+        onDelete={() => {
+          if (detailSkill) {
+            setDeleteSkillName(detailSkill.name);
+          }
+        }}
+        isEnabled={detailSkill ? !disabledSkills.includes(detailSkill.name) : true}
+        onToggleEnabled={(enabled) => {
+          if (detailSkill) handleToggleEnabled(detailSkill.name, enabled);
+        }}
+      />
+
+      {/* Import Skill Modal */}
+      <ImportSkillModal visible={importVisible} onClose={() => setImportVisible(false)} onImported={loadSkills} message={message} />
+
+      {/* Browse SkillsMP Modal */}
+      <SkillBrowseModal
+        visible={browseVisible}
+        onClose={() => setBrowseVisible(false)}
+        message={message}
+        installedSkillNames={installedSkillNames}
+        onInstalled={() => {
+          void loadSkills();
+        }}
+      />
+
+      {/* Delete Confirmation */}
+      <Modal
+        visible={deleteSkillName !== null}
+        onCancel={() => setDeleteSkillName(null)}
+        title={t('settings.skillDeleteTitle', { defaultValue: 'Delete Skill' })}
+        okButtonProps={{ status: 'danger', loading: deleting }}
+        okText={t('common.delete', { defaultValue: 'Delete' })}
+        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
+        onOk={handleDelete}
+        style={{ width: 400 }}
+      >
+        <p>
+          {t('settings.skillDeleteConfirm', {
+            name: deleteSkillName,
+            defaultValue: `Are you sure you want to delete "${deleteSkillName}"? This will remove the skill files from disk.`,
+          })}
+        </p>
+      </Modal>
     </div>
   );
 };

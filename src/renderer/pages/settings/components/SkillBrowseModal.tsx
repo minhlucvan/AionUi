@@ -28,6 +28,7 @@ interface SkillBrowseModalProps {
   onClose: () => void;
   onInstalled: (skillName: string) => void;
   message: ReturnType<typeof Message.useMessage>[0];
+  installedSkillNames?: string[];
 }
 
 const SEARCH_PRESETS = [
@@ -38,7 +39,7 @@ const SEARCH_PRESETS = [
   { label: 'Coding', query: 'coding development' },
 ];
 
-const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, onInstalled, message }) => {
+const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, onInstalled, message, installedSkillNames = [] }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<SkillsMPSkill[]>([]);
@@ -194,60 +195,69 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
               <div className='text-12px text-t-secondary mb-4px'>
                 {t('settings.skillBrowseResultCount', { count: totalCount, defaultValue: `${totalCount} results found` })}
               </div>
-              {results.map((skill) => (
-                <div key={skill.id || skill.name} className='border border-border-2 rounded-8px p-12px hover:bg-fill-1 transition-colors'>
-                  <div className='flex items-start gap-10px'>
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-center gap-6px flex-wrap'>
-                        <Typography.Text
-                          bold
-                          className='text-14px text-primary cursor-pointer hover:underline'
-                          onClick={() => {
-                            const url = skill.skillUrl || skill.githubUrl;
-                            if (url) void ipcBridge.shell.openExternal.invoke(url);
-                          }}
-                        >
-                          {skill.name}
-                        </Typography.Text>
-                        {skill.author && <span className='text-12px text-t-secondary'>by {skill.author}</span>}
-                        {(skill.stars ?? 0) > 0 && (
-                          <span className='flex items-center gap-2px text-12px text-t-secondary'>
-                            <Star size={12} fill='var(--color-text-3)' />
-                            {formatStars(skill.stars)}
-                          </span>
-                        )}
-                        {skill.updatedAt && <span className='text-12px text-t-secondary'>{formatDate(skill.updatedAt)}</span>}
-                      </div>
-                      {skill.description && <div className='text-12px text-t-secondary mt-4px line-clamp-2'>{skill.description}</div>}
-                      {skill.tags && skill.tags.length > 0 && (
-                        <div className='flex flex-wrap gap-4px mt-6px'>
-                          {skill.tags.slice(0, 5).map((tag) => (
-                            <Tag key={tag} size='small' color='green' className='text-11px'>
-                              {tag}
-                            </Tag>
-                          ))}
-                          {skill.tags.length > 5 && (
-                            <Tag size='small' color='gray' className='text-11px'>
-                              +{skill.tags.length - 5}
-                            </Tag>
+              {results.map((skill) => {
+                const isInstalled = installedSkillNames.some((n) => n === skill.name);
+                return (
+                  <div key={skill.id || skill.name} className='border border-border-2 rounded-8px p-12px hover:bg-fill-1 transition-colors'>
+                    <div className='flex items-start gap-10px'>
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-center gap-6px flex-wrap'>
+                          <Typography.Text
+                            bold
+                            className='text-14px text-primary cursor-pointer hover:underline'
+                            onClick={() => {
+                              const url = skill.skillUrl || skill.githubUrl;
+                              if (url) void ipcBridge.shell.openExternal.invoke(url);
+                            }}
+                          >
+                            {skill.name}
+                          </Typography.Text>
+                          {skill.author && <span className='text-12px text-t-secondary'>by {skill.author}</span>}
+                          {(skill.stars ?? 0) > 0 && (
+                            <span className='flex items-center gap-2px text-12px text-t-secondary'>
+                              <Star size={12} fill='var(--color-text-3)' />
+                              {formatStars(skill.stars)}
+                            </span>
                           )}
+                          {skill.updatedAt && <span className='text-12px text-t-secondary'>{formatDate(skill.updatedAt)}</span>}
                         </div>
+                        {skill.description && <div className='text-12px text-t-secondary mt-4px line-clamp-2'>{skill.description}</div>}
+                        {skill.tags && skill.tags.length > 0 && (
+                          <div className='flex flex-wrap gap-4px mt-6px'>
+                            {skill.tags.slice(0, 5).map((tag) => (
+                              <Tag key={tag} size='small' color='green' className='text-11px'>
+                                {tag}
+                              </Tag>
+                            ))}
+                            {skill.tags.length > 5 && (
+                              <Tag size='small' color='gray' className='text-11px'>
+                                +{skill.tags.length - 5}
+                              </Tag>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {isInstalled ? (
+                        <Tag color='green' size='small' className='flex-shrink-0'>
+                          {t('settings.skillAlreadyInstalled', { defaultValue: 'Installed' })}
+                        </Tag>
+                      ) : (
+                        <Button
+                          type='outline'
+                          size='small'
+                          className='flex-shrink-0'
+                          loading={installing === skill.id}
+                          disabled={!skill.githubUrl}
+                          icon={<Download size={14} />}
+                          onClick={() => void handleInstall(skill)}
+                        >
+                          {t('settings.skillBrowseInstall', { defaultValue: 'Install' })}
+                        </Button>
                       )}
                     </div>
-                    <Button
-                      type='outline'
-                      size='small'
-                      className='flex-shrink-0'
-                      loading={installing === skill.id}
-                      disabled={!skill.githubUrl}
-                      icon={<Download size={14} />}
-                      onClick={() => void handleInstall(skill)}
-                    >
-                      {t('settings.skillBrowseInstall', { defaultValue: 'Install' })}
-                    </Button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {hasNext && (
                 <div className='flex justify-center pt-8px'>
                   <Button type='text' loading={loading} onClick={() => void handleSearch(searchQuery, page + 1)}>
