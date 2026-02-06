@@ -80,6 +80,21 @@ export interface IConfigStorageRefer {
     id: string;
     useModel: string;
   };
+  // Mezon assistant default model / Mezon 助手默认模型
+  'assistant.mezon.defaultModel'?: {
+    id: string;
+    useModel: string;
+  };
+  // Mezon multi-bot configurations / Mezon 多 Bot 配置列表
+  'mezon.bots'?: Array<{
+    id: string;
+    name: string;
+    assistantId?: string;
+    enabled: boolean;
+    defaultModel?: { id: string; useModel: string };
+    createdAt: number;
+    updatedAt: number;
+  }>;
   // SkillsMP API key for skill marketplace search / SkillsMP API 密钥
   'skillsmp.apiKey'?: string;
 }

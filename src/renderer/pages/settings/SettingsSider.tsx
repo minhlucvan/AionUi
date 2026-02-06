@@ -1,6 +1,6 @@
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { Computer, Gemini, Info, Lightning, LinkCloud, System, Toolkit, Robot, Earth } from '@icon-park/react';
+import { Computer, Gemini, Info, Lightning, LinkCloud, System, Toolkit, Robot, Earth, MessageOne } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -36,6 +36,11 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
         label: t('settings.skills', { defaultValue: 'Skills' }),
         icon: <Lightning />,
         path: 'skills',
+      },
+      {
+        label: t('settings.mezon', { defaultValue: 'Mezon' }),
+        icon: <MessageOne />,
+        path: 'mezon',
       },
       {
         label: t('settings.tools'),

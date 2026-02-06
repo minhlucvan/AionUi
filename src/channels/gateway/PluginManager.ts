@@ -267,6 +267,8 @@ export class PluginManager {
     let hasToken = false;
     if (config.type === 'lark') {
       hasToken = !!(config.credentials?.appId && config.credentials?.appSecret);
+    } else if (config.type === 'mezon') {
+      hasToken = !!(config.credentials?.token && config.credentials?.botId);
     } else {
       hasToken = !!config.credentials?.token;
     }

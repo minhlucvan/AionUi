@@ -346,24 +346,11 @@ html {
   z-index: 100;
 }
 
-.layout-sider-header {
-  background: var(--gradient-primary);
-  color: white;
-  box-shadow: 0 2px 8px rgba(30, 58, 138, 0.3);
-}
-
-.layout-sider svg,
-.layout-sider-header svg {
+.layout-sider svg {
   fill: none;
   stroke: rgba(255, 255, 255, 0.9);
   color: rgba(255, 255, 255, 0.9);
   transition: stroke var(--transition-duration) var(--transition-timing);
-}
-
-.layout-sider-header svg:hover {
-  fill: none;
-  stroke: white;
-  color: white;
 }
 
 /* ========== 图标样式 - 简化选择器 ========== */
@@ -784,12 +771,6 @@ a:hover:not([class*="button"]):not([class*="btn"]) {
   background: linear-gradient(180deg, #1e3a5a 0%, #1a2332 100%);
   border-right: 3px solid var(--color-primary-base);
   box-shadow: 4px 0 20px rgba(96, 165, 250, 0.2);
-}
-
-[data-theme='dark'] .layout-sider-header {
-  background: var(--gradient-primary);
-  box-shadow: 0 4px 12px rgba(96, 165, 250, 0.4);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 /* 深色模式图标 */
@@ -1232,24 +1213,6 @@ html {
   border-right: 2px solid var(--hk-border-strong);
 }
 
-.layout-sider-header {
-  background: var(--hk-gradient-primary);
-  color: var(--hk-text-inverse);
-  box-shadow: var(--hk-shadow-sm);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-/* 侧边栏图标 */
-.layout-sider-header svg {
-  color: rgba(255, 255, 255, 0.9);
-  transition: color 0.3s ease, transform 0.2s ease;
-}
-
-.layout-sider-header svg:hover {
-  color: var(--hk-text-inverse);
-  transform: scale(1.1);
-}
-
 /* ==================== 输入框 Input ==================== */
 /* 首页输入框 */
 .guidInputCard {
@@ -1623,12 +1586,6 @@ a:hover {
   box-shadow: 4px 0 20px rgba(255, 183, 197, 0.15);
 }
 
-[data-theme='dark'] .layout-sider-header {
-  background: var(--hk-gradient-primary);
-  box-shadow: 0 4px 16px rgba(255, 183, 197, 0.4);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-}
-
 /* ===== 深色模式输入框 ===== */
 [data-theme='dark'] .guidInputCard {
   background: linear-gradient(135deg, rgba(74, 47, 58, 0.95) 0%, rgba(93, 59, 74, 0.95) 100%);
@@ -1985,12 +1942,6 @@ html {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
-}
-
-.layout-sider-header {
-  background: linear-gradient(180deg, #0078d4 0%, #005a9e 100%);
-  color: white;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 /* 按钮内的图标 - 保持原有样式，不强制设置 */
@@ -2746,11 +2697,6 @@ input[type="radio"]:checked::after {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
-}
-
-[data-theme='dark'] .layout-sider-header {
-  background: linear-gradient(180deg, #005a9e 0%, #004578 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 /* ===== 深色模式背景图 ===== */
