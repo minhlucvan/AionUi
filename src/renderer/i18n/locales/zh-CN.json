@@ -847,6 +847,14 @@
       "step4": "授权成功后，你可以通过飞书与 AI 助手聊天！",
       "waitingConnection": "WebSocket 连接正在建立，请稍候..."
     },
+    "mezon": {
+      "quickSetup": "快速配置指南",
+      "quickSetupStep1": "打开 Mezon 开发者门户",
+      "quickSetupStep2": "创建机器人应用并复制其令牌",
+      "quickSetupStep3": "将机器人添加到你想要监控的任意频道",
+      "quickSetupTip": "提示：你也可以在环境变量中设置 MEZON_TOKEN",
+      "quickSetupDocs": "查看文档"
+    },
     "skillAlreadyInstalled": "已安装",
     "skillBrowseHint": "在 SkillsMP 上搜索 145k+ 社区技能，或点击上方分类浏览。",
     "skillBrowseInstall": "安装",

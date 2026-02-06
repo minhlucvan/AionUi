@@ -5,7 +5,7 @@
  */
 
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser, IMezonBotConfig } from '@/channels/types';
-import { channel } from '@/common/ipcBridge';
+import { channel, shell } from '@/common/ipcBridge';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import { uuid } from '@/common/utils';
@@ -88,6 +88,7 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
   const [credentialsTested, setCredentialsTested] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [botToDelete, setBotToDelete] = useState<IMezonBotConfig | null>(null);
+  const [setupGuideExpanded, setSetupGuideExpanded] = useState(false);
 
   // Pairing state (shown per-bot)
   const [activeBotId, setActiveBotId] = useState<string | null>(null);
@@ -676,6 +677,37 @@ const MezonConfigForm: React.FC<MezonConfigFormProps> = ({ modelList, onStatusCh
       {/* Edit/Create Bot Modal */}
       <Modal title={isCreating ? t('settings.mezon.addBot', 'Add Mezon Bot') : t('settings.mezon.editBot', 'Edit Mezon Bot')} visible={editVisible} onCancel={() => setEditVisible(false)} onOk={handleSave} okText={isCreating ? t('common.create', 'Create') : t('common.save', 'Save')} cancelText={t('common.cancel', 'Cancel')} className='w-[90vw] md:w-[500px]' unmountOnExit>
         <div className='flex flex-col gap-4px'>
+          {/* Quick Setup Guide - only shown when creating, collapsible */}
+          {isCreating && (
+            <div className='mb-12px bg-[rgb(var(--primary-1))] rd-8px overflow-hidden'>
+              <button className='w-full flex items-center justify-between p-12px bg-transparent border-none cursor-pointer text-left' onClick={() => setSetupGuideExpanded(!setupGuideExpanded)}>
+                <span className='text-13px font-500 color-text-1'>{t('settings.mezon.quickSetup', 'Quick Setup Guide')}</span>
+                <Down size={14} className={`color-text-2 transition-transform duration-200 ${setupGuideExpanded ? 'rotate-180' : ''}`} />
+              </button>
+              {setupGuideExpanded && (
+                <div className='px-12px pb-12px'>
+                  <ol className='text-12px color-text-2 space-y-4px pl-16px mb-8px m-0'>
+                    <li>
+                      {t('settings.mezon.quickSetupStep1', 'Open Mezon Developer Portal')}:{' '}
+                      <button className='text-primary hover:underline bg-transparent border-none cursor-pointer p-0 text-12px' onClick={() => void shell.openExternal.invoke('https://mezon.ai/developers/applications')}>
+                        mezon.ai/developers/applications
+                      </button>
+                    </li>
+                    <li>{t('settings.mezon.quickSetupStep2', 'Create a bot application and copy its token')}</li>
+                    <li>{t('settings.mezon.quickSetupStep3', 'Add the bot to any clan/channel you want it to monitor')}</li>
+                  </ol>
+                  <div className='text-11px color-text-3'>💡 {t('settings.mezon.quickSetupTip', 'Tip: You can also set MEZON_TOKEN in your environment')}</div>
+                  <div className='text-11px color-text-3 mt-4px'>
+                    📖{' '}
+                    <button className='text-primary hover:underline bg-transparent border-none cursor-pointer p-0 text-11px' onClick={() => void shell.openExternal.invoke('https://docs.molt.bot/channels/mezon')}>
+                      {t('settings.mezon.quickSetupDocs', 'Documentation')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Bot Name */}
           <PreferenceRow label={t('settings.mezon.botName', 'Bot Name')} description={t('settings.mezon.botNameDesc', 'A display name for this bot')} required>
             <Input value={editName} onChange={setEditName} placeholder={t('settings.mezon.botNamePlaceholder', 'e.g. My Assistant Bot')} style={{ width: 220 }} />

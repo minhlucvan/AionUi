@@ -851,6 +851,14 @@
       "step4": "Once approved, you can start chatting with the AI assistant through Lark!",
       "waitingConnection": "WebSocket connection is being established. Please wait..."
     },
+    "mezon": {
+      "quickSetup": "Quick Setup Guide",
+      "quickSetupStep1": "Open Mezon Developer Portal",
+      "quickSetupStep2": "Create a bot application and copy its token",
+      "quickSetupStep3": "Add the bot to any clan/channel you want it to monitor",
+      "quickSetupTip": "Tip: You can also set MEZON_TOKEN in your environment",
+      "quickSetupDocs": "Documentation"
+    },
     "skillAlreadyInstalled": "Installed",
     "skillBrowseHint": "Search 145k+ community skills on SkillsMP, or click a category above to browse.",
     "skillBrowseInstall": "Install",
