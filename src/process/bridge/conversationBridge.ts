@@ -11,6 +11,7 @@ import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
+import { cleanupChatWorkspace } from '../../assistant/WorkspaceTemplateCopy';
 import { ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
 import type AcpAgentManager from '../task/AcpAgentManager';
@@ -215,6 +216,12 @@ export function initConversationBridge(): void {
       if (!result.success) {
         console.error('[conversationBridge] Failed to delete conversation from database:', result.error);
         return false;
+      }
+
+      // Cleanup workspace if it's a temp workspace (not custom)
+      if (conversation?.extra?.workspace) {
+        const isCustomWorkspace = conversation.extra.customWorkspace === true;
+        await cleanupChatWorkspace(conversation.extra.workspace, isCustomWorkspace);
       }
 
       return true;

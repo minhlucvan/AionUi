@@ -1,0 +1,7 @@
+{
+  "name": "3D Game Development Assistant",
+  "description": "Minimal workspace for 3D game development with Three.js, physics, and shaders",
+  "version": "1.0.0",
+  "skills": ["threejs-scene-setup", "game-physics", "shader-programming", "performance-optimization"],
+  "agents": ["graphics-expert", "physics-engineer"]
+}
