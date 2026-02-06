@@ -85,8 +85,14 @@ export interface IConfigStorageRefer {
   // memU memory service configuration / memU 记忆服务配置
   'memory.config'?: {
     enabled: boolean;
+    mode: 'cloud' | 'local';
     apiKey: string;
     baseUrl: string;
+    localPort: number;
+    llmBaseUrl: string;
+    llmApiKey: string;
+    chatModel: string;
+    embedModel: string;
     userId: string;
     autoMemorize: boolean;
     retrieveMethod: 'rag' | 'llm';

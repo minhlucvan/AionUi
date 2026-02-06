@@ -6,6 +6,7 @@
 
 import { ConfigStorage } from '@/common/storage';
 import { MemuClient } from './MemuClient';
+import { LocalMemuManager, type LocalServerInfo } from './LocalMemuManager';
 import type { MemuConfig, MemuMemoryItem, MemuCategory, MemuRetrieveResponse, MemuQueryMessage } from './types';
 import { DEFAULT_MEMU_CONFIG } from './types';
 
@@ -14,11 +15,13 @@ import { DEFAULT_MEMU_CONFIG } from './types';
  *
  * Manages memU API interactions, handles memorization pipeline,
  * memory retrieval with context injection, and configuration management.
+ * Supports both cloud (api.memu.so) and local (self-hosted Python server) modes.
  */
 export class MemoryService {
   private client: MemuClient;
   private config: MemuConfig = { ...DEFAULT_MEMU_CONFIG };
   private initialized = false;
+  private localManager: LocalMemuManager;
 
   // Queue for async memorization tasks
   private memorizeQueue: Array<{ conversationId: string; messages: Array<{ role: string; content: string }> }> = [];
@@ -26,6 +29,7 @@ export class MemoryService {
 
   constructor() {
     this.client = new MemuClient('', DEFAULT_MEMU_CONFIG.baseUrl);
+    this.localManager = new LocalMemuManager();
   }
 
   /**
@@ -38,22 +42,41 @@ export class MemoryService {
       const stored = await ConfigStorage.get('memory.config');
       if (stored) {
         this.config = { ...DEFAULT_MEMU_CONFIG, ...stored };
-        this.client.updateConfig(this.config.apiKey, this.config.baseUrl);
+        this.syncClientConfig();
       }
     } catch (error) {
       console.warn('[MemoryService] Failed to load config, using defaults:', error);
     }
 
     this.initialized = true;
-    console.log(`[MemoryService] Initialized (enabled: ${this.config.enabled})`);
+    console.log(`[MemoryService] Initialized (enabled: ${this.config.enabled}, mode: ${this.config.mode})`);
+  }
+
+  /**
+   * Sync the MemuClient configuration based on current mode
+   */
+  private syncClientConfig(): void {
+    if (this.config.mode === 'local') {
+      // Point client to local server
+      this.client.updateConfig('local', this.localManager.getBaseUrl());
+    } else {
+      this.client.updateConfig(this.config.apiKey, this.config.baseUrl);
+    }
   }
 
   /**
    * Update memory configuration
    */
   async updateConfig(updates: Partial<MemuConfig>): Promise<void> {
+    const prevMode = this.config.mode;
     this.config = { ...this.config, ...updates };
-    this.client.updateConfig(this.config.apiKey, this.config.baseUrl);
+
+    // If switching modes, stop local server if needed
+    if (prevMode === 'local' && this.config.mode === 'cloud') {
+      this.localManager.stop();
+    }
+
+    this.syncClientConfig();
 
     try {
       await ConfigStorage.set('memory.config', this.config);
@@ -73,13 +96,65 @@ export class MemoryService {
    * Check if memory is enabled and properly configured
    */
   isEnabled(): boolean {
-    return this.config.enabled && !!this.config.apiKey;
+    if (!this.config.enabled) return false;
+    if (this.config.mode === 'cloud') return !!this.config.apiKey;
+    // Local mode: enabled even without API key (local server handles LLM)
+    return true;
+  }
+
+  // --- Local Server Management ---
+
+  /**
+   * Start the local memU server
+   */
+  async startLocalServer(): Promise<{ success: boolean; error?: string }> {
+    return this.localManager.start({
+      port: this.config.localPort,
+      llmBaseUrl: this.config.llmBaseUrl,
+      llmApiKey: this.config.llmApiKey,
+      chatModel: this.config.chatModel,
+      embedModel: this.config.embedModel,
+    });
   }
 
   /**
-   * Test the memU API connection
+   * Stop the local memU server
+   */
+  stopLocalServer(): void {
+    this.localManager.stop();
+  }
+
+  /**
+   * Get local server status info
+   */
+  getLocalServerInfo(): LocalServerInfo {
+    return this.localManager.getInfo();
+  }
+
+  /**
+   * Detect Python and check dependencies for local mode
+   */
+  checkLocalDependencies(): { pythonFound: boolean; installed: boolean; missing: string[] } {
+    const python = this.localManager.detectPython();
+    if (!python) return { pythonFound: false, installed: false, missing: ['python3.10+'] };
+    const deps = this.localManager.checkDependencies();
+    return { pythonFound: true, ...deps };
+  }
+
+  /**
+   * Install memU Python dependencies
+   */
+  async installLocalDependencies(): Promise<{ success: boolean; error?: string }> {
+    return this.localManager.installDependencies();
+  }
+
+  /**
+   * Test the memU API connection (cloud or local)
    */
   async testConnection(): Promise<boolean> {
+    if (this.config.mode === 'local') {
+      return this.localManager.isHealthy();
+    }
     if (!this.config.apiKey) return false;
     return this.client.testConnection();
   }
@@ -120,21 +195,27 @@ export class MemoryService {
 
   /**
    * Memorize a conversation exchange
-   * Serializes messages to a temporary JSON resource and calls memU's memorize API
+   * For local mode, sends messages inline. For cloud mode, uses resource URL.
    */
   private async memorizeConversation(conversationId: string, messages: Array<{ role: string; content: string }>): Promise<void> {
     if (messages.length === 0) return;
 
     try {
-      // Use inline resource URL pattern for cloud API
       const resourceUrl = `aionui://conversation/${conversationId}/${Date.now()}`;
 
-      await this.client.memorize({
+      // For local mode, include messages in the request body so the local server
+      // can write them to a temp file for memU's memorize pipeline
+      const body: Record<string, unknown> = {
         resource_url: resourceUrl,
         modality: 'conversation',
         user: { user_id: this.config.userId },
-      });
+      };
 
+      if (this.config.mode === 'local') {
+        body.messages = messages;
+      }
+
+      await this.client.memorize(body as any);
       console.log(`[MemoryService] Memorized ${messages.length} messages from conversation ${conversationId}`);
     } catch (error) {
       console.error('[MemoryService] Memorization failed:', error);
@@ -296,6 +377,13 @@ export class MemoryService {
       console.error('[MemoryService] Clear memory failed:', error);
       return false;
     }
+  }
+
+  /**
+   * Cleanup: stop local server on app shutdown
+   */
+  destroy(): void {
+    this.localManager.stop();
   }
 }
 

@@ -465,6 +465,12 @@ export const memory = {
   deleteItem: bridge.buildProvider<IBridgeResponse, { memoryId: string }>('memory.delete-item'),
   // Clear all memories
   clearAll: bridge.buildProvider<IBridgeResponse, void>('memory.clear-all'),
+  // Local server management
+  startLocal: bridge.buildProvider<IBridgeResponse<{ info: import('@process/services/memoryService/LocalMemuManager').LocalServerInfo }>, void>('memory.start-local'),
+  stopLocal: bridge.buildProvider<IBridgeResponse<{ info: import('@process/services/memoryService/LocalMemuManager').LocalServerInfo }>, void>('memory.stop-local'),
+  localStatus: bridge.buildProvider<IBridgeResponse<{ info: import('@process/services/memoryService/LocalMemuManager').LocalServerInfo }>, void>('memory.local-status'),
+  checkDeps: bridge.buildProvider<IBridgeResponse<{ pythonFound: boolean; installed: boolean; missing: string[] }>, void>('memory.check-deps'),
+  installDeps: bridge.buildProvider<IBridgeResponse, void>('memory.install-deps'),
 };
 
 // ==================== Channel API ====================

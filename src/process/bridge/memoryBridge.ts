@@ -108,5 +108,61 @@ export function initMemoryBridge(): void {
     }
   });
 
+  // --- Local Server Management ---
+
+  // Start local memU server
+  ipcBridge.memory.startLocal.provider(async () => {
+    try {
+      await service.initialize();
+      const result = await service.startLocalServer();
+      return { success: result.success, msg: result.error, data: { info: service.getLocalServerInfo() } };
+    } catch (error: any) {
+      return { success: false, msg: error.message, data: { info: service.getLocalServerInfo() } };
+    }
+  });
+
+  // Stop local memU server
+  ipcBridge.memory.stopLocal.provider(async () => {
+    try {
+      await service.initialize();
+      service.stopLocalServer();
+      return { success: true, data: { info: service.getLocalServerInfo() } };
+    } catch (error: any) {
+      return { success: false, msg: error.message, data: { info: service.getLocalServerInfo() } };
+    }
+  });
+
+  // Get local server status
+  ipcBridge.memory.localStatus.provider(async () => {
+    try {
+      await service.initialize();
+      return { success: true, data: { info: service.getLocalServerInfo() } };
+    } catch (error: any) {
+      return { success: false, msg: error.message };
+    }
+  });
+
+  // Check local dependencies (Python, memU, etc.)
+  ipcBridge.memory.checkDeps.provider(async () => {
+    try {
+      await service.initialize();
+      const deps = service.checkLocalDependencies();
+      return { success: true, data: deps };
+    } catch (error: any) {
+      return { success: false, msg: error.message, data: { pythonFound: false, installed: false, missing: [] } };
+    }
+  });
+
+  // Install local dependencies
+  ipcBridge.memory.installDeps.provider(async () => {
+    try {
+      await service.initialize();
+      const result = await service.installLocalDependencies();
+      return { success: result.success, msg: result.error };
+    } catch (error: any) {
+      return { success: false, msg: error.message };
+    }
+  });
+
   console.log('[MemoryBridge] Initialized');
 }

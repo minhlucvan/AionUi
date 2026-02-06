@@ -6,8 +6,11 @@
 
 export { MemuClient } from './MemuClient';
 export { MemoryService, getMemoryService } from './MemoryService';
+export { LocalMemuManager } from './LocalMemuManager';
+export type { LocalServerInfo, LocalServerStatus } from './LocalMemuManager';
 export type {
   MemuConfig,
+  MemuMode,
   MemuMemoryItem,
   MemuCategory,
   MemuResource,

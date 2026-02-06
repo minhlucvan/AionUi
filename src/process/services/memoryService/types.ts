@@ -141,10 +141,21 @@ export interface MemoryCacheRow {
 
 // --- Config Types ---
 
+export type MemuMode = 'cloud' | 'local';
+
 export interface MemuConfig {
   enabled: boolean;
+  mode: MemuMode;
+  // Cloud mode settings
   apiKey: string;
   baseUrl: string;
+  // Local mode settings
+  localPort: number;
+  llmBaseUrl: string;
+  llmApiKey: string;
+  chatModel: string;
+  embedModel: string;
+  // Shared settings
   userId: string;
   autoMemorize: boolean;
   retrieveMethod: MemuRetrieveMethod;
@@ -152,8 +163,14 @@ export interface MemuConfig {
 
 export const DEFAULT_MEMU_CONFIG: MemuConfig = {
   enabled: false,
+  mode: 'cloud',
   apiKey: '',
   baseUrl: 'https://api.memu.so',
+  localPort: 11411,
+  llmBaseUrl: '',
+  llmApiKey: '',
+  chatModel: 'gpt-4o-mini',
+  embedModel: 'text-embedding-3-small',
   userId: 'default',
   autoMemorize: true,
   retrieveMethod: 'rag',

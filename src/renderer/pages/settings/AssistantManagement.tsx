@@ -10,6 +10,7 @@ import type { Message } from '@arco-design/web-react';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Modal, Select, Switch, Typography } from '@arco-design/web-react';
 import { Close, Delete, FolderOpen, Plus, Robot, Search, SettingOne } from '@icon-park/react';
 import SkillBrowseModal from './components/SkillBrowseModal';
+import type { MemuMode } from '@process/services/memoryService/types';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
@@ -73,6 +74,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   const [deletePendingSkillName, setDeletePendingSkillName] = useState<string | null>(null); // 待删除的 pending skill 名称 / Pending skill name to delete
   const [deleteCustomSkillName, setDeleteCustomSkillName] = useState<string | null>(null); // 待从助手移除的 custom skill 名称 / Custom skill to remove from assistant
   const [editMemoryEnabled, setEditMemoryEnabled] = useState(false); // memU memory enabled / memU 记忆功能开关
+  const [memoryMode, setMemoryMode] = useState<MemuMode>('cloud'); // memory mode: cloud or local
   const textareaWrapperRef = useRef<HTMLDivElement>(null);
   const localeKey = resolveLocaleKey(i18n.language);
   const avatarImageMap: Record<string, string> = {
@@ -644,6 +646,22 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
                 </div>
                 <Switch size='small' checked={editMemoryEnabled} onChange={(checked) => setEditMemoryEnabled(checked)} />
               </div>
+              {editMemoryEnabled && (
+                <div className='mt-8px p-10px bg-fill-2 rounded-4px'>
+                  <div className='flex items-center gap-8px mb-6px'>
+                    <Typography.Text className='text-12px text-t-secondary'>{t('settings.memoryMode', { defaultValue: 'Mode' })}</Typography.Text>
+                    <Select size='mini' className='w-120px' value={memoryMode} onChange={(value) => setMemoryMode(value as MemuMode)}>
+                      <Select.Option value='cloud'>{t('settings.memoryModeCloud', { defaultValue: 'Cloud' })}</Select.Option>
+                      <Select.Option value='local'>{t('settings.memoryModeLocal', { defaultValue: 'Local' })}</Select.Option>
+                    </Select>
+                  </div>
+                  <div className='text-11px text-t-tertiary'>
+                    {memoryMode === 'cloud'
+                      ? t('settings.memoryModeCloudDesc', { defaultValue: 'Uses memU cloud API (api.memu.so). Requires API key configured in System Settings.' })
+                      : t('settings.memoryModeLocalDesc', { defaultValue: 'Runs memU locally via Python. Requires Python 3.10+ with memU installed. Data stays on your machine.' })}
+                  </div>
+                </div>
+              )}
             </div>
             <div className='flex-shrink-0'>
               <Typography.Text bold className='flex-shrink-0'>
