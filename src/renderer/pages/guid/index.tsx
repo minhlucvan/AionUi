@@ -23,6 +23,7 @@ import OpenCodeLogo from '@/renderer/assets/logos/opencode.svg';
 import QoderLogo from '@/renderer/assets/logos/qoder.png';
 import QwenLogo from '@/renderer/assets/logos/qwen.svg';
 import FilePreview from '@/renderer/components/FilePreview';
+import SkillsWidget from '@/renderer/components/SkillsWidget';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
 import { useDragUpload } from '@/renderer/hooks/useDragUpload';
@@ -326,6 +327,7 @@ const Guid: React.FC = () => {
   const isPresetAgent = Boolean(selectedAgentInfo?.isPreset);
   const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(true);
+  const [userSelectedSkills, setUserSelectedSkills] = useState<string[]>([]);
   const [typewriterPlaceholder, setTypewriterPlaceholder] = useState('');
   const [_isTyping, setIsTyping] = useState(true);
   const mentionMatchRegex = useMemo(() => /(?:^|\s)@([^\s@]*)$/, []);
@@ -687,7 +689,7 @@ const Guid: React.FC = () => {
 
   // 保持向后兼容的 resolvePresetContext（只返回 rules）
   // Backward compatible resolvePresetContext (returns only rules)
-  const resolvePresetContext = useCallback(
+  const _resolvePresetContext = useCallback(
     async (agentInfo: { backend: AcpBackend; customAgentId?: string; context?: string } | undefined): Promise<string | undefined> => {
       const { rules } = await resolvePresetRulesAndSkills(agentInfo);
       return rules;
@@ -715,6 +717,21 @@ const Guid: React.FC = () => {
     },
     [customAgents]
   );
+
+  // Compute preset default skills from selected assistant
+  const presetDefaultSkills = useMemo(() => {
+    return resolveEnabledSkills(selectedAgentInfo) || [];
+  }, [selectedAgentInfo, resolveEnabledSkills]);
+
+  // Compute combined enabled skills (preset defaults + user selections)
+  const combinedEnabledSkills = useMemo(() => {
+    return [...new Set([...presetDefaultSkills, ...userSelectedSkills])];
+  }, [presetDefaultSkills, userSelectedSkills]);
+
+  // Reset user selected skills when agent changes
+  useEffect(() => {
+    setUserSelectedSkills([]);
+  }, [selectedAgentKey]);
 
   const refreshCustomAgents = useCallback(async () => {
     try {
@@ -757,8 +774,8 @@ const Guid: React.FC = () => {
 
     // 加载 rules（skills 已迁移到 SkillManager）/ Load rules (skills migrated to SkillManager)
     const { rules: presetRules } = await resolvePresetRulesAndSkills(agentInfo);
-    // 获取启用的 skills 列表 / Get enabled skills list
-    const enabledSkills = resolveEnabledSkills(agentInfo);
+    // 使用组合的 skills 列表（预设 + 用户选择）/ Use combined skills (preset + user selections)
+    const skillsToUse = combinedEnabledSkills.length > 0 ? combinedEnabledSkills : undefined;
 
     // 默认情况使用 Gemini，或 Preset 配置为 Gemini
     if (!selectedAgent || selectedAgent === 'gemini' || (isPreset && presetAgentType === 'gemini')) {
@@ -778,8 +795,8 @@ const Guid: React.FC = () => {
             // 传递 rules（skills 通过 SkillManager 加载）
             // Pass rules (skills loaded via SkillManager)
             presetRules: isPreset ? presetRules : undefined,
-            // 启用的 skills 列表 / Enabled skills list
-            enabledSkills: isPreset ? enabledSkills : undefined,
+            // 启用的 skills 列表（预设 + 用户选择）/ Enabled skills list (preset + user selections)
+            enabledSkills: skillsToUse,
             // 预设助手 ID，用于在会话面板显示助手名称和头像
             // Preset assistant ID for displaying name and avatar in conversation panel
             presetAssistantId: presetAssistantIdToPass,
@@ -836,8 +853,8 @@ const Guid: React.FC = () => {
             customWorkspace: isCustomWorkspace,
             // Pass preset context (rules only)
             presetContext: isPreset ? presetRules : undefined,
-            // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
-            enabledSkills: isPreset ? enabledSkills : undefined,
+            // 启用的 skills 列表（预设 + 用户选择）/ Enabled skills list (preset + user selections)
+            enabledSkills: skillsToUse,
             // 预设助手 ID，用于在会话面板显示助手名称和头像
             // Preset assistant ID for displaying name and avatar in conversation panel
             presetAssistantId: isPreset ? codexAgentInfo?.customAgentId : undefined,
@@ -902,8 +919,8 @@ const Guid: React.FC = () => {
             customAgentId: acpAgentInfo?.customAgentId, // 自定义代理的 UUID / UUID for custom agents
             // Pass preset context (rules only)
             presetContext: isPreset ? presetRules : undefined,
-            // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
-            enabledSkills: isPreset ? enabledSkills : undefined,
+            // 启用的 skills 列表（预设 + 用户选择）/ Enabled skills list (preset + user selections)
+            enabledSkills: skillsToUse,
             // 预设助手 ID，用于在会话面板显示助手名称和头像
             // Preset assistant ID for displaying name and avatar in conversation panel
             presetAssistantId: isPreset ? acpAgentInfo?.customAgentId : undefined,
@@ -1306,6 +1323,16 @@ const Guid: React.FC = () => {
                     )}
                   </span>
                 </Dropdown>
+
+                <SkillsWidget
+                  defaultSkills={presetDefaultSkills}
+                  enabledSkills={combinedEnabledSkills}
+                  onEnabledSkillsChange={(skills) => {
+                    // Filter out preset defaults to get only user additions
+                    const userSkills = skills.filter((s) => !presetDefaultSkills.includes(s));
+                    setUserSelectedSkills(userSkills);
+                  }}
+                />
 
                 {(selectedAgent === 'gemini' || (isPresetAgent && resolvePresetAgentType(selectedAgentInfo) === 'gemini')) && (
                   <Dropdown
