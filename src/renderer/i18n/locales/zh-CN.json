@@ -1261,5 +1261,23 @@
   "cron.drawer.schedule": "执行规则",
   "cron.drawer.nextRun": "下次执行",
   "cron.drawer.save": "保存",
-  "cron.drawer.saveSuccess": "保存成功"
+  "cron.drawer.saveSuccess": "保存成功",
+  "titlebar": {
+    "mode": {
+      "chat": "聊天",
+      "bots": "机器人"
+    }
+  },
+  "bots": {
+    "title": "机器人",
+    "subtitle": "在消息平台上自动运行的助手",
+    "empty": "尚未配置机器人",
+    "running": "运行中",
+    "stopped": "已停止",
+    "conversationCount": "{{count}} 个对话",
+    "untitled": "未命名",
+    "notFound": "未找到机器人",
+    "backToList": "所有机器人",
+    "noConversations": "暂无对话"
+  }
 }

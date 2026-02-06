@@ -10,9 +10,9 @@ import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
 import Titlebar from '@/renderer/components/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import classNames from 'classnames';
-import React, { useEffect, useRef, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
-import { LayoutContext } from './context/LayoutContext';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutContext, type AppMode } from './context/LayoutContext';
 import { useDirectorySelection } from './hooks/useDirectorySelection';
 import { useMultiAgentDetection } from './hooks/useMultiAgentDetection';
 import { processCustomCss } from './utils/customCssProcessor';
@@ -57,11 +57,47 @@ const Layout: React.FC<{
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [customCss, setCustomCss] = useState<string>('');
+  const [appMode, setAppMode] = useState<AppMode>('chat');
   const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   const location = useLocation();
+  const navigate = useNavigate();
   const workspaceAvailable = location.pathname.startsWith('/conversation/');
   const collapsedRef = useRef(collapsed);
+  const lastChatPathRef = useRef('/guid');
+
+  // Sync appMode from route
+  useEffect(() => {
+    if (location.pathname.startsWith('/bots')) {
+      setAppMode('bots');
+    } else if (!location.pathname.startsWith('/settings')) {
+      setAppMode('chat');
+    }
+  }, [location.pathname]);
+
+  // Track last non-settings, non-bots path for returning to chat
+  useEffect(() => {
+    if (!location.pathname.startsWith('/settings') && !location.pathname.startsWith('/bots')) {
+      lastChatPathRef.current = location.pathname;
+    }
+  }, [location.pathname]);
+
+  const handleSetAppMode = useCallback(
+    (mode: AppMode) => {
+      setAppMode(mode);
+      if (mode === 'bots') {
+        Promise.resolve(navigate('/bots')).catch((error) => {
+          console.error('Navigation failed:', error);
+        });
+      } else {
+        const target = lastChatPathRef.current || '/guid';
+        Promise.resolve(navigate(target)).catch((error) => {
+          console.error('Navigation failed:', error);
+        });
+      }
+    },
+    [navigate]
+  );
 
   // 加载并监听自定义 CSS 配置 / Load & watch custom CSS configuration
   useEffect(() => {
@@ -168,7 +204,7 @@ const Layout: React.FC<{
     collapsedRef.current = collapsed;
   }, [collapsed]);
   return (
-    <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
+    <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed, appMode, setAppMode: handleSetAppMode }}>
       <div className='app-shell flex flex-col size-full min-h-0'>
         <Titlebar workspaceAvailable={workspaceAvailable} />
         {/* 移动端左侧边栏蒙板 / Mobile left sider backdrop */}

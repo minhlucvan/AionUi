@@ -24,6 +24,7 @@ import QoderLogo from '@/renderer/assets/logos/qoder.png';
 import QwenLogo from '@/renderer/assets/logos/qwen.svg';
 import FilePreview from '@/renderer/components/FilePreview';
 import SkillsWidget from '@/renderer/components/SkillsWidget';
+import { useBotContext } from '@/renderer/context/BotContext';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
 import { useDragUpload } from '@/renderer/hooks/useDragUpload';
@@ -195,6 +196,7 @@ const Guid: React.FC = () => {
   const { closeAllTabs, openTab } = useConversationTabs();
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const localeKey = resolveLocaleKey(i18n.language);
+  const botContext = useBotContext();
 
   // 打开外部链接 / Open external link
   const openLink = useCallback(async (url: string) => {
@@ -574,6 +576,12 @@ const Guid: React.FC = () => {
     };
   }, [availableAgents]);
 
+  // When in bot mode, auto-select the bot's assistant
+  useEffect(() => {
+    if (!botContext?.assistantId) return;
+    _setSelectedAgentKey(`custom:${botContext.assistantId}`);
+  }, [botContext?.assistantId]);
+
   useEffect(() => {
     let isActive = true;
     ConfigStorage.get('acp.customAgents')
@@ -800,6 +808,8 @@ const Guid: React.FC = () => {
             // 预设助手 ID，用于在会话面板显示助手名称和头像
             // Preset assistant ID for displaying name and avatar in conversation panel
             presetAssistantId: presetAssistantIdToPass,
+            // Bot ID for filtering conversations by bot
+            botId: botContext?.botId,
           },
         });
 
@@ -858,6 +868,8 @@ const Guid: React.FC = () => {
             // 预设助手 ID，用于在会话面板显示助手名称和头像
             // Preset assistant ID for displaying name and avatar in conversation panel
             presetAssistantId: isPreset ? codexAgentInfo?.customAgentId : undefined,
+            // Bot ID for filtering conversations by bot
+            botId: botContext?.botId,
           },
         });
 
@@ -924,6 +936,8 @@ const Guid: React.FC = () => {
             // 预设助手 ID，用于在会话面板显示助手名称和头像
             // Preset assistant ID for displaying name and avatar in conversation panel
             presetAssistantId: isPreset ? acpAgentInfo?.customAgentId : undefined,
+            // Bot ID for filtering conversations by bot
+            botId: botContext?.botId,
           },
         });
 

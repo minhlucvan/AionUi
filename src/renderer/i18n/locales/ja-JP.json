@@ -1079,5 +1079,23 @@
   "cron.drawer.schedule": "実行ルール",
   "cron.drawer.nextRun": "次回実行",
   "cron.drawer.save": "保存",
-  "cron.drawer.saveSuccess": "保存しました"
+  "cron.drawer.saveSuccess": "保存しました",
+  "titlebar": {
+    "mode": {
+      "chat": "チャット",
+      "bots": "ボット"
+    }
+  },
+  "bots": {
+    "title": "ボット",
+    "subtitle": "メッセージングプラットフォームで自動実行するアシスタント",
+    "empty": "ボットはまだ設定されていません",
+    "running": "実行中",
+    "stopped": "停止中",
+    "conversationCount": "{{count}} 件の会話",
+    "untitled": "無題",
+    "notFound": "ボットが見つかりません",
+    "backToList": "すべてのボット",
+    "noConversations": "会話はまだありません"
+  }
 }

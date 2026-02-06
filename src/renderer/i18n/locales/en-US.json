@@ -1261,5 +1261,23 @@
   "cron.drawer.schedule": "Schedule",
   "cron.drawer.nextRun": "Next Run",
   "cron.drawer.save": "Save",
-  "cron.drawer.saveSuccess": "Saved successfully"
+  "cron.drawer.saveSuccess": "Saved successfully",
+  "titlebar": {
+    "mode": {
+      "chat": "Chat",
+      "bots": "Bots"
+    }
+  },
+  "bots": {
+    "title": "Bots",
+    "subtitle": "Auto-run assistants on messaging platforms",
+    "empty": "No bots configured yet",
+    "running": "Running",
+    "stopped": "Stopped",
+    "conversationCount": "{{count}} conversations",
+    "untitled": "Untitled",
+    "notFound": "Bot not found",
+    "backToList": "All Bots",
+    "noConversations": "No conversations yet"
+  }
 }

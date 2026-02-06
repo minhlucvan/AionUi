@@ -147,6 +147,8 @@ export type TChatConversation =
         enabledSkills?: string[];
         /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
         presetAssistantId?: string;
+        /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
+        botId?: string;
       }
     >
   | Omit<
@@ -164,6 +166,8 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
           presetAssistantId?: string;
+          /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
+          botId?: string;
           /** ACP 后端的 session UUID，用于会话恢复 / ACP backend session UUID for session resume */
           acpSessionId?: string;
           /** ACP session 最后更新时间 / Last update time of ACP session */
@@ -185,6 +189,8 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
           presetAssistantId?: string;
+          /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
+          botId?: string;
         }
       >,
       'model'

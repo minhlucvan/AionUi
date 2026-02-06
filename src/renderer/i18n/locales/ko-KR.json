@@ -1134,5 +1134,23 @@
   "cron.drawer.schedule": "실행 규칙",
   "cron.drawer.nextRun": "다음 실행",
   "cron.drawer.save": "저장",
-  "cron.drawer.saveSuccess": "저장되었습니다"
+  "cron.drawer.saveSuccess": "저장되었습니다",
+  "titlebar": {
+    "mode": {
+      "chat": "채팅",
+      "bots": "봇"
+    }
+  },
+  "bots": {
+    "title": "봇",
+    "subtitle": "메시징 플랫폼에서 자동 실행되는 어시스턴트",
+    "empty": "아직 구성된 봇이 없습니다",
+    "running": "실행 중",
+    "stopped": "중지됨",
+    "conversationCount": "{{count}} 개의 대화",
+    "untitled": "제목 없음",
+    "notFound": "봇을 찾을 수 없습니다",
+    "backToList": "모든 봇",
+    "noConversations": "아직 대화가 없습니다"
+  }
 }

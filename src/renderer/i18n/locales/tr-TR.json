@@ -1109,5 +1109,23 @@
       "autoGemini25Desc": "Gemini CLI'nın görev için en iyi modele karar vermesine izin ver: gemini-2.5-pro, gemini-2.5-flash",
       "manualDesc": "Manuel olarak bir model seç"
     }
+  },
+  "titlebar": {
+    "mode": {
+      "chat": "Sohbet",
+      "bots": "Botlar"
+    }
+  },
+  "bots": {
+    "title": "Botlar",
+    "subtitle": "Mesajlaşma platformlarında otomatik çalışan asistanlar",
+    "empty": "Henüz bot yapılandırılmadı",
+    "running": "Çalışıyor",
+    "stopped": "Durduruldu",
+    "conversationCount": "{{count}} konuşma",
+    "untitled": "Başlıksız",
+    "notFound": "Bot bulunamadı",
+    "backToList": "Tüm Botlar",
+    "noConversations": "Henüz konuşma yok"
   }
 }

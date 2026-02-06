@@ -1046,5 +1046,23 @@
   "cron.drawer.schedule": "執行規則",
   "cron.drawer.nextRun": "下次執行",
   "cron.drawer.save": "儲存",
-  "cron.drawer.saveSuccess": "儲存成功"
+  "cron.drawer.saveSuccess": "儲存成功",
+  "titlebar": {
+    "mode": {
+      "chat": "聊天",
+      "bots": "機器人"
+    }
+  },
+  "bots": {
+    "title": "機器人",
+    "subtitle": "在訊息平台上自動運行的助理",
+    "empty": "尚未設定機器人",
+    "running": "運行中",
+    "stopped": "已停止",
+    "conversationCount": "{{count}} 個對話",
+    "untitled": "未命名",
+    "notFound": "找不到機器人",
+    "backToList": "所有機器人",
+    "noConversations": "暫無對話"
+  }
 }

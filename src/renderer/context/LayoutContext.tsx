@@ -5,10 +5,14 @@
  */
 import React from 'react';
 
+export type AppMode = 'chat' | 'bots';
+
 export interface LayoutContextValue {
   isMobile: boolean;
   siderCollapsed: boolean;
   setSiderCollapsed: (value: boolean) => void;
+  appMode: AppMode;
+  setAppMode: (mode: AppMode) => void;
 }
 
 export const LayoutContext = React.createContext<LayoutContextValue | null>(null);
