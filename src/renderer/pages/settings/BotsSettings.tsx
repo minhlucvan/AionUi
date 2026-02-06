@@ -5,15 +5,15 @@
  */
 
 import React from 'react';
-import MezonModalContent from '@/renderer/components/SettingsModal/contents/MezonModalContent';
+import BotsModalContent from '@/renderer/components/SettingsModal/contents/BotsModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 
-const MezonSettings: React.FC = () => {
+const BotsSettings: React.FC = () => {
   return (
     <SettingsPageWrapper>
-      <MezonModalContent />
+      <BotsModalContent />
     </SettingsPageWrapper>
   );
 };
 
-export default MezonSettings;
+export default BotsSettings;
