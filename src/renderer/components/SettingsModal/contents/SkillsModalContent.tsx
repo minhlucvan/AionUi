@@ -34,9 +34,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
   const { t } = useTranslation();
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [disabledSkills, setDisabledSkills] = useState<string[]>(() => {
-    return ConfigStorage.get('skills.disabledSkills') || [];
-  });
+  const [disabledSkills, setDisabledSkills] = useState<string[]>([]);
 
   // Modal/Drawer states
   const [browseVisible, setBrowseVisible] = useState(false);
@@ -53,7 +51,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
   const [importing, setImporting] = useState(false);
 
   // API key state
-  const [apiKey, setApiKey] = useState(() => ConfigStorage.get('skillsmp.apiKey') || '');
+  const [apiKey, setApiKey] = useState('');
 
   useEffect(() => {
     const updateDrawerWidth = () => {
@@ -64,6 +62,15 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
     updateDrawerWidth();
     window.addEventListener('resize', updateDrawerWidth);
     return () => window.removeEventListener('resize', updateDrawerWidth);
+  }, []);
+
+  // Load disabled skills and API key from storage
+  useEffect(() => {
+    void (async () => {
+      const [savedDisabledSkills, savedApiKey] = await Promise.all([ConfigStorage.get('skills.disabledSkills'), ConfigStorage.get('skillsmp.apiKey')]);
+      if (savedDisabledSkills) setDisabledSkills(savedDisabledSkills);
+      if (savedApiKey) setApiKey(savedApiKey);
+    })();
   }, []);
 
   useEffect(() => {
@@ -106,7 +113,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
         updated = [...disabledSkills, skillName];
       }
       setDisabledSkills(updated);
-      ConfigStorage.set('skills.disabledSkills', updated);
+      void ConfigStorage.set('skills.disabledSkills', updated);
     },
     [disabledSkills]
   );
@@ -180,7 +187,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
   }, [skillPath, message, t, loadSkills]);
 
   const handleSaveApiKey = useCallback(() => {
-    ConfigStorage.set('skillsmp.apiKey', apiKey.trim());
+    void ConfigStorage.set('skillsmp.apiKey', apiKey.trim());
     message.success(t('settings.skillsmpApiKeySaved', { defaultValue: 'SkillsMP API key saved' }));
   }, [apiKey, message, t]);
 
@@ -244,11 +251,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
                 {skills.map((skill) => {
                   const isEnabled = !disabledSkills.includes(skill.name);
                   return (
-                    <div
-                      key={skill.name}
-                      className='group bg-fill-0 rounded-lg px-16px py-12px flex items-center justify-between cursor-pointer hover:bg-fill-1 transition-colors'
-                      onClick={() => handleViewDetail(skill)}
-                    >
+                    <div key={skill.name} className='group bg-fill-0 rounded-lg px-16px py-12px flex items-center justify-between cursor-pointer hover:bg-fill-1 transition-colors' onClick={() => handleViewDetail(skill)}>
                       <div className='flex items-center gap-12px min-w-0'>
                         <div className='min-w-0'>
                           <div className='flex items-center gap-6px'>
@@ -325,9 +328,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
         <div className='py-2'>
           <div className='bg-fill-2 rounded-2xl p-20px'>
             <div className='flex items-center gap-8px mb-8px'>
-              <div className='text-12px text-t-secondary'>
-                {t('settings.skillsmpApiKeyDesc', { defaultValue: 'Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.' })}
-              </div>
+              <div className='text-12px text-t-secondary'>{t('settings.skillsmpApiKeyDesc', { defaultValue: 'Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.' })}</div>
               <span className='text-11px text-primary cursor-pointer hover:underline flex-shrink-0' onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com/docs/api')}>
                 {t('settings.skillsmpGetKey', { defaultValue: 'Get API key' })}
               </span>
@@ -424,10 +425,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
               {/* Enabled Toggle */}
               <div className='flex-shrink-0 flex items-center justify-between'>
                 <Typography.Text bold>{t('settings.skillDetailEnabled', { defaultValue: 'Enabled' })}</Typography.Text>
-                <Switch
-                  checked={!disabledSkills.includes(detailSkill.name)}
-                  onChange={(enabled) => handleToggleEnabled(detailSkill.name, enabled)}
-                />
+                <Switch checked={!disabledSkills.includes(detailSkill.name)} onChange={(enabled) => handleToggleEnabled(detailSkill.name, enabled)} />
               </div>
             </div>
           </div>
@@ -478,12 +476,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
           <div className='space-y-12px'>
             <Typography.Text>{t('settings.skillFolderPath', { defaultValue: 'Skill Folder Path' })}</Typography.Text>
             <div className='flex items-center gap-8px'>
-              <Input
-                value={skillPath}
-                onChange={(value) => setSkillPath(value)}
-                placeholder={t('settings.skillPathPlaceholder', { defaultValue: 'Enter or browse skill folder path' })}
-                className='flex-1'
-              />
+              <Input value={skillPath} onChange={(value) => setSkillPath(value)} placeholder={t('settings.skillPathPlaceholder', { defaultValue: 'Enter or browse skill folder path' })} className='flex-1' />
               <Button
                 type='outline'
                 icon={<FolderOpen size={16} />}
@@ -523,18 +516,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
       {/* ================================================================ */}
       {/* Delete Confirmation Modal */}
       {/* ================================================================ */}
-      <Modal
-        title={t('settings.skillDeleteTitle', { defaultValue: 'Delete Skill' })}
-        visible={deleteSkillName !== null}
-        onCancel={() => setDeleteSkillName(null)}
-        onOk={handleDeleteSkill}
-        okButtonProps={{ status: 'danger', loading: deleting }}
-        okText={t('common.delete', { defaultValue: 'Delete' })}
-        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
-        className='w-[90vw] md:w-[400px]'
-        wrapStyle={{ zIndex: 10000 }}
-        maskStyle={{ zIndex: 9999 }}
-      >
+      <Modal title={t('settings.skillDeleteTitle', { defaultValue: 'Delete Skill' })} visible={deleteSkillName !== null} onCancel={() => setDeleteSkillName(null)} onOk={handleDeleteSkill} okButtonProps={{ status: 'danger', loading: deleting }} okText={t('common.delete', { defaultValue: 'Delete' })} cancelText={t('common.cancel', { defaultValue: 'Cancel' })} className='w-[90vw] md:w-[400px]' wrapStyle={{ zIndex: 10000 }} maskStyle={{ zIndex: 9999 }}>
         <p>
           {t('settings.skillDeleteConfirm', {
             name: deleteSkillName,
