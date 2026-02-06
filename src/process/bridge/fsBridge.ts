@@ -1123,4 +1123,33 @@ export function initFsBridge(): void {
       };
     }
   });
+
+  // 删除用户自定义 skill / Delete a custom user skill
+  ipcBridge.fs.deleteCustomSkill.provider(async ({ skillName }) => {
+    try {
+      const userSkillsDir = getUserSkillsDir();
+      const skillDir = path.join(userSkillsDir, skillName);
+
+      // Verify it exists and is inside the user skills directory
+      try {
+        await fs.access(skillDir);
+      } catch {
+        return { success: false, msg: `Skill "${skillName}" not found in custom skills` };
+      }
+
+      // Safety: ensure the path is actually under userSkillsDir
+      const resolvedSkillDir = path.resolve(skillDir);
+      const resolvedUserDir = path.resolve(userSkillsDir);
+      if (!resolvedSkillDir.startsWith(resolvedUserDir + path.sep)) {
+        return { success: false, msg: 'Invalid skill path' };
+      }
+
+      await fs.rm(skillDir, { recursive: true, force: true });
+      console.log(`[fsBridge] Deleted custom skill "${skillName}" from ${skillDir}`);
+      return { success: true, msg: `Skill "${skillName}" deleted successfully` };
+    } catch (error) {
+      console.error('[fsBridge] Failed to delete custom skill:', error);
+      return { success: false, msg: `Failed to delete skill: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  });
 }

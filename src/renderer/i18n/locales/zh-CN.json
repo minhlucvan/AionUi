@@ -628,7 +628,19 @@
     "skillBrowseResultCount": "找到 {{count}} 个仓库",
     "skillBrowseNoResults": "未找到技能，请尝试其他关键词。",
     "skillBrowseHint": "搜索 GitHub 上的社区技能，或点击上方标签浏览。",
-    "skillBrowseLoadMore": "加载更多"
+    "skillBrowseLoadMore": "加载更多",
+    "skills": "技能",
+    "skillsInstalledTitle": "已安装技能",
+    "skillsInstalledCount": "{{count}} 个技能",
+    "skillsNoneInstalled": "尚未安装技能。可浏览 GitHub 或从本地文件夹导入。",
+    "skillDeleteTitle": "删除技能",
+    "skillDeleteConfirm": "确定要删除 \"{{name}}\" 吗？这将从磁盘中移除技能文件。",
+    "skillDeleteSuccess": "技能 \"{{name}}\" 已删除",
+    "skillDeleteFailed": "删除技能失败",
+    "skillAlreadyInstalled": "已安装",
+    "skillsImportTitle": "从文件夹导入",
+    "skillsImportBtn": "导入",
+    "skillsImported": "已导入 {{count}} 个技能{{skipped}}"
   },
   "messages": {
     "fileChanges": "文件变更",

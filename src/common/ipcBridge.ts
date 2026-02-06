@@ -114,6 +114,8 @@ export const fs = {
     IBridgeResponse<{ skillName: string; installPath: string }>,
     { cloneUrl: string; repoName: string }
   >('install-skill-from-github'),
+  // 删除用户自定义 skill / Delete a custom user skill
+  deleteCustomSkill: bridge.buildProvider<IBridgeResponse, { skillName: string }>('delete-custom-skill'),
 };
 
 export const fileWatch = {

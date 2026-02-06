@@ -631,7 +631,19 @@
     "skillBrowseResultCount": "{{count}} repositories found",
     "skillBrowseNoResults": "No skills found. Try different keywords.",
     "skillBrowseHint": "Search GitHub for community skills, or click a topic tag above to browse.",
-    "skillBrowseLoadMore": "Load more"
+    "skillBrowseLoadMore": "Load more",
+    "skills": "Skills",
+    "skillsInstalledTitle": "Installed Skills",
+    "skillsInstalledCount": "{{count}} skills",
+    "skillsNoneInstalled": "No skills installed yet. Browse GitHub or import from a local folder.",
+    "skillDeleteTitle": "Delete Skill",
+    "skillDeleteConfirm": "Are you sure you want to delete \"{{name}}\"? This will remove the skill files from disk.",
+    "skillDeleteSuccess": "Skill \"{{name}}\" deleted",
+    "skillDeleteFailed": "Failed to delete skill",
+    "skillAlreadyInstalled": "Installed",
+    "skillsImportTitle": "Import from Folder",
+    "skillsImportBtn": "Import",
+    "skillsImported": "{{count}} skills imported{{skipped}}"
   },
   "messages": {
     "fileChanges": "File Changes",
