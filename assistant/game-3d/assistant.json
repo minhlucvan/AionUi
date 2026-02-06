@@ -1,0 +1,10 @@
+{
+  "id": "game-3d",
+  "name": "3D Game Development Assistant",
+  "version": "1.0.0",
+  "description": "Specialized assistant for 3D game development with Three.js, Babylon.js, and WebGL expertise",
+  "author": "AionUi",
+  "workspacePath": "./workspace",
+  "tags": ["3d", "game-development", "threejs", "babylonjs", "webgl", "graphics"],
+  "presetAgentType": "claude"
+}
