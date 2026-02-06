@@ -1,6 +1,6 @@
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { Computer, Gemini, Info, Lightning, LinkCloud, System, Toolkit, Robot, Earth } from '@icon-park/react';
+import { Computer, Gemini, Info, Lightning, LinkCloud, System, Toolkit, Robot, Earth, Brain } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -41,6 +41,11 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
         label: t('settings.tools'),
         icon: <Toolkit />,
         path: 'tools',
+      },
+      {
+        label: t('settings.memory', { defaultValue: 'Memory' }),
+        icon: <Brain />,
+        path: 'memory',
       },
       {
         label: t('settings.display'),
