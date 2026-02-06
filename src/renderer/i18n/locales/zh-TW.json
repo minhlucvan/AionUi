@@ -802,7 +802,8 @@
     "skillDetailLocation": "位置",
     "skillDetailEnabled": "啟用",
     "skillTypeCustom": "自訂",
-    "skillTypeBuiltin": "內建"
+    "skillTypeBuiltin": "內建",
+    "skillsAvailable": "可用技能"
   },
   "messages": {
     "fileChanges": "檔案變更",

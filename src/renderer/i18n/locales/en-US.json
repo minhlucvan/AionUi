@@ -885,7 +885,8 @@
     "skillDetailLocation": "Location",
     "skillDetailEnabled": "Enabled",
     "skillTypeCustom": "Custom",
-    "skillTypeBuiltin": "Builtin"
+    "skillTypeBuiltin": "Builtin",
+    "skillsAvailable": "Available skills"
   },
   "messages": {
     "fileChanges": "File Changes",

@@ -852,7 +852,8 @@
     "skillDetailLocation": "場所",
     "skillDetailEnabled": "有効",
     "skillTypeCustom": "カスタム",
-    "skillTypeBuiltin": "組み込み"
+    "skillTypeBuiltin": "組み込み",
+    "skillsAvailable": "利用可能なスキル"
   },
   "messages": {
     "fileChanges": "ファイル変更",

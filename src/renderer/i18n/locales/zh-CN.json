@@ -881,7 +881,8 @@
     "skillDetailLocation": "位置",
     "skillDetailEnabled": "启用",
     "skillTypeCustom": "自定义",
-    "skillTypeBuiltin": "内置"
+    "skillTypeBuiltin": "内置",
+    "skillsAvailable": "可用技能"
   },
   "messages": {
     "fileChanges": "文件变更",
