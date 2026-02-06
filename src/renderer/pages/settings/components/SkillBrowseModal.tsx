@@ -58,7 +58,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
       setLoading(true);
       setHasSearched(true);
       try {
-        const apiKey = ConfigStorage.get('skillsmp.apiKey') || '';
+        const apiKey = (await ConfigStorage.get('skillsmp.apiKey')) || '';
         const response = await ipcBridge.fs.searchSkillsMPSkills.invoke({
           query: q,
           page: pageNum,
@@ -93,12 +93,25 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
         message.error(t('settings.skillBrowseNoGitHub', { defaultValue: 'No GitHub URL available for this skill' }));
         return;
       }
-      const cloneUrl = skill.githubUrl.endsWith('.git') ? skill.githubUrl : `${skill.githubUrl}.git`;
+      // Parse GitHub tree URLs: https://github.com/{owner}/{repo}/tree/{branch}/{path}
+      let cloneUrl: string;
+      let subPath: string | undefined;
+      let branch: string | undefined;
+      const treeMatch = skill.githubUrl.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/tree\/([^/]+)\/(.+)$/);
+      if (treeMatch) {
+        cloneUrl = `${treeMatch[1]}.git`;
+        branch = treeMatch[2];
+        subPath = treeMatch[3];
+      } else {
+        cloneUrl = skill.githubUrl.endsWith('.git') ? skill.githubUrl : `${skill.githubUrl}.git`;
+      }
       setInstalling(skill.id);
       try {
         const response = await ipcBridge.fs.installSkillFromGitHub.invoke({
           cloneUrl,
           repoName: skill.name,
+          subPath,
+          branch,
         });
         if (response.success && response.data) {
           message.success(

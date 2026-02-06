@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChatDot, Robot } from '@icon-park/react';
+import { Message, Robot } from '@icon-park/react';
 import type { AppMode } from '@/renderer/context/LayoutContext';
 
 interface ModeTabsProps {
@@ -19,7 +19,7 @@ const ModeTabs: React.FC<ModeTabsProps> = ({ activeMode, onChange }) => {
         data-active={activeMode === 'chat' || undefined}
         onClick={() => onChange('chat')}
       >
-        <ChatDot theme='outline' size='14' fill='currentColor' />
+        <Message theme='outline' size='14' fill='currentColor' />
         <span>{t('titlebar.mode.chat', { defaultValue: 'Chat' })}</span>
       </button>
       <button

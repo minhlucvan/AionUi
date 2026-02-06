@@ -141,7 +141,7 @@ export const fs = {
   // 从 GitHub 安装 skill / Install skill from GitHub repo
   installSkillFromGitHub: bridge.buildProvider<
     IBridgeResponse<{ skillName: string; installPath: string }>,
-    { cloneUrl: string; repoName: string }
+    { cloneUrl: string; repoName: string; subPath?: string; branch?: string }
   >('install-skill-from-github'),
   // 删除用户自定义 skill / Delete a custom user skill
   deleteCustomSkill: bridge.buildProvider<IBridgeResponse, { skillName: string }>('delete-custom-skill'),

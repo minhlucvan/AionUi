@@ -157,3 +157,5 @@ my-video
 
 # Agent Kit
 .agent
+# Mezon cache
+/mezon-cache

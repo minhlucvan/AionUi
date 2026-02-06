@@ -52,7 +52,10 @@
   padding: 3px;
   border-radius: 20px;
   background-color: var(--color-fill-2);
-  margin: 0 auto;
+  /* Center in content area (offset by sidebar width) */
+  position: absolute;
+  left: calc(50% + 112px);
+  transform: translateX(-50%);
 }
 
 .app-titlebar__mode-tab {

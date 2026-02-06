@@ -1039,68 +1039,188 @@ export function initFsBridge(): void {
     }
   });
 
-  // 从 GitHub 安装 skill / Install skill from GitHub using git clone
-  ipcBridge.fs.installSkillFromGitHub.provider(async ({ cloneUrl, repoName }) => {
+  // Helper: fetch raw content from a URL (GitHub raw files, etc.)
+  const fetchRawContent = (url: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const client = url.startsWith('https') ? https : http;
+      const req = client.get(url, { headers: { 'User-Agent': 'AionUi-SkillBrowser' } }, (res) => {
+        // Follow redirects
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          fetchRawContent(res.headers.location).then(resolve, reject);
+          return;
+        }
+        let body = '';
+        res.on('data', (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(body);
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}`));
+          }
+        });
+      });
+      req.on('error', reject);
+      req.setTimeout(30000, () => {
+        req.destroy();
+        reject(new Error('Request timed out'));
+      });
+    });
+  };
+
+  // Helper: fetch JSON from GitHub API
+  const fetchGitHubApi = (apiUrl: string): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const req = https.get(apiUrl, {
+        headers: { 'User-Agent': 'AionUi-SkillBrowser', Accept: 'application/vnd.github.v3+json' },
+      }, (res) => {
+        let body = '';
+        res.on('data', (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              resolve(JSON.parse(body));
+            } catch {
+              reject(new Error('Invalid JSON from GitHub API'));
+            }
+          } else {
+            reject(new Error(`GitHub API returned ${res.statusCode}: ${body.slice(0, 200)}`));
+          }
+        });
+      });
+      req.on('error', reject);
+      req.setTimeout(30000, () => {
+        req.destroy();
+        reject(new Error('GitHub API request timed out'));
+      });
+    });
+  };
+
+  // Helper: download skill files from GitHub API (recursive directory download)
+  const downloadGitHubDir = async (owner: string, repo: string, dirPath: string, branch: string, destDir: string): Promise<void> => {
+    // Don't encode slashes in the path - GitHub API needs them as-is
+    const encodedPath = dirPath.split('/').map(encodeURIComponent).join('/');
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}?ref=${branch}`;
+    const response = await fetchGitHubApi(apiUrl);
+    // GitHub returns an array for directories, single object for files
+    const entries: any[] = Array.isArray(response) ? response : [response];
+
+    await fs.mkdir(destDir, { recursive: true });
+
+    for (const entry of entries) {
+      const destPath = path.join(destDir, entry.name);
+      if (entry.type === 'file' && entry.download_url) {
+        const content = await fetchRawContent(entry.download_url);
+        await fs.writeFile(destPath, content, 'utf-8');
+      } else if (entry.type === 'dir') {
+        await downloadGitHubDir(owner, repo, entry.path, branch, destPath);
+      }
+    }
+  };
+
+  // 从 GitHub 安装 skill / Install skill from GitHub
+  // Prefers GitHub API download (no git required), falls back to git clone
+  ipcBridge.fs.installSkillFromGitHub.provider(async ({ cloneUrl, repoName, subPath, branch }) => {
     try {
       const userSkillsDir = getUserSkillsDir();
       await fs.mkdir(userSkillsDir, { recursive: true });
 
       const tempDir = path.join(os.tmpdir(), `aionui-skill-${Date.now()}`);
+      await fs.mkdir(tempDir, { recursive: true });
 
-      // Clone the repo to temp directory
-      await new Promise<void>((resolve, reject) => {
-        execFile('git', ['clone', '--depth', '1', cloneUrl, tempDir], { timeout: 60000 }, (error) => {
-          if (error) {
-            reject(new Error(`Git clone failed: ${error.message}`));
+      // Parse GitHub info from cloneUrl for API-based download
+      // cloneUrl format: https://github.com/{owner}/{repo}.git
+      const githubMatch = cloneUrl.match(/github\.com\/([^/]+)\/([^/.]+)/);
+
+      if (githubMatch && subPath) {
+        // Use GitHub API to download only the skill directory (fast, no git needed)
+        const [, owner, repo] = githubMatch;
+        const targetBranch = branch || 'main';
+        console.log(`[fsBridge] Downloading skill via GitHub API: ${owner}/${repo}/${subPath} (branch: ${targetBranch})`);
+        try {
+          await downloadGitHubDir(owner, repo, subPath, targetBranch, tempDir);
+        } catch (apiError) {
+          if (!branch) {
+            // Try 'master' branch if 'main' fails and no explicit branch was given
+            console.log('[fsBridge] main branch failed, trying master...');
+            await downloadGitHubDir(owner, repo, subPath, 'master', tempDir);
           } else {
-            resolve();
+            throw apiError;
           }
+        }
+      } else {
+        // Fall back to git clone for repos without subPath
+        console.log(`[fsBridge] Cloning repo: ${cloneUrl}`);
+        await new Promise<void>((resolve, reject) => {
+          execFile('git', ['clone', '--depth', '1', cloneUrl, tempDir], { timeout: 60000 }, (error) => {
+            if (error) {
+              reject(new Error(`Git clone failed: ${error.message}`));
+            } else {
+              resolve();
+            }
+          });
         });
-      });
+      }
 
-      // Find SKILL.md - check root first, then subdirectories
+      // Find skill content in downloaded files
       let skillSourceDir = tempDir;
       let skillName = repoName;
-      let skillDescription = '';
 
-      const rootSkillMd = path.join(tempDir, 'SKILL.md');
-      try {
-        await fs.access(rootSkillMd);
-      } catch {
-        // SKILL.md not at root - scan subdirectories
+      // Check tempDir for skill content, or scan subdirectories
+      const dirEntries = await fs.readdir(tempDir);
+      const hasMdFiles = dirEntries.some((e) => e.endsWith('.md'));
+
+      if (!hasMdFiles && !subPath) {
+        // For git clone: scan subdirectories
         const entries = await fs.readdir(tempDir, { withFileTypes: true });
         let found = false;
         for (const entry of entries) {
           if (!entry.isDirectory() || entry.name === '.git') continue;
-          const subSkillMd = path.join(tempDir, entry.name, 'SKILL.md');
-          try {
-            await fs.access(subSkillMd);
+          const subEntries = await fs.readdir(path.join(tempDir, entry.name));
+          if (subEntries.some((e) => e.endsWith('.md'))) {
             skillSourceDir = path.join(tempDir, entry.name);
             found = true;
             break;
-          } catch {
-            // Not a skill directory
           }
         }
         if (!found) {
-          // Cleanup temp
           await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
           return {
             success: false,
-            msg: 'No SKILL.md found in the repository. Make sure the repo contains a valid skill.',
+            msg: 'No skill files (.md) found in the repository.',
           };
         }
       }
 
+      // Ensure SKILL.md exists; if not, generate one from .md files
+      const skillMdPath = path.join(skillSourceDir, 'SKILL.md');
+      let hasSkillMd = false;
+      try {
+        await fs.access(skillMdPath);
+        hasSkillMd = true;
+      } catch {
+        const mdFiles = (await fs.readdir(skillSourceDir)).filter((e) => e.endsWith('.md') && e !== 'README.md');
+        if (mdFiles.length > 0) {
+          const mainMd = mdFiles[0];
+          const content = await fs.readFile(path.join(skillSourceDir, mainMd), 'utf-8');
+          const derivedName = mainMd.replace(/\.md$/, '');
+          await fs.writeFile(skillMdPath, `---\nname: ${derivedName}\ndescription: Installed from GitHub\n---\n\n${content}`, 'utf-8');
+          hasSkillMd = true;
+        }
+      }
+
       // Parse SKILL.md for name
-      const skillMdContent = await fs.readFile(path.join(skillSourceDir, 'SKILL.md'), 'utf-8');
-      const frontMatterMatch = skillMdContent.match(/^---\s*\n([\s\S]*?)\n---/);
-      if (frontMatterMatch) {
-        const yaml = frontMatterMatch[1];
-        const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-        const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-        if (nameMatch) skillName = nameMatch[1].trim();
-        if (descMatch) skillDescription = descMatch[1].trim();
+      if (hasSkillMd) {
+        const skillMdContent = await fs.readFile(skillMdPath, 'utf-8');
+        const frontMatterMatch = skillMdContent.match(/^---\s*\n([\s\S]*?)\n---/);
+        if (frontMatterMatch) {
+          const yaml = frontMatterMatch[1];
+          const nameMatch = yaml.match(/^name:\s*(.+)$/m);
+          if (nameMatch) skillName = nameMatch[1].trim();
+        }
       }
 
       // Check for duplicates
@@ -1137,15 +1257,15 @@ export function initFsBridge(): void {
       // Cleanup temp
       await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
 
-      console.log(`[fsBridge] Successfully installed GitHub skill "${skillName}" to ${targetDir}`);
+      console.log(`[fsBridge] Successfully installed skill "${skillName}" to ${targetDir}`);
 
       return {
         success: true,
         data: { skillName, installPath: targetDir },
-        msg: `Skill "${skillName}" installed successfully from GitHub`,
+        msg: `Skill "${skillName}" installed successfully`,
       };
     } catch (error) {
-      console.error('[fsBridge] GitHub skill install failed:', error);
+      console.error('[fsBridge] Skill install failed:', error);
       return {
         success: false,
         msg: `Failed to install skill: ${error instanceof Error ? error.message : String(error)}`,

@@ -10,8 +10,8 @@ import { channel } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import { addEventListener } from '@/renderer/utils/emitter';
-import { Empty } from '@arco-design/web-react';
-import { Right, Robot } from '@icon-park/react';
+import { Button, Empty } from '@arco-design/web-react';
+import { Plus, Right, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -149,9 +149,21 @@ const BotsPage: React.FC = () => {
           className='mx-auto py-24px px-16px'
           style={{ width: 'clamp(var(--app-min-width, 360px), calc(100% - 32px), 680px)', maxWidth: '100%' }}
         >
-          <div className='mb-20px'>
-            <h2 className='text-18px font-600 text-[var(--color-text-1)] m-0'>{t('bots.title', { defaultValue: 'Bots' })}</h2>
-            <p className='text-13px text-[var(--color-text-3)] mt-4px mb-0'>{t('bots.subtitle', { defaultValue: 'Auto-run assistants on messaging platforms' })}</p>
+          <div className='mb-20px flex items-center justify-between'>
+            <div>
+              <h2 className='text-18px font-600 text-[var(--color-text-1)] m-0'>{t('bots.title', { defaultValue: 'Bots' })}</h2>
+              <p className='text-13px text-[var(--color-text-3)] mt-4px mb-0'>{t('bots.subtitle', { defaultValue: 'Auto-run assistants on messaging platforms' })}</p>
+            </div>
+            {botsWithCounts.length > 0 && (
+              <Button
+                type='outline'
+                icon={<Plus theme='outline' size='14' />}
+                shape='round'
+                onClick={() => navigate('/settings/bots')}
+              >
+                {t('bots.addBot', { defaultValue: 'Add Bot' })}
+              </Button>
+            )}
           </div>
           {botsWithCounts.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-60px'>
@@ -162,6 +174,15 @@ const BotsPage: React.FC = () => {
                   </span>
                 }
               />
+              <Button
+                type='outline'
+                icon={<Plus theme='outline' size='14' />}
+                shape='round'
+                className='mt-16px'
+                onClick={() => navigate('/settings/bots')}
+              >
+                {t('bots.addBot', { defaultValue: 'Add Bot' })}
+              </Button>
             </div>
           ) : (
             <div className='flex flex-col gap-10px'>

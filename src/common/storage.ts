@@ -95,6 +95,8 @@ export interface IConfigStorageRefer {
     createdAt: number;
     updatedAt: number;
   }>;
+  // Disabled skill names / 已禁用的 skill 名称列表
+  'skills.disabledSkills'?: string[];
   // SkillsMP API key for skill marketplace search / SkillsMP API 密钥
   'skillsmp.apiKey'?: string;
 }
