@@ -91,7 +91,7 @@ export const fs = {
   scanForSkills: bridge.buildProvider<IBridgeResponse<Array<{ name: string; description: string; path: string }>>, { folderPath: string }>('scan-for-skills'),
   // 检测常见的 skills 路径 / Detect common skills paths
   detectCommonSkillPaths: bridge.buildProvider<IBridgeResponse<Array<{ name: string; path: string }>>, void>('detect-common-skill-paths'),
-  // GitHub skill 搜索 / Search GitHub for skills
+  // GitHub skill 搜索 / Search GitHub for skills via Code Search API (filename:SKILL.md)
   searchGitHubSkills: bridge.buildProvider<
     IBridgeResponse<{
       items: Array<{
@@ -103,7 +103,7 @@ export const fs = {
         stargazers_count: number;
         updated_at: string;
         owner: { login: string; avatar_url: string };
-        topics: string[];
+        skillPaths: string[]; // paths where SKILL.md was found
       }>;
       total_count: number;
     }>,

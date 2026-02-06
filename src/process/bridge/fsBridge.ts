@@ -943,62 +943,118 @@ export function initFsBridge(): void {
     }
   });
 
-  // GitHub skill 搜索 / Search GitHub for skills using GitHub Search API
+  // Helper: fetch JSON from GitHub API
+  const githubApiFetch = (url: string): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const req = https.get(
+        url,
+        {
+          headers: {
+            'User-Agent': 'AionUi-SkillBrowser',
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+        (res) => {
+          let body = '';
+          res.on('data', (chunk: Buffer) => {
+            body += chunk.toString();
+          });
+          res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              try {
+                resolve(JSON.parse(body));
+              } catch {
+                reject(new Error('Invalid JSON response'));
+              }
+            } else {
+              reject(new Error(`GitHub API returned status ${res.statusCode}: ${body.slice(0, 200)}`));
+            }
+          });
+        }
+      );
+      req.on('error', reject);
+      req.setTimeout(15000, () => {
+        req.destroy();
+        reject(new Error('GitHub API request timed out'));
+      });
+    });
+  };
+
+  // GitHub skill 搜索 / Search GitHub for skills using Code Search API (filename:SKILL.md)
   ipcBridge.fs.searchGitHubSkills.provider(async ({ query, page = 1, perPage = 20 }) => {
     try {
-      // Build search query with skill-related topics
-      const searchQuery = encodeURIComponent(`${query} topic:claude-code-skill OR topic:gemini-skill OR topic:ai-skill OR topic:aionui-skill`);
-      const url = `https://api.github.com/search/repositories?q=${searchQuery}&sort=stars&order=desc&page=${page}&per_page=${perPage}`;
+      // Use GitHub Code Search API to find repos with SKILL.md files
+      // The query already contains the pattern (e.g. "filename:SKILL.md path:skills")
+      // If user provides a plain keyword, wrap it with filename:SKILL.md
+      const hasFilePattern = query.includes('filename:') || query.includes('path:');
+      const searchQuery = hasFilePattern ? query : `filename:SKILL.md ${query}`;
 
-      const data = await new Promise<string>((resolve, reject) => {
-        const req = https.get(
-          url,
-          {
-            headers: {
-              'User-Agent': 'AionUi-SkillBrowser',
-              Accept: 'application/vnd.github.v3+json',
-            },
-          },
-          (res) => {
-            let body = '';
-            res.on('data', (chunk: Buffer) => {
-              body += chunk.toString();
-            });
-            res.on('end', () => {
-              if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-                resolve(body);
-              } else {
-                reject(new Error(`GitHub API returned status ${res.statusCode}: ${body.slice(0, 200)}`));
-              }
-            });
+      const url = `https://api.github.com/search/code?q=${encodeURIComponent(searchQuery)}&page=${page}&per_page=${perPage}`;
+      const codeResult = await githubApiFetch(url);
+
+      // Group code search results by repository
+      const repoMap = new Map<
+        string,
+        {
+          repo: any;
+          skillPaths: string[];
+        }
+      >();
+
+      for (const item of codeResult.items || []) {
+        const fullName = item.repository?.full_name;
+        if (!fullName) continue;
+
+        const filePath = item.path || '';
+        // Get the directory containing SKILL.md (e.g. "skills/pdf/SKILL.md" -> "skills/pdf")
+        const skillDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '.';
+
+        if (repoMap.has(fullName)) {
+          repoMap.get(fullName)!.skillPaths.push(skillDir);
+        } else {
+          repoMap.set(fullName, {
+            repo: item.repository,
+            skillPaths: [skillDir],
+          });
+        }
+      }
+
+      // Fetch repo details (stars, description) for each unique repo
+      const repoEntries = Array.from(repoMap.entries());
+      const items = await Promise.all(
+        repoEntries.map(async ([, { repo, skillPaths }]) => {
+          let repoDetails = repo;
+          // Code search results have limited repo info, fetch full details
+          try {
+            repoDetails = await githubApiFetch(`https://api.github.com/repos/${repo.full_name}`);
+          } catch {
+            // Fall back to partial info from code search
           }
-        );
-        req.on('error', reject);
-        req.setTimeout(15000, () => {
-          req.destroy();
-          reject(new Error('GitHub API request timed out'));
-        });
-      });
+          return {
+            name: repoDetails.name || '',
+            full_name: repoDetails.full_name || '',
+            description: repoDetails.description || '',
+            html_url: repoDetails.html_url || '',
+            clone_url: repoDetails.clone_url || `https://github.com/${repoDetails.full_name}.git`,
+            stargazers_count: repoDetails.stargazers_count || 0,
+            updated_at: repoDetails.updated_at || repoDetails.pushed_at || '',
+            owner: {
+              login: repoDetails.owner?.login || '',
+              avatar_url: repoDetails.owner?.avatar_url || '',
+            },
+            skillPaths,
+          };
+        })
+      );
 
-      const result = JSON.parse(data);
+      // Sort by stars descending
+      items.sort((a, b) => b.stargazers_count - a.stargazers_count);
+
       return {
         success: true,
         data: {
-          items: (result.items || []).map((item: any) => ({
-            name: item.name,
-            full_name: item.full_name,
-            description: item.description || '',
-            html_url: item.html_url,
-            clone_url: item.clone_url,
-            stargazers_count: item.stargazers_count,
-            updated_at: item.updated_at,
-            owner: {
-              login: item.owner?.login || '',
-              avatar_url: item.owner?.avatar_url || '',
-            },
-            topics: item.topics || [],
-          })),
-          total_count: result.total_count || 0,
+          items,
+          total_count: codeResult.total_count || 0,
         },
       };
     } catch (error) {

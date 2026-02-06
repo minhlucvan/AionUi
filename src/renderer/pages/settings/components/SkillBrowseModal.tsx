@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Avatar, Button, Empty, Input, Message, Modal, Spin, Tag, Typography } from '@arco-design/web-react';
+import { Button, Empty, Input, Message, Modal, Spin, Tag, Typography } from '@arco-design/web-react';
 import { Download, Star, Search } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +19,7 @@ interface GitHubRepo {
   stargazers_count: number;
   updated_at: string;
   owner: { login: string; avatar_url: string };
-  topics: string[];
+  skillPaths: string[];
 }
 
 interface SkillBrowseModalProps {
@@ -28,6 +28,13 @@ interface SkillBrowseModalProps {
   onInstalled: (skillName: string) => void;
   message: ReturnType<typeof Message.useMessage>[0];
 }
+
+const SEARCH_PRESETS = [
+  { label: 'All Skills', query: 'filename:SKILL.md' },
+  { label: 'skills/', query: 'filename:SKILL.md path:skills' },
+  { label: '.claude/', query: 'filename:SKILL.md path:.claude' },
+  { label: '.gemini/', query: 'filename:SKILL.md path:.gemini' },
+];
 
 const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, onInstalled, message }) => {
   const { t } = useTranslation();
@@ -40,18 +47,14 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
   const [page, setPage] = useState(1);
 
   const handleSearch = useCallback(
-    async (pageNum = 1) => {
-      const query = searchQuery.trim();
-      if (!query) return;
+    async (query: string, pageNum = 1) => {
+      const q = query.trim();
+      if (!q) return;
 
       setLoading(true);
       setHasSearched(true);
       try {
-        const response = await ipcBridge.fs.searchGitHubSkills.invoke({
-          query,
-          page: pageNum,
-          perPage: 20,
-        });
+        const response = await ipcBridge.fs.searchGitHubSkills.invoke({ query: q, page: pageNum, perPage: 20 });
         if (response.success && response.data) {
           if (pageNum === 1) {
             setResults(response.data.items);
@@ -63,14 +66,13 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
         } else {
           message.error(response.msg || t('settings.skillBrowseSearchFailed', { defaultValue: 'Search failed' }));
         }
-      } catch (error) {
-        console.error('GitHub search failed:', error);
+      } catch {
         message.error(t('settings.skillBrowseSearchFailed', { defaultValue: 'Search failed' }));
       } finally {
         setLoading(false);
       }
     },
-    [searchQuery, message, t]
+    [message, t]
   );
 
   const handleInstall = useCallback(
@@ -92,8 +94,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
         } else {
           message.error(response.msg || t('settings.skillBrowseInstallFailed', { defaultValue: 'Installation failed' }));
         }
-      } catch (error) {
-        console.error('Skill install failed:', error);
+      } catch {
         message.error(t('settings.skillBrowseInstallFailed', { defaultValue: 'Installation failed' }));
       } finally {
         setInstalling(null);
@@ -111,7 +112,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
     const date = new Date(dateStr);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return t('mcp.justNow', { defaultValue: 'Just now' });
+    if (diffDays === 0) return 'Today';
     if (diffDays < 30) return `${diffDays}d ago`;
     if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
     return `${Math.floor(diffDays / 365)}y ago`;
@@ -135,46 +136,31 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
             value={searchQuery}
             onChange={setSearchQuery}
             placeholder={t('settings.skillBrowseSearchPlaceholder', {
-              defaultValue: 'Search skills (e.g. "pdf", "excel", "claude code skill")',
+              defaultValue: 'Search for SKILL.md files (e.g. "filename:SKILL.md path:skills")',
             })}
-            onPressEnter={() => void handleSearch(1)}
+            onPressEnter={() => void handleSearch(searchQuery, 1)}
             prefix={<Search size={16} />}
             className='flex-1'
             allowClear
           />
-          <Button type='primary' loading={loading} onClick={() => void handleSearch(1)}>
+          <Button type='primary' loading={loading} onClick={() => void handleSearch(searchQuery, 1)}>
             {t('common.search', { defaultValue: 'Search' })}
           </Button>
         </div>
 
-        {/* Suggested topics */}
+        {/* Pattern presets */}
         <div className='flex flex-wrap gap-6px'>
-          {['claude-code-skill', 'gemini-skill', 'ai-skill', 'aionui-skill'].map((topic) => (
+          {SEARCH_PRESETS.map((preset) => (
             <Tag
-              key={topic}
+              key={preset.query}
               className='cursor-pointer'
               color='arcoblue'
               onClick={() => {
-                setSearchQuery(topic);
-                void (async () => {
-                  setLoading(true);
-                  setHasSearched(true);
-                  try {
-                    const response = await ipcBridge.fs.searchGitHubSkills.invoke({ query: topic, page: 1, perPage: 20 });
-                    if (response.success && response.data) {
-                      setResults(response.data.items);
-                      setTotalCount(response.data.total_count);
-                      setPage(1);
-                    }
-                  } catch {
-                    // ignore
-                  } finally {
-                    setLoading(false);
-                  }
-                })();
+                setSearchQuery(preset.query);
+                void handleSearch(preset.query, 1);
               }}
             >
-              {topic}
+              {preset.label}
             </Tag>
           ))}
         </div>
@@ -188,17 +174,11 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
           ) : results.length > 0 ? (
             <>
               <div className='text-12px text-t-secondary mb-4px'>
-                {t('settings.skillBrowseResultCount', {
-                  count: totalCount,
-                  defaultValue: `${totalCount} repositories found`,
-                })}
+                {t('settings.skillBrowseResultCount', { count: totalCount, defaultValue: `${totalCount} results found` })}
               </div>
               {results.map((repo) => (
                 <div key={repo.full_name} className='border border-border-2 rounded-8px p-12px hover:bg-fill-1 transition-colors'>
                   <div className='flex items-start gap-10px'>
-                    <Avatar size={32} shape='circle' className='flex-shrink-0'>
-                      <img src={repo.owner.avatar_url} alt={repo.owner.login} />
-                    </Avatar>
                     <div className='flex-1 min-w-0'>
                       <div className='flex items-center gap-6px flex-wrap'>
                         <Typography.Text bold className='text-14px text-primary cursor-pointer hover:underline' onClick={() => void ipcBridge.shell.openExternal.invoke(repo.html_url)}>
@@ -211,13 +191,18 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
                         <span className='text-12px text-t-secondary'>{formatDate(repo.updated_at)}</span>
                       </div>
                       {repo.description && <div className='text-12px text-t-secondary mt-4px line-clamp-2'>{repo.description}</div>}
-                      {repo.topics.length > 0 && (
+                      {repo.skillPaths.length > 0 && (
                         <div className='flex flex-wrap gap-4px mt-6px'>
-                          {repo.topics.slice(0, 5).map((topic) => (
-                            <Tag key={topic} size='small' color='gray' className='text-11px'>
-                              {topic}
+                          {repo.skillPaths.slice(0, 5).map((sp) => (
+                            <Tag key={sp} size='small' color='green' className='text-11px font-mono'>
+                              {sp === '.' ? 'SKILL.md' : `${sp}/`}
                             </Tag>
                           ))}
+                          {repo.skillPaths.length > 5 && (
+                            <Tag size='small' color='gray' className='text-11px'>
+                              +{repo.skillPaths.length - 5}
+                            </Tag>
+                          )}
                         </div>
                       )}
                     </div>
@@ -236,7 +221,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
               ))}
               {results.length < totalCount && (
                 <div className='flex justify-center pt-8px'>
-                  <Button type='text' loading={loading} onClick={() => void handleSearch(page + 1)}>
+                  <Button type='text' loading={loading} onClick={() => void handleSearch(searchQuery, page + 1)}>
                     {t('settings.skillBrowseLoadMore', { defaultValue: 'Load more' })}
                   </Button>
                 </div>
@@ -247,7 +232,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
           ) : (
             <div className='text-center text-t-secondary py-32px text-13px'>
               {t('settings.skillBrowseHint', {
-                defaultValue: 'Search GitHub for community skills, or click a topic tag above to browse.',
+                defaultValue: 'Search GitHub for community skills, or click a pattern above to discover projects with SKILL.md files.',
               })}
             </div>
           )}

@@ -29,7 +29,7 @@ interface GitHubRepo {
   stargazers_count: number;
   updated_at: string;
   owner: { login: string; avatar_url: string };
-  topics: string[];
+  skillPaths: string[];
 }
 
 type MessageInstance = ReturnType<typeof Message.useMessage>[0];
@@ -297,7 +297,7 @@ const GitHubBrowseSection: React.FC<{
         <Input
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder={t('settings.skillBrowseSearchPlaceholder', { defaultValue: 'Search skills (e.g. "pdf", "excel", "claude code skill")' })}
+          placeholder={t('settings.skillBrowseSearchPlaceholder', { defaultValue: 'Search for SKILL.md files (e.g. "filename:SKILL.md path:skills")' })}
           onPressEnter={() => void handleSearch(1)}
           prefix={<Search size={16} />}
           className='flex-1'
@@ -308,11 +308,16 @@ const GitHubBrowseSection: React.FC<{
         </Button>
       </div>
 
-      {/* Topic tags */}
+      {/* Pattern presets - search for SKILL.md in known project structures */}
       <div className='flex flex-wrap gap-6px'>
-        {['claude-code-skill', 'gemini-skill', 'ai-skill', 'aionui-skill'].map((topic) => (
-          <Tag key={topic} className='cursor-pointer' color='arcoblue' onClick={() => handleTagClick(topic)}>
-            {topic}
+        {[
+          { label: 'All Skills', query: 'filename:SKILL.md' },
+          { label: 'skills/', query: 'filename:SKILL.md path:skills' },
+          { label: '.claude/', query: 'filename:SKILL.md path:.claude' },
+          { label: '.gemini/', query: 'filename:SKILL.md path:.gemini' },
+        ].map((preset) => (
+          <Tag key={preset.query} className='cursor-pointer' color='arcoblue' onClick={() => handleTagClick(preset.query)}>
+            {preset.label}
           </Tag>
         ))}
       </div>
@@ -349,13 +354,18 @@ const GitHubBrowseSection: React.FC<{
                         <span className='text-12px text-t-secondary'>{formatDate(repo.updated_at)}</span>
                       </div>
                       {repo.description && <div className='text-12px text-t-secondary mt-4px line-clamp-2'>{repo.description}</div>}
-                      {repo.topics.length > 0 && (
+                      {repo.skillPaths.length > 0 && (
                         <div className='flex flex-wrap gap-4px mt-6px'>
-                          {repo.topics.slice(0, 5).map((topic) => (
-                            <Tag key={topic} size='small' color='gray' className='text-11px'>
-                              {topic}
+                          {repo.skillPaths.slice(0, 6).map((sp) => (
+                            <Tag key={sp} size='small' color='green' className='text-11px font-mono'>
+                              {sp === '.' ? 'SKILL.md' : `${sp}/`}
                             </Tag>
                           ))}
+                          {repo.skillPaths.length > 6 && (
+                            <Tag size='small' color='gray' className='text-11px'>
+                              +{repo.skillPaths.length - 6}
+                            </Tag>
+                          )}
                         </div>
                       )}
                     </div>
