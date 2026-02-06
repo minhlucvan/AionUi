@@ -1,5 +1,5 @@
 /**
- * Assistants page - lists active agents grouped by backend with their conversations.
+ * Assistants page - lists agents grouped by backend with their conversations.
  * Users can click an agent card to expand/collapse its conversations,
  * then click a conversation to navigate to it.
  */
@@ -10,7 +10,7 @@ import { addEventListener } from '@/renderer/utils/emitter';
 import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import type { AcpBackend } from '@/types/acpTypes';
 import { Empty } from '@arco-design/web-react';
-import { MessageOne } from '@icon-park/react';
+import { Down, MessageOne, Robot } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -93,6 +93,20 @@ function resolveAgentLogo(conv: TChatConversation): { logo?: string; emoji?: str
   return {};
 }
 
+function formatRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diff < minute) return 'just now';
+  if (diff < hour) return `${Math.floor(diff / minute)}m ago`;
+  if (diff < day) return `${Math.floor(diff / hour)}h ago`;
+  if (diff < 7 * day) return `${Math.floor(diff / day)}d ago`;
+  return new Date(timestamp).toLocaleDateString();
+}
+
 function groupConversationsByAgent(conversations: TChatConversation[]): AgentGroup[] {
   const groups = new Map<AgentKey, AgentGroup>();
 
@@ -116,7 +130,6 @@ function groupConversationsByAgent(conversations: TChatConversation[]): AgentGro
     }
   }
 
-  // Sort: agents with running conversations first, then by most recent conversation
   const result = Array.from(groups.values());
   result.sort((a, b) => {
     if (a.runningCount > 0 && b.runningCount === 0) return -1;
@@ -138,6 +151,11 @@ const AgentCard: React.FC<{
 }> = ({ group, expanded, onToggle, onSelectConversation, activeConversationId }) => {
   const { t } = useTranslation();
 
+  const sortedConversations = useMemo(
+    () => [...group.conversations].sort((a, b) => (b.modifyTime || b.createTime) - (a.modifyTime || a.createTime)),
+    [group.conversations]
+  );
+
   return (
     <div className='assistants-agent-card'>
       <div className='assistants-agent-card__header' onClick={onToggle}>
@@ -145,9 +163,9 @@ const AgentCard: React.FC<{
           {group.logo ? (
             <img src={group.logo} alt={group.name} className='size-full object-contain' />
           ) : group.emoji ? (
-            <span className='text-20px'>{group.emoji}</span>
+            <span className='text-20px lh-1'>{group.emoji}</span>
           ) : (
-            <span className='text-20px'>🤖</span>
+            <Robot theme='outline' size='20' fill='currentColor' />
           )}
         </div>
         <div className='assistants-agent-card__info'>
@@ -158,34 +176,31 @@ const AgentCard: React.FC<{
                 {t('assistants.running', { defaultValue: 'Running', count: group.runningCount })}
               </span>
             )}
-            <span className='text-t-secondary text-12px'>
+            <span className='text-[var(--color-text-3)] text-12px'>
               {t('assistants.conversationCount', { defaultValue: '{{count}} conversations', count: group.conversations.length })}
             </span>
           </div>
         </div>
         <div className={classNames('assistants-agent-card__chevron', { 'assistants-agent-card__chevron--expanded': expanded })}>
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <polyline points='6 9 12 15 18 9' />
-          </svg>
+          <Down theme='outline' size='14' fill='currentColor' />
         </div>
       </div>
       {expanded && (
         <div className='assistants-agent-card__conversations'>
-          {group.conversations
-            .sort((a, b) => (b.modifyTime || b.createTime) - (a.modifyTime || a.createTime))
-            .map((conv) => (
-              <div
-                key={conv.id}
-                className={classNames('assistants-conversation-item', {
-                  'assistants-conversation-item--active': conv.id === activeConversationId,
-                })}
-                onClick={() => onSelectConversation(conv)}
-              >
-                <MessageOne theme='outline' size='14' fill='currentColor' className='shrink-0 opacity-60' />
-                <span className='truncate flex-1'>{conv.name || t('assistants.untitled', { defaultValue: 'Untitled' })}</span>
-                {conv.status === 'running' && <span className='assistants-conversation-item__badge' />}
-              </div>
-            ))}
+          {sortedConversations.map((conv) => (
+            <div
+              key={conv.id}
+              className={classNames('assistants-conversation-item', {
+                'assistants-conversation-item--active': conv.id === activeConversationId,
+              })}
+              onClick={() => onSelectConversation(conv)}
+            >
+              <MessageOne theme='outline' size='16' className='shrink-0 lh-0' style={{ color: 'var(--color-text-3)' }} />
+              <span className='truncate flex-1 text-[var(--color-text-1)]'>{conv.name || t('assistants.untitled', { defaultValue: 'Untitled' })}</span>
+              <span className='shrink-0 text-11px text-[var(--color-text-4)]'>{formatRelativeTime(conv.modifyTime || conv.createTime)}</span>
+              {conv.status === 'running' && <span className='assistants-conversation-item__badge' />}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -256,27 +271,40 @@ const AssistantsPage: React.FC = () => {
 
   return (
     <div className='assistants-page size-full flex flex-col'>
-      <div className='assistants-page__header px-20px py-12px border-b border-[var(--border-base)]'>
-        <h2 className='text-16px font-600 text-t-primary m-0'>{t('assistants.title', { defaultValue: 'Assistants' })}</h2>
-        <p className='text-12px text-t-secondary mt-4px mb-0'>{t('assistants.subtitle', { defaultValue: 'Active agents and their conversations' })}</p>
-      </div>
-      <div className='assistants-page__content flex-1 overflow-y-auto p-16px'>
-        {agentGroups.length === 0 ? (
-          <Empty description={t('assistants.empty', { defaultValue: 'No conversations yet' })} />
-        ) : (
-          <div className='flex flex-col gap-8px'>
-            {agentGroups.map((group) => (
-              <AgentCard
-                key={group.key}
-                group={group}
-                expanded={expandedAgents.has(group.key)}
-                onToggle={() => handleToggleAgent(group.key)}
-                onSelectConversation={handleSelectConversation}
-                activeConversationId={activeConversationId}
-              />
-            ))}
+      <div className='assistants-page__content flex-1 overflow-y-auto'>
+        <div
+          className='mx-auto py-24px px-16px'
+          style={{ width: 'clamp(var(--app-min-width, 360px), calc(100% - 32px), 680px)', maxWidth: '100%' }}
+        >
+          <div className='mb-20px'>
+            <h2 className='text-18px font-600 text-[var(--color-text-1)] m-0'>{t('assistants.title', { defaultValue: 'Assistants' })}</h2>
+            <p className='text-13px text-[var(--color-text-3)] mt-4px mb-0'>{t('assistants.subtitle', { defaultValue: 'Active agents and their conversations' })}</p>
           </div>
-        )}
+          {agentGroups.length === 0 ? (
+            <div className='flex flex-col items-center justify-center py-60px'>
+              <Empty
+                description={
+                  <span className='text-[var(--color-text-3)]'>
+                    {t('assistants.empty', { defaultValue: 'No conversations yet' })}
+                  </span>
+                }
+              />
+            </div>
+          ) : (
+            <div className='flex flex-col gap-10px'>
+              {agentGroups.map((group) => (
+                <AgentCard
+                  key={group.key}
+                  group={group}
+                  expanded={expandedAgents.has(group.key)}
+                  onToggle={() => handleToggleAgent(group.key)}
+                  onSelectConversation={handleSelectConversation}
+                  activeConversationId={activeConversationId}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
