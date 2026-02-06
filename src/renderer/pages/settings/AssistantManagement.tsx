@@ -8,7 +8,8 @@ import MarkdownView from '@/renderer/components/Markdown';
 import type { AcpBackendConfig, PresetAgentType } from '@/types/acpTypes';
 import type { Message } from '@arco-design/web-react';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Modal, Select, Switch, Typography } from '@arco-design/web-react';
-import { Close, Delete, FolderOpen, Plus, Robot, SettingOne } from '@icon-park/react';
+import { Close, Delete, FolderOpen, Plus, Robot, Search, SettingOne } from '@icon-park/react';
+import SkillBrowseModal from './components/SkillBrowseModal';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
@@ -65,6 +66,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   const [customSkills, setCustomSkills] = useState<string[]>([]); // 通过 Add Skills 添加到此助手的 skills 名称 / Skill names added via Add Skills
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]); // 启用的 skills（勾选状态）/ Enabled skills
   const [skillsModalVisible, setSkillsModalVisible] = useState(false);
+  const [browseSkillsVisible, setBrowseSkillsVisible] = useState(false); // Browse GitHub skills modal
   const [skillPath, setSkillPath] = useState(''); // Skill folder path input
   const [commonPaths, setCommonPaths] = useState<Array<{ name: string; path: string }>>([]); // Common skill paths detected
   const [pendingSkills, setPendingSkills] = useState<PendingSkill[]>([]); // 待导入的 skills / Pending skills to import
@@ -660,9 +662,14 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
               <div className='flex-shrink-0 mt-16px'>
                 <div className='flex items-center justify-between mb-12px'>
                   <Typography.Text bold>{t('settings.assistantSkills', { defaultValue: 'Skills' })}</Typography.Text>
-                  <Button size='small' type='outline' icon={<Plus size={14} />} onClick={() => setSkillsModalVisible(true)} className='rounded-[100px]'>
-                    {t('settings.addSkills', { defaultValue: 'Add Skills' })}
-                  </Button>
+                  <div className='flex items-center gap-6px'>
+                    <Button size='small' type='outline' icon={<Search size={14} />} onClick={() => setBrowseSkillsVisible(true)} className='rounded-[100px]'>
+                      {t('settings.browseGitHub', { defaultValue: 'Browse GitHub' })}
+                    </Button>
+                    <Button size='small' type='outline' icon={<Plus size={14} />} onClick={() => setSkillsModalVisible(true)} className='rounded-[100px]'>
+                      {t('settings.addSkills', { defaultValue: 'Add Skills' })}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Skills 折叠面板 / Skills Collapse */}
@@ -1005,6 +1012,29 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
           })}
         </div>
       </Modal>
+
+      {/* Browse GitHub Skills Modal */}
+      <SkillBrowseModal
+        visible={browseSkillsVisible}
+        onClose={() => setBrowseSkillsVisible(false)}
+        message={message}
+        onInstalled={async (skillName) => {
+          // Refresh the available skills list after a GitHub install
+          try {
+            const skillsList = await ipcBridge.fs.listAvailableSkills.invoke();
+            setAvailableSkills(skillsList);
+            // Auto-add the installed skill to custom skills and enable it
+            if (!customSkills.includes(skillName)) {
+              setCustomSkills([...customSkills, skillName]);
+            }
+            if (!selectedSkills.includes(skillName)) {
+              setSelectedSkills([...selectedSkills, skillName]);
+            }
+          } catch (error) {
+            console.error('Failed to refresh skills after GitHub install:', error);
+          }
+        }}
+      />
     </div>
   );
 };
