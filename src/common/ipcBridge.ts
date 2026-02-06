@@ -119,24 +119,25 @@ export const fs = {
   scanForSkills: bridge.buildProvider<IBridgeResponse<Array<{ name: string; description: string; path: string }>>, { folderPath: string }>('scan-for-skills'),
   // 检测常见的 skills 路径 / Detect common skills paths
   detectCommonSkillPaths: bridge.buildProvider<IBridgeResponse<Array<{ name: string; path: string }>>, void>('detect-common-skill-paths'),
-  // GitHub skill 搜索 / Search GitHub for skills via Code Search API (filename:SKILL.md)
-  searchGitHubSkills: bridge.buildProvider<
+  // SkillsMP skill 搜索 / Search SkillsMP marketplace for skills
+  searchSkillsMPSkills: bridge.buildProvider<
     IBridgeResponse<{
       items: Array<{
+        id: string;
         name: string;
-        full_name: string;
         description: string;
-        html_url: string;
-        clone_url: string;
-        stargazers_count: number;
-        updated_at: string;
-        owner: { login: string; avatar_url: string };
-        skillPaths: string[]; // paths where SKILL.md was found
+        author?: string;
+        stars?: number;
+        updatedAt?: number;
+        tags?: string[];
+        githubUrl?: string;
+        skillUrl?: string;
       }>;
       total_count: number;
+      hasNext?: boolean;
     }>,
-    { query: string; page?: number; perPage?: number }
-  >('github-search-skills'),
+    { query: string; page?: number; perPage?: number; sortBy?: 'stars' | 'recent'; apiKey?: string }
+  >('skillsmp-search-skills'),
   // 从 GitHub 安装 skill / Install skill from GitHub repo
   installSkillFromGitHub: bridge.buildProvider<
     IBridgeResponse<{ skillName: string; installPath: string }>,

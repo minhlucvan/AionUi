@@ -10,6 +10,7 @@ import classNames from 'classnames';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
+import { ConfigStorage } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
 
@@ -20,16 +21,16 @@ interface SkillInfo {
   isCustom: boolean;
 }
 
-interface GitHubRepo {
+interface SkillsMPSkill {
+  id: string;
   name: string;
-  full_name: string;
   description: string;
-  html_url: string;
-  clone_url: string;
-  stargazers_count: number;
-  updated_at: string;
-  owner: { login: string; avatar_url: string };
-  skillPaths: string[];
+  author?: string;
+  stars?: number;
+  updatedAt?: number;
+  tags?: string[];
+  githubUrl?: string;
+  skillUrl?: string;
 }
 
 type MessageInstance = ReturnType<typeof Message.useMessage>[0];
@@ -86,7 +87,7 @@ const InstalledSkillsSection: React.FC<{
         </div>
       ) : skills.length === 0 ? (
         <div className='py-24px text-center text-t-secondary text-14px border border-dashed border-border-2 rd-12px'>
-          {t('settings.skillsNoneInstalled', { defaultValue: 'No skills installed yet. Browse GitHub or import from a local folder.' })}
+          {t('settings.skillsNoneInstalled', { defaultValue: 'No skills installed yet. Browse SkillsMP or import from a local folder.' })}
         </div>
       ) : (
         <AionScrollArea className={classNames('max-h-500px', isPageMode && 'max-h-none')} disableOverflow={isPageMode}>
@@ -176,9 +177,9 @@ const InstalledSkillsSection: React.FC<{
 };
 
 // ============================================================================
-// GitHub Browse Section
+// SkillsMP Browse Section
 // ============================================================================
-const GitHubBrowseSection: React.FC<{
+const SkillsMPBrowseSection: React.FC<{
   message: MessageInstance;
   onInstalled: () => void;
   installedSkillNames: string[];
@@ -186,22 +187,30 @@ const GitHubBrowseSection: React.FC<{
 }> = ({ message, onInstalled, installedSkillNames, isPageMode }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const [results, setResults] = useState<GitHubRepo[]>([]);
+  const [results, setResults] = useState<SkillsMPSkill[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [installing, setInstalling] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [page, setPage] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
 
   const handleSearch = useCallback(
-    async (pageNum = 1) => {
+    async (pageNum = 1, sortBy?: 'stars' | 'recent') => {
       const query = searchQuery.trim();
       if (!query) return;
 
       setLoading(true);
       setHasSearched(true);
       try {
-        const response = await ipcBridge.fs.searchGitHubSkills.invoke({ query, page: pageNum, perPage: 20 });
+        const apiKey = ConfigStorage.get('skillsmp.apiKey') || '';
+        const response = await ipcBridge.fs.searchSkillsMPSkills.invoke({
+          query,
+          page: pageNum,
+          perPage: 20,
+          sortBy,
+          apiKey: apiKey || undefined,
+        });
         if (response.success && response.data) {
           if (pageNum === 1) {
             setResults(response.data.items);
@@ -210,6 +219,7 @@ const GitHubBrowseSection: React.FC<{
           }
           setTotalCount(response.data.total_count);
           setPage(pageNum);
+          setHasNext(response.data.hasNext ?? false);
         } else {
           message.error(response.msg || t('settings.skillBrowseSearchFailed', { defaultValue: 'Search failed' }));
         }
@@ -223,12 +233,17 @@ const GitHubBrowseSection: React.FC<{
   );
 
   const handleInstall = useCallback(
-    async (repo: GitHubRepo) => {
-      setInstalling(repo.full_name);
+    async (skill: SkillsMPSkill) => {
+      if (!skill.githubUrl) {
+        message.error(t('settings.skillBrowseNoGitHub', { defaultValue: 'No GitHub URL available for this skill' }));
+        return;
+      }
+      const cloneUrl = skill.githubUrl.endsWith('.git') ? skill.githubUrl : `${skill.githubUrl}.git`;
+      setInstalling(skill.id);
       try {
         const response = await ipcBridge.fs.installSkillFromGitHub.invoke({
-          cloneUrl: repo.clone_url,
-          repoName: repo.name,
+          cloneUrl,
+          repoName: skill.name,
         });
         if (response.success && response.data) {
           message.success(
@@ -251,17 +266,25 @@ const GitHubBrowseSection: React.FC<{
   );
 
   const handleTagClick = useCallback(
-    (topic: string) => {
-      setSearchQuery(topic);
+    (query: string, sortBy?: 'stars' | 'recent') => {
+      setSearchQuery(query);
       setLoading(true);
       setHasSearched(true);
       void (async () => {
         try {
-          const response = await ipcBridge.fs.searchGitHubSkills.invoke({ query: topic, page: 1, perPage: 20 });
+          const apiKey = ConfigStorage.get('skillsmp.apiKey') || '';
+          const response = await ipcBridge.fs.searchSkillsMPSkills.invoke({
+            query,
+            page: 1,
+            perPage: 20,
+            sortBy,
+            apiKey: apiKey || undefined,
+          });
           if (response.success && response.data) {
             setResults(response.data.items);
             setTotalCount(response.data.total_count);
             setPage(1);
+            setHasNext(response.data.hasNext ?? false);
           }
         } catch {
           // ignore
@@ -273,13 +296,15 @@ const GitHubBrowseSection: React.FC<{
     []
   );
 
-  const formatStars = (count: number) => {
+  const formatStars = (count?: number) => {
+    if (!count) return '0';
     if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
     return String(count);
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+  const formatDate = (timestamp?: number) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp * 1000);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays === 0) return 'Today';
@@ -290,14 +315,22 @@ const GitHubBrowseSection: React.FC<{
 
   return (
     <div className='flex flex-col gap-16px min-h-0'>
-      <div className='text-14px text-t-primary'>{t('settings.skillBrowseTitle', { defaultValue: 'Browse Skills on GitHub' })}</div>
+      <div className='flex items-center gap-8px'>
+        <div className='text-14px text-t-primary'>{t('settings.skillBrowseTitle', { defaultValue: 'Browse Skills on SkillsMP' })}</div>
+        <span
+          className='text-11px text-primary cursor-pointer hover:underline'
+          onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com')}
+        >
+          skillsmp.com
+        </span>
+      </div>
 
       {/* Search bar */}
       <div className='flex gap-8px'>
         <Input
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder={t('settings.skillBrowseSearchPlaceholder', { defaultValue: 'Search for SKILL.md files (e.g. "filename:SKILL.md path:skills")' })}
+          placeholder={t('settings.skillBrowseSearchPlaceholder', { defaultValue: 'Search 145k+ agent skills...' })}
           onPressEnter={() => void handleSearch(1)}
           prefix={<Search size={16} />}
           className='flex-1'
@@ -308,15 +341,21 @@ const GitHubBrowseSection: React.FC<{
         </Button>
       </div>
 
-      {/* Pattern presets - search for SKILL.md in known project structures */}
+      {/* Category presets */}
       <div className='flex flex-wrap gap-6px'>
         {[
-          { label: 'All Skills', query: 'filename:SKILL.md' },
-          { label: 'skills/', query: 'filename:SKILL.md path:skills' },
-          { label: '.claude/', query: 'filename:SKILL.md path:.claude' },
-          { label: '.gemini/', query: 'filename:SKILL.md path:.gemini' },
+          { label: 'Popular', query: 'SKILL.md', sortBy: 'stars' as const },
+          { label: 'Recent', query: 'SKILL.md', sortBy: 'recent' as const },
+          { label: 'Claude', query: 'claude skills' },
+          { label: 'Gemini', query: 'gemini skills' },
+          { label: 'Coding', query: 'coding development' },
         ].map((preset) => (
-          <Tag key={preset.query} className='cursor-pointer' color='arcoblue' onClick={() => handleTagClick(preset.query)}>
+          <Tag
+            key={`${preset.query}-${preset.sortBy || ''}`}
+            className='cursor-pointer'
+            color='arcoblue'
+            onClick={() => handleTagClick(preset.query, preset.sortBy)}
+          >
             {preset.label}
           </Tag>
         ))}
@@ -331,39 +370,45 @@ const GitHubBrowseSection: React.FC<{
         ) : results.length > 0 ? (
           <div className='space-y-8px'>
             <div className='text-12px text-t-secondary mb-4px'>
-              {t('settings.skillBrowseResultCount', { count: totalCount, defaultValue: `${totalCount} repositories found` })}
+              {t('settings.skillBrowseResultCount', { count: totalCount, defaultValue: `${totalCount} skills found` })}
             </div>
-            {results.map((repo) => {
-              const isInstalled = installedSkillNames.some((n) => n === repo.name || repo.full_name.includes(n));
+            {results.map((skill) => {
+              const isInstalled = installedSkillNames.some((n) => n === skill.name);
               return (
-                <div key={repo.full_name} className='border border-border-2 rounded-8px p-12px hover:bg-fill-1 transition-colors'>
+                <div key={skill.id || skill.name} className='border border-border-2 rounded-8px p-12px hover:bg-fill-1 transition-colors'>
                   <div className='flex items-start gap-10px'>
                     <div className='flex-1 min-w-0'>
                       <div className='flex items-center gap-6px flex-wrap'>
                         <Typography.Text
                           bold
                           className='text-14px text-primary cursor-pointer hover:underline'
-                          onClick={() => void ipcBridge.shell.openExternal.invoke(repo.html_url)}
+                          onClick={() => {
+                            const url = skill.skillUrl || skill.githubUrl;
+                            if (url) void ipcBridge.shell.openExternal.invoke(url);
+                          }}
                         >
-                          {repo.full_name}
+                          {skill.name}
                         </Typography.Text>
-                        <span className='flex items-center gap-2px text-12px text-t-secondary'>
-                          <Star size={12} fill='var(--color-text-3)' />
-                          {formatStars(repo.stargazers_count)}
-                        </span>
-                        <span className='text-12px text-t-secondary'>{formatDate(repo.updated_at)}</span>
+                        {skill.author && <span className='text-12px text-t-secondary'>by {skill.author}</span>}
+                        {(skill.stars ?? 0) > 0 && (
+                          <span className='flex items-center gap-2px text-12px text-t-secondary'>
+                            <Star size={12} fill='var(--color-text-3)' />
+                            {formatStars(skill.stars)}
+                          </span>
+                        )}
+                        {skill.updatedAt && <span className='text-12px text-t-secondary'>{formatDate(skill.updatedAt)}</span>}
                       </div>
-                      {repo.description && <div className='text-12px text-t-secondary mt-4px line-clamp-2'>{repo.description}</div>}
-                      {repo.skillPaths.length > 0 && (
+                      {skill.description && <div className='text-12px text-t-secondary mt-4px line-clamp-2'>{skill.description}</div>}
+                      {skill.tags && skill.tags.length > 0 && (
                         <div className='flex flex-wrap gap-4px mt-6px'>
-                          {repo.skillPaths.slice(0, 6).map((sp) => (
-                            <Tag key={sp} size='small' color='green' className='text-11px font-mono'>
-                              {sp === '.' ? 'SKILL.md' : `${sp}/`}
+                          {skill.tags.slice(0, 6).map((tag) => (
+                            <Tag key={tag} size='small' color='green' className='text-11px'>
+                              {tag}
                             </Tag>
                           ))}
-                          {repo.skillPaths.length > 6 && (
+                          {skill.tags.length > 6 && (
                             <Tag size='small' color='gray' className='text-11px'>
-                              +{repo.skillPaths.length - 6}
+                              +{skill.tags.length - 6}
                             </Tag>
                           )}
                         </div>
@@ -378,9 +423,10 @@ const GitHubBrowseSection: React.FC<{
                         type='outline'
                         size='small'
                         className='flex-shrink-0'
-                        loading={installing === repo.full_name}
+                        loading={installing === skill.id}
+                        disabled={!skill.githubUrl}
                         icon={<Download size={14} />}
-                        onClick={() => void handleInstall(repo)}
+                        onClick={() => void handleInstall(skill)}
                       >
                         {t('settings.skillBrowseInstall', { defaultValue: 'Install' })}
                       </Button>
@@ -389,7 +435,7 @@ const GitHubBrowseSection: React.FC<{
                 </div>
               );
             })}
-            {results.length < totalCount && (
+            {hasNext && (
               <div className='flex justify-center pt-8px'>
                 <Button type='text' loading={loading} onClick={() => void handleSearch(page + 1)}>
                   {t('settings.skillBrowseLoadMore', { defaultValue: 'Load more' })}
@@ -401,7 +447,7 @@ const GitHubBrowseSection: React.FC<{
           <Empty description={t('settings.skillBrowseNoResults', { defaultValue: 'No skills found. Try different keywords.' })} className='py-40px' />
         ) : (
           <div className='text-center text-t-secondary py-32px text-13px'>
-            {t('settings.skillBrowseHint', { defaultValue: 'Search GitHub for community skills, or click a topic tag above to browse.' })}
+            {t('settings.skillBrowseHint', { defaultValue: 'Search 145k+ community skills on SkillsMP, or click a category above to browse.' })}
           </div>
         )}
       </AionScrollArea>
@@ -545,6 +591,47 @@ const ImportFolderSection: React.FC<{
 };
 
 // ============================================================================
+// API Key Section
+// ============================================================================
+const ApiKeySection: React.FC<{ message: MessageInstance }> = ({ message }) => {
+  const { t } = useTranslation();
+  const [apiKey, setApiKey] = useState(() => ConfigStorage.get('skillsmp.apiKey') || '');
+
+  const handleSave = useCallback(() => {
+    ConfigStorage.set('skillsmp.apiKey', apiKey.trim());
+    message.success(t('settings.skillsmpApiKeySaved', { defaultValue: 'SkillsMP API key saved' }));
+  }, [apiKey, message, t]);
+
+  return (
+    <div className='flex flex-col gap-12px min-h-0'>
+      <div className='flex items-center gap-8px'>
+        <div className='text-14px text-t-primary'>{t('settings.skillsmpApiKeyTitle', { defaultValue: 'SkillsMP API Key' })}</div>
+        <span
+          className='text-11px text-primary cursor-pointer hover:underline'
+          onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com/docs/api')}
+        >
+          {t('settings.skillsmpGetKey', { defaultValue: 'Get API key' })}
+        </span>
+      </div>
+      <div className='text-12px text-t-secondary'>
+        {t('settings.skillsmpApiKeyDesc', { defaultValue: 'Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.' })}
+      </div>
+      <div className='flex items-center gap-8px'>
+        <Input.Password
+          value={apiKey}
+          onChange={setApiKey}
+          placeholder='sk_live_...'
+          className='flex-1'
+        />
+        <Button type='primary' onClick={handleSave}>
+          {t('common.save', { defaultValue: 'Save' })}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
 // Main Skills Page Content
 // ============================================================================
 const SkillsModalContent: React.FC = () => {
@@ -585,14 +672,19 @@ const SkillsModalContent: React.FC = () => {
             <InstalledSkillsSection message={message} skills={skills} loading={loading} onRefresh={loadSkills} isPageMode={isPageMode} />
           </div>
 
-          {/* Browse GitHub */}
+          {/* Browse SkillsMP */}
           <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-border-2'>
-            <GitHubBrowseSection message={message} onInstalled={loadSkills} installedSkillNames={installedSkillNames} isPageMode={isPageMode} />
+            <SkillsMPBrowseSection message={message} onInstalled={loadSkills} installedSkillNames={installedSkillNames} isPageMode={isPageMode} />
           </div>
 
           {/* Import from Folder */}
           <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-border-2'>
             <ImportFolderSection message={message} onImported={loadSkills} />
+          </div>
+
+          {/* SkillsMP API Key */}
+          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-border-2'>
+            <ApiKeySection message={message} />
           </div>
         </div>
       </AionScrollArea>

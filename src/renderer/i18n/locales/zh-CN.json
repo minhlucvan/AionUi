@@ -840,9 +840,8 @@
       "step4": "授权成功后，你可以通过飞书与 AI 助手聊天！",
       "waitingConnection": "WebSocket 连接正在建立，请稍候..."
     },
-    "browseGitHub": "浏览 GitHub",
     "skillAlreadyInstalled": "已安装",
-    "skillBrowseHint": "搜索 GitHub 上的社区技能，或点击上方模式发现包含 SKILL.md 文件的项目。",
+    "skillBrowseHint": "在 SkillsMP 上搜索 145k+ 社区技能，或点击上方分类浏览。",
     "skillBrowseInstall": "安装",
     "skillBrowseInstallFailed": "技能安装失败",
     "skillBrowseInstallSuccess": "技能 \"{{name}}\" 安装成功",
@@ -850,8 +849,8 @@
     "skillBrowseNoResults": "未找到技能，请尝试其他关键词。",
     "skillBrowseResultCount": "找到 {{count}} 个结果",
     "skillBrowseSearchFailed": "GitHub 搜索失败",
-    "skillBrowseSearchPlaceholder": "搜索 SKILL.md 文件（如 \"filename:SKILL.md path:skills\"）",
-    "skillBrowseTitle": "在 GitHub 上浏览技能",
+    "skillBrowseSearchPlaceholder": "搜索 145k+ 智能体技能...",
+    "skillBrowseTitle": "在 SkillsMP 上浏览技能",
     "skillDeleteConfirm": "确定要删除 \"{{name}}\" 吗？这将从磁盘中移除技能文件。",
     "skillDeleteFailed": "删除技能失败",
     "skillDeleteSuccess": "技能 \"{{name}}\" 已删除",
@@ -862,7 +861,14 @@
     "skillsImported": "已导入 {{count}} 个技能{{skipped}}",
     "skillsInstalledCount": "{{count}} 个技能",
     "skillsInstalledTitle": "已安装技能",
-    "skillsNoneInstalled": "尚未安装技能。可浏览 GitHub 或从本地文件夹导入。"
+    "skillsNoneInstalled": "尚未安装技能。可浏览 SkillsMP 或从本地文件夹导入。",
+    "browseSkillsMP": "浏览 SkillsMP",
+    "skillBrowsePoweredBy": "由",
+    "skillBrowseNoGitHub": "此技能没有可用的 GitHub 地址",
+    "skillsmpApiKeyTitle": "SkillsMP API 密钥",
+    "skillsmpApiKeyDesc": "输入 SkillsMP API 密钥以搜索技能市场。可在 skillsmp.com 免费获取。",
+    "skillsmpGetKey": "获取 API 密钥",
+    "skillsmpApiKeySaved": "SkillsMP API 密钥已保存"
   },
   "messages": {
     "fileChanges": "文件变更",

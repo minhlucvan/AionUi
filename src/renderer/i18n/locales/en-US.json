@@ -844,9 +844,8 @@
       "step4": "Once approved, you can start chatting with the AI assistant through Lark!",
       "waitingConnection": "WebSocket connection is being established. Please wait..."
     },
-    "browseGitHub": "Browse GitHub",
     "skillAlreadyInstalled": "Installed",
-    "skillBrowseHint": "Search GitHub for community skills, or click a pattern above to discover projects with SKILL.md files.",
+    "skillBrowseHint": "Search 145k+ community skills on SkillsMP, or click a category above to browse.",
     "skillBrowseInstall": "Install",
     "skillBrowseInstallFailed": "Skill installation failed",
     "skillBrowseInstallSuccess": "Skill \"{{name}}\" installed successfully",
@@ -854,8 +853,8 @@
     "skillBrowseNoResults": "No skills found. Try different keywords.",
     "skillBrowseResultCount": "{{count}} results found",
     "skillBrowseSearchFailed": "GitHub search failed",
-    "skillBrowseSearchPlaceholder": "Search for SKILL.md files (e.g. \"filename:SKILL.md path:skills\")",
-    "skillBrowseTitle": "Browse Skills on GitHub",
+    "skillBrowseSearchPlaceholder": "Search 145k+ agent skills...",
+    "skillBrowseTitle": "Browse Skills on SkillsMP",
     "skillDeleteConfirm": "Are you sure you want to delete \"{{name}}\"? This will remove the skill files from disk.",
     "skillDeleteFailed": "Failed to delete skill",
     "skillDeleteSuccess": "Skill \"{{name}}\" deleted",
@@ -866,7 +865,14 @@
     "skillsImported": "{{count}} skills imported{{skipped}}",
     "skillsInstalledCount": "{{count}} skills",
     "skillsInstalledTitle": "Installed Skills",
-    "skillsNoneInstalled": "No skills installed yet. Browse GitHub or import from a local folder."
+    "skillsNoneInstalled": "No skills installed yet. Browse SkillsMP or import from a local folder.",
+    "browseSkillsMP": "Browse SkillsMP",
+    "skillBrowsePoweredBy": "Powered by",
+    "skillBrowseNoGitHub": "No GitHub URL available for this skill",
+    "skillsmpApiKeyTitle": "SkillsMP API Key",
+    "skillsmpApiKeyDesc": "Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.",
+    "skillsmpGetKey": "Get API key",
+    "skillsmpApiKeySaved": "SkillsMP API key saved"
   },
   "messages": {
     "fileChanges": "File Changes",

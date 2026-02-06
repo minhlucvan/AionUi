@@ -9,17 +9,18 @@ import { Download, Star, Search } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
+import { ConfigStorage } from '@/common/storage';
 
-interface GitHubRepo {
+interface SkillsMPSkill {
+  id: string;
   name: string;
-  full_name: string;
   description: string;
-  html_url: string;
-  clone_url: string;
-  stargazers_count: number;
-  updated_at: string;
-  owner: { login: string; avatar_url: string };
-  skillPaths: string[];
+  author?: string;
+  stars?: number;
+  updatedAt?: number;
+  tags?: string[];
+  githubUrl?: string;
+  skillUrl?: string;
 }
 
 interface SkillBrowseModalProps {
@@ -30,31 +31,40 @@ interface SkillBrowseModalProps {
 }
 
 const SEARCH_PRESETS = [
-  { label: 'All Skills', query: 'filename:SKILL.md' },
-  { label: 'skills/', query: 'filename:SKILL.md path:skills' },
-  { label: '.claude/', query: 'filename:SKILL.md path:.claude' },
-  { label: '.gemini/', query: 'filename:SKILL.md path:.gemini' },
+  { label: 'Popular', query: 'SKILL.md', sortBy: 'stars' as const },
+  { label: 'Recent', query: 'SKILL.md', sortBy: 'recent' as const },
+  { label: 'Claude', query: 'claude skills' },
+  { label: 'Gemini', query: 'gemini skills' },
+  { label: 'Coding', query: 'coding development' },
 ];
 
 const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, onInstalled, message }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const [results, setResults] = useState<GitHubRepo[]>([]);
+  const [results, setResults] = useState<SkillsMPSkill[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [installing, setInstalling] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [page, setPage] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
 
   const handleSearch = useCallback(
-    async (query: string, pageNum = 1) => {
+    async (query: string, pageNum = 1, sortBy?: 'stars' | 'recent') => {
       const q = query.trim();
       if (!q) return;
 
       setLoading(true);
       setHasSearched(true);
       try {
-        const response = await ipcBridge.fs.searchGitHubSkills.invoke({ query: q, page: pageNum, perPage: 20 });
+        const apiKey = ConfigStorage.get('skillsmp.apiKey') || '';
+        const response = await ipcBridge.fs.searchSkillsMPSkills.invoke({
+          query: q,
+          page: pageNum,
+          perPage: 20,
+          sortBy,
+          apiKey: apiKey || undefined,
+        });
         if (response.success && response.data) {
           if (pageNum === 1) {
             setResults(response.data.items);
@@ -63,6 +73,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
           }
           setTotalCount(response.data.total_count);
           setPage(pageNum);
+          setHasNext(response.data.hasNext ?? false);
         } else {
           message.error(response.msg || t('settings.skillBrowseSearchFailed', { defaultValue: 'Search failed' }));
         }
@@ -76,12 +87,17 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
   );
 
   const handleInstall = useCallback(
-    async (repo: GitHubRepo) => {
-      setInstalling(repo.full_name);
+    async (skill: SkillsMPSkill) => {
+      if (!skill.githubUrl) {
+        message.error(t('settings.skillBrowseNoGitHub', { defaultValue: 'No GitHub URL available for this skill' }));
+        return;
+      }
+      const cloneUrl = skill.githubUrl.endsWith('.git') ? skill.githubUrl : `${skill.githubUrl}.git`;
+      setInstalling(skill.id);
       try {
         const response = await ipcBridge.fs.installSkillFromGitHub.invoke({
-          cloneUrl: repo.clone_url,
-          repoName: repo.name,
+          cloneUrl,
+          repoName: skill.name,
         });
         if (response.success && response.data) {
           message.success(
@@ -103,13 +119,15 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
     [message, t, onInstalled]
   );
 
-  const formatStars = (count: number) => {
+  const formatStars = (count?: number) => {
+    if (!count) return '0';
     if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
     return String(count);
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+  const formatDate = (timestamp?: number) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp * 1000);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays === 0) return 'Today';
@@ -122,7 +140,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
     <Modal
       visible={visible}
       onCancel={onClose}
-      title={t('settings.skillBrowseTitle', { defaultValue: 'Browse Skills on GitHub' })}
+      title={t('settings.skillBrowseTitle', { defaultValue: 'Browse Skills on SkillsMP' })}
       footer={null}
       style={{ width: 640 }}
       wrapStyle={{ zIndex: 10001 }}
@@ -136,7 +154,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
             value={searchQuery}
             onChange={setSearchQuery}
             placeholder={t('settings.skillBrowseSearchPlaceholder', {
-              defaultValue: 'Search for SKILL.md files (e.g. "filename:SKILL.md path:skills")',
+              defaultValue: 'Search 145k+ agent skills...',
             })}
             onPressEnter={() => void handleSearch(searchQuery, 1)}
             prefix={<Search size={16} />}
@@ -148,16 +166,16 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
           </Button>
         </div>
 
-        {/* Pattern presets */}
+        {/* Category presets */}
         <div className='flex flex-wrap gap-6px'>
           {SEARCH_PRESETS.map((preset) => (
             <Tag
-              key={preset.query}
+              key={`${preset.query}-${preset.sortBy || ''}`}
               className='cursor-pointer'
               color='arcoblue'
               onClick={() => {
                 setSearchQuery(preset.query);
-                void handleSearch(preset.query, 1);
+                void handleSearch(preset.query, 1, preset.sortBy);
               }}
             >
               {preset.label}
@@ -176,31 +194,41 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
               <div className='text-12px text-t-secondary mb-4px'>
                 {t('settings.skillBrowseResultCount', { count: totalCount, defaultValue: `${totalCount} results found` })}
               </div>
-              {results.map((repo) => (
-                <div key={repo.full_name} className='border border-border-2 rounded-8px p-12px hover:bg-fill-1 transition-colors'>
+              {results.map((skill) => (
+                <div key={skill.id || skill.name} className='border border-border-2 rounded-8px p-12px hover:bg-fill-1 transition-colors'>
                   <div className='flex items-start gap-10px'>
                     <div className='flex-1 min-w-0'>
                       <div className='flex items-center gap-6px flex-wrap'>
-                        <Typography.Text bold className='text-14px text-primary cursor-pointer hover:underline' onClick={() => void ipcBridge.shell.openExternal.invoke(repo.html_url)}>
-                          {repo.full_name}
+                        <Typography.Text
+                          bold
+                          className='text-14px text-primary cursor-pointer hover:underline'
+                          onClick={() => {
+                            const url = skill.skillUrl || skill.githubUrl;
+                            if (url) void ipcBridge.shell.openExternal.invoke(url);
+                          }}
+                        >
+                          {skill.name}
                         </Typography.Text>
-                        <span className='flex items-center gap-2px text-12px text-t-secondary'>
-                          <Star size={12} fill='var(--color-text-3)' />
-                          {formatStars(repo.stargazers_count)}
-                        </span>
-                        <span className='text-12px text-t-secondary'>{formatDate(repo.updated_at)}</span>
+                        {skill.author && <span className='text-12px text-t-secondary'>by {skill.author}</span>}
+                        {(skill.stars ?? 0) > 0 && (
+                          <span className='flex items-center gap-2px text-12px text-t-secondary'>
+                            <Star size={12} fill='var(--color-text-3)' />
+                            {formatStars(skill.stars)}
+                          </span>
+                        )}
+                        {skill.updatedAt && <span className='text-12px text-t-secondary'>{formatDate(skill.updatedAt)}</span>}
                       </div>
-                      {repo.description && <div className='text-12px text-t-secondary mt-4px line-clamp-2'>{repo.description}</div>}
-                      {repo.skillPaths.length > 0 && (
+                      {skill.description && <div className='text-12px text-t-secondary mt-4px line-clamp-2'>{skill.description}</div>}
+                      {skill.tags && skill.tags.length > 0 && (
                         <div className='flex flex-wrap gap-4px mt-6px'>
-                          {repo.skillPaths.slice(0, 5).map((sp) => (
-                            <Tag key={sp} size='small' color='green' className='text-11px font-mono'>
-                              {sp === '.' ? 'SKILL.md' : `${sp}/`}
+                          {skill.tags.slice(0, 5).map((tag) => (
+                            <Tag key={tag} size='small' color='green' className='text-11px'>
+                              {tag}
                             </Tag>
                           ))}
-                          {repo.skillPaths.length > 5 && (
+                          {skill.tags.length > 5 && (
                             <Tag size='small' color='gray' className='text-11px'>
-                              +{repo.skillPaths.length - 5}
+                              +{skill.tags.length - 5}
                             </Tag>
                           )}
                         </div>
@@ -210,16 +238,17 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
                       type='outline'
                       size='small'
                       className='flex-shrink-0'
-                      loading={installing === repo.full_name}
+                      loading={installing === skill.id}
+                      disabled={!skill.githubUrl}
                       icon={<Download size={14} />}
-                      onClick={() => void handleInstall(repo)}
+                      onClick={() => void handleInstall(skill)}
                     >
                       {t('settings.skillBrowseInstall', { defaultValue: 'Install' })}
                     </Button>
                   </div>
                 </div>
               ))}
-              {results.length < totalCount && (
+              {hasNext && (
                 <div className='flex justify-center pt-8px'>
                   <Button type='text' loading={loading} onClick={() => void handleSearch(searchQuery, page + 1)}>
                     {t('settings.skillBrowseLoadMore', { defaultValue: 'Load more' })}
@@ -232,10 +261,18 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
           ) : (
             <div className='text-center text-t-secondary py-32px text-13px'>
               {t('settings.skillBrowseHint', {
-                defaultValue: 'Search GitHub for community skills, or click a pattern above to discover projects with SKILL.md files.',
+                defaultValue: 'Search 145k+ community skills on SkillsMP, or click a category above to browse.',
               })}
             </div>
           )}
+        </div>
+
+        {/* SkillsMP attribution */}
+        <div className='text-center text-11px text-t-quaternary'>
+          {t('settings.skillBrowsePoweredBy', { defaultValue: 'Powered by' })}{' '}
+          <span className='cursor-pointer hover:underline text-primary' onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com')}>
+            skillsmp.com
+          </span>
         </div>
       </div>
     </Modal>

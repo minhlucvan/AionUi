@@ -947,190 +947,95 @@ export function initFsBridge(): void {
     }
   });
 
-  // Helper: fetch JSON from GitHub API (unauthenticated)
-  const githubApiFetch = (url: string): Promise<any> => {
+  // Helper: fetch JSON from SkillsMP API
+  const skillsmpApiFetch = (url: string, apiKey?: string): Promise<any> => {
     return new Promise((resolve, reject) => {
-      const req = https.get(
-        url,
-        {
-          headers: {
-            'User-Agent': 'AionUi-SkillBrowser',
-            Accept: 'application/vnd.github.v3+json',
-          },
-        },
-        (res) => {
-          let body = '';
-          res.on('data', (chunk: Buffer) => {
-            body += chunk.toString();
-          });
-          res.on('end', () => {
-            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-              try {
-                resolve(JSON.parse(body));
-              } catch {
-                reject(new Error('Invalid JSON response'));
-              }
-            } else {
-              reject(new Error(`GitHub API returned status ${res.statusCode}: ${body.slice(0, 200)}`));
+      const headers: Record<string, string> = {
+        'User-Agent': 'AionUi-SkillBrowser',
+        'Content-Type': 'application/json',
+      };
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      const req = https.get(url, { headers }, (res) => {
+        let body = '';
+        res.on('data', (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              resolve(JSON.parse(body));
+            } catch {
+              reject(new Error('Invalid JSON response from SkillsMP'));
             }
-          });
-        }
-      );
+          } else if (res.statusCode === 401) {
+            reject(new Error('Invalid or missing SkillsMP API key. Get one at skillsmp.com'));
+          } else if (res.statusCode === 429) {
+            reject(new Error('SkillsMP rate limit exceeded. Please wait before searching again.'));
+          } else {
+            reject(new Error(`SkillsMP API returned status ${res.statusCode}: ${body.slice(0, 200)}`));
+          }
+        });
+      });
       req.on('error', reject);
-      req.setTimeout(15000, () => {
+      req.setTimeout(30000, () => {
         req.destroy();
-        reject(new Error('GitHub API request timed out'));
+        reject(new Error('SkillsMP API request timed out'));
       });
     });
   };
 
-  // Helper: run gh CLI command and return parsed JSON
-  const ghCliJson = (args: string[]): Promise<any> => {
-    return new Promise((resolve, reject) => {
-      execFile('gh', args, { timeout: 30000 }, (error, stdout) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        try {
-          resolve(JSON.parse(stdout));
-        } catch {
-          reject(new Error('Failed to parse gh CLI output'));
-        }
-      });
-    });
-  };
-
-  // Helper: check if gh CLI is available and authenticated
-  const isGhAvailable = (): Promise<boolean> => {
-    return new Promise((resolve) => {
-      execFile('gh', ['auth', 'status'], { timeout: 5000 }, (error) => {
-        resolve(!error);
-      });
-    });
-  };
-
-  // Search via gh CLI (code search, requires auth - handled by gh)
-  const searchViaGhCli = async (query: string, perPage: number) => {
-    // gh search code uses the user's existing auth
-    const hasFilePattern = query.includes('filename:') || query.includes('path:');
-    const searchQuery = hasFilePattern ? query : `filename:SKILL.md ${query}`;
-
-    const codeResults = await ghCliJson([
-      'search', 'code', searchQuery,
-      '--json', 'repository,path',
-      '--limit', String(perPage),
-    ]);
-
-    // Group by repository
-    const repoMap = new Map<string, { fullName: string; skillPaths: string[] }>();
-    for (const item of codeResults) {
-      const fullName = item.repository?.nameWithOwner || item.repository?.fullName || '';
-      if (!fullName) continue;
-      const filePath = item.path || '';
-      const skillDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '.';
-
-      if (repoMap.has(fullName)) {
-        repoMap.get(fullName)!.skillPaths.push(skillDir);
-      } else {
-        repoMap.set(fullName, { fullName, skillPaths: [skillDir] });
-      }
-    }
-
-    // Fetch full repo details for each
-    const items = await Promise.all(
-      Array.from(repoMap.values()).map(async ({ fullName, skillPaths }) => {
-        try {
-          const repo = await ghCliJson(['repo', 'view', fullName, '--json', 'name,owner,description,url,stargazerCount,pushedAt']);
-          return {
-            name: repo.name || fullName.split('/')[1] || '',
-            full_name: fullName,
-            description: repo.description || '',
-            html_url: repo.url || `https://github.com/${fullName}`,
-            clone_url: `https://github.com/${fullName}.git`,
-            stargazers_count: repo.stargazerCount || 0,
-            updated_at: repo.pushedAt || '',
-            owner: { login: repo.owner?.login || fullName.split('/')[0] || '', avatar_url: '' },
-            skillPaths,
-          };
-        } catch {
-          return {
-            name: fullName.split('/')[1] || '',
-            full_name: fullName,
-            description: '',
-            html_url: `https://github.com/${fullName}`,
-            clone_url: `https://github.com/${fullName}.git`,
-            stargazers_count: 0,
-            updated_at: '',
-            owner: { login: fullName.split('/')[0] || '', avatar_url: '' },
-            skillPaths,
-          };
-        }
-      })
-    );
-
-    items.sort((a, b) => b.stargazers_count - a.stargazers_count);
-    return { items, total_count: codeResults.length };
-  };
-
-  // Fallback: search via unauthenticated GitHub Repositories API (no auth needed)
-  const searchViaRepoApi = async (query: string, page: number, perPage: number) => {
-    // Repository search is unauthenticated - search for repos with SKILL.md in name/readme
-    const hasFilePattern = query.includes('filename:') || query.includes('path:');
-    // Strip file patterns for repo search since it doesn't support them
-    const cleanQuery = hasFilePattern
-      ? query.replace(/filename:\S+/g, '').replace(/path:\S+/g, '').trim() || 'SKILL.md'
-      : `${query} SKILL.md`;
-
-    const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(cleanQuery)}&sort=stars&order=desc&page=${page}&per_page=${perPage}`;
-    const result = await githubApiFetch(url);
-
-    return {
-      items: (result.items || []).map((item: any) => ({
-        name: item.name || '',
-        full_name: item.full_name || '',
-        description: item.description || '',
-        html_url: item.html_url || '',
-        clone_url: item.clone_url || '',
-        stargazers_count: item.stargazers_count || 0,
-        updated_at: item.updated_at || '',
-        owner: {
-          login: item.owner?.login || '',
-          avatar_url: item.owner?.avatar_url || '',
-        },
-        skillPaths: [] as string[], // repo search can't detect skill paths
-      })),
-      total_count: result.total_count || 0,
-    };
-  };
-
-  // GitHub skill 搜索 / Search GitHub for skills
-  // Strategy: use gh CLI (code search) if available, fall back to unauthenticated repo search
-  ipcBridge.fs.searchGitHubSkills.provider(async ({ query, page = 1, perPage = 20 }) => {
+  // SkillsMP skill search / 通过 SkillsMP 搜索技能
+  ipcBridge.fs.searchSkillsMPSkills.provider(async ({ query, page = 1, perPage = 20, sortBy, apiKey }) => {
     try {
-      const ghAvailable = await isGhAvailable();
+      const params = new URLSearchParams({
+        q: query,
+        page: String(page),
+        limit: String(Math.min(perPage, 100)),
+      });
+      if (sortBy) params.set('sortBy', sortBy);
 
-      if (ghAvailable) {
-        console.log('[fsBridge] Using gh CLI for skill search (code search)');
-        const data = await searchViaGhCli(query, perPage);
-        return { success: true, data };
-      }
+      const url = `https://skillsmp.com/api/v1/skills/search?${params.toString()}`;
+      console.log('[fsBridge] Searching SkillsMP:', url);
 
-      console.log('[fsBridge] gh CLI not available, falling back to repository search (no auth)');
-      const data = await searchViaRepoApi(query, page, perPage);
-      return { success: true, data };
-    } catch (error) {
-      console.error('[fsBridge] GitHub skill search failed:', error);
-      // If gh CLI failed, try repo API as last resort
-      try {
-        const data = await searchViaRepoApi(query, page, perPage);
-        return { success: true, data };
-      } catch (fallbackError) {
+      const result = await skillsmpApiFetch(url, apiKey);
+
+      if (!result.success) {
         return {
           success: false,
-          msg: `GitHub search failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`,
+          msg: result.error?.message || 'SkillsMP search failed',
         };
       }
+
+      const skills = result.data?.skills || [];
+      const pagination = result.data?.pagination;
+
+      return {
+        success: true,
+        data: {
+          items: skills.map((s: any) => ({
+            id: s.id || '',
+            name: s.name || '',
+            description: s.description || '',
+            author: s.author || undefined,
+            stars: s.stars || 0,
+            updatedAt: s.updatedAt || undefined,
+            tags: s.tags || [],
+            githubUrl: s.githubUrl || '',
+            skillUrl: s.skillUrl || '',
+          })),
+          total_count: pagination?.total || skills.length,
+          hasNext: pagination?.hasNext || false,
+        },
+      };
+    } catch (error) {
+      console.error('[fsBridge] SkillsMP search failed:', error);
+      return {
+        success: false,
+        msg: `SkillsMP search failed: ${error instanceof Error ? error.message : String(error)}`,
+      };
     }
   });
 

@@ -664,7 +664,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
                   <Typography.Text bold>{t('settings.assistantSkills', { defaultValue: 'Skills' })}</Typography.Text>
                   <div className='flex items-center gap-6px'>
                     <Button size='small' type='outline' icon={<Search size={14} />} onClick={() => setBrowseSkillsVisible(true)} className='rounded-[100px]'>
-                      {t('settings.browseGitHub', { defaultValue: 'Browse GitHub' })}
+                      {t('settings.browseSkillsMP', { defaultValue: 'Browse SkillsMP' })}
                     </Button>
                     <Button size='small' type='outline' icon={<Plus size={14} />} onClick={() => setSkillsModalVisible(true)} className='rounded-[100px]'>
                       {t('settings.addSkills', { defaultValue: 'Add Skills' })}
