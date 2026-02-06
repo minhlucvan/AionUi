@@ -1,11 +1,11 @@
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { Computer, Gemini, Info, Lightning, LinkCloud, System, Toolkit, Robot, Earth } from '@icon-park/react';
+import { Tooltip } from '@arco-design/web-react';
+import { Api, Computer, Earth, Gemini, Info, Lightning, LinkCloud, Robot, System, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Tooltip } from '@arco-design/web-react';
 
 const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false }) => {
   const navigate = useNavigate();
@@ -33,14 +33,14 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
         path: 'agent',
       },
       {
+        label: t('settings.bots.title', { defaultValue: 'Bots' }),
+        icon: <Api />,
+        path: 'bots',
+      },
+      {
         label: t('settings.skills', { defaultValue: 'Skills' }),
         icon: <Lightning />,
         path: 'skills',
-      },
-      {
-        label: t('settings.bots', { defaultValue: 'Bots' }),
-        icon: <Robot />,
-        path: 'bots',
       },
       {
         label: t('settings.tools'),

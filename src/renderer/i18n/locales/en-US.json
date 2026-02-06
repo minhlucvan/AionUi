@@ -852,12 +852,15 @@
       "waitingConnection": "WebSocket connection is being established. Please wait..."
     },
     "bots": {
-      "quickSetup": "Quick Setup Guide",
-      "quickSetupStep1": "Open Mezon Developer Portal",
-      "quickSetupStep2": "Create a bot application and copy its token",
-      "quickSetupStep3": "Add the bot to any clan/channel you want it to monitor",
-      "quickSetupTip": "Tip: You can also set MEZON_TOKEN in your environment",
-      "quickSetupDocs": "Documentation"
+      "title": "Bots",
+      "channel": "Channel",
+      "channelDesc": "The platform this bot connects to",
+      "mezonSetup": "Mezon Setup Guide",
+      "mezonStep1": "Open Mezon Developer Portal",
+      "mezonStep2": "Create a bot application and copy its token",
+      "mezonStep3": "Add the bot to any clan/channel you want it to monitor",
+      "mezonTip": "Tip: You can also set MEZON_TOKEN in your environment",
+      "mezonDocs": "Documentation"
     },
     "skillAlreadyInstalled": "Installed",
     "skillBrowseHint": "Search 145k+ community skills on SkillsMP, or click a category above to browse.",

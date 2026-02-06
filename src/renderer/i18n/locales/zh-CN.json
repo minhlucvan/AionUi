@@ -848,12 +848,15 @@
       "waitingConnection": "WebSocket 连接正在建立，请稍候..."
     },
     "bots": {
-      "quickSetup": "快速配置指南",
-      "quickSetupStep1": "打开 Mezon 开发者门户",
-      "quickSetupStep2": "创建机器人应用并复制其令牌",
-      "quickSetupStep3": "将机器人添加到你想要监控的任意频道",
-      "quickSetupTip": "提示：你也可以在环境变量中设置 MEZON_TOKEN",
-      "quickSetupDocs": "查看文档"
+      "title": "机器人",
+      "channel": "渠道",
+      "channelDesc": "机器人连接的平台",
+      "mezonSetup": "Mezon 配置指南",
+      "mezonStep1": "打开 Mezon 开发者门户",
+      "mezonStep2": "创建机器人应用并复制其令牌",
+      "mezonStep3": "将机器人添加到你想要监控的任意频道",
+      "mezonTip": "提示：你也可以在环境变量中设置 MEZON_TOKEN",
+      "mezonDocs": "查看文档"
     },
     "skillAlreadyInstalled": "已安装",
     "skillBrowseHint": "在 SkillsMP 上搜索 145k+ 社区技能，或点击上方分类浏览。",
