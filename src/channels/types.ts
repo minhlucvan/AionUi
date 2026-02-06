@@ -58,6 +58,20 @@ export interface IChannelPluginConfig {
 }
 
 /**
+ * Mezon bot configuration (stored in ConfigStorage, no secrets)
+ * Secrets (token, botId) are stored in the DB plugin entry
+ */
+export interface IMezonBotConfig {
+  id: string; // UUID, plugin ID = `mezon_${id}`
+  name: string; // Display name
+  assistantId?: string; // Reference to assistant from acp.customAgents
+  enabled: boolean;
+  defaultModel?: { id: string; useModel: string };
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
  * Plugin status for IPC communication
  */
 export interface IChannelPluginStatus {
@@ -227,6 +241,7 @@ export interface IMessageAction {
 export interface IUnifiedIncomingMessage {
   id: string;
   platform: PluginType;
+  pluginId?: string; // Specific plugin instance ID (for multi-bot support)
   chatId: string;
   user: IUnifiedUser;
   content: IUnifiedMessageContent;

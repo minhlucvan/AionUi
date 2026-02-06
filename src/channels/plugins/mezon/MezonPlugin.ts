@@ -233,8 +233,9 @@ export class MezonPlugin extends BasePlugin {
 
       // Check for /start command
       const text = msg.content?.t || '';
+      const currentPluginId = this.config?.id;
       if (text === '/start') {
-        const unifiedMessage = toUnifiedIncomingMessage(msg, this.botUserId);
+        const unifiedMessage = toUnifiedIncomingMessage(msg, this.botUserId, currentPluginId);
         if (unifiedMessage && this.messageHandler) {
           unifiedMessage.content.type = 'command';
           unifiedMessage.content.text = '/start';
@@ -246,7 +247,7 @@ export class MezonPlugin extends BasePlugin {
       }
 
       // Convert to unified message and forward to handler
-      const unifiedMessage = toUnifiedIncomingMessage(msg, this.botUserId);
+      const unifiedMessage = toUnifiedIncomingMessage(msg, this.botUserId, currentPluginId);
       if (unifiedMessage && this.messageHandler) {
         console.log(`[MezonPlugin] Forwarding message to handler (non-blocking)`);
         // Don't await - process in background to avoid blocking

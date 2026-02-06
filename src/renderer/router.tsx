@@ -12,6 +12,7 @@ import ModeSettings from './pages/settings/ModeSettings';
 import SystemSettings from './pages/settings/SystemSettings';
 import SkillsSettings from './pages/settings/SkillsSettings';
 import ToolsSettings from './pages/settings/ToolsSettings';
+import MezonSettings from './pages/settings/MezonSettings';
 import WebuiSettings from './pages/settings/WebuiSettings';
 import LoginPage from './pages/login';
 import ComponentsShowcase from './pages/test/ComponentsShowcase';
@@ -49,6 +50,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/system' element={<SystemSettings />} />
           <Route path='/settings/about' element={<About />} />
           <Route path='/settings/skills' element={<SkillsSettings />} />
+          <Route path='/settings/mezon' element={<MezonSettings />} />
           <Route path='/settings/tools' element={<ToolsSettings />} />
           <Route path='/settings' element={<Navigate to='/settings/gemini' replace />} />
           <Route path='/test/components' element={<ComponentsShowcase />} />

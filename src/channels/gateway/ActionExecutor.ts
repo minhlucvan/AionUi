@@ -5,7 +5,9 @@
  */
 
 import type { TMessage } from '@/common/chatLib';
+import type { TProviderWithModel } from '@/common/storage';
 import { getDatabase } from '@/process/database';
+import { ProcessConfig } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
@@ -263,7 +265,7 @@ export class ActionExecutor {
     // Build action context
     const context: IActionContext = {
       platform,
-      pluginId: `${platform}_default`, // TODO: Get actual plugin ID
+      pluginId: message.pluginId || `${platform}_default`,
       userId: user.id,
       chatId,
       displayName: user.displayName,
@@ -318,12 +320,12 @@ export class ActionExecutor {
       // 获取或创建会话，优先复用该平台来源的会话
       let session = this.sessionManager.getSession(channelUser.id);
       if (!session || !session.conversationId) {
-        // 获取用户选择的模型 / Get user selected model
-        const model = await getTelegramDefaultModel();
+        // 获取用户选择的模型 / Get user selected model (supports multi-bot)
+        const model = await this.getModelForPlugin(message.pluginId);
 
         // 使用 ConversationService 获取或创建会话（根据平台）
         // Use ConversationService to get or create conversation (based on platform)
-        const conversationName = platform === 'lark' ? 'Lark Assistant' : platform === 'mezon' ? 'Mezon Assistant' : 'Telegram Assistant';
+        const conversationName = await this.getConversationNameForPlugin(platform, message.pluginId);
         const result = await ConversationService.getOrCreateTelegramConversation({
           model,
           name: conversationName,
@@ -604,9 +606,67 @@ export class ActionExecutor {
    * Get plugin instance for a message
    */
   private getPluginForMessage(message: IUnifiedIncomingMessage) {
-    // For now, get the first plugin of the matching type
+    // If pluginId is provided, look up by ID first (multi-bot support)
+    if (message.pluginId) {
+      const plugin = this.pluginManager.getPlugin(message.pluginId);
+      if (plugin) return plugin;
+    }
+    // Fallback: get the first plugin of the matching type
     const plugins = this.pluginManager.getAllPlugins();
     return plugins.find((p) => p.type === message.platform);
+  }
+
+  /**
+   * Get model for a specific plugin (multi-bot support)
+   * Looks up bot config from ProcessConfig to find the assigned model
+   */
+  private async getModelForPlugin(pluginId?: string): Promise<TProviderWithModel> {
+    if (pluginId) {
+      try {
+        const bots = await ProcessConfig.get('mezon.bots');
+        if (bots && Array.isArray(bots)) {
+          // Extract bot UUID from plugin ID (format: mezon_<uuid>)
+          const botUuid = pluginId.replace(/^mezon_/, '');
+          const botConfig = bots.find((b) => b.id === botUuid);
+          if (botConfig?.defaultModel?.id && botConfig.defaultModel.useModel) {
+            const providers = await ProcessConfig.get('model.config');
+            if (providers && Array.isArray(providers)) {
+              const provider = providers.find((p) => p.id === botConfig.defaultModel!.id);
+              if (provider && provider.model?.includes(botConfig.defaultModel.useModel)) {
+                return { ...provider, useModel: botConfig.defaultModel.useModel } as TProviderWithModel;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[ActionExecutor] Failed to get bot-specific model:', error);
+      }
+    }
+    // Fallback to default model
+    return getTelegramDefaultModel();
+  }
+
+  /**
+   * Get conversation name for a plugin (multi-bot support)
+   */
+  private async getConversationNameForPlugin(platform: string, pluginId?: string): Promise<string> {
+    if (platform === 'mezon' && pluginId) {
+      try {
+        const bots = await ProcessConfig.get('mezon.bots');
+        if (bots && Array.isArray(bots)) {
+          const botUuid = pluginId.replace(/^mezon_/, '');
+          const botConfig = bots.find((b) => b.id === botUuid);
+          if (botConfig?.name) {
+            return `Mezon: ${botConfig.name}`;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    if (platform === 'lark') return 'Lark Assistant';
+    if (platform === 'mezon') return 'Mezon Assistant';
+    return 'Telegram Assistant';
   }
 
   /**

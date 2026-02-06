@@ -21,7 +21,7 @@ import type { IUnifiedIncomingMessage, IUnifiedMessageContent, IUnifiedOutgoingM
 /**
  * Convert a Mezon ChannelMessage to unified incoming message
  */
-export function toUnifiedIncomingMessage(msg: ChannelMessage, botUserId: string): IUnifiedIncomingMessage | null {
+export function toUnifiedIncomingMessage(msg: ChannelMessage, botUserId: string, pluginId?: string): IUnifiedIncomingMessage | null {
   // Ignore messages from the bot itself
   if (msg.sender_id === botUserId) {
     return null;
@@ -35,6 +35,7 @@ export function toUnifiedIncomingMessage(msg: ChannelMessage, botUserId: string)
   return {
     id: msg.message_id || msg.id,
     platform: 'mezon',
+    pluginId,
     chatId: msg.channel_id,
     user,
     content,
