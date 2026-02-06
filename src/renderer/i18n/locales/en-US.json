@@ -877,7 +877,16 @@
     "skillsmpApiKeyTitle": "SkillsMP API Key",
     "skillsmpApiKeyDesc": "Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.",
     "skillsmpGetKey": "Get API key",
-    "skillsmpApiKeySaved": "SkillsMP API key saved"
+    "skillsmpApiKeySaved": "SkillsMP API key saved",
+    "uploadSkill": "Upload",
+    "skillDetailTitle": "Skill Details",
+    "skillDetailName": "Name",
+    "skillDetailDescription": "Description",
+    "skillDetailLocation": "Location",
+    "skillDetailEnabled": "Enabled",
+    "skillTypeCustom": "Custom",
+    "skillTypeBuiltin": "Builtin",
+    "skillsAvailable": "Available skills"
   },
   "messages": {
     "fileChanges": "File Changes",
