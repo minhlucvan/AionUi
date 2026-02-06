@@ -844,7 +844,16 @@
     "skillsmpApiKeyTitle": "SkillsMP API キー",
     "skillsmpApiKeyDesc": "SkillsMP API キーを入力してスキルマーケットプレイスを検索します。skillsmp.com で無料で取得できます。",
     "skillsmpGetKey": "API キーを取得",
-    "skillsmpApiKeySaved": "SkillsMP API キーを保存しました"
+    "skillsmpApiKeySaved": "SkillsMP API キーを保存しました",
+    "uploadSkill": "アップロード",
+    "skillDetailTitle": "スキル詳細",
+    "skillDetailName": "名前",
+    "skillDetailDescription": "説明",
+    "skillDetailLocation": "場所",
+    "skillDetailEnabled": "有効",
+    "skillTypeCustom": "カスタム",
+    "skillTypeBuiltin": "組み込み",
+    "skillsAvailable": "利用可能なスキル"
   },
   "messages": {
     "fileChanges": "ファイル変更",
