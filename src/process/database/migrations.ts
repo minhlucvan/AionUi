@@ -414,9 +414,47 @@ const migration_v10: IMigration = {
 };
 
 /**
+ * Migration v10 -> v11: Add memory_cache table for memU memory module
+ * Stores cached memory items from memU for offline access and performance
+ */
+const migration_v11: IMigration = {
+  version: 11,
+  name: 'Add memory_cache table',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS memory_cache (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        conversation_id TEXT,
+        category TEXT,
+        content TEXT NOT NULL,
+        relevance_score REAL,
+        source TEXT NOT NULL DEFAULT 'memu_cloud',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_memory_cache_user ON memory_cache(user_id);
+      CREATE INDEX IF NOT EXISTS idx_memory_cache_category ON memory_cache(category);
+      CREATE INDEX IF NOT EXISTS idx_memory_cache_conversation ON memory_cache(conversation_id);
+    `);
+    console.log('[Migration v11] Added memory_cache table');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_memory_cache_conversation;
+      DROP INDEX IF EXISTS idx_memory_cache_category;
+      DROP INDEX IF EXISTS idx_memory_cache_user;
+      DROP TABLE IF EXISTS memory_cache;
+    `);
+    console.log('[Migration v11] Rolled back: Removed memory_cache table');
+  },
+};
+
+/**
  * All migrations in order
  */
-export const ALL_MIGRATIONS: IMigration[] = [migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6, migration_v7, migration_v8, migration_v9, migration_v10];
+export const ALL_MIGRATIONS: IMigration[] = [migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6, migration_v7, migration_v8, migration_v9, migration_v10, migration_v11];
 
 /**
  * Get migrations needed to upgrade from one version to another

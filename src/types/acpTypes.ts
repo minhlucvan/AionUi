@@ -276,6 +276,15 @@ export interface AcpBackendConfig {
    * These skills will be displayed in the Custom Skills section even after being imported.
    */
   customSkillNames?: string[];
+
+  /**
+   * 是否为此助手启用 memU 记忆功能（仅 isPreset=true 时生效）
+   * 启用后，会话将自动记忆对话内容，并在后续对话中检索相关记忆
+   *
+   * Whether to enable memU memory for this assistant (only applies when isPreset=true).
+   * When enabled, conversations are automatically memorized and relevant memories are retrieved.
+   */
+  memoryEnabled?: boolean;
 }
 
 // 所有后端配置 - 包括暂时禁用的 / All backend configurations - including temporarily disabled ones

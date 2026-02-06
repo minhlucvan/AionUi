@@ -82,6 +82,15 @@ export interface IConfigStorageRefer {
   };
   // SkillsMP API key for skill marketplace search / SkillsMP API 密钥
   'skillsmp.apiKey'?: string;
+  // memU memory service configuration / memU 记忆服务配置
+  'memory.config'?: {
+    enabled: boolean;
+    apiKey: string;
+    baseUrl: string;
+    userId: string;
+    autoMemorize: boolean;
+    retrieveMethod: 'rag' | 'llm';
+  };
 }
 
 export interface IEnvStorageRefer {

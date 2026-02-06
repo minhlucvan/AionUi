@@ -398,6 +398,8 @@
     "cannotDeleteBuiltin": "내장 어시스턴트는 삭제할 수 없습니다",
     "duplicateAssistant": "복제하여 생성",
     "assistantMainAgent": "메인 에이전트",
+    "assistantMemory": "메모리 (memU)",
+    "assistantMemoryDesc": "memU 기반 AI 메모리를 활성화합니다. 어시스턴트가 대화 간 컨텍스트를 기억합니다.",
     "addSkills": "스킬 추가",
     "addSkillsTitle": "스킬 추가",
     "customSkills": "사용자 정의 스킬",

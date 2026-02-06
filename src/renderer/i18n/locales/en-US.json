@@ -398,6 +398,8 @@
     "cannotDeleteBuiltin": "Cannot delete builtin assistants",
     "duplicateAssistant": "Duplicate",
     "assistantMainAgent": "Main Agent",
+    "assistantMemory": "Memory (memU)",
+    "assistantMemoryDesc": "Enable AI memory powered by memU. The assistant will remember context across conversations.",
     "addSkills": "Add Skills",
     "addSkillsTitle": "Add Skills",
     "customSkills": "Custom Skills",

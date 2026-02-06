@@ -72,6 +72,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   const [pendingSkills, setPendingSkills] = useState<PendingSkill[]>([]); // 待导入的 skills / Pending skills to import
   const [deletePendingSkillName, setDeletePendingSkillName] = useState<string | null>(null); // 待删除的 pending skill 名称 / Pending skill name to delete
   const [deleteCustomSkillName, setDeleteCustomSkillName] = useState<string | null>(null); // 待从助手移除的 custom skill 名称 / Custom skill to remove from assistant
+  const [editMemoryEnabled, setEditMemoryEnabled] = useState(false); // memU memory enabled / memU 记忆功能开关
   const textareaWrapperRef = useRef<HTMLDivElement>(null);
   const localeKey = resolveLocaleKey(i18n.language);
   const avatarImageMap: Record<string, string> = {
@@ -225,6 +226,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     setEditDescription(assistant.description || '');
     setEditAvatar(assistant.avatar || '');
     setEditAgent(assistant.presetAgentType || 'gemini');
+    setEditMemoryEnabled(assistant.memoryEnabled ?? false);
     setEditVisible(true);
 
     // 先加载规则、技能内容 / Load rules, skills content
@@ -267,6 +269,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     setEditSkills('');
     setSelectedSkills([]); // 没有启用的 skills
     setCustomSkills([]); // 没有通过 Add Skills 添加的 skills
+    setEditMemoryEnabled(false);
     setPromptViewMode('edit'); // 创建助手时，规则默认处于编辑状态 / Default to edit mode when creating
     setEditVisible(true);
 
@@ -288,6 +291,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     setEditDescription(assistant.descriptionI18n?.[localeKey] || assistant.description || '');
     setEditAvatar(assistant.avatar || '🤖');
     setEditAgent(assistant.presetAgentType || 'gemini');
+    setEditMemoryEnabled(assistant.memoryEnabled ?? false);
     setPromptViewMode('edit');
     setEditVisible(true);
 
@@ -362,6 +366,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
           enabled: true,
           enabledSkills: selectedSkills,
           customSkillNames: finalCustomSkills,
+          memoryEnabled: editMemoryEnabled,
         };
 
         // 保存规则文件 / Save rule file
@@ -390,6 +395,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
           presetAgentType: editAgent,
           enabledSkills: selectedSkills,
           customSkillNames: finalCustomSkills,
+          memoryEnabled: editMemoryEnabled,
         };
 
         // 保存规则文件（如果有更改）/ Save rule file (if changed)
@@ -629,6 +635,15 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
                 <Select.Option value='claude'>Claude</Select.Option>
                 <Select.Option value='codex'>Codex</Select.Option>
               </Select>
+            </div>
+            <div className='flex-shrink-0'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <Typography.Text bold>{t('settings.assistantMemory', { defaultValue: 'Memory (memU)' })}</Typography.Text>
+                  <div className='text-12px text-t-secondary mt-2px'>{t('settings.assistantMemoryDesc', { defaultValue: 'Enable AI memory powered by memU. The assistant will remember context across conversations.' })}</div>
+                </div>
+                <Switch size='small' checked={editMemoryEnabled} onChange={(checked) => setEditMemoryEnabled(checked)} />
+              </div>
             </div>
             <div className='flex-shrink-0'>
               <Typography.Text bold className='flex-shrink-0'>

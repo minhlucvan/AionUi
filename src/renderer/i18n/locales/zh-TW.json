@@ -457,6 +457,8 @@
     "cannotDeleteBuiltin": "無法刪除內建助理",
     "duplicateAssistant": "複製新建",
     "assistantMainAgent": "主代理",
+    "assistantMemory": "記憶 (memU)",
+    "assistantMemoryDesc": "啟用 memU 驅動的 AI 記憶功能。助手將在對話中記住上下文資訊。",
     "addSkills": "新增技能",
     "addSkillsTitle": "新增技能",
     "customSkills": "自訂技能",

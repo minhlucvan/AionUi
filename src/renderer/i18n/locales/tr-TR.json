@@ -406,6 +406,8 @@
     "deleteAssistantConfirm": "Bu asistanı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
     "cannotDeleteBuiltin": "Yerleşik asistanlar silinemez",
     "assistantMainAgent": "Ana Ajan",
+    "assistantMemory": "Bellek (memU)",
+    "assistantMemoryDesc": "memU destekli AI belleğini etkinleştirin. Asistan, konuşmalar arasında bağlamı hatırlayacaktır.",
     "addSkills": "Yetenek Ekle",
     "addSkillsTitle": "Yetenek Ekle",
     "customSkills": "Özel Yetenekler",

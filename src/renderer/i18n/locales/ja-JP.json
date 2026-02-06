@@ -507,6 +507,8 @@
     "cannotDeleteBuiltin": "ビルトインアシスタントは削除できません",
     "duplicateAssistant": "複製して作成",
     "assistantMainAgent": "メインエージェント",
+    "assistantMemory": "メモリ (memU)",
+    "assistantMemoryDesc": "memU を使用した AI メモリを有効にします。アシスタントは会話を通じてコンテキストを記憶します。",
     "addSkills": "スキルを追加",
     "addSkillsTitle": "スキルを追加",
     "customSkills": "カスタムスキル",
