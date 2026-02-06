@@ -848,7 +848,36 @@
       "step3": "A pairing request will appear below. Click \"Approve\" to authorize the user.",
       "step4": "Once approved, you can start chatting with the AI assistant through Lark!",
       "waitingConnection": "WebSocket connection is being established. Please wait..."
-    }
+    },
+    "skillAlreadyInstalled": "Installed",
+    "skillBrowseHint": "Search 145k+ community skills on SkillsMP, or click a category above to browse.",
+    "skillBrowseInstall": "Install",
+    "skillBrowseInstallFailed": "Skill installation failed",
+    "skillBrowseInstallSuccess": "Skill \"{{name}}\" installed successfully",
+    "skillBrowseLoadMore": "Load more",
+    "skillBrowseNoResults": "No skills found. Try different keywords.",
+    "skillBrowseResultCount": "{{count}} results found",
+    "skillBrowseSearchFailed": "GitHub search failed",
+    "skillBrowseSearchPlaceholder": "Search 145k+ agent skills...",
+    "skillBrowseTitle": "Browse Skills on SkillsMP",
+    "skillDeleteConfirm": "Are you sure you want to delete \"{{name}}\"? This will remove the skill files from disk.",
+    "skillDeleteFailed": "Failed to delete skill",
+    "skillDeleteSuccess": "Skill \"{{name}}\" deleted",
+    "skillDeleteTitle": "Delete Skill",
+    "skills": "Skills",
+    "skillsImportBtn": "Import",
+    "skillsImportTitle": "Import from Folder",
+    "skillsImported": "{{count}} skills imported{{skipped}}",
+    "skillsInstalledCount": "{{count}} skills",
+    "skillsInstalledTitle": "Installed Skills",
+    "skillsNoneInstalled": "No skills installed yet. Browse SkillsMP or import from a local folder.",
+    "browseSkillsMP": "Browse SkillsMP",
+    "skillBrowsePoweredBy": "Powered by",
+    "skillBrowseNoGitHub": "No GitHub URL available for this skill",
+    "skillsmpApiKeyTitle": "SkillsMP API Key",
+    "skillsmpApiKeyDesc": "Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.",
+    "skillsmpGetKey": "Get API key",
+    "skillsmpApiKeySaved": "SkillsMP API key saved"
   },
   "messages": {
     "fileChanges": "File Changes",
@@ -1001,10 +1030,31 @@
       "quick_switch_title": "💡 **Quick Switch Options:**",
       "quick_switch_content": "When current service encounters network restrictions, you can:\n\n1. **Switch AI Assistant Immediately**: Select other available assistants from the left panel\n2. **Check Service Status**: Availability of different AI services may vary by region\n3. **Network Optimization**: Use stable network environment to improve connection success rate\n4. **Retry Later**: Network restrictions are usually temporary\n\n**Tip**: It's recommended to configure multiple AI services as alternatives to ensure work continuity.",
       "recovery_actions": {
-        "cloudflare_blocked": ["• Use VPN or proxy service", "• Switch network environment (like mobile hotspot)", "• Wait 10-30 minutes and retry", "• Clear browser cache and cookies", "• Switch to other available services: ChatGPT, Claude, Qwen, Gemini"],
-        "network_timeout": ["• Check if network connection is stable", "• Retry connection operation", "• Switch to more stable network environment", "• Check firewall settings"],
-        "connection_refused": ["• Check if Codex CLI is properly installed", "• Verify service configuration and API keys", "• Restart application", "• Check if local ports are occupied"],
-        "unknown": ["• Check network connection status", "• Retry current operation", "• Switch network environment", "• Contact technical support"]
+        "cloudflare_blocked": [
+          "• Use VPN or proxy service",
+          "• Switch network environment (like mobile hotspot)",
+          "• Wait 10-30 minutes and retry",
+          "• Clear browser cache and cookies",
+          "• Switch to other available services: ChatGPT, Claude, Qwen, Gemini"
+        ],
+        "network_timeout": [
+          "• Check if network connection is stable",
+          "• Retry connection operation",
+          "• Switch to more stable network environment",
+          "• Check firewall settings"
+        ],
+        "connection_refused": [
+          "• Check if Codex CLI is properly installed",
+          "• Verify service configuration and API keys",
+          "• Restart application",
+          "• Check if local ports are occupied"
+        ],
+        "unknown": [
+          "• Check network connection status",
+          "• Retry current operation",
+          "• Switch network environment",
+          "• Contact technical support"
+        ]
       }
     },
     "thinking": {

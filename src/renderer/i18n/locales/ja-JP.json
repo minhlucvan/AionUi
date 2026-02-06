@@ -49,10 +49,31 @@
       "network_timeout_title": "⏱️ ネットワーク接続がタイムアウト",
       "quick_switch_content": "現在のサービスでネットワーク制限が発生した場合は：\n\n1. **AIアシスタントを即時切替**：左側パネルから他のアシスタントを選択\n2. **サービス状況を確認**：地域により可用性が異なる場合があります\n3. **ネットワーク最適化**：安定したネットワーク環境を使用\n4. **後で再試行**：制限は一時的な場合が多いです\n\n**ヒント**：業務継続のため、代替の AI サービスを複数設定しておくことをおすすめします。",
       "recovery_actions": {
-        "cloudflare_blocked": ["• VPN やプロキシサービスを利用", "• ネットワーク環境を切替（モバイルホットスポットなど）", "• 10-30分待ってから再試行", "• ブラウザのキャッシュとクッキーをクリア", "• 他の利用可能なサービスに切替：ChatGPT、Claude、Qwen、Gemini"],
-        "network_timeout": ["• ネットワーク接続が安定しているか確認", "• 接続操作を再試行", "• より安定したネットワーク環境に切替", "• ファイアウォールの設定を確認"],
-        "connection_refused": ["• Codex CLI が正しくインストールされているか確認", "• サービス設定とAPIキーを確認", "• アプリケーションを再起動", "• ローカルポートが占有されていないか確認"],
-        "unknown": ["• ネットワーク接続状態を確認", "• 現在の操作を再試行", "• ネットワーク環境を切替", "• 技術サポートに連絡"]
+        "cloudflare_blocked": [
+          "• VPN やプロキシサービスを利用",
+          "• ネットワーク環境を切替（モバイルホットスポットなど）",
+          "• 10-30分待ってから再試行",
+          "• ブラウザのキャッシュとクッキーをクリア",
+          "• 他の利用可能なサービスに切替：ChatGPT、Claude、Qwen、Gemini"
+        ],
+        "network_timeout": [
+          "• ネットワーク接続が安定しているか確認",
+          "• 接続操作を再試行",
+          "• より安定したネットワーク環境に切替",
+          "• ファイアウォールの設定を確認"
+        ],
+        "connection_refused": [
+          "• Codex CLI が正しくインストールされているか確認",
+          "• サービス設定とAPIキーを確認",
+          "• アプリケーションを再起動",
+          "• ローカルポートが占有されていないか確認"
+        ],
+        "unknown": [
+          "• ネットワーク接続状態を確認",
+          "• 現在の操作を再試行",
+          "• ネットワーク環境を切替",
+          "• 技術サポートに連絡"
+        ]
       },
       "quick_switch_title": "💡 **すぐに切り替えるには：**",
       "recovery_suggestions": "**推奨対処：**",
@@ -794,7 +815,36 @@
     "multiKeyTestResult": "マルチキーテスト：{{valid}}/{{total}} 個有効",
     "multiKeyAllValid": "すべての {{total}} 個のキーが有効です",
     "multiKeyPartialValid": "{{valid}} 個有効、{{invalid}} 個無効",
-    "multiKeyAllInvalid": "すべての {{total}} 個のキーが無効です"
+    "multiKeyAllInvalid": "すべての {{total}} 個のキーが無効です",
+    "skillAlreadyInstalled": "インストール済み",
+    "skillBrowseHint": "SkillsMP で 145k+ のコミュニティスキルを検索するか、上のカテゴリをクリックして閲覧してください。",
+    "skillBrowseInstall": "インストール",
+    "skillBrowseInstallFailed": "スキルのインストールに失敗しました",
+    "skillBrowseInstallSuccess": "スキル「{{name}}」のインストールに成功しました",
+    "skillBrowseLoadMore": "さらに読み込む",
+    "skillBrowseNoResults": "スキルが見つかりませんでした。別のキーワードをお試しください。",
+    "skillBrowseResultCount": "{{count}} 件の結果が見つかりました",
+    "skillBrowseSearchFailed": "GitHub 検索に失敗しました",
+    "skillBrowseSearchPlaceholder": "145k+ のエージェントスキルを検索...",
+    "skillBrowseTitle": "SkillsMP でスキルを検索",
+    "skillDeleteConfirm": "「{{name}}」を削除してもよろしいですか？スキルファイルがディスクから削除されます。",
+    "skillDeleteFailed": "スキルの削除に失敗しました",
+    "skillDeleteSuccess": "スキル「{{name}}」を削除しました",
+    "skillDeleteTitle": "スキルを削除",
+    "skills": "スキル",
+    "skillsImportBtn": "インポート",
+    "skillsImportTitle": "フォルダからインポート",
+    "skillsImported": "{{count}} 個のスキルをインポートしました{{skipped}}",
+    "skillsInstalledCount": "{{count}} 個のスキル",
+    "skillsInstalledTitle": "インストール済みスキル",
+    "skillsNoneInstalled": "スキルがインストールされていません。SkillsMP で閲覧するか、ローカルフォルダからインポートしてください。",
+    "browseSkillsMP": "SkillsMP で検索",
+    "skillBrowsePoweredBy": "提供元:",
+    "skillBrowseNoGitHub": "このスキルには GitHub URL がありません",
+    "skillsmpApiKeyTitle": "SkillsMP API キー",
+    "skillsmpApiKeyDesc": "SkillsMP API キーを入力してスキルマーケットプレイスを検索します。skillsmp.com で無料で取得できます。",
+    "skillsmpGetKey": "API キーを取得",
+    "skillsmpApiKeySaved": "SkillsMP API キーを保存しました"
   },
   "messages": {
     "fileChanges": "ファイル変更",

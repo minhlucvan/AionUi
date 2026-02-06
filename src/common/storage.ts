@@ -80,6 +80,8 @@ export interface IConfigStorageRefer {
     id: string;
     useModel: string;
   };
+  // SkillsMP API key for skill marketplace search / SkillsMP API 密钥
+  'skillsmp.apiKey'?: string;
 }
 
 export interface IEnvStorageRefer {

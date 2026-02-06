@@ -119,6 +119,32 @@ export const fs = {
   scanForSkills: bridge.buildProvider<IBridgeResponse<Array<{ name: string; description: string; path: string }>>, { folderPath: string }>('scan-for-skills'),
   // 检测常见的 skills 路径 / Detect common skills paths
   detectCommonSkillPaths: bridge.buildProvider<IBridgeResponse<Array<{ name: string; path: string }>>, void>('detect-common-skill-paths'),
+  // SkillsMP skill 搜索 / Search SkillsMP marketplace for skills
+  searchSkillsMPSkills: bridge.buildProvider<
+    IBridgeResponse<{
+      items: Array<{
+        id: string;
+        name: string;
+        description: string;
+        author?: string;
+        stars?: number;
+        updatedAt?: number;
+        tags?: string[];
+        githubUrl?: string;
+        skillUrl?: string;
+      }>;
+      total_count: number;
+      hasNext?: boolean;
+    }>,
+    { query: string; page?: number; perPage?: number; sortBy?: 'stars' | 'recent'; apiKey?: string }
+  >('skillsmp-search-skills'),
+  // 从 GitHub 安装 skill / Install skill from GitHub repo
+  installSkillFromGitHub: bridge.buildProvider<
+    IBridgeResponse<{ skillName: string; installPath: string }>,
+    { cloneUrl: string; repoName: string }
+  >('install-skill-from-github'),
+  // 删除用户自定义 skill / Delete a custom user skill
+  deleteCustomSkill: bridge.buildProvider<IBridgeResponse, { skillName: string }>('delete-custom-skill'),
 };
 
 export const fileWatch = {
