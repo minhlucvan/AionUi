@@ -1,20 +1,24 @@
 /**
  * Bots page - lists configured bots with their connection status.
  * Users can click a bot card to navigate to its detail page
- * showing filtered conversations.
+ * which renders the Guid chat interface with botId context.
  */
 
 import type { IChannelPluginStatus, IMezonBotConfig } from '@/channels/types';
-import { ConfigStorage } from '@/common/storage';
+import { ipcBridge } from '@/common';
 import { channel } from '@/common/ipcBridge';
+import type { TChatConversation } from '@/common/storage';
+import { ConfigStorage } from '@/common/storage';
+import { addEventListener } from '@/renderer/utils/emitter';
 import { Empty } from '@arco-design/web-react';
 import { Right, Robot } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 interface BotWithStatus extends IMezonBotConfig {
   pluginStatus?: IChannelPluginStatus;
+  conversationCount: number;
 }
 
 const BotCard: React.FC<{
@@ -42,8 +46,10 @@ const BotCard: React.FC<{
                 {t('bots.stopped', { defaultValue: 'Stopped' })}
               </span>
             )}
-            {bot.pluginStatus?.botUsername && (
-              <span className='text-[var(--color-text-4)] text-12px'>@{bot.pluginStatus.botUsername}</span>
+            {bot.conversationCount > 0 && (
+              <span className='text-[var(--color-text-4)] text-12px'>
+                {t('bots.conversationCount', { defaultValue: '{{count}} conversations', count: bot.conversationCount })}
+              </span>
             )}
           </div>
         </div>
@@ -55,10 +61,30 @@ const BotCard: React.FC<{
   );
 };
 
+function countBotConversations(conversations: TChatConversation[], botId: string): number {
+  return conversations.filter((conv) => conv.extra?.botId === botId).length;
+}
+
 const BotsPage: React.FC = () => {
   const [bots, setBots] = useState<BotWithStatus[]>([]);
+  const [conversations, setConversations] = useState<TChatConversation[]>([]);
   const { t } = useTranslation();
   const navigate = useNavigate();
+
+  // Load conversations for counting
+  const loadConversations = useCallback(() => {
+    ipcBridge.database.getUserConversations
+      .invoke({ page: 0, pageSize: 10000 })
+      .then((data) => {
+        setConversations(data && Array.isArray(data) ? data : []);
+      })
+      .catch(() => setConversations([]));
+  }, []);
+
+  useEffect(() => {
+    loadConversations();
+    return addEventListener('chat.history.refresh', loadConversations);
+  }, [loadConversations]);
 
   const loadBots = useCallback(async () => {
     try {
@@ -76,7 +102,7 @@ const BotsPage: React.FC = () => {
       const botsWithStatus: BotWithStatus[] = savedBots.map((bot: IMezonBotConfig) => {
         const pluginId = `mezon_${bot.id}`;
         const pluginStatus = pluginStatuses.find((p) => p.id === pluginId);
-        return { ...bot, pluginStatus };
+        return { ...bot, pluginStatus, conversationCount: 0 };
       });
 
       // Sort: enabled first, then by name
@@ -104,6 +130,14 @@ const BotsPage: React.FC = () => {
     return unsub;
   }, [loadBots]);
 
+  // Merge conversation counts into bots
+  const botsWithCounts = useMemo(() => {
+    return bots.map((bot) => ({
+      ...bot,
+      conversationCount: countBotConversations(conversations, bot.id),
+    }));
+  }, [bots, conversations]);
+
   const handleBotClick = (bot: BotWithStatus) => {
     Promise.resolve(navigate(`/bots/${bot.id}`)).catch(console.error);
   };
@@ -119,7 +153,7 @@ const BotsPage: React.FC = () => {
             <h2 className='text-18px font-600 text-[var(--color-text-1)] m-0'>{t('bots.title', { defaultValue: 'Bots' })}</h2>
             <p className='text-13px text-[var(--color-text-3)] mt-4px mb-0'>{t('bots.subtitle', { defaultValue: 'Auto-run assistants on messaging platforms' })}</p>
           </div>
-          {bots.length === 0 ? (
+          {botsWithCounts.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-60px'>
               <Empty
                 description={
@@ -131,7 +165,7 @@ const BotsPage: React.FC = () => {
             </div>
           ) : (
             <div className='flex flex-col gap-10px'>
-              {bots.map((bot) => (
+              {botsWithCounts.map((bot) => (
                 <BotCard key={bot.id} bot={bot} onClick={() => handleBotClick(bot)} />
               ))}
             </div>
