@@ -943,7 +943,7 @@ export function initFsBridge(): void {
     }
   });
 
-  // Helper: fetch JSON from GitHub API
+  // Helper: fetch JSON from GitHub API (unauthenticated)
   const githubApiFetch = (url: string): Promise<any> => {
     return new Promise((resolve, reject) => {
       const req = https.get(
@@ -980,89 +980,153 @@ export function initFsBridge(): void {
     });
   };
 
-  // GitHub skill 搜索 / Search GitHub for skills using Code Search API (filename:SKILL.md)
-  ipcBridge.fs.searchGitHubSkills.provider(async ({ query, page = 1, perPage = 20 }) => {
-    try {
-      // Use GitHub Code Search API to find repos with SKILL.md files
-      // The query already contains the pattern (e.g. "filename:SKILL.md path:skills")
-      // If user provides a plain keyword, wrap it with filename:SKILL.md
-      const hasFilePattern = query.includes('filename:') || query.includes('path:');
-      const searchQuery = hasFilePattern ? query : `filename:SKILL.md ${query}`;
-
-      const url = `https://api.github.com/search/code?q=${encodeURIComponent(searchQuery)}&page=${page}&per_page=${perPage}`;
-      const codeResult = await githubApiFetch(url);
-
-      // Group code search results by repository
-      const repoMap = new Map<
-        string,
-        {
-          repo: any;
-          skillPaths: string[];
+  // Helper: run gh CLI command and return parsed JSON
+  const ghCliJson = (args: string[]): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      execFile('gh', args, { timeout: 30000 }, (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
         }
-      >();
-
-      for (const item of codeResult.items || []) {
-        const fullName = item.repository?.full_name;
-        if (!fullName) continue;
-
-        const filePath = item.path || '';
-        // Get the directory containing SKILL.md (e.g. "skills/pdf/SKILL.md" -> "skills/pdf")
-        const skillDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '.';
-
-        if (repoMap.has(fullName)) {
-          repoMap.get(fullName)!.skillPaths.push(skillDir);
-        } else {
-          repoMap.set(fullName, {
-            repo: item.repository,
-            skillPaths: [skillDir],
-          });
+        try {
+          resolve(JSON.parse(stdout));
+        } catch {
+          reject(new Error('Failed to parse gh CLI output'));
         }
+      });
+    });
+  };
+
+  // Helper: check if gh CLI is available and authenticated
+  const isGhAvailable = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      execFile('gh', ['auth', 'status'], { timeout: 5000 }, (error) => {
+        resolve(!error);
+      });
+    });
+  };
+
+  // Search via gh CLI (code search, requires auth - handled by gh)
+  const searchViaGhCli = async (query: string, perPage: number) => {
+    // gh search code uses the user's existing auth
+    const hasFilePattern = query.includes('filename:') || query.includes('path:');
+    const searchQuery = hasFilePattern ? query : `filename:SKILL.md ${query}`;
+
+    const codeResults = await ghCliJson([
+      'search', 'code', searchQuery,
+      '--json', 'repository,path',
+      '--limit', String(perPage),
+    ]);
+
+    // Group by repository
+    const repoMap = new Map<string, { fullName: string; skillPaths: string[] }>();
+    for (const item of codeResults) {
+      const fullName = item.repository?.nameWithOwner || item.repository?.fullName || '';
+      if (!fullName) continue;
+      const filePath = item.path || '';
+      const skillDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '.';
+
+      if (repoMap.has(fullName)) {
+        repoMap.get(fullName)!.skillPaths.push(skillDir);
+      } else {
+        repoMap.set(fullName, { fullName, skillPaths: [skillDir] });
       }
+    }
 
-      // Fetch repo details (stars, description) for each unique repo
-      const repoEntries = Array.from(repoMap.entries());
-      const items = await Promise.all(
-        repoEntries.map(async ([, { repo, skillPaths }]) => {
-          let repoDetails = repo;
-          // Code search results have limited repo info, fetch full details
-          try {
-            repoDetails = await githubApiFetch(`https://api.github.com/repos/${repo.full_name}`);
-          } catch {
-            // Fall back to partial info from code search
-          }
+    // Fetch full repo details for each
+    const items = await Promise.all(
+      Array.from(repoMap.values()).map(async ({ fullName, skillPaths }) => {
+        try {
+          const repo = await ghCliJson(['repo', 'view', fullName, '--json', 'name,owner,description,url,stargazerCount,pushedAt']);
           return {
-            name: repoDetails.name || '',
-            full_name: repoDetails.full_name || '',
-            description: repoDetails.description || '',
-            html_url: repoDetails.html_url || '',
-            clone_url: repoDetails.clone_url || `https://github.com/${repoDetails.full_name}.git`,
-            stargazers_count: repoDetails.stargazers_count || 0,
-            updated_at: repoDetails.updated_at || repoDetails.pushed_at || '',
-            owner: {
-              login: repoDetails.owner?.login || '',
-              avatar_url: repoDetails.owner?.avatar_url || '',
-            },
+            name: repo.name || fullName.split('/')[1] || '',
+            full_name: fullName,
+            description: repo.description || '',
+            html_url: repo.url || `https://github.com/${fullName}`,
+            clone_url: `https://github.com/${fullName}.git`,
+            stargazers_count: repo.stargazerCount || 0,
+            updated_at: repo.pushedAt || '',
+            owner: { login: repo.owner?.login || fullName.split('/')[0] || '', avatar_url: '' },
             skillPaths,
           };
-        })
-      );
+        } catch {
+          return {
+            name: fullName.split('/')[1] || '',
+            full_name: fullName,
+            description: '',
+            html_url: `https://github.com/${fullName}`,
+            clone_url: `https://github.com/${fullName}.git`,
+            stargazers_count: 0,
+            updated_at: '',
+            owner: { login: fullName.split('/')[0] || '', avatar_url: '' },
+            skillPaths,
+          };
+        }
+      })
+    );
 
-      // Sort by stars descending
-      items.sort((a, b) => b.stargazers_count - a.stargazers_count);
+    items.sort((a, b) => b.stargazers_count - a.stargazers_count);
+    return { items, total_count: codeResults.length };
+  };
 
-      return {
-        success: true,
-        data: {
-          items,
-          total_count: codeResult.total_count || 0,
+  // Fallback: search via unauthenticated GitHub Repositories API (no auth needed)
+  const searchViaRepoApi = async (query: string, page: number, perPage: number) => {
+    // Repository search is unauthenticated - search for repos with SKILL.md in name/readme
+    const hasFilePattern = query.includes('filename:') || query.includes('path:');
+    // Strip file patterns for repo search since it doesn't support them
+    const cleanQuery = hasFilePattern
+      ? query.replace(/filename:\S+/g, '').replace(/path:\S+/g, '').trim() || 'SKILL.md'
+      : `${query} SKILL.md`;
+
+    const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(cleanQuery)}&sort=stars&order=desc&page=${page}&per_page=${perPage}`;
+    const result = await githubApiFetch(url);
+
+    return {
+      items: (result.items || []).map((item: any) => ({
+        name: item.name || '',
+        full_name: item.full_name || '',
+        description: item.description || '',
+        html_url: item.html_url || '',
+        clone_url: item.clone_url || '',
+        stargazers_count: item.stargazers_count || 0,
+        updated_at: item.updated_at || '',
+        owner: {
+          login: item.owner?.login || '',
+          avatar_url: item.owner?.avatar_url || '',
         },
-      };
+        skillPaths: [] as string[], // repo search can't detect skill paths
+      })),
+      total_count: result.total_count || 0,
+    };
+  };
+
+  // GitHub skill 搜索 / Search GitHub for skills
+  // Strategy: use gh CLI (code search) if available, fall back to unauthenticated repo search
+  ipcBridge.fs.searchGitHubSkills.provider(async ({ query, page = 1, perPage = 20 }) => {
+    try {
+      const ghAvailable = await isGhAvailable();
+
+      if (ghAvailable) {
+        console.log('[fsBridge] Using gh CLI for skill search (code search)');
+        const data = await searchViaGhCli(query, perPage);
+        return { success: true, data };
+      }
+
+      console.log('[fsBridge] gh CLI not available, falling back to repository search (no auth)');
+      const data = await searchViaRepoApi(query, page, perPage);
+      return { success: true, data };
     } catch (error) {
       console.error('[fsBridge] GitHub skill search failed:', error);
-      return {
-        success: false,
-        msg: `GitHub search failed: ${error instanceof Error ? error.message : String(error)}`,
-      };
+      // If gh CLI failed, try repo API as last resort
+      try {
+        const data = await searchViaRepoApi(query, page, perPage);
+        return { success: true, data };
+      } catch (fallbackError) {
+        return {
+          success: false,
+          msg: `GitHub search failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`,
+        };
+      }
     }
   });
 
