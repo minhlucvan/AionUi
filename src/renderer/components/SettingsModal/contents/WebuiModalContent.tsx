@@ -558,16 +558,10 @@ const WebuiModalContent: React.FC = () => {
 
           {/* WebUI 服务卡片 / WebUI Service Card */}
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px'>
-            {/* 启用 WebUI（仅桌面端可切换）/ Enable WebUI (toggle only on desktop) */}
-            {isDesktop ? (
-              <PreferenceRow label={t('settings.webui.enable')} extra={startLoading ? <span className='text-12px text-warning'>{t('settings.webui.starting')}</span> : status?.running ? <span className='text-12px text-green-500'>✓ {t('settings.webui.running')}</span> : null}>
-                <Switch checked={status?.running || startLoading} loading={startLoading} onChange={handleToggle} />
-              </PreferenceRow>
-            ) : (
-              <PreferenceRow label={t('settings.webui.enable')} extra={status?.running ? <span className='text-12px text-green-500'>✓ {t('settings.webui.running')}</span> : <span className='text-12px text-t-tertiary'>{t('settings.webui.browserServiceHint')}</span>}>
-                <Switch checked={status?.running ?? true} disabled />
-              </PreferenceRow>
-            )}
+            {/* 启用 WebUI / Enable WebUI */}
+            <PreferenceRow label={t('settings.webui.enable')} extra={startLoading ? <span className='text-12px text-warning'>{t('settings.webui.starting')}</span> : status?.running ? <span className='text-12px text-green-500'>✓ {t('settings.webui.running')}</span> : null}>
+              <Switch checked={status?.running || startLoading} loading={startLoading} onChange={handleToggle} />
+            </PreferenceRow>
 
             {/* 访问地址（仅运行时显示）/ Access URL (only when running) */}
             {status?.running && (
