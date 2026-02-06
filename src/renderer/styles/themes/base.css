@@ -89,37 +89,37 @@
   font-weight: 600;
 }
 
-/* Assistants page styles */
-.assistants-page__content {
+/* Bots page styles */
+.bots-page__content {
   scrollbar-width: thin;
 }
 
-.assistants-agent-card {
+.bots-card {
   border: 1px solid var(--color-border-2);
   border-radius: 12px;
   background-color: var(--color-bg-2);
   overflow: hidden;
   transition: border-color 0.2s ease;
+  cursor: pointer;
 }
 
-.assistants-agent-card:hover {
+.bots-card:hover {
   border-color: var(--color-border-3);
 }
 
-.assistants-agent-card__header {
+.bots-card__header {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
-.assistants-agent-card__header:hover {
+.bots-card:hover .bots-card__header {
   background-color: var(--color-fill-1);
 }
 
-.assistants-agent-card__avatar {
+.bots-card__avatar {
   width: 36px;
   height: 36px;
   border-radius: 10px;
@@ -132,26 +132,26 @@
   padding: 6px;
 }
 
-.assistants-agent-card__info {
+.bots-card__info {
   flex: 1;
   min-width: 0;
 }
 
-.assistants-agent-card__name {
+.bots-card__name {
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text-1);
   line-height: 1.4;
 }
 
-.assistants-agent-card__meta {
+.bots-card__meta {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 2px;
 }
 
-.assistants-agent-card__status--running {
+.bots-card__status--running {
   font-size: 11px;
   font-weight: 500;
   color: rgb(var(--green-6));
@@ -161,22 +161,61 @@
   line-height: 18px;
 }
 
-.assistants-agent-card__chevron {
+.bots-card__status--stopped {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-4);
+  background-color: var(--color-fill-2);
+  padding: 1px 8px;
+  border-radius: 10px;
+  line-height: 18px;
+}
+
+.bots-card__chevron {
   color: var(--color-text-3);
-  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.3, 1);
   flex-shrink: 0;
 }
 
-.assistants-agent-card__chevron--expanded {
-  transform: rotate(180deg);
+/* Bot detail page styles */
+.bots-detail__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-3);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.15s ease;
+  background: none;
+  border: none;
 }
 
-.assistants-agent-card__conversations {
-  border-top: 1px solid var(--color-border-2);
-  padding: 4px;
+.bots-detail__back:hover {
+  color: var(--color-text-1);
 }
 
-.assistants-conversation-item {
+.bots-detail__hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+  margin-bottom: 20px;
+}
+
+.bots-detail__hero-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: var(--color-fill-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.bots-conversation-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -188,24 +227,24 @@
   transition: background-color 0.15s ease;
 }
 
-.assistants-conversation-item:hover {
+.bots-conversation-item:hover {
   background-color: var(--color-fill-1);
 }
 
-.assistants-conversation-item--active {
+.bots-conversation-item--active {
   background-color: var(--color-fill-2);
 }
 
-.assistants-conversation-item__badge {
+.bots-conversation-item__badge {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background-color: rgb(var(--green-6));
   flex-shrink: 0;
-  animation: assistants-pulse 2s ease-in-out infinite;
+  animation: bots-pulse 2s ease-in-out infinite;
 }
 
-@keyframes assistants-pulse {
+@keyframes bots-pulse {
   0%,
   100% {
     opacity: 1;

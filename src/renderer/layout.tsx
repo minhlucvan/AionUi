@@ -68,16 +68,16 @@ const Layout: React.FC<{
 
   // Sync appMode from route
   useEffect(() => {
-    if (location.pathname.startsWith('/assistants')) {
-      setAppMode('assistants');
+    if (location.pathname.startsWith('/bots')) {
+      setAppMode('bots');
     } else if (!location.pathname.startsWith('/settings')) {
       setAppMode('chat');
     }
   }, [location.pathname]);
 
-  // Track last non-settings, non-assistants path for returning to chat
+  // Track last non-settings, non-bots path for returning to chat
   useEffect(() => {
-    if (!location.pathname.startsWith('/settings') && !location.pathname.startsWith('/assistants')) {
+    if (!location.pathname.startsWith('/settings') && !location.pathname.startsWith('/bots')) {
       lastChatPathRef.current = location.pathname;
     }
   }, [location.pathname]);
@@ -85,8 +85,8 @@ const Layout: React.FC<{
   const handleSetAppMode = useCallback(
     (mode: AppMode) => {
       setAppMode(mode);
-      if (mode === 'assistants') {
-        Promise.resolve(navigate('/assistants')).catch((error) => {
+      if (mode === 'bots') {
+        Promise.resolve(navigate('/bots')).catch((error) => {
           console.error('Navigation failed:', error);
         });
       } else {

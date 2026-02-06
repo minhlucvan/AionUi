@@ -1083,15 +1083,19 @@
   "titlebar": {
     "mode": {
       "chat": "チャット",
-      "assistants": "アシスタント"
+      "bots": "ボット"
     }
   },
-  "assistants": {
-    "title": "アシスタント",
-    "subtitle": "アクティブなエージェントとその会話",
-    "empty": "会話はまだありません",
+  "bots": {
+    "title": "ボット",
+    "subtitle": "メッセージングプラットフォームで自動実行するアシスタント",
+    "empty": "ボットはまだ設定されていません",
     "running": "実行中",
+    "stopped": "停止中",
     "conversationCount": "{{count}} 件の会話",
-    "untitled": "無題"
+    "untitled": "無題",
+    "notFound": "ボットが見つかりません",
+    "backToList": "すべてのボット",
+    "noConversations": "会話はまだありません"
   }
 }

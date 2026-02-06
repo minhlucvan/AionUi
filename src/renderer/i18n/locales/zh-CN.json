@@ -1265,15 +1265,19 @@
   "titlebar": {
     "mode": {
       "chat": "聊天",
-      "assistants": "助手"
+      "bots": "机器人"
     }
   },
-  "assistants": {
-    "title": "助手",
-    "subtitle": "活跃的代理及其对话",
-    "empty": "暂无对话",
+  "bots": {
+    "title": "机器人",
+    "subtitle": "在消息平台上自动运行的助手",
+    "empty": "尚未配置机器人",
     "running": "运行中",
+    "stopped": "已停止",
     "conversationCount": "{{count}} 个对话",
-    "untitled": "未命名"
+    "untitled": "未命名",
+    "notFound": "未找到机器人",
+    "backToList": "所有机器人",
+    "noConversations": "暂无对话"
   }
 }

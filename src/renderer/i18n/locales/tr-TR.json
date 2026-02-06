@@ -1113,15 +1113,19 @@
   "titlebar": {
     "mode": {
       "chat": "Sohbet",
-      "assistants": "Asistanlar"
+      "bots": "Botlar"
     }
   },
-  "assistants": {
-    "title": "Asistanlar",
-    "subtitle": "Aktif ajanlar ve konuşmaları",
-    "empty": "Henüz konuşma yok",
+  "bots": {
+    "title": "Botlar",
+    "subtitle": "Mesajlaşma platformlarında otomatik çalışan asistanlar",
+    "empty": "Henüz bot yapılandırılmadı",
     "running": "Çalışıyor",
+    "stopped": "Durduruldu",
     "conversationCount": "{{count}} konuşma",
-    "untitled": "Başlıksız"
+    "untitled": "Başlıksız",
+    "notFound": "Bot bulunamadı",
+    "backToList": "Tüm Botlar",
+    "noConversations": "Henüz konuşma yok"
   }
 }

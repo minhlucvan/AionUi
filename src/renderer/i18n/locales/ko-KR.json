@@ -1138,15 +1138,19 @@
   "titlebar": {
     "mode": {
       "chat": "채팅",
-      "assistants": "어시스턴트"
+      "bots": "봇"
     }
   },
-  "assistants": {
-    "title": "어시스턴트",
-    "subtitle": "활성 에이전트 및 대화",
-    "empty": "대화가 없습니다",
+  "bots": {
+    "title": "봇",
+    "subtitle": "메시징 플랫폼에서 자동 실행되는 어시스턴트",
+    "empty": "아직 구성된 봇이 없습니다",
     "running": "실행 중",
+    "stopped": "중지됨",
     "conversationCount": "{{count}} 개의 대화",
-    "untitled": "제목 없음"
+    "untitled": "제목 없음",
+    "notFound": "봇을 찾을 수 없습니다",
+    "backToList": "모든 봇",
+    "noConversations": "아직 대화가 없습니다"
   }
 }

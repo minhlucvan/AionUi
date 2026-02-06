@@ -5,7 +5,7 @@
  */
 import React from 'react';
 
-export type AppMode = 'chat' | 'assistants';
+export type AppMode = 'chat' | 'bots';
 
 export interface LayoutContextValue {
   isMobile: boolean;

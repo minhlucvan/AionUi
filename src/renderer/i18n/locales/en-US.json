@@ -1265,15 +1265,19 @@
   "titlebar": {
     "mode": {
       "chat": "Chat",
-      "assistants": "Assistants"
+      "bots": "Bots"
     }
   },
-  "assistants": {
-    "title": "Assistants",
-    "subtitle": "Active agents and their conversations",
-    "empty": "No conversations yet",
+  "bots": {
+    "title": "Bots",
+    "subtitle": "Auto-run assistants on messaging platforms",
+    "empty": "No bots configured yet",
     "running": "Running",
+    "stopped": "Stopped",
     "conversationCount": "{{count}} conversations",
-    "untitled": "Untitled"
+    "untitled": "Untitled",
+    "notFound": "Bot not found",
+    "backToList": "All Bots",
+    "noConversations": "No conversations yet"
   }
 }

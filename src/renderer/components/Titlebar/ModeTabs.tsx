@@ -25,11 +25,11 @@ const ModeTabs: React.FC<ModeTabsProps> = ({ activeMode, onChange }) => {
       <button
         type='button'
         className='app-titlebar__mode-tab'
-        data-active={activeMode === 'assistants' || undefined}
-        onClick={() => onChange('assistants')}
+        data-active={activeMode === 'bots' || undefined}
+        onClick={() => onChange('bots')}
       >
         <Robot theme='outline' size='14' fill='currentColor' />
-        <span>{t('titlebar.mode.assistants', { defaultValue: 'Assistants' })}</span>
+        <span>{t('titlebar.mode.bots', { defaultValue: 'Bots' })}</span>
       </button>
     </div>
   );
