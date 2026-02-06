@@ -1,5 +1,4 @@
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
-import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Tooltip } from '@arco-design/web-react';
 import { Api, Computer, Earth, Gemini, Info, Lightning, LinkCloud, Robot, System, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
@@ -11,9 +10,6 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { pathname } = useLocation();
-
-  // 检测是否在 Electron 桌面环境 / Check if running in Electron desktop environment
-  const isDesktop = isElectronDesktop();
 
   const menus = useMemo(() => {
     const items = [
@@ -54,14 +50,12 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
       },
     ];
 
-    // 仅在桌面端添加 WebUI 选项（包含 Assistant 配置）/ Only add WebUI option on desktop (includes Assistant config)
-    if (isDesktop) {
-      items.push({
-        label: t('settings.webui'),
-        icon: <Earth />,
-        path: 'webui',
-      });
-    }
+    // WebUI 选项（桌面端和 WebUI 浏览器端均可访问）/ WebUI option (accessible on both desktop and WebUI browser)
+    items.push({
+      label: t('settings.webui'),
+      icon: <Earth />,
+      path: 'webui',
+    });
 
     items.push(
       {
@@ -77,7 +71,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
     );
 
     return items;
-  }, [t, isDesktop]);
+  }, [t]);
   return (
     <div className={classNames('flex-1 settings-sider flex flex-col gap-2px', { 'settings-sider--collapsed': collapsed })}>
       {menus.map((item) => {

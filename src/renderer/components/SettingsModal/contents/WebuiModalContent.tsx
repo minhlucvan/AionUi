@@ -530,17 +530,18 @@ const WebuiModalContent: React.FC = () => {
   };
   const displayPassword = getDisplayPassword();
 
-  // 浏览器端不显示 WebUI 设置，出于安全考虑 / Don't show WebUI settings in browser for security reasons
-  if (!isDesktop) {
-    return (
-      <div className='flex flex-col h-full w-full'>
-        <div className='flex flex-col items-center justify-center h-200px px-32px text-center'>
-          <div className='text-16px font-500 text-t-primary mb-8px'>{t('settings.webui.browserNotSupported')}</div>
-          <div className='text-14px text-t-secondary'>{t('settings.webui.browserNotSupportedDesc')}</div>
-        </div>
-      </div>
-    );
-  }
+  // 打开外部链接（桌面端用 shell.openExternal，浏览器端用 window.open）
+  // Open external link (desktop uses shell.openExternal, browser uses window.open)
+  const openExternal = useCallback(
+    (url: string) => {
+      if (isDesktop) {
+        shell.openExternal.invoke(url).catch(console.error);
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    },
+    [isDesktop]
+  );
 
   return (
     <div className='flex flex-col h-full w-full'>
@@ -557,16 +558,22 @@ const WebuiModalContent: React.FC = () => {
 
           {/* WebUI 服务卡片 / WebUI Service Card */}
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px'>
-            {/* 启用 WebUI / Enable WebUI */}
-            <PreferenceRow label={t('settings.webui.enable')} extra={startLoading ? <span className='text-12px text-warning'>{t('settings.webui.starting')}</span> : status?.running ? <span className='text-12px text-green-500'>✓ {t('settings.webui.running')}</span> : null}>
-              <Switch checked={status?.running || startLoading} loading={startLoading} onChange={handleToggle} />
-            </PreferenceRow>
+            {/* 启用 WebUI（仅桌面端可切换）/ Enable WebUI (toggle only on desktop) */}
+            {isDesktop ? (
+              <PreferenceRow label={t('settings.webui.enable')} extra={startLoading ? <span className='text-12px text-warning'>{t('settings.webui.starting')}</span> : status?.running ? <span className='text-12px text-green-500'>✓ {t('settings.webui.running')}</span> : null}>
+                <Switch checked={status?.running || startLoading} loading={startLoading} onChange={handleToggle} />
+              </PreferenceRow>
+            ) : (
+              <PreferenceRow label={t('settings.webui.enable')} extra={status?.running ? <span className='text-12px text-green-500'>✓ {t('settings.webui.running')}</span> : <span className='text-12px text-t-tertiary'>{t('settings.webui.browserServiceHint')}</span>}>
+                <Switch checked={status?.running ?? true} disabled />
+              </PreferenceRow>
+            )}
 
             {/* 访问地址（仅运行时显示）/ Access URL (only when running) */}
             {status?.running && (
               <PreferenceRow label={t('settings.webui.accessUrl')}>
                 <div className='flex items-center gap-8px'>
-                  <button className='text-14px text-primary font-mono hover:underline cursor-pointer bg-transparent border-none p-0' onClick={() => shell.openExternal.invoke(getDisplayUrl()).catch(console.error)}>
+                  <button className='text-14px text-primary font-mono hover:underline cursor-pointer bg-transparent border-none p-0' onClick={() => openExternal(getDisplayUrl())}>
                     {getDisplayUrl()}
                   </button>
                   <Tooltip content={t('common.copy')}>
@@ -585,7 +592,7 @@ const WebuiModalContent: React.FC = () => {
                 <>
                   {t('settings.webui.allowRemoteDesc')}
                   {'  '}
-                  <button className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px' onClick={() => shell.openExternal.invoke('https://github.com/iOfficeAI/AionUi/wiki/Remote-Internet-Access-Guide').catch(console.error)}>
+                  <button className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px' onClick={() => openExternal('https://github.com/iOfficeAI/AionUi/wiki/Remote-Internet-Access-Guide')}>
                     {t('settings.webui.viewGuide')}
                   </button>
                 </>
