@@ -95,6 +95,144 @@ async function copyDirectory(src: string, dest: string) {
 }
 
 /**
+ * Validate skill name for file system safety
+ * 验证 skill 名称是否符合文件系统要求
+ */
+function validateSkillName(name: string): { valid: boolean; error?: string } {
+  if (!name || name.trim().length === 0) {
+    return { valid: false, error: 'Skill name cannot be empty' };
+  }
+
+  // Check for invalid characters in file/directory names
+  // eslint-disable-next-line no-control-regex
+  const invalidChars = /[<>:"/\\|?*\x00-\x1F]/;
+  if (invalidChars.test(name)) {
+    return { valid: false, error: 'Skill name contains invalid characters (<>:"/\\|?*)' };
+  }
+
+  // Check for reserved names (Windows)
+  const reservedNames = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+  if (reservedNames.test(name)) {
+    return { valid: false, error: 'Skill name uses a reserved system name' };
+  }
+
+  // Check length (max 255 for most file systems, use 100 as safe limit)
+  if (name.length > 100) {
+    return { valid: false, error: 'Skill name is too long (max 100 characters)' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Parse YAML field value, handling multi-line strings (>, |)
+ * 解析 YAML 字段值，处理多行字符串（>, |）
+ */
+function parseYamlField(yaml: string, fieldName: string): string {
+  // Match the field with potential multi-line value
+  const fieldPattern = new RegExp(`^${fieldName}:\\s*([>|]?)\\s*(.*)$`, 'm');
+  const match = yaml.match(fieldPattern);
+
+  if (!match) {
+    console.log(`[parseYamlField] No match for field: ${fieldName}`);
+    return '';
+  }
+
+  console.log(`[parseYamlField] Found ${fieldName}, operator: '${match[1]}', sameLine: '${match[2]}'`);
+
+  const [_fullMatch, operator, sameLine] = match;
+
+  // If there's content on the same line and no multi-line operator, return it
+  if (sameLine.trim() && !operator) {
+    // Remove surrounding quotes if present
+    return sameLine.trim().replace(/^['"]|['"]$/g, '');
+  }
+
+  // For multi-line strings (> or |), collect subsequent indented lines
+  if (operator === '>' || operator === '|') {
+    const lines = yaml.split('\n');
+    const fieldLineIndex = lines.findIndex((line) => line.match(fieldPattern));
+
+    if (fieldLineIndex === -1) return '';
+
+    // Get the indentation level of the first content line
+    let firstContentLine = -1;
+    let baseIndent = 0;
+
+    for (let i = fieldLineIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
+      // Skip empty lines
+      if (line.trim() === '') continue;
+
+      // Check if this line starts a new YAML key (not indented or at same level as field)
+      if (line.match(/^\w+:/)) break;
+
+      // This is the first content line
+      firstContentLine = i;
+      baseIndent = line.search(/\S/);
+      break;
+    }
+
+    if (firstContentLine === -1) return '';
+
+    // Collect all lines that are indented at or beyond the base indentation
+    const contentLines: string[] = [];
+
+    for (let i = firstContentLine; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Empty lines are included
+      if (line.trim() === '') {
+        contentLines.push('');
+        continue;
+      }
+
+      const indent = line.search(/\S/);
+
+      // If line is not indented enough or starts a new key, stop
+      if (indent < baseIndent || line.match(/^\w+:/)) break;
+
+      // Remove base indentation
+      contentLines.push(line.substring(baseIndent));
+    }
+
+    // Process according to operator
+    if (operator === '>') {
+      // Folded style: join lines with spaces, preserve paragraph breaks (blank lines)
+      const paragraphs: string[] = [];
+      let currentParagraph: string[] = [];
+
+      for (const line of contentLines) {
+        if (line.trim() === '') {
+          if (currentParagraph.length > 0) {
+            paragraphs.push(currentParagraph.join(' '));
+            currentParagraph = [];
+          }
+        } else {
+          currentParagraph.push(line.trim());
+        }
+      }
+
+      if (currentParagraph.length > 0) {
+        paragraphs.push(currentParagraph.join(' '));
+      }
+
+      const result = paragraphs.join('\n').trim();
+      console.log(`[parseYamlField] Returning folded style result, length: ${result.length}, preview: ${result.substring(0, 50)}`);
+      return result;
+    } else {
+      // Literal style (|): preserve line breaks
+      const result = contentLines.join('\n').trim();
+      console.log(`[parseYamlField] Returning literal style result, length: ${result.length}, preview: ${result.substring(0, 50)}`);
+      return result;
+    }
+  }
+
+  console.log('[parseYamlField] Returning empty string (no operator)');
+  return '';
+}
+
+/**
  * Read a builtin resource file (.md only)
  * 读取内置资源文件（仅限 .md）
  */
@@ -632,6 +770,7 @@ export function initFsBridge(): void {
 
   // 获取可用 skills 列表 / List available skills from both builtin and user directories
   ipcBridge.fs.listAvailableSkills.provider(async () => {
+    console.log('[fsBridge] ==================== listAvailableSkills CALLED ====================');
     try {
       const skills: Array<{ name: string; description: string; location: string; isCustom: boolean }> = [];
 
@@ -657,11 +796,12 @@ export function initFsBridge(): void {
               if (frontMatterMatch) {
                 const yaml = frontMatterMatch[1];
                 const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-                const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-                if (nameMatch) {
+                const name = nameMatch ? nameMatch[1].trim() : '';
+                const description = parseYamlField(yaml, 'description');
+                if (name) {
                   skills.push({
-                    name: nameMatch[1].trim(),
-                    description: descMatch ? descMatch[1].trim() : '',
+                    name,
+                    description,
                     location: skillMdPath,
                     isCustom: isCustomDir,
                   });
@@ -716,6 +856,8 @@ export function initFsBridge(): void {
   // 读取 skill 信息（不导入）/ Read skill info without importing
   ipcBridge.fs.readSkillInfo.provider(async ({ skillPath }) => {
     try {
+      console.log(`[fsBridge] Reading skill info from: ${skillPath}`);
+
       // 验证 SKILL.md 文件存在 / Verify SKILL.md file exists
       const skillMdPath = path.join(skillPath, 'SKILL.md');
       try {
@@ -723,7 +865,7 @@ export function initFsBridge(): void {
       } catch {
         return {
           success: false,
-          msg: 'SKILL.md file not found in the selected directory',
+          msg: 'SKILL.md file not found. Please select a directory containing a SKILL.md file.',
         };
       }
 
@@ -733,17 +875,38 @@ export function initFsBridge(): void {
       let skillName = path.basename(skillPath); // 默认使用目录名 / Default to directory name
       let skillDescription = '';
 
-      if (frontMatterMatch) {
-        const yaml = frontMatterMatch[1];
-        const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-        const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-        if (nameMatch) {
-          skillName = nameMatch[1].trim();
-        }
-        if (descMatch) {
-          skillDescription = descMatch[1].trim();
-        }
+      if (!frontMatterMatch) {
+        console.warn('[fsBridge] No YAML front matter found in SKILL.md');
+        return {
+          success: false,
+          msg: 'SKILL.md is missing YAML front matter (---name/description---)',
+        };
       }
+
+      const yaml = frontMatterMatch[1];
+      const nameMatch = yaml.match(/^name:\s*(.+)$/m);
+
+      if (!nameMatch || !nameMatch[1].trim()) {
+        console.warn('[fsBridge] No name field found in YAML front matter');
+        return {
+          success: false,
+          msg: 'SKILL.md must include a "name" field in YAML front matter',
+        };
+      }
+
+      skillName = nameMatch[1].trim();
+      skillDescription = parseYamlField(yaml, 'description');
+
+      // Validate skill name
+      const nameValidation = validateSkillName(skillName);
+      if (!nameValidation.valid) {
+        return {
+          success: false,
+          msg: `Invalid skill name: ${nameValidation.error}`,
+        };
+      }
+
+      console.log(`[fsBridge] Successfully read skill: ${skillName}`);
 
       return {
         success: true,
@@ -787,6 +950,15 @@ export function initFsBridge(): void {
         if (nameMatch) {
           skillName = nameMatch[1].trim();
         }
+      }
+
+      // Validate skill name
+      const nameValidation = validateSkillName(skillName);
+      if (!nameValidation.valid) {
+        return {
+          success: false,
+          msg: `Invalid skill name: ${nameValidation.error}`,
+        };
       }
 
       // 获取用户 skills 目录 / Get user skills directory
@@ -859,14 +1031,15 @@ export function initFsBridge(): void {
           if (frontMatterMatch) {
             const yaml = frontMatterMatch[1];
             const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-            const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-            if (nameMatch) {
+            const name = nameMatch ? nameMatch[1].trim() : '';
+            const description = parseYamlField(yaml, 'description');
+            if (name) {
               skills.push({
-                name: nameMatch[1].trim(),
-                description: descMatch ? descMatch[1].trim() : '',
+                name,
+                description,
                 path: skillDir,
               });
-              console.log(`[fsBridge] Found skill in subdirectory: ${nameMatch[1].trim()}`);
+              console.log(`[fsBridge] Found skill in subdirectory: ${name}`);
             }
           }
         } catch {
@@ -884,14 +1057,15 @@ export function initFsBridge(): void {
           if (frontMatterMatch) {
             const yaml = frontMatterMatch[1];
             const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-            const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-            if (nameMatch) {
+            const name = nameMatch ? nameMatch[1].trim() : '';
+            const description = parseYamlField(yaml, 'description');
+            if (name) {
               skills.push({
-                name: nameMatch[1].trim(),
-                description: descMatch ? descMatch[1].trim() : '',
+                name,
+                description,
                 path: folderPath,
               });
-              console.log(`[fsBridge] Found skill in the folder itself: ${nameMatch[1].trim()}`);
+              console.log(`[fsBridge] Found skill in the folder itself: ${name}`);
             }
           }
         } catch {
@@ -1225,6 +1399,16 @@ export function initFsBridge(): void {
           const nameMatch = yaml.match(/^name:\s*(.+)$/m);
           if (nameMatch) skillName = nameMatch[1].trim();
         }
+      }
+
+      // Validate skill name
+      const nameValidation = validateSkillName(skillName);
+      if (!nameValidation.valid) {
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        return {
+          success: false,
+          msg: `Invalid skill name: ${nameValidation.error}`,
+        };
       }
 
       // Check for duplicates

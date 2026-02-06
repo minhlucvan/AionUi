@@ -410,7 +410,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
               {detailSkill.description && (
                 <div className='flex-shrink-0'>
                   <Typography.Text bold>{t('settings.skillDetailDescription', { defaultValue: 'Description' })}</Typography.Text>
-                  <div className='mt-10px text-13px text-t-secondary'>{detailSkill.description}</div>
+                  <div className='mt-10px text-13px text-t-secondary whitespace-pre-wrap'>{detailSkill.description}</div>
                 </div>
               )}
 
