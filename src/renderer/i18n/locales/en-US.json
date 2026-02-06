@@ -627,6 +627,8 @@
     "channels.discordDesc": "Chat with AionUi assistant via Discord",
     "channels.larkTitle": "Lark",
     "channels.larkDesc": "Chat with AionUi assistant via Lark",
+    "channels.mezonTitle": "Mezon",
+    "channels.mezonDesc": "Chat with AionUi assistant via Mezon",
     "channels.comingSoon": "Coming Soon",
     "channels.comingSoonDesc": "Support for {{channel}} is coming soon",
     "channels.notConfigured": "Not configured",

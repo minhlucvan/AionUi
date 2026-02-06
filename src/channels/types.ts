@@ -9,7 +9,7 @@
 /**
  * Supported platform types for plugins
  */
-export type PluginType = 'telegram' | 'slack' | 'discord' | 'lark';
+export type PluginType = 'telegram' | 'slack' | 'discord' | 'lark' | 'mezon';
 
 /**
  * Plugin connection status
@@ -27,6 +27,8 @@ export interface IPluginCredentials {
   appSecret?: string;
   encryptKey?: string;
   verificationToken?: string;
+  // Mezon
+  botId?: string;
 }
 
 /**

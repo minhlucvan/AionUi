@@ -323,7 +323,7 @@ export class ActionExecutor {
 
         // 使用 ConversationService 获取或创建会话（根据平台）
         // Use ConversationService to get or create conversation (based on platform)
-        const conversationName = platform === 'lark' ? 'Lark Assistant' : 'Telegram Assistant';
+        const conversationName = platform === 'lark' ? 'Lark Assistant' : platform === 'mezon' ? 'Mezon Assistant' : 'Telegram Assistant';
         const result = await ConversationService.getOrCreateTelegramConversation({
           model,
           name: conversationName,

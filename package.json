@@ -142,6 +142,7 @@
     "jsonwebtoken": "^9.0.2",
     "katex": "^0.16.22",
     "mammoth": "^1.11.0",
+    "mezon-sdk": "^2.8.41",
     "officeparser": "^5.2.2",
     "openai": "^5.12.2",
     "pptx2json": "^0.0.10",

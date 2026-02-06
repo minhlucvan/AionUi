@@ -10,6 +10,7 @@ import { ActionExecutor } from '../gateway/ActionExecutor';
 import { PluginManager, registerPlugin } from '../gateway/PluginManager';
 import { PairingService } from '../pairing/PairingService';
 import { LarkPlugin } from '../plugins/lark/LarkPlugin';
+import { MezonPlugin } from '../plugins/mezon/MezonPlugin';
 import { TelegramPlugin } from '../plugins/telegram/TelegramPlugin';
 import type { IChannelPluginConfig, PluginType } from '../types';
 import { SessionManager } from './SessionManager';
@@ -45,6 +46,7 @@ export class ChannelManager {
     // Register available plugins
     registerPlugin('telegram', TelegramPlugin);
     registerPlugin('lark', LarkPlugin);
+    registerPlugin('mezon', MezonPlugin);
   }
 
   /**
@@ -233,6 +235,12 @@ export class ChannelManager {
       if (appId && appSecret) {
         credentials = { appId, appSecret, encryptKey, verificationToken };
       }
+    } else if (pluginType === 'mezon') {
+      const token = config.token as string | undefined;
+      const botId = config.botId as string | undefined;
+      if (token && botId) {
+        credentials = { token, botId };
+      }
     }
 
     const pluginConfig: IChannelPluginConfig = {
@@ -317,6 +325,19 @@ export class ChannelManager {
       };
     }
 
+    if (pluginType === 'mezon') {
+      const botId = extraConfig?.appId; // Reuse appId field for botId
+      if (!botId) {
+        return { success: false, error: 'Bot ID is required for Mezon' };
+      }
+      const result = await MezonPlugin.testConnection(token, botId);
+      return {
+        success: result.success,
+        botUsername: result.botInfo?.displayName,
+        error: result.error,
+      };
+    }
+
     return { success: false, error: `Unknown plugin type: ${pluginType}` };
   }
 
@@ -328,6 +349,7 @@ export class ChannelManager {
     if (pluginId.startsWith('slack')) return 'slack';
     if (pluginId.startsWith('discord')) return 'discord';
     if (pluginId.startsWith('lark')) return 'lark';
+    if (pluginId.startsWith('mezon')) return 'mezon';
     return 'telegram'; // Default
   }
 
