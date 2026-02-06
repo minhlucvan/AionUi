@@ -579,29 +579,66 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
             />
           </div>
 
-          <div className='bg-fill-2 rounded-lg p-12px space-y-8px'>
-            <div className='text-12px text-t-secondary font-medium'>{t('settings.skillUrlFormatsTitle', { defaultValue: 'Supported formats' })}</div>
-            <div className='space-y-6px text-12px text-t-tertiary font-mono'>
-              {[
-                'vercel-labs/agent-skills',
-                'https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices',
-                'https://github.com/owner/repo --skill skill-name',
-                'npx skills add openclaw/openclaw',
-              ].map((example) => (
-                <div
-                  key={example}
-                  className='cursor-pointer hover:text-primary transition-colors truncate'
-                  title={example}
-                  onClick={() => setSkillUrl(example)}
-                >
-                  {example}
+          {/* Collapsible Installation Guide */}
+          <Collapse bordered={false} style={{ background: 'var(--color-fill-2)', borderRadius: 8 }}>
+            <Collapse.Item
+              header={<span className='text-13px font-medium'>{t('settings.skillGuideTitle', { defaultValue: 'How to install a skill' })}</span>}
+              name='install-guide'
+            >
+              <div className='space-y-14px text-13px text-t-secondary'>
+                {/* Step 1: Find a skill */}
+                <div>
+                  <div className='font-medium text-t-primary mb-6px'>{t('settings.skillGuideStep1Title', { defaultValue: '1. Find a skill' })}</div>
+                  <div className='text-12px mb-6px'>
+                    {t('settings.skillGuideStep1Desc', { defaultValue: 'Browse skills on skills.sh or any GitHub repository that contains SKILL.md files.' })}
+                  </div>
+                  <span
+                    className='text-12px text-primary cursor-pointer hover:underline'
+                    onClick={() => void ipcBridge.shell.openExternal.invoke('https://skills.sh')}
+                  >
+                    skills.sh
+                  </span>
                 </div>
-              ))}
-            </div>
-            <div className='text-11px text-t-quaternary mt-4px'>
-              {t('settings.skillUrlFormatsHint', { defaultValue: 'Click an example to use it. Supports skills.sh, GitHub, and owner/repo shorthand.' })}
-            </div>
-          </div>
+
+                {/* Step 2: Copy the identifier */}
+                <div>
+                  <div className='font-medium text-t-primary mb-6px'>{t('settings.skillGuideStep2Title', { defaultValue: '2. Copy the identifier' })}</div>
+                  <div className='text-12px mb-8px'>
+                    {t('settings.skillGuideStep2Desc', { defaultValue: 'Paste any of these formats into the input above:' })}
+                  </div>
+                  <div className='space-y-6px'>
+                    {[
+                      { label: t('settings.skillGuideFormatShorthand', { defaultValue: 'Shorthand' }), example: 'vercel-labs/agent-skills' },
+                      { label: t('settings.skillGuideFormatSkillsSh', { defaultValue: 'skills.sh URL' }), example: 'https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices' },
+                      { label: t('settings.skillGuideFormatGitHub', { defaultValue: 'GitHub URL' }), example: 'https://github.com/owner/repo --skill skill-name' },
+                      { label: t('settings.skillGuideFormatNpx', { defaultValue: 'npx command' }), example: 'npx skills add openclaw/openclaw' },
+                    ].map(({ label, example }) => (
+                      <div key={example} className='flex items-start gap-8px'>
+                        <Tag size='small' color='arcoblue' className='text-11px flex-shrink-0 mt-1px'>
+                          {label}
+                        </Tag>
+                        <code
+                          className='text-12px text-t-tertiary font-mono cursor-pointer hover:text-primary transition-colors truncate'
+                          title={example}
+                          onClick={() => setSkillUrl(example)}
+                        >
+                          {example}
+                        </code>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Step 3: Install */}
+                <div>
+                  <div className='font-medium text-t-primary mb-6px'>{t('settings.skillGuideStep3Title', { defaultValue: '3. Click Install' })}</div>
+                  <div className='text-12px'>
+                    {t('settings.skillGuideStep3Desc', { defaultValue: 'The skill will be downloaded from GitHub and added to your available skills. You can enable or disable it per conversation.' })}
+                  </div>
+                </div>
+              </div>
+            </Collapse.Item>
+          </Collapse>
         </div>
       </Modal>
 
