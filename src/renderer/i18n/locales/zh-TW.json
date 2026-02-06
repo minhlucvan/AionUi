@@ -1046,5 +1046,19 @@
   "cron.drawer.schedule": "執行規則",
   "cron.drawer.nextRun": "下次執行",
   "cron.drawer.save": "儲存",
-  "cron.drawer.saveSuccess": "儲存成功"
+  "cron.drawer.saveSuccess": "儲存成功",
+  "titlebar": {
+    "mode": {
+      "chat": "聊天",
+      "assistants": "助手"
+    }
+  },
+  "assistants": {
+    "title": "助手",
+    "subtitle": "活躍的代理及其對話",
+    "empty": "暫無對話",
+    "running": "運行中",
+    "conversationCount": "{{count}} 個對話",
+    "untitled": "未命名"
+  }
 }

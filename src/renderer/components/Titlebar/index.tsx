@@ -9,6 +9,7 @@ import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/u
 import type { WorkspaceStateDetail } from '@renderer/utils/workspaceEvents';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
+import ModeTabs from './ModeTabs';
 
 interface TitlebarProps {
   workspaceAvailable: boolean;
@@ -86,7 +87,11 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
           </button>
         )}
       </div>
-      <div className='app-titlebar__brand'>{appTitle}</div>
+      {layout ? (
+        <ModeTabs activeMode={layout.appMode} onChange={layout.setAppMode} />
+      ) : (
+        <div className='app-titlebar__brand'>{appTitle}</div>
+      )}
       <div className='app-titlebar__toolbar'>
         {showWorkspaceButton && (
           <button type='button' className='app-titlebar__button' onClick={handleWorkspaceToggle} aria-label={workspaceTooltip}>

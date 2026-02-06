@@ -1261,5 +1261,19 @@
   "cron.drawer.schedule": "Schedule",
   "cron.drawer.nextRun": "Next Run",
   "cron.drawer.save": "Save",
-  "cron.drawer.saveSuccess": "Saved successfully"
+  "cron.drawer.saveSuccess": "Saved successfully",
+  "titlebar": {
+    "mode": {
+      "chat": "Chat",
+      "assistants": "Assistants"
+    }
+  },
+  "assistants": {
+    "title": "Assistants",
+    "subtitle": "Active agents and their conversations",
+    "empty": "No conversations yet",
+    "running": "Running",
+    "conversationCount": "{{count}} conversations",
+    "untitled": "Untitled"
+  }
 }

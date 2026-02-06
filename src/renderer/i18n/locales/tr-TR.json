@@ -1109,5 +1109,19 @@
       "autoGemini25Desc": "Gemini CLI'nın görev için en iyi modele karar vermesine izin ver: gemini-2.5-pro, gemini-2.5-flash",
       "manualDesc": "Manuel olarak bir model seç"
     }
+  },
+  "titlebar": {
+    "mode": {
+      "chat": "Sohbet",
+      "assistants": "Asistanlar"
+    }
+  },
+  "assistants": {
+    "title": "Asistanlar",
+    "subtitle": "Aktif ajanlar ve konuşmaları",
+    "empty": "Henüz konuşma yok",
+    "running": "Çalışıyor",
+    "conversationCount": "{{count}} konuşma",
+    "untitled": "Başlıksız"
   }
 }

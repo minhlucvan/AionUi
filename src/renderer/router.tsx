@@ -16,6 +16,7 @@ import BotsSettings from './pages/settings/BotsSettings';
 import WebuiSettings from './pages/settings/WebuiSettings';
 import LoginPage from './pages/login';
 import ComponentsShowcase from './pages/test/ComponentsShowcase';
+import AssistantsPage from './pages/assistants';
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
@@ -53,6 +54,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/bots' element={<BotsSettings />} />
           <Route path='/settings/tools' element={<ToolsSettings />} />
           <Route path='/settings' element={<Navigate to='/settings/gemini' replace />} />
+          <Route path='/assistants' element={<AssistantsPage />} />
           <Route path='/test/components' element={<ComponentsShowcase />} />
         </Route>
         <Route path='*' element={<Navigate to={status === 'authenticated' ? '/guid' : '/login'} replace />} />

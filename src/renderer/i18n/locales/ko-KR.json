@@ -1134,5 +1134,19 @@
   "cron.drawer.schedule": "실행 규칙",
   "cron.drawer.nextRun": "다음 실행",
   "cron.drawer.save": "저장",
-  "cron.drawer.saveSuccess": "저장되었습니다"
+  "cron.drawer.saveSuccess": "저장되었습니다",
+  "titlebar": {
+    "mode": {
+      "chat": "채팅",
+      "assistants": "어시스턴트"
+    }
+  },
+  "assistants": {
+    "title": "어시스턴트",
+    "subtitle": "활성 에이전트 및 대화",
+    "empty": "대화가 없습니다",
+    "running": "실행 중",
+    "conversationCount": "{{count}} 개의 대화",
+    "untitled": "제목 없음"
+  }
 }

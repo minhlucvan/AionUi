@@ -1079,5 +1079,19 @@
   "cron.drawer.schedule": "実行ルール",
   "cron.drawer.nextRun": "次回実行",
   "cron.drawer.save": "保存",
-  "cron.drawer.saveSuccess": "保存しました"
+  "cron.drawer.saveSuccess": "保存しました",
+  "titlebar": {
+    "mode": {
+      "chat": "チャット",
+      "assistants": "アシスタント"
+    }
+  },
+  "assistants": {
+    "title": "アシスタント",
+    "subtitle": "アクティブなエージェントとその会話",
+    "empty": "会話はまだありません",
+    "running": "実行中",
+    "conversationCount": "{{count}} 件の会話",
+    "untitled": "無題"
+  }
 }
