@@ -507,8 +507,6 @@ const BotsConfigForm: React.FC<BotsConfigFormProps> = ({ modelList, onStatusChan
     [activeBotId, loadPendingPairings, loadAuthorizedUsers]
   );
 
-  const hasConnectedBot = useMemo(() => pluginStatuses.some((p) => p.connected), [pluginStatuses]);
-
   return (
     <div className='flex flex-col gap-16px'>
       {/* Bot List Header */}
@@ -654,24 +652,6 @@ const BotsConfigForm: React.FC<BotsConfigFormProps> = ({ modelList, onStatusChan
                 </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* First-time setup hint */}
-      {bots.length > 0 && !hasConnectedBot && (
-        <div className='bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rd-12px p-16px'>
-          <div className='text-14px text-t-secondary space-y-6px'>
-            <p className='m-0 font-500'>{t('settings.bots.setupSteps', 'Setup Steps')}:</p>
-            <p className='m-0'>
-              <strong>1.</strong> {t('settings.bots.step1', 'Open the Mezon platform and find your bot')}
-            </p>
-            <p className='m-0'>
-              <strong>2.</strong> {t('settings.bots.step2', 'Send any message or /start to initiate pairing')}
-            </p>
-            <p className='m-0'>
-              <strong>3.</strong> {t('settings.bots.step3', 'A pairing request will appear below. Click "Approve" to authorize the user.')}
-            </p>
           </div>
         </div>
       )}
