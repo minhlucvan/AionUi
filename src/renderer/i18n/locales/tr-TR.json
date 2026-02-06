@@ -635,6 +635,8 @@
     "channels.discordDesc": "Discord üzerinden AionUi asistanı ile sohbet edin",
     "channels.larkTitle": "Lark",
     "channels.larkDesc": "Lark üzerinden AionUi asistanı ile sohbet edin",
+    "channels.mezonTitle": "Mezon",
+    "channels.mezonDesc": "Mezon üzerinden AionUi asistanı ile sohbet edin",
     "channels.comingSoon": "Çok Yakında",
     "channels.comingSoonDesc": "{{channel}} desteği çok yakında",
     "channels.notConfigured": "Yapılandırılmadı",
