@@ -52,9 +52,6 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
   const [commonPaths, setCommonPaths] = useState<Array<{ name: string; path: string }>>([]);
   const [importing, setImporting] = useState(false);
 
-  // API key state
-  const [apiKey, setApiKey] = useState(() => ConfigStorage.get('skillsmp.apiKey') || '');
-
   useEffect(() => {
     const updateDrawerWidth = () => {
       if (typeof window === 'undefined') return;
@@ -179,11 +176,6 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
     }
   }, [skillPath, message, t, loadSkills]);
 
-  const handleSaveApiKey = useCallback(() => {
-    ConfigStorage.set('skillsmp.apiKey', apiKey.trim());
-    message.success(t('settings.skillsmpApiKeySaved', { defaultValue: 'SkillsMP API key saved' }));
-  }, [apiKey, message, t]);
-
   const handleViewDetail = useCallback((skill: SkillInfo) => {
     setDetailSkill(skill);
     setDetailVisible(true);
@@ -307,37 +299,6 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      </Collapse.Item>
-
-      {/* ================================================================ */}
-      {/* SkillsMP API Key Collapse.Item */}
-      {/* ================================================================ */}
-      <Collapse.Item
-        header={
-          <div className='flex items-center justify-between w-full'>
-            <span>{t('settings.skillsmpApiKeyTitle', { defaultValue: 'SkillsMP API Key' })}</span>
-          </div>
-        }
-        name='skillsmp-api-key'
-      >
-        <div className='py-2'>
-          <div className='bg-fill-2 rounded-2xl p-20px'>
-            <div className='flex items-center gap-8px mb-8px'>
-              <div className='text-12px text-t-secondary'>
-                {t('settings.skillsmpApiKeyDesc', { defaultValue: 'Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.' })}
-              </div>
-              <span className='text-11px text-primary cursor-pointer hover:underline flex-shrink-0' onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com/docs/api')}>
-                {t('settings.skillsmpGetKey', { defaultValue: 'Get API key' })}
-              </span>
-            </div>
-            <div className='flex items-center gap-8px'>
-              <Input.Password value={apiKey} onChange={setApiKey} placeholder='sk_live_...' className='flex-1' />
-              <Button type='primary' onClick={handleSaveApiKey}>
-                {t('common.save', { defaultValue: 'Save' })}
-              </Button>
-            </div>
           </div>
         </div>
       </Collapse.Item>
