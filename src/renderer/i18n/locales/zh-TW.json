@@ -622,6 +622,7 @@
     "webui.passwordResetFailed": "密碼重設失敗",
     "webui.browserNotSupported": "瀏覽器端無法存取 WebUI 設定",
     "webui.browserNotSupportedDesc": "出於安全考量，WebUI 設定只能在桌面應用中管理。請在 AionUi 桌面應用中開啟設定面板進行配置。",
+    "webui.browserServiceHint": "請在桌面應用中管理",
     "webui.passwordHidden": "******",
     "webui.passwordOnlyFirstTime": "密碼僅在首次啟動時顯示，之後將被隱藏",
     "webui.resetPasswordWarning": "請妥善保管重設後的密碼！",
