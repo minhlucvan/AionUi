@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Empty, Input, Message, Modal, Spin, Tag, Typography } from '@arco-design/web-react';
+import type { Message } from '@arco-design/web-react';
+import { Button, Empty, Input, Modal, Spin, Tag, Typography } from '@arco-design/web-react';
 import { Download, Star, Search } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -151,16 +152,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
   };
 
   return (
-    <Modal
-      visible={visible}
-      onCancel={onClose}
-      title={t('settings.skillBrowseTitle', { defaultValue: 'Browse Skills on SkillsMP' })}
-      footer={null}
-      style={{ width: 640 }}
-      wrapStyle={{ zIndex: 10001 }}
-      maskStyle={{ zIndex: 10000 }}
-      unmountOnExit
-    >
+    <Modal visible={visible} onCancel={onClose} title={t('settings.skillBrowseTitle', { defaultValue: 'Browse Skills on SkillsMP' })} footer={null} style={{ width: 640 }} wrapStyle={{ zIndex: 10001 }} maskStyle={{ zIndex: 10000 }} unmountOnExit>
       <div className='space-y-16px'>
         {/* Search bar */}
         <div className='flex gap-8px'>
@@ -205,9 +197,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
             </div>
           ) : results.length > 0 ? (
             <>
-              <div className='text-12px text-t-secondary mb-4px'>
-                {t('settings.skillBrowseResultCount', { count: totalCount, defaultValue: `${totalCount} results found` })}
-              </div>
+              <div className='text-12px text-t-secondary mb-4px'>{t('settings.skillBrowseResultCount', { count: totalCount, defaultValue: `${totalCount} results found` })}</div>
               {results.map((skill) => {
                 const isInstalled = installedSkillNames.some((n) => n === skill.name);
                 return (
@@ -255,15 +245,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
                           {t('settings.skillAlreadyInstalled', { defaultValue: 'Installed' })}
                         </Tag>
                       ) : (
-                        <Button
-                          type='outline'
-                          size='small'
-                          className='flex-shrink-0'
-                          loading={installing === skill.id}
-                          disabled={!skill.githubUrl}
-                          icon={<Download size={14} />}
-                          onClick={() => void handleInstall(skill)}
-                        >
+                        <Button type='outline' size='small' className='flex-shrink-0' loading={installing === skill.id} disabled={!skill.githubUrl} icon={<Download size={14} />} onClick={() => void handleInstall(skill)}>
                           {t('settings.skillBrowseInstall', { defaultValue: 'Install' })}
                         </Button>
                       )}

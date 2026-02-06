@@ -13,21 +13,11 @@ const ModeTabs: React.FC<ModeTabsProps> = ({ activeMode, onChange }) => {
 
   return (
     <div className='app-titlebar__mode-tabs'>
-      <button
-        type='button'
-        className='app-titlebar__mode-tab'
-        data-active={activeMode === 'chat' || undefined}
-        onClick={() => onChange('chat')}
-      >
+      <button type='button' className='app-titlebar__mode-tab' data-active={activeMode === 'chat' || undefined} onClick={() => onChange('chat')}>
         <Message theme='outline' size='14' fill='currentColor' />
         <span>{t('titlebar.mode.chat', { defaultValue: 'Chat' })}</span>
       </button>
-      <button
-        type='button'
-        className='app-titlebar__mode-tab'
-        data-active={activeMode === 'bots' || undefined}
-        onClick={() => onChange('bots')}
-      >
+      <button type='button' className='app-titlebar__mode-tab' data-active={activeMode === 'bots' || undefined} onClick={() => onChange('bots')}>
         <Robot theme='outline' size='14' fill='currentColor' />
         <span>{t('titlebar.mode.bots', { defaultValue: 'Bots' })}</span>
       </button>

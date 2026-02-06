@@ -37,20 +37,8 @@ const BotCard: React.FC<{
         <div className='bots-card__info'>
           <div className='bots-card__name'>{bot.name || t('bots.untitled', { defaultValue: 'Untitled Bot' })}</div>
           <div className='bots-card__meta'>
-            {isRunning ? (
-              <span className='bots-card__status--running'>
-                {t('bots.running', { defaultValue: 'Running' })}
-              </span>
-            ) : (
-              <span className='bots-card__status--stopped'>
-                {t('bots.stopped', { defaultValue: 'Stopped' })}
-              </span>
-            )}
-            {bot.conversationCount > 0 && (
-              <span className='text-[var(--color-text-4)] text-12px'>
-                {t('bots.conversationCount', { defaultValue: '{{count}} conversations', count: bot.conversationCount })}
-              </span>
-            )}
+            {isRunning ? <span className='bots-card__status--running'>{t('bots.running', { defaultValue: 'Running' })}</span> : <span className='bots-card__status--stopped'>{t('bots.stopped', { defaultValue: 'Stopped' })}</span>}
+            {bot.conversationCount > 0 && <span className='text-[var(--color-text-4)] text-12px'>{t('bots.conversationCount', { defaultValue: '{{count}} conversations', count: bot.conversationCount })}</span>}
           </div>
         </div>
         <div className='bots-card__chevron'>
@@ -145,42 +133,22 @@ const BotsPage: React.FC = () => {
   return (
     <div className='bots-page size-full flex flex-col'>
       <div className='bots-page__content flex-1 overflow-y-auto'>
-        <div
-          className='mx-auto py-24px px-16px'
-          style={{ width: 'clamp(var(--app-min-width, 360px), calc(100% - 32px), 680px)', maxWidth: '100%' }}
-        >
+        <div className='mx-auto py-24px px-16px' style={{ width: 'clamp(var(--app-min-width, 360px), calc(100% - 32px), 680px)', maxWidth: '100%' }}>
           <div className='mb-20px flex items-center justify-between'>
             <div>
               <h2 className='text-18px font-600 text-[var(--color-text-1)] m-0'>{t('bots.title', { defaultValue: 'Bots' })}</h2>
               <p className='text-13px text-[var(--color-text-3)] mt-4px mb-0'>{t('bots.subtitle', { defaultValue: 'Auto-run assistants on messaging platforms' })}</p>
             </div>
             {botsWithCounts.length > 0 && (
-              <Button
-                type='outline'
-                icon={<Plus theme='outline' size='14' />}
-                shape='round'
-                onClick={() => navigate('/settings/bots')}
-              >
+              <Button type='outline' icon={<Plus theme='outline' size='14' />} shape='round' onClick={() => navigate('/settings/bots')}>
                 {t('bots.addBot', { defaultValue: 'Add Bot' })}
               </Button>
             )}
           </div>
           {botsWithCounts.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-60px'>
-              <Empty
-                description={
-                  <span className='text-[var(--color-text-3)]'>
-                    {t('bots.empty', { defaultValue: 'No bots configured yet' })}
-                  </span>
-                }
-              />
-              <Button
-                type='outline'
-                icon={<Plus theme='outline' size='14' />}
-                shape='round'
-                className='mt-16px'
-                onClick={() => navigate('/settings/bots')}
-              >
+              <Empty description={<span className='text-[var(--color-text-3)]'>{t('bots.empty', { defaultValue: 'No bots configured yet' })}</span>} />
+              <Button type='outline' icon={<Plus theme='outline' size='14' />} shape='round' className='mt-16px' onClick={() => navigate('/settings/bots')}>
                 {t('bots.addBot', { defaultValue: 'Add Bot' })}
               </Button>
             </div>

@@ -1072,25 +1072,29 @@ export function initFsBridge(): void {
   // Helper: fetch JSON from GitHub API
   const fetchGitHubApi = (apiUrl: string): Promise<any> => {
     return new Promise((resolve, reject) => {
-      const req = https.get(apiUrl, {
-        headers: { 'User-Agent': 'AionUi-SkillBrowser', Accept: 'application/vnd.github.v3+json' },
-      }, (res) => {
-        let body = '';
-        res.on('data', (chunk: Buffer) => {
-          body += chunk.toString();
-        });
-        res.on('end', () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            try {
-              resolve(JSON.parse(body));
-            } catch {
-              reject(new Error('Invalid JSON from GitHub API'));
+      const req = https.get(
+        apiUrl,
+        {
+          headers: { 'User-Agent': 'AionUi-SkillBrowser', Accept: 'application/vnd.github.v3+json' },
+        },
+        (res) => {
+          let body = '';
+          res.on('data', (chunk: Buffer) => {
+            body += chunk.toString();
+          });
+          res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              try {
+                resolve(JSON.parse(body));
+              } catch {
+                reject(new Error('Invalid JSON from GitHub API'));
+              }
+            } else {
+              reject(new Error(`GitHub API returned ${res.statusCode}: ${body.slice(0, 200)}`));
             }
-          } else {
-            reject(new Error(`GitHub API returned ${res.statusCode}: ${body.slice(0, 200)}`));
-          }
-        });
-      });
+          });
+        }
+      );
       req.on('error', reject);
       req.setTimeout(30000, () => {
         req.destroy();
