@@ -45,7 +45,8 @@
     "createSuccess": "创建成功",
     "failed": "失败",
     "browse": "浏览",
-    "remove": "移除"
+    "remove": "移除",
+    "search": "搜索"
   },
   "login": {
     "pageTitle": "AionUi - 登录",
@@ -616,7 +617,18 @@
     "allSkillsExist": "所有找到的技能都已存在",
     "noSkillsFound": "在选择的路径中未找到有效的技能",
     "skillScanFailed": "扫描技能失败",
-    "quickScan": "快速扫描常用路径"
+    "quickScan": "快速扫描常用路径",
+    "browseGitHub": "浏览 GitHub",
+    "skillBrowseTitle": "在 GitHub 上浏览技能",
+    "skillBrowseSearchPlaceholder": "搜索技能（如 \"pdf\"、\"excel\"、\"claude code skill\"）",
+    "skillBrowseSearchFailed": "GitHub 搜索失败",
+    "skillBrowseInstall": "安装",
+    "skillBrowseInstallSuccess": "技能 \"{{name}}\" 安装成功",
+    "skillBrowseInstallFailed": "技能安装失败",
+    "skillBrowseResultCount": "找到 {{count}} 个仓库",
+    "skillBrowseNoResults": "未找到技能，请尝试其他关键词。",
+    "skillBrowseHint": "搜索 GitHub 上的社区技能，或点击上方标签浏览。",
+    "skillBrowseLoadMore": "加载更多"
   },
   "messages": {
     "fileChanges": "文件变更",

@@ -1,6 +1,6 @@
 import type { Message } from '@arco-design/web-react';
 import { Avatar, Button, Checkbox, Collapse, Input, Drawer, Modal, Typography, Select, Switch } from '@arco-design/web-react';
-import { Close, Plus, Robot, SettingOne, FolderOpen, Delete } from '@icon-park/react';
+import { Close, Plus, Robot, SettingOne, FolderOpen, Delete, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
@@ -10,6 +10,7 @@ import { resolveLocaleKey } from '@/common/utils';
 import type { AcpBackendConfig, PresetAgentType } from '@/types/acpTypes';
 import MarkdownView from '@/renderer/components/Markdown';
 import EmojiPicker from '@/renderer/components/EmojiPicker';
+import SkillBrowseModal from './components/SkillBrowseModal';
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 
@@ -56,6 +57,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   const [pendingSkills, setPendingSkills] = useState<PendingSkill[]>([]); // 待导入的 skills / Pending skills to import
   const [deletePendingSkillName, setDeletePendingSkillName] = useState<string | null>(null); // 待删除的 pending skill 名称 / Pending skill name to delete
   const [deleteCustomSkillName, setDeleteCustomSkillName] = useState<string | null>(null); // 待从助手移除的 custom skill 名称 / Custom skill to remove from assistant
+  const [browseSkillsVisible, setBrowseSkillsVisible] = useState(false); // Browse GitHub skills modal
   const textareaWrapperRef = useRef<HTMLDivElement>(null);
   const localeKey = resolveLocaleKey(i18n.language);
   const avatarImageMap: Record<string, string> = {
@@ -596,9 +598,14 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
               <div className='flex-shrink-0 mt-16px'>
                 <div className='flex items-center justify-between mb-12px'>
                   <Typography.Text bold>{t('settings.assistantSkills', { defaultValue: 'Skills' })}</Typography.Text>
-                  <Button size='small' type='outline' icon={<Plus size={14} />} onClick={() => setSkillsModalVisible(true)} className='rounded-[100px]'>
-                    {t('settings.addSkills', { defaultValue: 'Add Skills' })}
-                  </Button>
+                  <div className='flex items-center gap-6px'>
+                    <Button size='small' type='outline' icon={<Search size={14} />} onClick={() => setBrowseSkillsVisible(true)} className='rounded-[100px]'>
+                      {t('settings.browseGitHub', { defaultValue: 'Browse GitHub' })}
+                    </Button>
+                    <Button size='small' type='outline' icon={<Plus size={14} />} onClick={() => setSkillsModalVisible(true)} className='rounded-[100px]'>
+                      {t('settings.addSkills', { defaultValue: 'Add Skills' })}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Skills 折叠面板 / Skills Collapse */}
@@ -940,6 +947,29 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
           })}
         </div>
       </Modal>
+
+      {/* Browse GitHub Skills Modal */}
+      <SkillBrowseModal
+        visible={browseSkillsVisible}
+        onClose={() => setBrowseSkillsVisible(false)}
+        message={message}
+        onInstalled={async (skillName) => {
+          // Refresh the available skills list after a GitHub install
+          try {
+            const skillsList = await ipcBridge.fs.listAvailableSkills.invoke();
+            setAvailableSkills(skillsList);
+            // Auto-add the installed skill to custom skills and enable it
+            if (!customSkills.includes(skillName)) {
+              setCustomSkills([...customSkills, skillName]);
+            }
+            if (!selectedSkills.includes(skillName)) {
+              setSelectedSkills([...selectedSkills, skillName]);
+            }
+          } catch (error) {
+            console.error('Failed to refresh skills after GitHub install:', error);
+          }
+        }}
+      />
     </div>
   );
 };

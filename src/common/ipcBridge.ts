@@ -91,6 +91,29 @@ export const fs = {
   scanForSkills: bridge.buildProvider<IBridgeResponse<Array<{ name: string; description: string; path: string }>>, { folderPath: string }>('scan-for-skills'),
   // 检测常见的 skills 路径 / Detect common skills paths
   detectCommonSkillPaths: bridge.buildProvider<IBridgeResponse<Array<{ name: string; path: string }>>, void>('detect-common-skill-paths'),
+  // GitHub skill 搜索 / Search GitHub for skills
+  searchGitHubSkills: bridge.buildProvider<
+    IBridgeResponse<{
+      items: Array<{
+        name: string;
+        full_name: string;
+        description: string;
+        html_url: string;
+        clone_url: string;
+        stargazers_count: number;
+        updated_at: string;
+        owner: { login: string; avatar_url: string };
+        topics: string[];
+      }>;
+      total_count: number;
+    }>,
+    { query: string; page?: number; perPage?: number }
+  >('github-search-skills'),
+  // 从 GitHub 安装 skill / Install skill from GitHub repo
+  installSkillFromGitHub: bridge.buildProvider<
+    IBridgeResponse<{ skillName: string; installPath: string }>,
+    { cloneUrl: string; repoName: string }
+  >('install-skill-from-github'),
 };
 
 export const fileWatch = {

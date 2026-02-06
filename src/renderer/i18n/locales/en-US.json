@@ -48,7 +48,8 @@
     "createSuccess": "Created successfully",
     "failed": "Failed",
     "browse": "Browse",
-    "remove": "Remove"
+    "remove": "Remove",
+    "search": "Search"
   },
   "login": {
     "pageTitle": "AionUi - Sign In",
@@ -619,7 +620,18 @@
     "allSkillsExist": "All found skills already exist",
     "noSkillsFound": "No valid skills found in the selected path(s)",
     "skillScanFailed": "Failed to scan skills",
-    "quickScan": "Quick Scan Common Paths"
+    "quickScan": "Quick Scan Common Paths",
+    "browseGitHub": "Browse GitHub",
+    "skillBrowseTitle": "Browse Skills on GitHub",
+    "skillBrowseSearchPlaceholder": "Search skills (e.g. \"pdf\", \"excel\", \"claude code skill\")",
+    "skillBrowseSearchFailed": "GitHub search failed",
+    "skillBrowseInstall": "Install",
+    "skillBrowseInstallSuccess": "Skill \"{{name}}\" installed successfully",
+    "skillBrowseInstallFailed": "Skill installation failed",
+    "skillBrowseResultCount": "{{count}} repositories found",
+    "skillBrowseNoResults": "No skills found. Try different keywords.",
+    "skillBrowseHint": "Search GitHub for community skills, or click a topic tag above to browse.",
+    "skillBrowseLoadMore": "Load more"
   },
   "messages": {
     "fileChanges": "File Changes",

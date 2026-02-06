@@ -10,6 +10,7 @@ import path from 'path';
 import os from 'os';
 import https from 'node:https';
 import http from 'node:http';
+import { execFile } from 'child_process';
 import { app } from 'electron';
 import { ipcBridge } from '../../common';
 import { getSystemDir, getAssistantsDir } from '../initStorage';
@@ -938,6 +939,187 @@ export function initFsBridge(): void {
       return {
         success: false,
         msg: 'Failed to detect common paths',
+      };
+    }
+  });
+
+  // GitHub skill 搜索 / Search GitHub for skills using GitHub Search API
+  ipcBridge.fs.searchGitHubSkills.provider(async ({ query, page = 1, perPage = 20 }) => {
+    try {
+      // Build search query with skill-related topics
+      const searchQuery = encodeURIComponent(`${query} topic:claude-code-skill OR topic:gemini-skill OR topic:ai-skill OR topic:aionui-skill`);
+      const url = `https://api.github.com/search/repositories?q=${searchQuery}&sort=stars&order=desc&page=${page}&per_page=${perPage}`;
+
+      const data = await new Promise<string>((resolve, reject) => {
+        const req = https.get(
+          url,
+          {
+            headers: {
+              'User-Agent': 'AionUi-SkillBrowser',
+              Accept: 'application/vnd.github.v3+json',
+            },
+          },
+          (res) => {
+            let body = '';
+            res.on('data', (chunk: Buffer) => {
+              body += chunk.toString();
+            });
+            res.on('end', () => {
+              if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                resolve(body);
+              } else {
+                reject(new Error(`GitHub API returned status ${res.statusCode}: ${body.slice(0, 200)}`));
+              }
+            });
+          }
+        );
+        req.on('error', reject);
+        req.setTimeout(15000, () => {
+          req.destroy();
+          reject(new Error('GitHub API request timed out'));
+        });
+      });
+
+      const result = JSON.parse(data);
+      return {
+        success: true,
+        data: {
+          items: (result.items || []).map((item: any) => ({
+            name: item.name,
+            full_name: item.full_name,
+            description: item.description || '',
+            html_url: item.html_url,
+            clone_url: item.clone_url,
+            stargazers_count: item.stargazers_count,
+            updated_at: item.updated_at,
+            owner: {
+              login: item.owner?.login || '',
+              avatar_url: item.owner?.avatar_url || '',
+            },
+            topics: item.topics || [],
+          })),
+          total_count: result.total_count || 0,
+        },
+      };
+    } catch (error) {
+      console.error('[fsBridge] GitHub skill search failed:', error);
+      return {
+        success: false,
+        msg: `GitHub search failed: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  });
+
+  // 从 GitHub 安装 skill / Install skill from GitHub using git clone
+  ipcBridge.fs.installSkillFromGitHub.provider(async ({ cloneUrl, repoName }) => {
+    try {
+      const userSkillsDir = getUserSkillsDir();
+      await fs.mkdir(userSkillsDir, { recursive: true });
+
+      const tempDir = path.join(os.tmpdir(), `aionui-skill-${Date.now()}`);
+
+      // Clone the repo to temp directory
+      await new Promise<void>((resolve, reject) => {
+        execFile('git', ['clone', '--depth', '1', cloneUrl, tempDir], { timeout: 60000 }, (error) => {
+          if (error) {
+            reject(new Error(`Git clone failed: ${error.message}`));
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      // Find SKILL.md - check root first, then subdirectories
+      let skillSourceDir = tempDir;
+      let skillName = repoName;
+      let skillDescription = '';
+
+      const rootSkillMd = path.join(tempDir, 'SKILL.md');
+      try {
+        await fs.access(rootSkillMd);
+      } catch {
+        // SKILL.md not at root - scan subdirectories
+        const entries = await fs.readdir(tempDir, { withFileTypes: true });
+        let found = false;
+        for (const entry of entries) {
+          if (!entry.isDirectory() || entry.name === '.git') continue;
+          const subSkillMd = path.join(tempDir, entry.name, 'SKILL.md');
+          try {
+            await fs.access(subSkillMd);
+            skillSourceDir = path.join(tempDir, entry.name);
+            found = true;
+            break;
+          } catch {
+            // Not a skill directory
+          }
+        }
+        if (!found) {
+          // Cleanup temp
+          await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+          return {
+            success: false,
+            msg: 'No SKILL.md found in the repository. Make sure the repo contains a valid skill.',
+          };
+        }
+      }
+
+      // Parse SKILL.md for name
+      const skillMdContent = await fs.readFile(path.join(skillSourceDir, 'SKILL.md'), 'utf-8');
+      const frontMatterMatch = skillMdContent.match(/^---\s*\n([\s\S]*?)\n---/);
+      if (frontMatterMatch) {
+        const yaml = frontMatterMatch[1];
+        const nameMatch = yaml.match(/^name:\s*(.+)$/m);
+        const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
+        if (nameMatch) skillName = nameMatch[1].trim();
+        if (descMatch) skillDescription = descMatch[1].trim();
+      }
+
+      // Check for duplicates
+      const targetDir = path.join(userSkillsDir, skillName);
+      try {
+        await fs.access(targetDir);
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        return {
+          success: false,
+          msg: `Skill "${skillName}" already exists. Remove it first to reinstall.`,
+        };
+      } catch {
+        // Doesn't exist, good
+      }
+
+      // Copy skill (without .git directory)
+      const copyWithoutGit = async (src: string, dest: string) => {
+        await fs.mkdir(dest, { recursive: true });
+        const entries = await fs.readdir(src, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.name === '.git') continue;
+          const srcPath = path.join(src, entry.name);
+          const destPath = path.join(dest, entry.name);
+          if (entry.isDirectory()) {
+            await copyWithoutGit(srcPath, destPath);
+          } else {
+            await fs.copyFile(srcPath, destPath);
+          }
+        }
+      };
+
+      await copyWithoutGit(skillSourceDir, targetDir);
+
+      // Cleanup temp
+      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+
+      console.log(`[fsBridge] Successfully installed GitHub skill "${skillName}" to ${targetDir}`);
+
+      return {
+        success: true,
+        data: { skillName, installPath: targetDir },
+        msg: `Skill "${skillName}" installed successfully from GitHub`,
+      };
+    } catch (error) {
+      console.error('[fsBridge] GitHub skill install failed:', error);
+      return {
+        success: false,
+        msg: `Failed to install skill: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
   });
