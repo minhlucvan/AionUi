@@ -568,6 +568,7 @@
     "webui.checkConsoleForPassword": "Check application console for initial password",
     "webui.browserNotSupported": "WebUI settings not available in browser",
     "webui.browserNotSupportedDesc": "For security reasons, WebUI settings can only be managed in the desktop application. Please open the settings panel in AionUi desktop app to configure.",
+    "webui.browserServiceHint": "Manage from desktop app",
     "webui.passwordHidden": "******",
     "webui.passwordOnlyFirstTime": "Password is only shown on first startup and will be hidden afterwards",
     "webui.resetPasswordWarning": "Please keep the reset password safe!",

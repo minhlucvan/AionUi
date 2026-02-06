@@ -576,6 +576,7 @@
     "webui.checkConsoleForPassword": "İlk şifre için uygulama konsolunu kontrol edin",
     "webui.browserNotSupported": "Web Arayüzü ayarları tarayıcıda kullanılamaz",
     "webui.browserNotSupportedDesc": "Güvenlik nedeniyle, Web Arayüzü ayarları sadece masaüstü uygulamasında yönetilebilir. Yapılandırmak için lütfen AionUi masaüstü uygulamasında ayarlar panelini açın.",
+    "webui.browserServiceHint": "Masaüstü uygulamasından yönetin",
     "webui.passwordHidden": "******",
     "webui.passwordOnlyFirstTime": "Şifre sadece ilk açılışta gösterilir ve sonrasında gizlenir",
     "webui.resetPasswordWarning": "Lütfen sıfırlanan şifreyi güvenli bir yerde saklayın!",
