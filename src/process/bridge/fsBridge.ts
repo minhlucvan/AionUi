@@ -75,6 +75,78 @@ function getUserSkillsDir(): string {
 }
 
 /**
+ * Parse a skills.sh URL, GitHub URL, or owner/repo shorthand into structured parts.
+ * Supports:
+ *   - https://skills.sh/owner/repo/skill-name
+ *   - https://skills.sh/owner/repo
+ *   - https://github.com/owner/repo
+ *   - owner/repo
+ *   - npx skills add owner/repo --skill skill-name
+ *   - https://skillsmp.com/skills/...
+ */
+type SkillsShParseResult =
+  | { type: 'github'; owner: string; repo: string; skillName?: string }
+  | { type: 'skillsmp'; url: string };
+
+function parseSkillsShInput(raw: string): SkillsShParseResult {
+  let input = raw.trim();
+
+  // Strip "npx skills add" prefix if present
+  input = input.replace(/^npx\s+skills\s+add\s+/i, '');
+
+  // Extract --skill flag
+  let skillFlag: string | undefined;
+  const skillFlagMatch = input.match(/--skill\s+(\S+)/);
+  if (skillFlagMatch) {
+    skillFlag = skillFlagMatch[1];
+    input = input.replace(/--skill\s+\S+/, '').trim();
+  }
+
+  // Strip common CLI flags (-a, -g, -y, --list)
+  input = input.replace(/\s+--list\b/g, '').replace(/\s+-[agy]\s+\S*/g, '').trim();
+
+  // skills.sh URL: https://skills.sh/owner/repo or https://skills.sh/owner/repo/skill-name
+  const skillsShMatch = input.match(/^https?:\/\/skills\.sh\/([^/?#]+)\/([^/?#]+)(?:\/([^/?#]+))?/);
+  if (skillsShMatch) {
+    return {
+      type: 'github',
+      owner: skillsShMatch[1],
+      repo: skillsShMatch[2],
+      skillName: skillsShMatch[3] || skillFlag,
+    };
+  }
+
+  // SkillsMP URL
+  if (/^https?:\/\/skillsmp\.com/i.test(input)) {
+    return { type: 'skillsmp', url: input };
+  }
+
+  // GitHub URL: https://github.com/owner/repo (optionally with .git)
+  const githubMatch = input.match(/^https?:\/\/github\.com\/([^/?#]+)\/([^/?#\s]+)/);
+  if (githubMatch) {
+    return {
+      type: 'github',
+      owner: githubMatch[1],
+      repo: githubMatch[2].replace(/\.git$/, ''),
+      skillName: skillFlag,
+    };
+  }
+
+  // Shorthand: owner/repo
+  const shorthandMatch = input.match(/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/);
+  if (shorthandMatch) {
+    return {
+      type: 'github',
+      owner: shorthandMatch[1],
+      repo: shorthandMatch[2],
+      skillName: skillFlag,
+    };
+  }
+
+  throw new Error(`Unrecognized skill URL or shorthand: "${raw}". Expected formats: owner/repo, https://skills.sh/owner/repo/skill, or https://github.com/owner/repo`);
+}
+
+/**
  * Copy directory recursively
  * 递归复制目录
  */
@@ -1457,6 +1529,84 @@ export function initFsBridge(): void {
       return {
         success: false,
         msg: `Failed to install skill: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  });
+
+  // ============================================================================
+  // Install skill from skills.sh URL or shorthand
+  // Supports: skills.sh URLs, GitHub URLs, owner/repo shorthand, SkillsMP URLs
+  // ============================================================================
+  ipcBridge.fs.installSkillFromUrl.provider(async ({ input }) => {
+    try {
+      const parsed = parseSkillsShInput(input);
+
+      if (parsed.type === 'skillsmp') {
+        return { success: false, msg: 'SkillsMP URLs are not directly installable. Use the Browse SkillsMP feature instead.' };
+      }
+
+      const { owner, repo, skillName: parsedSkillName } = parsed;
+      const cloneUrl = `https://github.com/${owner}/${repo}.git`;
+
+      if (parsedSkillName) {
+        // Install a specific skill from the repo's skills/ directory
+        // Try common paths: skills/{name}/, {name}/, .claude/skills/{name}/, .agents/skills/{name}/
+        const candidatePaths = [
+          `skills/${parsedSkillName}`,
+          parsedSkillName,
+          `.claude/skills/${parsedSkillName}`,
+          `.agents/skills/${parsedSkillName}`,
+        ];
+
+        let lastError: string | undefined;
+        for (const subPath of candidatePaths) {
+          try {
+            const result = await ipcBridge.fs.installSkillFromGitHub.invoke({
+              cloneUrl,
+              repoName: parsedSkillName,
+              subPath,
+            });
+            if (result.success && result.data) {
+              return {
+                success: true,
+                data: { skillName: result.data.skillName, installPath: result.data.installPath },
+                msg: `Skill "${result.data.skillName}" installed from ${owner}/${repo}`,
+              };
+            }
+            lastError = result.msg;
+          } catch (err) {
+            lastError = err instanceof Error ? err.message : String(err);
+          }
+        }
+
+        return {
+          success: false,
+          msg: lastError || `Could not find skill "${parsedSkillName}" in ${owner}/${repo}`,
+        };
+      } else {
+        // No specific skill name: try to install the repo as a single skill first,
+        // then scan for multiple skills in the skills/ directory
+        const result = await ipcBridge.fs.installSkillFromGitHub.invoke({
+          cloneUrl,
+          repoName: repo,
+        });
+        if (result.success && result.data) {
+          return {
+            success: true,
+            data: { skillName: result.data.skillName, installPath: result.data.installPath },
+            msg: `Skill "${result.data.skillName}" installed from ${owner}/${repo}`,
+          };
+        }
+        return {
+          success: false,
+          msg: result.msg || `Failed to install skill from ${owner}/${repo}`,
+        };
+      }
+    } catch (error) {
+      console.error('[fsBridge] installSkillFromUrl failed:', error);
+      return {
+        success: false,
+        msg: error instanceof Error ? error.message : String(error),
       };
     }
   });

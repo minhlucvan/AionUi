@@ -140,6 +140,11 @@ export const fs = {
   >('skillsmp-search-skills'),
   // 从 GitHub 安装 skill / Install skill from GitHub repo
   installSkillFromGitHub: bridge.buildProvider<IBridgeResponse<{ skillName: string; installPath: string }>, { cloneUrl: string; repoName: string; subPath?: string; branch?: string }>('install-skill-from-github'),
+  // 从 skills.sh URL 安装 skill / Install skill from skills.sh URL or shorthand
+  installSkillFromUrl: bridge.buildProvider<
+    IBridgeResponse<{ skillName: string; installPath: string; skillCount?: number }>,
+    { input: string }
+  >('install-skill-from-url'),
   // 删除用户自定义 skill / Delete a custom user skill
   deleteCustomSkill: bridge.buildProvider<IBridgeResponse, { skillName: string }>('delete-custom-skill'),
 };

@@ -5,7 +5,7 @@
  */
 
 import type { Message } from '@arco-design/web-react';
-import { Button, Empty, Input, Modal, Spin, Tag, Typography } from '@arco-design/web-react';
+import { Button, Collapse, Empty, Input, Modal, Spin, Tag, Typography } from '@arco-design/web-react';
 import { Download, Star, Search } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -264,10 +264,60 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
           ) : hasSearched ? (
             <Empty description={t('settings.skillBrowseNoResults', { defaultValue: 'No skills found. Try different keywords.' })} className='py-40px' />
           ) : (
-            <div className='text-center text-t-secondary py-32px text-13px'>
-              {t('settings.skillBrowseHint', {
-                defaultValue: 'Search 145k+ community skills on SkillsMP, or click a category above to browse.',
-              })}
+            <div className='space-y-12px py-8px'>
+              <div className='text-center text-t-secondary text-13px'>
+                {t('settings.skillBrowseHint', {
+                  defaultValue: 'Search 145k+ community skills on SkillsMP, or click a category above to browse.',
+                })}
+              </div>
+
+              {/* Collapsible SkillsMP Guide */}
+              <Collapse bordered={false} style={{ background: 'var(--color-fill-2)', borderRadius: 8 }}>
+                <Collapse.Item
+                  header={<span className='text-13px font-medium'>{t('settings.skillsmpGuideTitle', { defaultValue: 'How to use SkillsMP' })}</span>}
+                  name='skillsmp-guide'
+                >
+                  <div className='space-y-14px text-13px text-t-secondary'>
+                    {/* Step 1 */}
+                    <div>
+                      <div className='font-medium text-t-primary mb-6px'>{t('settings.skillsmpGuideStep1Title', { defaultValue: '1. Search or browse' })}</div>
+                      <div className='text-12px'>
+                        {t('settings.skillsmpGuideStep1Desc', { defaultValue: 'Type a keyword in the search bar or click a category preset (Popular, Recent, Claude, etc.) to find skills.' })}
+                      </div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div>
+                      <div className='font-medium text-t-primary mb-6px'>{t('settings.skillsmpGuideStep2Title', { defaultValue: '2. Review results' })}</div>
+                      <div className='text-12px'>
+                        {t('settings.skillsmpGuideStep2Desc', { defaultValue: 'Each result shows the skill name, author, star count, and description. Click the name to view it on GitHub.' })}
+                      </div>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div>
+                      <div className='font-medium text-t-primary mb-6px'>{t('settings.skillsmpGuideStep3Title', { defaultValue: '3. Install' })}</div>
+                      <div className='text-12px'>
+                        {t('settings.skillsmpGuideStep3Desc', { defaultValue: 'Click the Install button next to any skill. It will be downloaded from GitHub and added to your available skills.' })}
+                      </div>
+                    </div>
+
+                    {/* API Key hint */}
+                    <div>
+                      <div className='font-medium text-t-primary mb-6px'>{t('settings.skillsmpGuideApiKeyTitle', { defaultValue: 'API Key (optional)' })}</div>
+                      <div className='text-12px'>
+                        {t('settings.skillsmpGuideApiKeyDesc', { defaultValue: 'For faster and unlimited searches, add a free SkillsMP API key in Settings > Skills > SkillsMP API Key.' })}{' '}
+                        <span
+                          className='text-primary cursor-pointer hover:underline'
+                          onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com/docs/api')}
+                        >
+                          {t('settings.skillsmpGetKey', { defaultValue: 'Get API key' })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </Collapse.Item>
+              </Collapse>
             </div>
           )}
         </div>
