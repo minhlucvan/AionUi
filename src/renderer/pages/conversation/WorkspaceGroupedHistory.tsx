@@ -17,7 +17,7 @@ import { DeleteOne, MessageOne, EditOne } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useConversationTabs } from './context/ConversationTabsContext';
 import WorkspaceCollapse from './WorkspaceCollapse';
 
@@ -167,8 +167,15 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
   const { id } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { openTab, closeAllTabs, activeTab, updateTabName } = useConversationTabs();
   const { getJobStatus, markAsRead } = useCronJobsMap();
+
+  // Detect bot page from URL and extract botId for filtering
+  const botId = useMemo(() => {
+    const match = location.pathname.match(/^\/bots\/([^/]+)/);
+    return match ? match[1] : null;
+  }, [location.pathname]);
 
   // 加载会话列表
   useEffect(() => {
@@ -213,10 +220,16 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
     }
   }, [expandedWorkspaces]);
 
+  // Filter by botId when on a bot page
+  const filteredConversations = useMemo(() => {
+    if (!botId) return conversations;
+    return conversations.filter((conv) => conv.extra?.botId === botId);
+  }, [conversations, botId]);
+
   // 按时间线和workspace分组
   const timelineSections = useMemo(() => {
-    return groupConversationsByTimelineAndWorkspace(conversations, t);
-  }, [conversations, t]);
+    return groupConversationsByTimelineAndWorkspace(filteredConversations, t);
+  }, [filteredConversations, t]);
 
   // 默认展开所有 workspace（仅在还未记录展开状态时执行一次）
   useEffect(() => {
