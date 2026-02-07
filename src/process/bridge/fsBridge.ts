@@ -1639,4 +1639,108 @@ export function initFsBridge(): void {
       return { success: false, msg: `Failed to delete skill: ${error instanceof Error ? error.message : String(error)}` };
     }
   });
+
+  // 从 zip 文件导入助手 / Import assistant from zip file
+  // Expected zip structure:
+  //   manifest.json  - { name, description, avatar, presetAgentType, enabledSkills, customSkillNames }
+  //   rules/         - Rule markdown files named by locale (e.g., en-US.md, zh-CN.md)
+  ipcBridge.fs.importAssistantZip.provider(async ({ zipPath }) => {
+    try {
+      const AdmZip = (await import('adm-zip')).default;
+      const zip = new AdmZip(zipPath);
+      const zipEntries = zip.getEntries();
+
+      // 1. Find and parse manifest.json / 查找并解析 manifest.json
+      const manifestEntry = zipEntries.find((e) => {
+        const name = e.entryName.replace(/^\//, '');
+        return name === 'manifest.json' || name.endsWith('/manifest.json');
+      });
+
+      if (!manifestEntry) {
+        return { success: false, msg: 'Invalid zip: manifest.json not found. Expected a zip containing manifest.json and a rules/ folder.' };
+      }
+
+      let manifest: {
+        name?: string;
+        description?: string;
+        avatar?: string;
+        presetAgentType?: string;
+        enabledSkills?: string[];
+        customSkillNames?: string[];
+      };
+
+      try {
+        manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
+      } catch {
+        return { success: false, msg: 'Invalid manifest.json: could not parse JSON' };
+      }
+
+      if (!manifest.name || !manifest.name.trim()) {
+        return { success: false, msg: 'Invalid manifest.json: "name" field is required' };
+      }
+
+      // 2. Generate new assistant ID / 生成新的助手 ID
+      const newId = `custom-${Date.now()}`;
+      const assistantsDir = getAssistantsDir();
+      await fs.mkdir(assistantsDir, { recursive: true });
+
+      // 3. Extract rule files from rules/ directory / 从 rules/ 目录提取规则文件
+      const manifestPrefix = manifestEntry.entryName.replace('manifest.json', '');
+      const rulesPrefix = manifestPrefix + 'rules/';
+      let hasRules = false;
+
+      for (const entry of zipEntries) {
+        if (entry.isDirectory) continue;
+        const entryName = entry.entryName;
+
+        if (entryName.startsWith(rulesPrefix) && entryName.endsWith('.md')) {
+          const fileName = path.basename(entryName);
+          // Expected format: {locale}.md (e.g., en-US.md)
+          const locale = fileName.replace('.md', '');
+          if (locale) {
+            const targetFileName = `${newId}.${locale}.md`;
+            const targetPath = path.join(assistantsDir, targetFileName);
+            await fs.writeFile(targetPath, entry.getData().toString('utf-8'), 'utf-8');
+            hasRules = true;
+            console.log(`[fsBridge] Imported rule file: ${targetFileName}`);
+          }
+        }
+      }
+
+      if (!hasRules) {
+        console.warn('[fsBridge] No rule files found in zip, assistant will have empty rules');
+      }
+
+      // 4. Create assistant config / 创建助手配置
+      const validAgentTypes = ['gemini', 'claude', 'codex', 'opencode'];
+      const agentType = manifest.presetAgentType && validAgentTypes.includes(manifest.presetAgentType) ? manifest.presetAgentType : 'gemini';
+
+      const newAssistant = {
+        id: newId,
+        name: manifest.name.trim(),
+        description: manifest.description || '',
+        avatar: manifest.avatar || '🤖',
+        isPreset: true,
+        isBuiltin: false,
+        presetAgentType: agentType,
+        enabled: true,
+        enabledSkills: Array.isArray(manifest.enabledSkills) ? manifest.enabledSkills : [],
+        customSkillNames: Array.isArray(manifest.customSkillNames) ? manifest.customSkillNames : [],
+      };
+
+      console.log(`[fsBridge] Successfully imported assistant "${newAssistant.name}" (${newId}) from zip`);
+
+      return {
+        success: true,
+        data: { assistant: newAssistant },
+        msg: `Assistant "${newAssistant.name}" imported successfully`,
+      };
+    } catch (error) {
+      console.error('[fsBridge] Failed to import assistant from zip:', error);
+      return {
+        success: false,
+        msg: `Failed to import assistant: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  });
 }

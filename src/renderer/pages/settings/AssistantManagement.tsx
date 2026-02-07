@@ -8,7 +8,7 @@ import MarkdownView from '@/renderer/components/Markdown';
 import type { AcpBackendConfig, PresetAgentType } from '@/types/acpTypes';
 import type { Message } from '@arco-design/web-react';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Modal, Select, Switch, Typography } from '@arco-design/web-react';
-import { Close, Delete, FolderOpen, Plus, Robot, Search, SettingOne } from '@icon-park/react';
+import { Close, Delete, FolderOpen, InboxIn, Plus, Robot, Search, SettingOne } from '@icon-park/react';
 import SkillBrowseModal from './components/SkillBrowseModal';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -312,6 +312,52 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     }
   };
 
+  // Import assistant from zip file / 从 zip 文件导入助手
+  const handleImportZip = async () => {
+    try {
+      // Open file dialog to select a zip file / 打开文件选择对话框选择 zip 文件
+      const result = await ipcBridge.dialog.showOpen.invoke({
+        properties: ['openFile'],
+        filters: [{ name: 'Zip Files', extensions: ['zip'] }],
+      });
+
+      if (!result || result.length === 0) return; // User cancelled
+
+      const zipPath = result[0];
+
+      // Call backend to extract and import / 调用后端解压并导入
+      const response = await ipcBridge.fs.importAssistantZip.invoke({ zipPath });
+
+      if (!response.success || !response.data) {
+        message.error(response.msg || t('settings.importAssistantFailed', { defaultValue: 'Failed to import assistant' }));
+        return;
+      }
+
+      const { assistant } = response.data;
+
+      // Cast to AcpBackendConfig with proper typing / 转换为正确类型的 AcpBackendConfig
+      const newAssistant: AcpBackendConfig = {
+        ...assistant,
+        presetAgentType: (assistant.presetAgentType as PresetAgentType) || 'gemini',
+      };
+
+      // Save assistant to config storage / 保存助手到配置存储
+      const agents = (await ConfigStorage.get('acp.customAgents')) || [];
+      const updatedAgents = [...agents, newAssistant];
+      await ConfigStorage.set('acp.customAgents', updatedAgents);
+
+      // Refresh UI / 刷新界面
+      setAssistants(sortAssistants(updatedAgents));
+      setActiveAssistantId(newAssistant.id);
+      await refreshAgentDetection();
+
+      message.success(t('settings.importAssistantSuccess', { defaultValue: 'Assistant imported successfully' }));
+    } catch (error) {
+      console.error('Failed to import assistant from zip:', error);
+      message.error(t('settings.importAssistantFailed', { defaultValue: 'Failed to import assistant' }));
+    }
+  };
+
   const handleSave = async () => {
     try {
       // 验证必填字段 / Validate required fields
@@ -480,18 +526,32 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
         }
         name='smart-assistants'
         extra={
-          <Button
-            type='text'
-            size='small'
-            style={{ color: 'var(--text-primary)' }}
-            icon={<Plus size={14} fill='currentColor' />}
-            onClick={(e) => {
-              e.stopPropagation();
-              void handleCreate();
-            }}
-          >
-            {t('settings.createAssistant', { defaultValue: 'Create' })}
-          </Button>
+          <div className='flex items-center gap-4px'>
+            <Button
+              type='text'
+              size='small'
+              style={{ color: 'var(--text-primary)' }}
+              icon={<InboxIn size={14} fill='currentColor' />}
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleImportZip();
+              }}
+            >
+              {t('settings.importAssistant', { defaultValue: 'Import' })}
+            </Button>
+            <Button
+              type='text'
+              size='small'
+              style={{ color: 'var(--text-primary)' }}
+              icon={<Plus size={14} fill='currentColor' />}
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleCreate();
+              }}
+            >
+              {t('settings.createAssistant', { defaultValue: 'Create' })}
+            </Button>
+          </div>
         }
       >
         <div className='py-2'>
