@@ -1091,6 +1091,7 @@
     "untitled": "未命名",
     "notFound": "找不到機器人",
     "backToList": "所有機器人",
-    "noConversations": "暫無對話"
+    "noConversations": "暫無對話",
+    "chatWith": "與{{botName}}聊天"
   }
 }

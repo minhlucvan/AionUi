@@ -1306,6 +1306,7 @@
     "untitled": "未命名",
     "notFound": "未找到机器人",
     "backToList": "所有机器人",
-    "noConversations": "暂无对话"
+    "noConversations": "暂无对话",
+    "chatWith": "与{{botName}}聊天"
   }
 }

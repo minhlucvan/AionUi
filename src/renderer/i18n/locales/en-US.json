@@ -1306,6 +1306,7 @@
     "untitled": "Untitled",
     "notFound": "Bot not found",
     "backToList": "All Bots",
-    "noConversations": "No conversations yet"
+    "noConversations": "No conversations yet",
+    "chatWith": "Chat with {{botName}}"
   }
 }

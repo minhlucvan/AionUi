@@ -18,6 +18,7 @@ import LoginPage from './pages/login';
 import ComponentsShowcase from './pages/test/ComponentsShowcase';
 import BotsPage from './pages/bots';
 import BotDetailPage from './pages/bots/BotDetailPage';
+import BotConversationPage from './pages/bots/BotConversationPage';
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
@@ -56,6 +57,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/tools' element={<ToolsSettings />} />
           <Route path='/settings' element={<Navigate to='/settings/gemini' replace />} />
           <Route path='/bots' element={<BotsPage />} />
+          <Route path='/bots/:botId/conversation/:conversationId' element={<BotConversationPage />} />
           <Route path='/bots/:botId' element={<BotDetailPage />} />
           <Route path='/test/components' element={<ComponentsShowcase />} />
         </Route>

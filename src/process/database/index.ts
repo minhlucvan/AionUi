@@ -457,6 +457,54 @@ export class AionUIDatabase {
     }
   }
 
+  /**
+   * Get conversation by external channel ID and bot ID
+   * Used for bot message routing - each external channel gets its own conversation
+   */
+  getConversationByExternalChannel(externalChannelId: string, botId: string, userId?: string): IQueryResult<TChatConversation | null> {
+    try {
+      const finalUserId = userId || this.defaultUserId;
+
+      // Query all conversations for this user, ordered by most recent
+      const rows = this.db
+        .prepare(
+          `
+          SELECT * FROM conversations
+          WHERE user_id = ?
+          ORDER BY updated_at DESC
+        `
+        )
+        .all(finalUserId) as IConversationRow[];
+
+      // Filter by parsing JSON extra field
+      for (const row of rows) {
+        try {
+          const extra = JSON.parse(row.extra);
+          if (extra.externalChannelId === externalChannelId && extra.botId === botId) {
+            return {
+              success: true,
+              data: rowToConversation(row),
+            };
+          }
+        } catch {
+          // Skip rows with invalid JSON
+          continue;
+        }
+      }
+
+      // No matching conversation found
+      return {
+        success: true,
+        data: null,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
   getUserConversations(userId?: string, page = 0, pageSize = 50): IPaginatedResult<TChatConversation> {
     try {
       const finalUserId = userId || this.defaultUserId;

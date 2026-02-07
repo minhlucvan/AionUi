@@ -141,10 +141,7 @@ export const fs = {
   // 从 GitHub 安装 skill / Install skill from GitHub repo
   installSkillFromGitHub: bridge.buildProvider<IBridgeResponse<{ skillName: string; installPath: string }>, { cloneUrl: string; repoName: string; subPath?: string; branch?: string }>('install-skill-from-github'),
   // 从 skills.sh URL 安装 skill / Install skill from skills.sh URL or shorthand
-  installSkillFromUrl: bridge.buildProvider<
-    IBridgeResponse<{ skillName: string; installPath: string; skillCount?: number }>,
-    { input: string }
-  >('install-skill-from-url'),
+  installSkillFromUrl: bridge.buildProvider<IBridgeResponse<{ skillName: string; installPath: string; skillCount?: number }>, { input: string }>('install-skill-from-url'),
   // 删除用户自定义 skill / Delete a custom user skill
   deleteCustomSkill: bridge.buildProvider<IBridgeResponse, { skillName: string }>('delete-custom-skill'),
 };
@@ -404,6 +401,10 @@ export interface ICreateConversationParams {
     presetContext?: string;
     /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
     presetAssistantId?: string;
+    /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
+    botId?: string;
+    /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
+    externalChannelId?: string;
   };
 }
 interface IResetConversationParams {

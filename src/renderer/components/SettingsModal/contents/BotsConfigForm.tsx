@@ -382,14 +382,15 @@ const BotsConfigForm: React.FC<BotsConfigFormProps> = ({ modelList, onStatusChan
     const pluginId = `mezon_${bot.id}`;
     try {
       if (enabled) {
-        const status = getBotStatus(bot);
-        if (!status?.hasToken) {
-          Message.warning(t('settings.bots.credentialsRequired', 'Please configure credentials first'));
-          return;
-        }
+        // Try to enable - the backend will check if credentials are available
         const result = await channel.enablePlugin.invoke({ pluginId, config: {} });
         if (!result.success) {
-          Message.error(result.msg || t('settings.bots.enableFailed', 'Failed to enable bot'));
+          // If failed due to missing credentials, show appropriate message
+          if (result.msg && result.msg.includes('credential')) {
+            Message.warning(t('settings.bots.credentialsRequired', 'Please configure credentials first'));
+          } else {
+            Message.error(result.msg || t('settings.bots.enableFailed', 'Failed to enable bot'));
+          }
           return;
         }
       } else {

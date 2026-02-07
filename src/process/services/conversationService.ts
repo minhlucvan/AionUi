@@ -210,9 +210,45 @@ export class ConversationService {
       name: params.name || 'Telegram Assistant',
     });
   }
+
+  /**
+   * 获取或创建 Bot 会话（按外部渠道路由）
+   * Get or create a Bot conversation (routed by external channel)
+   *
+   * 每个外部渠道（Mezon channel/thread, Telegram group 等）对应一个独立的会话
+   * Each external channel (Mezon channel/thread, Telegram group, etc.) gets its own conversation
+   *
+   * @param externalChannelId - 外部渠道 ID（例如 Mezon channel_id 或 thread_id）
+   * @param botId - Bot ID，用于区分同一渠道中的不同 bot
+   * @param params - 会话创建参数
+   */
+  static async getOrCreateBotConversation(externalChannelId: string, botId: string, params: ICreateConversationOptions): Promise<ICreateConversationResult> {
+    const db = getDatabase();
+
+    // Try to find existing conversation for this channel + bot
+    const existingConv = db.getConversationByExternalChannel(externalChannelId, botId);
+    if (existingConv.success && existingConv.data) {
+      console.log(`[ConversationService] Reusing existing bot conversation: ${existingConv.data.id} (channel: ${externalChannelId.slice(0, 12)}..., bot: ${botId})`);
+      return { success: true, conversation: existingConv.data };
+    }
+
+    // Create new conversation with externalChannelId and botId in extra
+    const conversationParams: ICreateConversationOptions = {
+      ...params,
+      extra: {
+        ...params.extra,
+        externalChannelId,
+        botId,
+      },
+    };
+
+    console.log(`[ConversationService] Creating new bot conversation (channel: ${externalChannelId.slice(0, 12)}..., bot: ${botId})`);
+    return this.createConversation(conversationParams);
+  }
 }
 
 // Export convenience functions
 export const createGeminiConversation = ConversationService.createGeminiConversation.bind(ConversationService);
 export const createConversation = ConversationService.createConversation.bind(ConversationService);
 export const getOrCreateTelegramConversation = ConversationService.getOrCreateTelegramConversation.bind(ConversationService);
+export const getOrCreateBotConversation = ConversationService.getOrCreateBotConversation.bind(ConversationService);

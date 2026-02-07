@@ -159,3 +159,6 @@ my-video
 .agent
 # Mezon cache
 /mezon-cache
+
+# Local assistant development (video-generator, etc.)
+resources/assistant/

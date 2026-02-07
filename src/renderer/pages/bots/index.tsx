@@ -10,7 +10,7 @@ import { channel } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import { addEventListener } from '@/renderer/utils/emitter';
-import { Button, Empty } from '@arco-design/web-react';
+import { Button, Empty, Message, Switch } from '@arco-design/web-react';
 import { Plus, Right, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,8 +24,10 @@ interface BotWithStatus extends IMezonBotConfig {
 const BotCard: React.FC<{
   bot: BotWithStatus;
   onClick: () => void;
-}> = ({ bot, onClick }) => {
+  onStartStop: (botId: string, shouldStart: boolean) => Promise<void>;
+}> = ({ bot, onClick, onStartStop }) => {
   const { t } = useTranslation();
+  const [isToggling, setIsToggling] = useState(false);
   const isRunning = bot.pluginStatus?.status === 'running';
 
   return (
@@ -41,8 +43,23 @@ const BotCard: React.FC<{
             {bot.conversationCount > 0 && <span className='text-[var(--color-text-4)] text-12px'>{t('bots.conversationCount', { defaultValue: '{{count}} conversations', count: bot.conversationCount })}</span>}
           </div>
         </div>
-        <div className='bots-card__chevron'>
-          <Right theme='outline' size='14' fill='currentColor' />
+        <div className='flex items-center gap-12px'>
+          <Switch
+            checked={isRunning}
+            loading={isToggling}
+            onChange={async (checked) => {
+              setIsToggling(true);
+              try {
+                await onStartStop(bot.id, checked);
+              } finally {
+                setIsToggling(false);
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <div className='bots-card__chevron'>
+            <Right theme='outline' size='14' fill='currentColor' />
+          </div>
         </div>
       </div>
     </div>
@@ -130,6 +147,45 @@ const BotsPage: React.FC = () => {
     Promise.resolve(navigate(`/bots/${bot.id}`)).catch(console.error);
   };
 
+  const handleStartStop = useCallback(
+    async (botId: string, shouldStart: boolean) => {
+      const pluginId = `mezon_${botId}`;
+      try {
+        if (shouldStart) {
+          // Enable the plugin in the backend
+          const result = await channel.enablePlugin.invoke({ pluginId, config: {} });
+          if (!result.success) {
+            if (result.msg && result.msg.includes('credential')) {
+              Message.warning(t('bots.credentialsRequired', { defaultValue: 'Please configure credentials first' }));
+            } else {
+              Message.error(result.msg || t('bots.enableFailed', { defaultValue: 'Failed to enable bot' }));
+            }
+            return;
+          }
+        } else {
+          // Disable the plugin in the backend
+          const result = await channel.disablePlugin.invoke({ pluginId });
+          if (!result.success) {
+            Message.error(result.msg || t('bots.disableFailed', { defaultValue: 'Failed to disable bot' }));
+            return;
+          }
+        }
+
+        // Update config storage
+        const savedBots = (await ConfigStorage.get('mezon.bots')) || [];
+        const updatedBots = savedBots.map((bot: IMezonBotConfig) => (bot.id === botId ? { ...bot, enabled: shouldStart, updatedAt: Date.now() } : bot));
+        await ConfigStorage.set('mezon.bots', updatedBots);
+
+        Message.success(shouldStart ? t('bots.started', { defaultValue: 'Bot started' }) : t('bots.stopped', { defaultValue: 'Bot stopped' }));
+        await loadBots(); // Reload to reflect changes
+      } catch (error) {
+        console.error('[BotsPage] Failed to toggle bot:', error);
+        Message.error(t('bots.toggleError', { defaultValue: 'Failed to toggle bot' }));
+      }
+    },
+    [loadBots, t]
+  );
+
   return (
     <div className='bots-page size-full flex flex-col'>
       <div className='bots-page__content flex-1 overflow-y-auto'>
@@ -155,7 +211,7 @@ const BotsPage: React.FC = () => {
           ) : (
             <div className='flex flex-col gap-10px'>
               {botsWithCounts.map((bot) => (
-                <BotCard key={bot.id} bot={bot} onClick={() => handleBotClick(bot)} />
+                <BotCard key={bot.id} bot={bot} onClick={() => handleBotClick(bot)} onStartStop={handleStartStop} />
               ))}
             </div>
           )}

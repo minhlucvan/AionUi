@@ -31,6 +31,29 @@ export class MezonPlugin extends BasePlugin {
   // Track active users for status reporting
   private activeUsers: Set<string> = new Set();
 
+  // Track chat sessions by session key (thread_id or channel_id or dm_user_id)
+  private chatSessions: Map<
+    string,
+    {
+      sessionId: string;
+      threadId?: string;
+      channelId: string;
+      clanId: string;
+      userId: string;
+      userName: string;
+      messageCount: number;
+      createdAt: number;
+      lastActivity: number;
+    }
+  > = new Map();
+
+  // Session timeout configuration (30 minutes of inactivity)
+  private readonly SESSION_TIMEOUT_MS: number = 30 * 60 * 1000;
+
+  // Track processed message IDs to prevent duplicates
+  private processedMessages: Set<string> = new Set();
+  private readonly MESSAGE_CACHE_SIZE = 100; // Keep last 100 message IDs
+
   /**
    * Initialize the Mezon bot instance
    */
@@ -75,8 +98,9 @@ export class MezonPlugin extends BasePlugin {
 
     try {
       // Login to authenticate and connect
-      const userId = await this.client.login();
-      this.botUserId = userId || this.botId;
+      await this.client.login();
+      // Use botId from config as botUserId (login() returns session object, not user_id)
+      this.botUserId = this.botId;
       console.log(`[MezonPlugin] Logged in, botUserId=${this.botUserId}`);
 
       this.isConnected = true;
@@ -103,6 +127,7 @@ export class MezonPlugin extends BasePlugin {
     this.client = null;
     this.botUserId = '';
     this.activeUsers.clear();
+    this.processedMessages.clear(); // Clear message cache
     this.reconnectAttempts = 0;
     this.isConnected = false;
 
@@ -128,7 +153,131 @@ export class MezonPlugin extends BasePlugin {
   }
 
   /**
-   * Send a message to a channel
+   * Check if bot is mentioned in the message
+   */
+  private isBotMentioned(msg: ChannelMessage): boolean {
+    // Check mentions array
+    if (msg.mentions && Array.isArray(msg.mentions)) {
+      const hasMention = msg.mentions.some((mention: any) => mention.user_id === this.botUserId || mention.user_id === this.botId);
+      if (hasMention) return true;
+    }
+
+    // Fallback: check if message content includes @botname or bot ID
+    const text = msg.content?.t || '';
+    return text.includes(`@${this.botUserId}`) || text.includes(`@${this.botId}`);
+  }
+
+  /**
+   * Clean up inactive sessions to prevent memory bloat
+   * Removes sessions older than SESSION_TIMEOUT_MS
+   */
+  private cleanupInactiveSessions(): void {
+    const now = Date.now();
+    let removedCount = 0;
+
+    // Convert to array for iteration compatibility
+    const entries = Array.from(this.chatSessions.entries());
+    for (const [baseKey, session] of entries) {
+      if (now - session.lastActivity > this.SESSION_TIMEOUT_MS) {
+        this.chatSessions.delete(baseKey);
+        removedCount++;
+      }
+    }
+
+    if (removedCount > 0) {
+      console.log(`[MezonPlugin] 🧹 Cleaned up ${removedCount} inactive sessions (active: ${this.chatSessions.size})`);
+    }
+  }
+
+  /**
+   * Check if user has an active conversation session
+   * If yes, they can continue the conversation without mentioning the bot
+   */
+  private hasActiveSession(threadId: string | undefined, channelId: string, userId: string): boolean {
+    const baseKey = threadId && threadId !== '0' ? threadId : channelId || `dm_${userId}`;
+    const session = this.chatSessions.get(baseKey);
+
+    if (session) {
+      const now = Date.now();
+      const inactive = now - session.lastActivity > this.SESSION_TIMEOUT_MS;
+
+      if (!inactive) {
+        console.log(`[MezonPlugin] ✓ Active session found: ${session.sessionId.slice(0, 20)}... (last activity: ${Math.floor((now - session.lastActivity) / 1000)}s ago)`);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Get or create a chat session for tracking context
+   *
+   * Each new chat creates a unique conversation (like web portal).
+   * Session key includes timestamp to ensure separate conversations per chat.
+   */
+  private getChatSession(
+    threadId: string | undefined,
+    channelId: string,
+    clanId: string,
+    userId: string,
+    userName: string
+  ): {
+    sessionId: string;
+    threadId?: string;
+    channelId: string;
+    clanId: string;
+    userId: string;
+    userName: string;
+    messageCount: number;
+    createdAt: number;
+    lastActivity: number;
+  } {
+    // Base key: threadId if exists, otherwise channelId, otherwise DM with userId
+    const baseKey = threadId && threadId !== '0' ? threadId : channelId || `dm_${userId}`;
+
+    // Look for existing active session for this channel/thread
+    const existingSession = this.chatSessions.get(baseKey);
+
+    // If session exists and is still active (within timeout), reuse it
+    if (existingSession) {
+      const now = Date.now();
+      const inactive = now - existingSession.lastActivity > this.SESSION_TIMEOUT_MS;
+
+      if (!inactive) {
+        // Session is still active, reuse it
+        existingSession.lastActivity = now;
+        console.log(`[MezonPlugin] Reusing active session: ${existingSession.sessionId.slice(0, 12)}... (${userName})`);
+        return existingSession;
+      } else {
+        // Session expired, remove it and create new one below
+        console.log(`[MezonPlugin] Session expired: ${existingSession.sessionId.slice(0, 12)}...`);
+        this.chatSessions.delete(baseKey);
+      }
+    }
+
+    // Create NEW session with unique ID (includes timestamp)
+    // This ensures each chat creates a separate conversation in the database
+    const uniqueSessionId = `${baseKey}_${Date.now()}`;
+    const session = {
+      sessionId: uniqueSessionId,
+      threadId: threadId && threadId !== '0' ? threadId : undefined,
+      channelId,
+      clanId,
+      userId,
+      userName,
+      messageCount: 0,
+      createdAt: Date.now(),
+      lastActivity: Date.now(),
+    };
+    this.chatSessions.set(baseKey, session);
+    console.log(`[MezonPlugin] New chat session: ${uniqueSessionId.slice(0, 20)}... (${userName})`);
+
+    return session;
+  }
+
+  /**
+   * Send a message to a channel, thread, or DM
    */
   async sendMessage(chatId: string, message: IUnifiedOutgoingMessage): Promise<string> {
     if (!this.client) {
@@ -142,19 +291,34 @@ export class MezonPlugin extends BasePlugin {
     const chunks = splitMessage(text, MEZON_MESSAGE_LIMIT);
     let lastMessageId = '';
 
+    // Look up session context to determine how to send
+    const session = this.chatSessions.get(chatId);
+
+    // Periodically cleanup inactive sessions (every 50 messages)
+    if (this.chatSessions.size > 0 && this.chatSessions.size % 50 === 0) {
+      this.cleanupInactiveSessions();
+    }
+
     for (let i = 0; i < chunks.length; i++) {
       try {
         const chunkContent: ChannelMessageContent = { t: chunks[i] };
-        // Access socketManager to write chat messages
-        // socketManager is protected on MezonClient so we need a cast
         const socketMgr = (this.client as any).socketManager;
-        const result = await socketMgr.writeChatMessage({
-          clan_id: '',
-          channel_id: chatId,
-          mode: 1, // DM mode
-          is_public: false,
+
+        // Determine message parameters based on session context
+        const messageParams: any = {
+          clan_id: session?.clanId || '',
+          channel_id: session?.channelId || chatId,
+          mode: session?.channelId ? 2 : 1, // mode: 2 for channels/threads, 1 for DMs
+          is_public: !session?.threadId, // Public for channels, private for threads
           content: chunkContent,
-        });
+        };
+
+        // Add topic_id for thread messages
+        if (session?.threadId) {
+          messageParams.topic_id = session.threadId;
+        }
+
+        const result = await socketMgr.writeChatMessage(messageParams);
         lastMessageId = result?.message_id || '';
       } catch (error) {
         console.error(`[MezonPlugin] Failed to send message chunk ${i + 1}/${chunks.length}:`, error);
@@ -179,17 +343,27 @@ export class MezonPlugin extends BasePlugin {
     // Truncate if too long (can't split when editing)
     const truncatedText = text.length > MEZON_MESSAGE_LIMIT ? text.slice(0, MEZON_MESSAGE_LIMIT - 3) + '...' : text;
 
+    // Look up session context
+    const session = this.chatSessions.get(chatId);
+
     try {
-      // Access socketManager to update chat messages
       const socketMgr = (this.client as any).socketManager;
-      await socketMgr.updateChatMessage({
-        clan_id: '',
-        channel_id: chatId,
-        mode: 1,
-        is_public: false,
+
+      const updateParams: any = {
+        clan_id: session?.clanId || '',
+        channel_id: session?.channelId || chatId,
+        mode: session?.channelId ? 2 : 1,
+        is_public: !session?.threadId,
         message_id: messageId,
         content: { t: truncatedText },
-      });
+      };
+
+      // Add topic_id for thread messages
+      if (session?.threadId) {
+        updateParams.topic_id = session.threadId;
+      }
+
+      await socketMgr.updateChatMessage(updateParams);
     } catch (error: any) {
       // Ignore "not modified" errors
       if (error?.message?.includes('not modified')) {
@@ -228,28 +402,61 @@ export class MezonPlugin extends BasePlugin {
       // Ignore messages from the bot itself
       if (userId === this.botUserId) return;
 
+      // Deduplicate messages by ID
+      const messageId = msg.id;
+      if (!messageId) {
+        console.warn('[MezonPlugin] Message without ID, skipping deduplication');
+      } else if (this.processedMessages.has(messageId)) {
+        console.log(`[MezonPlugin] Duplicate message detected: ${messageId}, skipping`);
+        return;
+      } else {
+        // Add to processed set
+        this.processedMessages.add(messageId);
+
+        // Limit cache size to prevent memory bloat
+        if (this.processedMessages.size > this.MESSAGE_CACHE_SIZE) {
+          // Remove oldest entries (convert to array, remove first element, recreate set)
+          const entries = Array.from(this.processedMessages);
+          this.processedMessages = new Set(entries.slice(-this.MESSAGE_CACHE_SIZE));
+        }
+      }
+
       // Track user
       this.activeUsers.add(userId);
 
-      // Check for /start command
-      const text = msg.content?.t || '';
-      const currentPluginId = this.config?.id;
-      if (text === '/start') {
-        const unifiedMessage = toUnifiedIncomingMessage(msg, this.botUserId, currentPluginId);
-        if (unifiedMessage && this.messageHandler) {
-          unifiedMessage.content.type = 'command';
-          unifiedMessage.content.text = '/start';
-          void this.messageHandler(unifiedMessage)
-            .then(() => console.log(`[MezonPlugin] Start command handled successfully`))
-            .catch((error) => console.error(`[MezonPlugin] Error handling start command:`, error));
-        }
+      // Extract session context from message
+      const threadId = msg.topic_id;
+      const channelId = msg.channel_id;
+      const clanId = msg.clan_id;
+      const userName = msg.username || 'User';
+
+      // Check if bot is mentioned or user has active session
+      const mentioned = this.isBotMentioned(msg);
+      const hasSession = this.hasActiveSession(threadId, channelId, userId);
+
+      // Only respond when mentioned OR when user has an active session
+      if (!mentioned && !hasSession) {
+        console.log('[MezonPlugin] Bot not mentioned and no active session, ignoring');
         return;
       }
 
+      if (hasSession && !mentioned) {
+        console.log('[MezonPlugin] 💬 Continuing active conversation');
+      }
+
+      // Get or create session for this conversation context
+      const session = this.getChatSession(threadId, channelId, clanId, userId, userName);
+      session.messageCount++;
+
       // Convert to unified message and forward to handler
+      const text = msg.content?.t || '';
+      const currentPluginId = this.config?.id;
       const unifiedMessage = toUnifiedIncomingMessage(msg, this.botUserId, currentPluginId);
       if (unifiedMessage && this.messageHandler) {
-        console.log(`[MezonPlugin] Forwarding message to handler (non-blocking)`);
+        // Use session ID as chatId so replies go to the same context
+        unifiedMessage.chatId = session.sessionId;
+
+        console.log(`[MezonPlugin] Forwarding message to handler (session: ${session.sessionId.slice(0, 12)}..., ${mentioned ? 'mentioned' : 'active session'})`);
         // Don't await - process in background to avoid blocking
         void this.messageHandler(unifiedMessage)
           .then(() => {
@@ -281,7 +488,12 @@ export class MezonPlugin extends BasePlugin {
         botId,
       });
 
-      const userId = await client.login();
+      // Add timeout to prevent hanging forever (10 seconds)
+      const timeoutPromise = new Promise<never>((_resolve, reject) => {
+        setTimeout(() => reject(new Error('Connection timeout (10s)')), 10000);
+      });
+
+      const userId = await Promise.race([client.login(), timeoutPromise]);
 
       // Clean up
       try {

@@ -164,7 +164,8 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
-  const { id } = useParams();
+  const { id, conversationId } = useParams<{ id?: string; conversationId?: string }>();
+  const currentConversationId = conversationId || id; // Support both param structures
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -200,16 +201,16 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
 
   // Scroll to active conversation when route changes
   useEffect(() => {
-    if (!id) return;
+    if (!currentConversationId) return;
     // Use requestAnimationFrame to ensure DOM is updated
     const rafId = requestAnimationFrame(() => {
-      const element = document.getElementById('c-' + id);
+      const element = document.getElementById('c-' + currentConversationId);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     });
     return () => cancelAnimationFrame(rafId);
-  }, [id]);
+  }, [currentConversationId]);
 
   // 持久化展开状态
   useEffect(() => {
@@ -221,10 +222,11 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
   }, [expandedWorkspaces]);
 
   // Filter by botId when on a bot page
+  // Always include the currently viewed conversation for backward compatibility
   const filteredConversations = useMemo(() => {
     if (!botId) return conversations;
-    return conversations.filter((conv) => conv.extra?.botId === botId);
-  }, [conversations, botId]);
+    return conversations.filter((conv) => conv.extra?.botId === botId || conv.id === currentConversationId);
+  }, [conversations, botId, currentConversationId]);
 
   // 按时间线和workspace分组
   const timelineSections = useMemo(() => {

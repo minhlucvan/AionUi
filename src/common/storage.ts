@@ -151,6 +151,8 @@ export type TChatConversation =
         presetAssistantId?: string;
         /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
         botId?: string;
+        /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
+        externalChannelId?: string;
       }
     >
   | Omit<
@@ -170,6 +172,8 @@ export type TChatConversation =
           presetAssistantId?: string;
           /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
           botId?: string;
+          /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
+          externalChannelId?: string;
           /** ACP 后端的 session UUID，用于会话恢复 / ACP backend session UUID for session resume */
           acpSessionId?: string;
           /** ACP session 最后更新时间 / Last update time of ACP session */
@@ -193,6 +197,8 @@ export type TChatConversation =
           presetAssistantId?: string;
           /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
           botId?: string;
+          /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
+          externalChannelId?: string;
         }
       >,
       'model'

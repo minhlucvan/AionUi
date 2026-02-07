@@ -7,7 +7,7 @@
 import type { TMessage } from '@/common/chatLib';
 import type { TProviderWithModel } from '@/common/storage';
 import { getDatabase } from '@/process/database';
-import { ProcessConfig } from '@/process/initStorage';
+import { ProcessConfig, getSystemDir } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
@@ -44,6 +44,28 @@ function getResponseActionsMarkup(platform: PluginType, text?: string) {
     return createResponseActionsCard(text || '');
   }
   return createResponseActionsKeyboard();
+}
+
+/**
+ * Detect conversation type from model's platform
+ * @param model - The model configuration
+ * @returns Conversation type ('gemini', 'acp', 'codex', etc.)
+ */
+function detectConversationType(model: TProviderWithModel): 'gemini' | 'acp' | 'codex' {
+  const platform = model.platform?.toLowerCase() || '';
+
+  // Anthropic/Claude models use 'acp' type (Anthropic CLI Platform)
+  if (platform.includes('anthropic') || platform.includes('claude')) {
+    return 'acp';
+  }
+
+  // OpenAI Codex models use 'codex' type
+  if (platform.includes('codex') || platform.includes('openai')) {
+    return 'codex';
+  }
+
+  // Default to 'gemini' for Google/Gemini models and fallback
+  return 'gemini';
 }
 
 /**
@@ -277,11 +299,14 @@ export class ActionExecutor {
 
     try {
       // Check if user is authorized
-      const isAuthorized = this.pairingService.isUserAuthorized(user.id, platform);
-      console.log(`[ActionExecutor] User ${user.id} authorized: ${isAuthorized}`);
+      // Mezon bots don't use pairing - skip authorization check
+      const requiresPairing = platform !== 'mezon';
 
-      // Handle /start command - always show pairing
-      if (content.type === 'command' && content.text === '/start') {
+      const isAuthorized = requiresPairing ? this.pairingService.isUserAuthorized(user.id, platform) : true;
+      console.log(`[ActionExecutor] Platform: ${platform}, requires pairing: ${requiresPairing}, user ${user.id} authorized: ${isAuthorized}`);
+
+      // Handle /start command - show pairing only for platforms that require it
+      if (requiresPairing && content.type === 'command' && content.text === '/start') {
         const result = await handlePairingShow(context);
         if (result.message) {
           await context.sendMessage(result.message);
@@ -289,8 +314,8 @@ export class ActionExecutor {
         return;
       }
 
-      // If not authorized, show pairing flow
-      if (!isAuthorized) {
+      // If not authorized and platform requires pairing, show pairing flow
+      if (requiresPairing && !isAuthorized) {
         const result = await handlePairingShow(context);
         if (result.message) {
           await context.sendMessage(result.message);
@@ -301,7 +326,32 @@ export class ActionExecutor {
       // User is authorized - look up the assistant user
       const db = getDatabase();
       const userResult = db.getChannelUserByPlatform(user.id, platform);
-      const channelUser = userResult.data;
+      let channelUser = userResult.data;
+
+      // For Mezon (no pairing), create user on-the-fly if not exists
+      if (!channelUser && platform === 'mezon') {
+        console.log(`[ActionExecutor] Creating on-the-fly channel user for Mezon user: ${user.id}`);
+        const createResult = db.createChannelUser({
+          id: `mezon_${user.id}_${Date.now()}`,
+          platformUserId: user.id,
+          platformType: platform as any,
+          displayName: user.displayName || 'Mezon User',
+          authorizedAt: Date.now(),
+        });
+
+        if (createResult.success && createResult.data) {
+          channelUser = createResult.data;
+          console.log(`[ActionExecutor] ✓ Created Mezon channel user: ${channelUser.id}`);
+        } else {
+          console.error(`[ActionExecutor] Failed to create Mezon channel user:`, createResult.error);
+          await context.sendMessage({
+            type: 'text',
+            text: '❌ Failed to create user profile. Please try again.',
+            parseMode: 'HTML',
+          });
+          return;
+        }
+      }
 
       if (!channelUser) {
         console.error(`[ActionExecutor] Authorized user not found in database: ${user.id}`);
@@ -326,10 +376,31 @@ export class ActionExecutor {
         // 使用 ConversationService 获取或创建会话（根据平台）
         // Use ConversationService to get or create conversation (based on platform)
         const conversationName = await this.getConversationNameForPlugin(platform, message.pluginId);
-        const result = await ConversationService.getOrCreateTelegramConversation({
-          model,
-          name: conversationName,
-        });
+
+        // Bot routing: If message has chatId (externalChannelId), use bot-specific routing
+        // Otherwise fall back to legacy Telegram routing
+        let result;
+        if (message.chatId) {
+          // Extract botId from pluginId (format: "mezon_{botId}" or "telegram_{botId}")
+          const botId = message.pluginId.includes('_') ? message.pluginId.split('_')[1] : message.pluginId;
+
+          console.log(`[ActionExecutor] Using bot conversation routing (channel: ${message.chatId.slice(0, 12)}..., bot: ${botId})`);
+
+          result = await ConversationService.getOrCreateBotConversation(message.chatId, botId, {
+            type: detectConversationType(model),
+            model,
+            name: conversationName,
+            extra: {
+              workspace: getSystemDir().workDir,
+            },
+          });
+        } else {
+          // Legacy routing for Telegram (backward compatibility)
+          result = await ConversationService.getOrCreateTelegramConversation({
+            model,
+            name: conversationName,
+          });
+        }
 
         if (result.success && result.conversation) {
           session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id);
