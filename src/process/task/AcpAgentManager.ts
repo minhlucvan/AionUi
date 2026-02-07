@@ -14,6 +14,7 @@ import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../messag
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { resolveWorkspaceDefaultAgent } from './workspaceConfigUtils';
 import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
@@ -46,6 +47,9 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   // Track current message for cron detection (accumulated from streaming chunks)
   private currentMsgId: string | null = null;
   private currentMsgContent: string = '';
+  // Default agent from workspace .claude/config.json, auto-injected into user messages
+  // 工作区 .claude/config.json 中的默认 agent，自动注入到用户消息中
+  private defaultAgent: string | undefined;
 
   constructor(data: AcpAgentManagerData) {
     super('acp', data);
@@ -230,6 +234,15 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           channelEventBus.emitAgentMessage(this.conversation_id, v);
         },
       });
+      // Resolve defaultAgent from workspace .claude/config.json
+      // 从工作区 .claude/config.json 解析 defaultAgent
+      if (data.workspace) {
+        this.defaultAgent = resolveWorkspaceDefaultAgent(data.workspace);
+        if (this.defaultAgent) {
+          console.log(`[AcpAgentManager] Default agent resolved: @${this.defaultAgent}`);
+        }
+      }
+
       return this.agent.start().then(() => this.agent);
     })();
     return this.bootstrap;
@@ -249,6 +262,12 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         let contentToSend = data.content;
         if (contentToSend.includes(AIONUI_FILES_MARKER)) {
           contentToSend = contentToSend.split(AIONUI_FILES_MARKER)[0].trimEnd();
+        }
+
+        // Auto-inject default agent prefix if configured in workspace .claude/config.json
+        // 如果工作区 .claude/config.json 配置了 defaultAgent，自动注入 @agent 前缀
+        if (this.defaultAgent && !contentToSend.includes(`@${this.defaultAgent}`)) {
+          contentToSend = `@${this.defaultAgent} ${contentToSend}`;
         }
 
         // 首条消息时注入预设规则和 skills 索引（来自智能助手配置）
