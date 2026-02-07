@@ -13,10 +13,11 @@ This workspace provides Claude Code with specialized knowledge for 3D game devel
 - **shader-programming** - Custom GLSL shader development
 - **performance-optimization** - FPS monitoring, instancing, LOD techniques
 
-### Expert Agents
+### Agents
 
-- **graphics-expert** - Advanced rendering techniques and shader optimization
-- **physics-engineer** - Complex physics simulations and collision systems
+- **game-developer** - Main agent: senior 3D game developer and architect. Use `@game-developer` as the primary persona for all game development conversations. Delegates to specialist agents when needed.
+- **graphics-expert** - Specialist: advanced rendering techniques and shader optimization
+- **physics-engineer** - Specialist: complex physics simulations and collision systems
 
 ## Usage
 
