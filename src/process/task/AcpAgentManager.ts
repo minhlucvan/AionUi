@@ -13,6 +13,7 @@ import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { runHooks } from '@/assistant/hooks';
 import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
@@ -35,7 +36,7 @@ interface AcpAgentManagerData {
   acpSessionId?: string;
   /** Last update time of ACP session / ACP session 最后更新时间 */
   acpSessionUpdatedAt?: number;
-  /** Default agent from assistant.json, auto-injected as @agent prefix / 来自 assistant.json 的默认 agent */
+  /** Default agent from assistant.json (metadata only) / 来自 assistant.json 的默认 agent */
   defaultAgent?: string;
 }
 
@@ -48,16 +49,11 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   // Track current message for cron detection (accumulated from streaming chunks)
   private currentMsgId: string | null = null;
   private currentMsgContent: string = '';
-  // Default agent from assistant.json, auto-injected into user messages
-  // 来自 assistant.json 的默认 agent，自动注入到用户消息中
-  private defaultAgent: string | undefined;
-
   constructor(data: AcpAgentManagerData) {
     super('acp', data);
     this.conversation_id = data.conversation_id;
     this.workspace = data.workspace;
     this.options = data;
-    this.defaultAgent = data.defaultAgent;
   }
 
   initAgent(data: AcpAgentManagerData = this.options) {
@@ -257,11 +253,12 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           contentToSend = contentToSend.split(AIONUI_FILES_MARKER)[0].trimEnd();
         }
 
-        // Auto-inject default agent prefix if configured in workspace .claude/config.json
-        // 如果工作区 .claude/config.json 配置了 defaultAgent，自动注入 @agent 前缀
-        if (this.defaultAgent && !contentToSend.includes(`@${this.defaultAgent}`)) {
-          contentToSend = `@${this.defaultAgent} ${contentToSend}`;
+        // Run assistant hooks from workspace .claude/hooks/ folder
+        const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
+        if (hookResult.blocked) {
+          return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
         }
+        contentToSend = hookResult.content;
 
         // 首条消息时注入预设规则和 skills 索引（来自智能助手配置）
         // Inject preset context and skills INDEX on first message (from smart assistant config)

@@ -11,6 +11,7 @@ import { transformMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import type { IMcpServer, TProviderWithModel } from '@/common/storage';
 import { ProcessConfig, getSkillsDir } from '@/process/initStorage';
+import { runHooks } from '@/assistant/hooks';
 import { buildSystemInstructions } from './agentUtils';
 import { uuid } from '@/common/utils';
 import { getProviderAuthType } from '@/common/utils/platformAuthType';
@@ -203,13 +204,20 @@ export class GeminiAgentManager extends BaseAgentManager<
   }
 
   async sendMessage(data: { input: string; msg_id: string; files?: string[] }) {
+    // Run assistant hooks from workspace .claude/hooks/ folder
+    const hookResult = await runHooks('on-send-message', data.input, this.workspace);
+    if (hookResult.blocked) {
+      return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
+    }
+    const processedData = hookResult.content !== data.input ? { ...data, input: hookResult.content } : data;
+
     const message: TMessage = {
       id: data.msg_id,
       type: 'text',
       position: 'right',
       conversation_id: this.conversation_id,
       content: {
-        content: data.input,
+        content: data.input, // Save original content to history
       },
     };
     addMessage(this.conversation_id, message);
@@ -232,7 +240,7 @@ export class GeminiAgentManager extends BaseAgentManager<
           });
         });
       })
-      .then(() => super.sendMessage(data))
+      .then(() => super.sendMessage(processedData))
       .finally(() => {
         cronBusyGuard.setProcessing(this.conversation_id, false);
       });

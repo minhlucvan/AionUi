@@ -170,7 +170,7 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
           presetAssistantId?: string;
-          /** Default agent from assistant.json, auto-injected as @agent prefix / 来自 assistant.json 的默认 agent */
+          /** Default agent from assistant.json (metadata only) / 来自 assistant.json 的默认 agent */
           defaultAgent?: string;
           /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
           botId?: string;

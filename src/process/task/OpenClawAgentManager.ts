@@ -10,6 +10,7 @@ import type { IConfirmation, TMessage } from '@/common/chatLib';
 import { transformMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
+import { runHooks } from '@/assistant/hooks';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import BaseAgentManager from '@process/task/BaseAgentManager';
@@ -160,9 +161,17 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
         addMessage(this.conversation_id, userMessage);
       }
 
+      // Run assistant hooks from workspace .claude/hooks/ folder
+      let contentToSend = data.content;
+      const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
+      if (hookResult.blocked) {
+        return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
+      }
+      contentToSend = hookResult.content;
+
       // Send message to agent
       const result = await this.agent.sendMessage({
-        content: data.content,
+        content: contentToSend,
         files: data.files,
         msg_id: data.msg_id,
       });
