@@ -32,7 +32,14 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   // If presetAssistantId is provided, check if it has a workspacePath
   if (presetAssistantId && !workspace) {
     try {
-      const customAgents = await ConfigStorage.get('acp.customAgents');
+      // Add timeout to prevent hanging (5 seconds)
+      const customAgentsPromise = ConfigStorage.get('acp.customAgents');
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('ConfigStorage.get timeout')), 5000));
+      const customAgents = await Promise.race([customAgentsPromise, timeoutPromise]).catch((error) => {
+        console.warn(`[AionUi] ConfigStorage.get failed or timed out:`, error);
+        return null;
+      });
+
       if (customAgents && Array.isArray(customAgents)) {
         const assistant = customAgents.find((a) => a.id === presetAssistantId);
         if (assistant?.workspacePath) {
@@ -58,13 +65,23 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   // Skip copying if workspace was loaded from assistant (already has the template)
   if (presetAssistantId) {
     try {
-      const customAgents = await ConfigStorage.get('acp.customAgents');
-      const assistant = customAgents?.find((a) => a.id === presetAssistantId);
+      // Add timeout to prevent hanging (5 seconds)
+      const customAgentsPromise = ConfigStorage.get('acp.customAgents');
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('ConfigStorage.get timeout')), 5000));
+      const customAgents = await Promise.race([customAgentsPromise, timeoutPromise]).catch((error) => {
+        console.warn(`[AionUi] ConfigStorage.get failed or timed out:`, error);
+        return null;
+      });
+
+      const assistant = customAgents?.find((a: any) => a.id === presetAssistantId);
       const hasExistingWorkspace = assistant?.workspacePath;
 
       if (!hasExistingWorkspace) {
         console.log(`[AionUi] Copying workspace template from assistant: ${presetAssistantId}`);
-        const copySuccess = await copyWorkspaceTemplate(presetAssistantId, workspace);
+        // Add timeout for copyWorkspaceTemplate (10 seconds)
+        const copyPromise = copyWorkspaceTemplate(presetAssistantId, workspace);
+        const copyTimeoutPromise = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 10000));
+        const copySuccess = await Promise.race([copyPromise, copyTimeoutPromise]);
         if (!copySuccess) {
           console.warn(`[AionUi] Failed to copy workspace template for assistant: ${presetAssistantId}`);
         } else {

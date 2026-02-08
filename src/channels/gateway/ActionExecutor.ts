@@ -23,6 +23,7 @@ import { createMainMenuKeyboard, createResponseActionsKeyboard, createToolConfir
 import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
 import type { IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../types';
 import type { PluginManager } from './PluginManager';
+import { bridge } from '@office-ai/platform';
 
 // ==================== Platform-specific Helpers ====================
 
@@ -366,10 +367,26 @@ export class ActionExecutor {
       // Set the assistant user in context
       context.channelUser = channelUser;
 
+      // Send immediate "thinking" indicator for text messages (before expensive session setup)
+      // This provides instant feedback to the user
+      let earlyThinkingMsgId: string | undefined;
+      if (content.type === 'text' && content.text && !action) {
+        earlyThinkingMsgId = await context.sendMessage({
+          type: 'text',
+          text: '⏳ Thinking...',
+          parseMode: 'HTML',
+          replyToMessageId: context.originalMessageId,
+        });
+      }
+
       // Get or create session
       // 获取或创建会话，优先复用该平台来源的会话
+      // IMPORTANT: For bot channels (Mezon/Telegram groups), we need per-channel conversations
+      // SessionManager only tracks one session per user, so we bypass it for bot channels
       let session = this.sessionManager.getSession(channelUser.id);
-      if (!session || !session.conversationId) {
+      const isBotChannel = message.chatId && message.stableChannelId;
+
+      if (isBotChannel || !session || !session.conversationId) {
         // 获取用户选择的模型 / Get user selected model (supports multi-bot)
         const model = await this.getModelForPlugin(message.pluginId);
 
@@ -384,18 +401,17 @@ export class ActionExecutor {
           // Extract botId from pluginId (format: "mezon_{botId}" or "telegram_{botId}")
           const botId = message.pluginId.includes('_') ? message.pluginId.split('_')[1] : message.pluginId;
 
-          // IMPORTANT: Extract stable channel ID for conversation lookup
-          // MezonPlugin sessionId format: "{channelId}_timestamp" or "{threadId}_timestamp"
-          // We need the base channel/thread ID without timestamp for conversation persistence
-          const stableChannelId = message.chatId.includes('_') ? message.chatId.substring(0, message.chatId.lastIndexOf('_')) : message.chatId;
+          // Use stableChannelId for conversation lookup (baseKey without timestamp)
+          // Falls back to chatId if stableChannelId is not provided (backward compatibility)
+          const channelIdForLookup = message.stableChannelId || message.chatId;
 
-          console.log(`[ActionExecutor] Using bot conversation routing (channel: ${stableChannelId.slice(0, 12)}..., bot: ${botId})`);
+          console.log(`[ActionExecutor] Using bot conversation routing (channel: ${channelIdForLookup.slice(0, 12)}..., bot: ${botId})`);
 
           // For Mezon bots, default to ACP (Claude) if no model configured
           const conversationType = model.platform ? detectConversationType(model) : 'acp';
 
           // ConversationService will automatically inject assistantId from bot config
-          result = await ConversationService.getOrCreateBotConversation(stableChannelId, botId, {
+          result = await ConversationService.getOrCreateBotConversation(channelIdForLookup, botId, {
             type: conversationType,
             model,
             name: conversationName,
@@ -417,8 +433,30 @@ export class ActionExecutor {
         }
 
         if (result.success && result.conversation) {
-          session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id);
-          console.log(`[ActionExecutor] Using conversation via ConversationService: ${result.conversation.id}`);
+          // For bot channels, don't create SessionManager session (bypass single-session-per-user limitation)
+          // Instead, create a minimal session object for this request only
+          if (isBotChannel) {
+            session = {
+              id: `temp_${Date.now()}`,
+              userId: channelUser.id,
+              agentType: 'gemini',
+              conversationId: result.conversation.id,
+              createdAt: Date.now(),
+              lastActivity: Date.now(),
+            };
+            console.log(`[ActionExecutor] Using bot channel conversation (bypassing SessionManager): ${result.conversation.id}`);
+
+            // Emit chat.history.refresh event to update WebUI conversation list
+            try {
+              bridge.emit('chat.history.refresh', {});
+              console.log(`[ActionExecutor] Emitted chat.history.refresh for bot conversation: ${result.conversation.id}`);
+            } catch (error) {
+              console.warn('[ActionExecutor] Failed to emit chat.history.refresh:', error);
+            }
+          } else {
+            session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id);
+            console.log(`[ActionExecutor] Using conversation via ConversationService: ${result.conversation.id}`);
+          }
         } else {
           console.error(`[ActionExecutor] Failed to create conversation: ${result.error}`);
           await context.sendMessage({
@@ -443,7 +481,7 @@ export class ActionExecutor {
         await this.executeAction(context, content.text, {});
       } else if (content.type === 'text' && content.text) {
         // Regular text message - send to AI
-        await this.handleChatMessage(context, content.text);
+        await this.handleChatMessage(context, content.text, earlyThinkingMsgId);
       } else {
         // Unsupported content type
         await context.sendMessage({
@@ -501,18 +539,21 @@ export class ActionExecutor {
   /**
    * Handle chat message - send to AI and stream response
    */
-  private async handleChatMessage(context: IActionContext, text: string): Promise<void> {
+  private async handleChatMessage(context: IActionContext, text: string, existingThinkingMsgId?: string): Promise<void> {
     // Update session activity
     if (context.channelUser) {
       this.sessionManager.updateSessionActivity(context.channelUser.id);
     }
 
-    // Send "thinking" indicator
-    const thinkingMsgId = await context.sendMessage({
-      type: 'text',
-      text: '⏳ Thinking...',
-      parseMode: 'HTML',
-    });
+    // Use existing thinking message if provided (sent early), otherwise send now
+    const thinkingMsgId =
+      existingThinkingMsgId ||
+      (await context.sendMessage({
+        type: 'text',
+        text: '⏳ Thinking...',
+        parseMode: 'HTML',
+        replyToMessageId: context.originalMessageId,
+      }));
 
     try {
       const sessionId = context.sessionId;
@@ -673,6 +714,26 @@ export class ActionExecutor {
         // 忽略最终编辑错误
         // Ignore final edit error
       }
+
+      // Auto-generate conversation title from first user message
+      // Check if conversation name is still "New Chat" and update it
+      try {
+        const db = getDatabase();
+        const conversationResult = db.getConversation(conversationId);
+        if (conversationResult.success && conversationResult.data?.name === 'New Chat') {
+          // Create title from first message: take first 50 chars, remove newlines
+          const messageTitle = text.split('\n')[0].substring(0, 50).trim();
+          if (messageTitle) {
+            // Add platform prefix to distinguish bot conversations
+            const platformPrefix = context.platform === 'mezon' ? 'Mezon' : context.platform === 'telegram' ? 'Telegram' : context.platform === 'lark' ? 'Lark' : '';
+            const newTitle = platformPrefix ? `${platformPrefix} - ${messageTitle}` : messageTitle;
+            db.updateConversation(conversationId, { name: newTitle });
+            console.log(`[ActionExecutor] Auto-updated conversation title to: ${newTitle}`);
+          }
+        }
+      } catch (error) {
+        console.warn('[ActionExecutor] Failed to auto-update conversation title:', error);
+      }
     } catch (error: any) {
       console.error(`[ActionExecutor] Chat processing failed:`, error);
 
@@ -747,25 +808,12 @@ export class ActionExecutor {
 
   /**
    * Get conversation name for a plugin (multi-bot support)
+   * Returns "New Chat" to allow auto-title system to generate name from first message
    */
   private async getConversationNameForPlugin(platform: string, pluginId?: string): Promise<string> {
-    if (platform === 'mezon' && pluginId) {
-      try {
-        const bots = await ProcessConfig.get('mezon.bots');
-        if (bots && Array.isArray(bots)) {
-          const botUuid = pluginId.replace(/^mezon_/, '');
-          const botConfig = bots.find((b) => b.id === botUuid);
-          if (botConfig?.name) {
-            return `Mezon: ${botConfig.name}`;
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-    if (platform === 'lark') return 'Lark Assistant';
-    if (platform === 'mezon') return 'Mezon Assistant';
-    return 'Telegram Assistant';
+    // Use "New Chat" to enable auto-title from first message content
+    // The useAutoTitle hook will update this based on the first user message
+    return 'New Chat';
   }
 
   /**

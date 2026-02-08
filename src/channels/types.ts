@@ -243,6 +243,7 @@ export interface IUnifiedIncomingMessage {
   platform: PluginType;
   pluginId?: string; // Specific plugin instance ID (for multi-bot support)
   chatId: string;
+  stableChannelId?: string; // Stable channel ID for conversation lookup (without session timestamp)
   user: IUnifiedUser;
   content: IUnifiedMessageContent;
   timestamp: number;

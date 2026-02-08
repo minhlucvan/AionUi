@@ -45,6 +45,7 @@ export class MezonPlugin extends BasePlugin {
       messageCount: number;
       createdAt: number;
       lastActivity: number;
+      lastUserMessageId?: string; // Track last user message ID for reply threading
     }
   > = new Map();
 
@@ -54,6 +55,7 @@ export class MezonPlugin extends BasePlugin {
   // Track processed message IDs to prevent duplicates
   private processedMessages: Set<string> = new Set();
   private readonly MESSAGE_CACHE_SIZE = 100; // Keep last 100 message IDs
+  private botStartTime: number = Date.now(); // Track when bot started to ignore old messages
 
   /**
    * Initialize the Mezon bot instance
@@ -98,6 +100,9 @@ export class MezonPlugin extends BasePlugin {
     }
 
     try {
+      // Update bot start time to ignore old messages
+      this.botStartTime = Date.now();
+
       // Login to authenticate and connect
       await this.client.login();
       // Use botId from config as botUserId (login() returns session object, not user_id)
@@ -106,7 +111,7 @@ export class MezonPlugin extends BasePlugin {
 
       this.isConnected = true;
       this.reconnectAttempts = 0;
-      console.log(`[MezonPlugin] Connected successfully`);
+      console.log(`[MezonPlugin] Connected successfully at ${new Date(this.botStartTime).toISOString()}`);
     } catch (error) {
       console.error('[MezonPlugin] Failed to start:', error);
       throw error;
@@ -236,6 +241,7 @@ export class MezonPlugin extends BasePlugin {
     messageCount: number;
     createdAt: number;
     lastActivity: number;
+    lastUserMessageId?: string;
   } {
     // Base key: threadId if exists, otherwise channelId, otherwise DM with userId
     const baseKey = threadId && threadId !== '0' ? threadId : channelId || `dm_${userId}`;
@@ -341,12 +347,26 @@ export class MezonPlugin extends BasePlugin {
           messageParams.topic_id = session.threadId;
         }
 
+        // Add reply reference to make this a threaded reply to the user's message
+        // Priority: 1) Explicit replyToMessageId from message 2) Session's lastUserMessageId
+        const replyToId = (i === 0 && message.replyToMessageId) || (i === 0 && session.lastUserMessageId);
+        if (replyToId) {
+          // Only add reference to first chunk to create reply thread
+          messageParams.references = [
+            {
+              message_id: replyToId,
+              message_ref_id: replyToId,
+            },
+          ];
+        }
+
         console.log(`[MezonPlugin] Sending message chunk ${i + 1}/${chunks.length} with params:`, {
           clan_id: messageParams.clan_id,
           channel_id: messageParams.channel_id,
           mode: messageParams.mode,
           is_public: messageParams.is_public,
           topic_id: messageParams.topic_id,
+          references: messageParams.references ? messageParams.references.map((r: any) => r.message_id) : undefined,
         });
 
         const result = await socketMgr.writeChatMessage(messageParams);
@@ -438,16 +458,28 @@ export class MezonPlugin extends BasePlugin {
       // Ignore messages from the bot itself
       if (userId === this.botUserId) return;
 
-      // Deduplicate messages by ID
+      // Ignore messages sent before bot started (avoid processing old messages when connecting)
+      const messageTime = msg.create_time_seconds ? msg.create_time_seconds * 1000 : Date.now();
+      if (messageTime < this.botStartTime - 5000) {
+        // Allow 5 second grace period for clock differences
+        console.log(`[MezonPlugin] Ignoring old message from before bot start: ${msg.channel_id}_${msg.id} (${new Date(messageTime).toISOString()})`);
+        return;
+      }
+
+      // Deduplicate messages by channelId + messageId (composite key)
+      // This prevents false positives when same message ID appears in different channels
       const messageId = msg.id;
+      const channelId = msg.channel_id;
+      const compositeKey = `${channelId}_${messageId}`;
+
       if (!messageId) {
         console.warn('[MezonPlugin] Message without ID, skipping deduplication');
-      } else if (this.processedMessages.has(messageId)) {
-        console.log(`[MezonPlugin] Duplicate message detected: ${messageId}, skipping`);
+      } else if (this.processedMessages.has(compositeKey)) {
+        console.log(`[MezonPlugin] Duplicate message detected: ${compositeKey}, skipping`);
         return;
       } else {
-        // Add to processed set
-        this.processedMessages.add(messageId);
+        // Add to processed set using composite key
+        this.processedMessages.add(compositeKey);
 
         // Limit cache size to prevent memory bloat
         if (this.processedMessages.size > this.MESSAGE_CACHE_SIZE) {
@@ -460,9 +492,8 @@ export class MezonPlugin extends BasePlugin {
       // Track user
       this.activeUsers.add(userId);
 
-      // Extract session context from message
+      // Extract session context from message (channelId already declared above for deduplication)
       const threadId = msg.topic_id;
-      const channelId = msg.channel_id;
       const clanId = msg.clan_id;
       const userName = msg.username || 'User';
 
@@ -483,6 +514,8 @@ export class MezonPlugin extends BasePlugin {
       // Get or create session for this conversation context
       const session = this.getChatSession(threadId, channelId, clanId, userId, userName);
       session.messageCount++;
+      // Store the user's message ID for reply threading
+      session.lastUserMessageId = msg.message_id || msg.id;
 
       // Convert to unified message and forward to handler
       const text = msg.content?.t || '';
@@ -491,6 +524,8 @@ export class MezonPlugin extends BasePlugin {
       if (unifiedMessage && this.messageHandler) {
         // Use session ID as chatId so replies go to the same context
         unifiedMessage.chatId = session.sessionId;
+        // Set stable channel ID for conversation lookup (without timestamp)
+        unifiedMessage.stableChannelId = session.baseKey;
 
         console.log(`[MezonPlugin] Forwarding message to handler (session: ${session.sessionId.slice(0, 12)}..., ${mentioned ? 'mentioned' : 'active session'})`);
         // Don't await - process in background to avoid blocking
