@@ -14,7 +14,6 @@ import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../messag
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
-import { resolveWorkspaceDefaultAgent } from './workspaceConfigUtils';
 import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
@@ -36,6 +35,8 @@ interface AcpAgentManagerData {
   acpSessionId?: string;
   /** Last update time of ACP session / ACP session 最后更新时间 */
   acpSessionUpdatedAt?: number;
+  /** Default agent from assistant.json, auto-injected as @agent prefix / 来自 assistant.json 的默认 agent */
+  defaultAgent?: string;
 }
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
@@ -47,8 +48,8 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   // Track current message for cron detection (accumulated from streaming chunks)
   private currentMsgId: string | null = null;
   private currentMsgContent: string = '';
-  // Default agent from workspace .claude/config.json, auto-injected into user messages
-  // 工作区 .claude/config.json 中的默认 agent，自动注入到用户消息中
+  // Default agent from assistant.json, auto-injected into user messages
+  // 来自 assistant.json 的默认 agent，自动注入到用户消息中
   private defaultAgent: string | undefined;
 
   constructor(data: AcpAgentManagerData) {
@@ -56,6 +57,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
     this.conversation_id = data.conversation_id;
     this.workspace = data.workspace;
     this.options = data;
+    this.defaultAgent = data.defaultAgent;
   }
 
   initAgent(data: AcpAgentManagerData = this.options) {
@@ -234,15 +236,6 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           channelEventBus.emitAgentMessage(this.conversation_id, v);
         },
       });
-      // Resolve defaultAgent from workspace .claude/config.json
-      // 从工作区 .claude/config.json 解析 defaultAgent
-      if (data.workspace) {
-        this.defaultAgent = resolveWorkspaceDefaultAgent(data.workspace);
-        if (this.defaultAgent) {
-          console.log(`[AcpAgentManager] Default agent resolved: @${this.defaultAgent}`);
-        }
-      }
-
       return this.agent.start().then(() => this.agent);
     })();
     return this.bootstrap;

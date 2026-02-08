@@ -53,24 +53,38 @@ function getAssistantRootPath(assistantId: string): string {
 }
 
 /**
+ * Result of copying a workspace template
+ * 复制工作区模板的结果
+ */
+export interface CopyWorkspaceResult {
+  /** Whether the copy succeeded / 是否复制成功 */
+  success: boolean;
+  /** Default agent name from assistant.json / 来自 assistant.json 的默认 agent 名称 */
+  defaultAgent?: string;
+}
+
+/**
  * Copy workspace template from an assistant to a chat workspace directory
  *
  * @param assistantId - Assistant ID (e.g., 'web-development' or 'builtin-web-development')
  * @param targetWorkspace - Target workspace path for the chat
- * @returns Promise<boolean> - true if copy succeeded, false otherwise
+ * @returns Promise<CopyWorkspaceResult> - result with success flag and optional defaultAgent
  *
  * @example
  * ```typescript
- * const success = await copyWorkspaceTemplate(
+ * const result = await copyWorkspaceTemplate(
  *   'web-development',
  *   '/tmp/chat-workspace-12345'
  * );
- * if (success) {
+ * if (result.success) {
  *   console.log('Workspace template copied successfully');
+ *   if (result.defaultAgent) {
+ *     console.log(`Default agent: ${result.defaultAgent}`);
+ *   }
  * }
  * ```
  */
-export async function copyWorkspaceTemplate(assistantId: string, targetWorkspace: string): Promise<boolean> {
+export async function copyWorkspaceTemplate(assistantId: string, targetWorkspace: string): Promise<CopyWorkspaceResult> {
   try {
     console.log(`[WorkspaceTemplate] Copying workspace template for assistant: ${assistantId}`);
     console.log(`[WorkspaceTemplate] Target workspace: ${targetWorkspace}`);
@@ -81,14 +95,14 @@ export async function copyWorkspaceTemplate(assistantId: string, targetWorkspace
 
     if (!fs.existsSync(assistantPath)) {
       console.error(`[WorkspaceTemplate] Assistant directory not found: ${assistantPath}`);
-      return false;
+      return { success: false };
     }
 
     // Read assistant.json to get workspace config
     const configPath = path.join(assistantPath, 'assistant.json');
     if (!fs.existsSync(configPath)) {
       console.error(`[WorkspaceTemplate] Assistant config not found: ${configPath}`);
-      return false;
+      return { success: false };
     }
 
     let config: AssistantMetadata;
@@ -97,13 +111,13 @@ export async function copyWorkspaceTemplate(assistantId: string, targetWorkspace
       config = JSON.parse(configContent);
     } catch (error) {
       console.error(`[WorkspaceTemplate] Failed to parse assistant.json:`, error);
-      return false;
+      return { success: false };
     }
 
     // Check if workspace path is configured
     if (!config.workspacePath) {
       console.log(`[WorkspaceTemplate] No workspace configured for assistant: ${assistantId}`);
-      return false;
+      return { success: false };
     }
 
     // Resolve workspace template path
@@ -114,7 +128,7 @@ export async function copyWorkspaceTemplate(assistantId: string, targetWorkspace
     // Check if workspace template exists
     if (!fs.existsSync(workspaceTemplatePath)) {
       console.error(`[WorkspaceTemplate] Workspace template not found: ${workspaceTemplatePath}`);
-      return false;
+      return { success: false };
     }
 
     // Ensure target directory exists
@@ -137,10 +151,10 @@ export async function copyWorkspaceTemplate(assistantId: string, targetWorkspace
       mergeMcpConfig(mcpTemplatePath, mcpTargetPath);
     }
 
-    return true;
+    return { success: true, defaultAgent: config.defaultAgent };
   } catch (error) {
     console.error(`[WorkspaceTemplate] Failed to copy workspace template:`, error);
-    return false;
+    return { success: false };
   }
 }
 
