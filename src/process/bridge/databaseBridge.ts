@@ -12,10 +12,10 @@ import { migrateConversationToDatabase } from './migrationUtils';
 
 export function initDatabaseBridge(): void {
   // Get conversation messages from database
-  ipcBridge.database.getConversationMessages.provider(({ conversation_id, page = 0, pageSize = 10000 }) => {
+  ipcBridge.database.getConversationMessages.provider(({ conversation_id, page = 0, pageSize = 10000, order = 'ASC' }: { conversation_id: string; page?: number; pageSize?: number; order?: 'ASC' | 'DESC' }) => {
     try {
       const db = getDatabase();
-      const result = db.getConversationMessages(conversation_id, page, pageSize);
+      const result = db.getConversationMessages(conversation_id, page, pageSize, order);
       return Promise.resolve(result.data || []);
     } catch (error) {
       console.error('[DatabaseBridge] Error getting conversation messages:', error);

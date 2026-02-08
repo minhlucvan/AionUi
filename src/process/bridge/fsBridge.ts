@@ -75,6 +75,79 @@ function getUserSkillsDir(): string {
 }
 
 /**
+ * Parse a skills.sh URL, GitHub URL, or owner/repo shorthand into structured parts.
+ * Supports:
+ *   - https://skills.sh/owner/repo/skill-name
+ *   - https://skills.sh/owner/repo
+ *   - https://github.com/owner/repo
+ *   - owner/repo
+ *   - npx skills add owner/repo --skill skill-name
+ *   - https://skillsmp.com/skills/...
+ */
+type SkillsShParseResult = { type: 'github'; owner: string; repo: string; skillName?: string } | { type: 'skillsmp'; url: string };
+
+function parseSkillsShInput(raw: string): SkillsShParseResult {
+  let input = raw.trim();
+
+  // Strip "npx skills add" prefix if present
+  input = input.replace(/^npx\s+skills\s+add\s+/i, '');
+
+  // Extract --skill flag
+  let skillFlag: string | undefined;
+  const skillFlagMatch = input.match(/--skill\s+(\S+)/);
+  if (skillFlagMatch) {
+    skillFlag = skillFlagMatch[1];
+    input = input.replace(/--skill\s+\S+/, '').trim();
+  }
+
+  // Strip common CLI flags (-a, -g, -y, --list)
+  input = input
+    .replace(/\s+--list\b/g, '')
+    .replace(/\s+-[agy]\s+\S*/g, '')
+    .trim();
+
+  // skills.sh URL: https://skills.sh/owner/repo or https://skills.sh/owner/repo/skill-name
+  const skillsShMatch = input.match(/^https?:\/\/skills\.sh\/([^/?#]+)\/([^/?#]+)(?:\/([^/?#]+))?/);
+  if (skillsShMatch) {
+    return {
+      type: 'github',
+      owner: skillsShMatch[1],
+      repo: skillsShMatch[2],
+      skillName: skillsShMatch[3] || skillFlag,
+    };
+  }
+
+  // SkillsMP URL
+  if (/^https?:\/\/skillsmp\.com/i.test(input)) {
+    return { type: 'skillsmp', url: input };
+  }
+
+  // GitHub URL: https://github.com/owner/repo (optionally with .git)
+  const githubMatch = input.match(/^https?:\/\/github\.com\/([^/?#]+)\/([^/?#\s]+)/);
+  if (githubMatch) {
+    return {
+      type: 'github',
+      owner: githubMatch[1],
+      repo: githubMatch[2].replace(/\.git$/, ''),
+      skillName: skillFlag,
+    };
+  }
+
+  // Shorthand: owner/repo
+  const shorthandMatch = input.match(/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/);
+  if (shorthandMatch) {
+    return {
+      type: 'github',
+      owner: shorthandMatch[1],
+      repo: shorthandMatch[2],
+      skillName: skillFlag,
+    };
+  }
+
+  throw new Error(`Unrecognized skill URL or shorthand: "${raw}". Expected formats: owner/repo, https://skills.sh/owner/repo/skill, or https://github.com/owner/repo`);
+}
+
+/**
  * Copy directory recursively
  * 递归复制目录
  */
@@ -92,6 +165,144 @@ async function copyDirectory(src: string, dest: string) {
       await fs.copyFile(srcPath, destPath);
     }
   }
+}
+
+/**
+ * Validate skill name for file system safety
+ * 验证 skill 名称是否符合文件系统要求
+ */
+function validateSkillName(name: string): { valid: boolean; error?: string } {
+  if (!name || name.trim().length === 0) {
+    return { valid: false, error: 'Skill name cannot be empty' };
+  }
+
+  // Check for invalid characters in file/directory names
+  // eslint-disable-next-line no-control-regex
+  const invalidChars = /[<>:"/\\|?*\x00-\x1F]/;
+  if (invalidChars.test(name)) {
+    return { valid: false, error: 'Skill name contains invalid characters (<>:"/\\|?*)' };
+  }
+
+  // Check for reserved names (Windows)
+  const reservedNames = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+  if (reservedNames.test(name)) {
+    return { valid: false, error: 'Skill name uses a reserved system name' };
+  }
+
+  // Check length (max 255 for most file systems, use 100 as safe limit)
+  if (name.length > 100) {
+    return { valid: false, error: 'Skill name is too long (max 100 characters)' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Parse YAML field value, handling multi-line strings (>, |)
+ * 解析 YAML 字段值，处理多行字符串（>, |）
+ */
+function parseYamlField(yaml: string, fieldName: string): string {
+  // Match the field with potential multi-line value
+  const fieldPattern = new RegExp(`^${fieldName}:\\s*([>|]?)\\s*(.*)$`, 'm');
+  const match = yaml.match(fieldPattern);
+
+  if (!match) {
+    console.log(`[parseYamlField] No match for field: ${fieldName}`);
+    return '';
+  }
+
+  console.log(`[parseYamlField] Found ${fieldName}, operator: '${match[1]}', sameLine: '${match[2]}'`);
+
+  const [_fullMatch, operator, sameLine] = match;
+
+  // If there's content on the same line and no multi-line operator, return it
+  if (sameLine.trim() && !operator) {
+    // Remove surrounding quotes if present
+    return sameLine.trim().replace(/^['"]|['"]$/g, '');
+  }
+
+  // For multi-line strings (> or |), collect subsequent indented lines
+  if (operator === '>' || operator === '|') {
+    const lines = yaml.split('\n');
+    const fieldLineIndex = lines.findIndex((line) => line.match(fieldPattern));
+
+    if (fieldLineIndex === -1) return '';
+
+    // Get the indentation level of the first content line
+    let firstContentLine = -1;
+    let baseIndent = 0;
+
+    for (let i = fieldLineIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
+      // Skip empty lines
+      if (line.trim() === '') continue;
+
+      // Check if this line starts a new YAML key (not indented or at same level as field)
+      if (line.match(/^\w+:/)) break;
+
+      // This is the first content line
+      firstContentLine = i;
+      baseIndent = line.search(/\S/);
+      break;
+    }
+
+    if (firstContentLine === -1) return '';
+
+    // Collect all lines that are indented at or beyond the base indentation
+    const contentLines: string[] = [];
+
+    for (let i = firstContentLine; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Empty lines are included
+      if (line.trim() === '') {
+        contentLines.push('');
+        continue;
+      }
+
+      const indent = line.search(/\S/);
+
+      // If line is not indented enough or starts a new key, stop
+      if (indent < baseIndent || line.match(/^\w+:/)) break;
+
+      // Remove base indentation
+      contentLines.push(line.substring(baseIndent));
+    }
+
+    // Process according to operator
+    if (operator === '>') {
+      // Folded style: join lines with spaces, preserve paragraph breaks (blank lines)
+      const paragraphs: string[] = [];
+      let currentParagraph: string[] = [];
+
+      for (const line of contentLines) {
+        if (line.trim() === '') {
+          if (currentParagraph.length > 0) {
+            paragraphs.push(currentParagraph.join(' '));
+            currentParagraph = [];
+          }
+        } else {
+          currentParagraph.push(line.trim());
+        }
+      }
+
+      if (currentParagraph.length > 0) {
+        paragraphs.push(currentParagraph.join(' '));
+      }
+
+      const result = paragraphs.join('\n').trim();
+      console.log(`[parseYamlField] Returning folded style result, length: ${result.length}, preview: ${result.substring(0, 50)}`);
+      return result;
+    } else {
+      // Literal style (|): preserve line breaks
+      const result = contentLines.join('\n').trim();
+      console.log(`[parseYamlField] Returning literal style result, length: ${result.length}, preview: ${result.substring(0, 50)}`);
+      return result;
+    }
+  }
+
+  console.log('[parseYamlField] Returning empty string (no operator)');
+  return '';
 }
 
 /**
@@ -632,6 +843,7 @@ export function initFsBridge(): void {
 
   // 获取可用 skills 列表 / List available skills from both builtin and user directories
   ipcBridge.fs.listAvailableSkills.provider(async () => {
+    console.log('[fsBridge] ==================== listAvailableSkills CALLED ====================');
     try {
       const skills: Array<{ name: string; description: string; location: string; isCustom: boolean }> = [];
 
@@ -657,11 +869,12 @@ export function initFsBridge(): void {
               if (frontMatterMatch) {
                 const yaml = frontMatterMatch[1];
                 const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-                const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-                if (nameMatch) {
+                const name = nameMatch ? nameMatch[1].trim() : '';
+                const description = parseYamlField(yaml, 'description');
+                if (name) {
                   skills.push({
-                    name: nameMatch[1].trim(),
-                    description: descMatch ? descMatch[1].trim() : '',
+                    name,
+                    description,
                     location: skillMdPath,
                     isCustom: isCustomDir,
                   });
@@ -716,6 +929,8 @@ export function initFsBridge(): void {
   // 读取 skill 信息（不导入）/ Read skill info without importing
   ipcBridge.fs.readSkillInfo.provider(async ({ skillPath }) => {
     try {
+      console.log(`[fsBridge] Reading skill info from: ${skillPath}`);
+
       // 验证 SKILL.md 文件存在 / Verify SKILL.md file exists
       const skillMdPath = path.join(skillPath, 'SKILL.md');
       try {
@@ -723,7 +938,7 @@ export function initFsBridge(): void {
       } catch {
         return {
           success: false,
-          msg: 'SKILL.md file not found in the selected directory',
+          msg: 'SKILL.md file not found. Please select a directory containing a SKILL.md file.',
         };
       }
 
@@ -733,17 +948,38 @@ export function initFsBridge(): void {
       let skillName = path.basename(skillPath); // 默认使用目录名 / Default to directory name
       let skillDescription = '';
 
-      if (frontMatterMatch) {
-        const yaml = frontMatterMatch[1];
-        const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-        const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-        if (nameMatch) {
-          skillName = nameMatch[1].trim();
-        }
-        if (descMatch) {
-          skillDescription = descMatch[1].trim();
-        }
+      if (!frontMatterMatch) {
+        console.warn('[fsBridge] No YAML front matter found in SKILL.md');
+        return {
+          success: false,
+          msg: 'SKILL.md is missing YAML front matter (---name/description---)',
+        };
       }
+
+      const yaml = frontMatterMatch[1];
+      const nameMatch = yaml.match(/^name:\s*(.+)$/m);
+
+      if (!nameMatch || !nameMatch[1].trim()) {
+        console.warn('[fsBridge] No name field found in YAML front matter');
+        return {
+          success: false,
+          msg: 'SKILL.md must include a "name" field in YAML front matter',
+        };
+      }
+
+      skillName = nameMatch[1].trim();
+      skillDescription = parseYamlField(yaml, 'description');
+
+      // Validate skill name
+      const nameValidation = validateSkillName(skillName);
+      if (!nameValidation.valid) {
+        return {
+          success: false,
+          msg: `Invalid skill name: ${nameValidation.error}`,
+        };
+      }
+
+      console.log(`[fsBridge] Successfully read skill: ${skillName}`);
 
       return {
         success: true,
@@ -787,6 +1023,15 @@ export function initFsBridge(): void {
         if (nameMatch) {
           skillName = nameMatch[1].trim();
         }
+      }
+
+      // Validate skill name
+      const nameValidation = validateSkillName(skillName);
+      if (!nameValidation.valid) {
+        return {
+          success: false,
+          msg: `Invalid skill name: ${nameValidation.error}`,
+        };
       }
 
       // 获取用户 skills 目录 / Get user skills directory
@@ -859,14 +1104,15 @@ export function initFsBridge(): void {
           if (frontMatterMatch) {
             const yaml = frontMatterMatch[1];
             const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-            const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-            if (nameMatch) {
+            const name = nameMatch ? nameMatch[1].trim() : '';
+            const description = parseYamlField(yaml, 'description');
+            if (name) {
               skills.push({
-                name: nameMatch[1].trim(),
-                description: descMatch ? descMatch[1].trim() : '',
+                name,
+                description,
                 path: skillDir,
               });
-              console.log(`[fsBridge] Found skill in subdirectory: ${nameMatch[1].trim()}`);
+              console.log(`[fsBridge] Found skill in subdirectory: ${name}`);
             }
           }
         } catch {
@@ -884,14 +1130,15 @@ export function initFsBridge(): void {
           if (frontMatterMatch) {
             const yaml = frontMatterMatch[1];
             const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-            const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-            if (nameMatch) {
+            const name = nameMatch ? nameMatch[1].trim() : '';
+            const description = parseYamlField(yaml, 'description');
+            if (name) {
               skills.push({
-                name: nameMatch[1].trim(),
-                description: descMatch ? descMatch[1].trim() : '',
+                name,
+                description,
                 path: folderPath,
               });
-              console.log(`[fsBridge] Found skill in the folder itself: ${nameMatch[1].trim()}`);
+              console.log(`[fsBridge] Found skill in the folder itself: ${name}`);
             }
           }
         } catch {
@@ -1039,68 +1286,202 @@ export function initFsBridge(): void {
     }
   });
 
-  // 从 GitHub 安装 skill / Install skill from GitHub using git clone
-  ipcBridge.fs.installSkillFromGitHub.provider(async ({ cloneUrl, repoName }) => {
+  // Helper: fetch raw content from a URL (GitHub raw files, etc.)
+  const fetchRawContent = (url: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const client = url.startsWith('https') ? https : http;
+      const req = client.get(url, { headers: { 'User-Agent': 'AionUi-SkillBrowser' } }, (res) => {
+        // Follow redirects
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          fetchRawContent(res.headers.location).then(resolve, reject);
+          return;
+        }
+        let body = '';
+        res.on('data', (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(body);
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}`));
+          }
+        });
+      });
+      req.on('error', reject);
+      req.setTimeout(30000, () => {
+        req.destroy();
+        reject(new Error('Request timed out'));
+      });
+    });
+  };
+
+  // Helper: fetch JSON from GitHub API
+  const fetchGitHubApi = (apiUrl: string): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const req = https.get(
+        apiUrl,
+        {
+          headers: { 'User-Agent': 'AionUi-SkillBrowser', Accept: 'application/vnd.github.v3+json' },
+        },
+        (res) => {
+          let body = '';
+          res.on('data', (chunk: Buffer) => {
+            body += chunk.toString();
+          });
+          res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              try {
+                resolve(JSON.parse(body));
+              } catch {
+                reject(new Error('Invalid JSON from GitHub API'));
+              }
+            } else {
+              reject(new Error(`GitHub API returned ${res.statusCode}: ${body.slice(0, 200)}`));
+            }
+          });
+        }
+      );
+      req.on('error', reject);
+      req.setTimeout(30000, () => {
+        req.destroy();
+        reject(new Error('GitHub API request timed out'));
+      });
+    });
+  };
+
+  // Helper: download skill files from GitHub API (recursive directory download)
+  const downloadGitHubDir = async (owner: string, repo: string, dirPath: string, branch: string, destDir: string): Promise<void> => {
+    // Don't encode slashes in the path - GitHub API needs them as-is
+    const encodedPath = dirPath.split('/').map(encodeURIComponent).join('/');
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}?ref=${branch}`;
+    const response = await fetchGitHubApi(apiUrl);
+    // GitHub returns an array for directories, single object for files
+    const entries: any[] = Array.isArray(response) ? response : [response];
+
+    await fs.mkdir(destDir, { recursive: true });
+
+    for (const entry of entries) {
+      const destPath = path.join(destDir, entry.name);
+      if (entry.type === 'file' && entry.download_url) {
+        const content = await fetchRawContent(entry.download_url);
+        await fs.writeFile(destPath, content, 'utf-8');
+      } else if (entry.type === 'dir') {
+        await downloadGitHubDir(owner, repo, entry.path, branch, destPath);
+      }
+    }
+  };
+
+  // 从 GitHub 安装 skill / Install skill from GitHub
+  // Prefers GitHub API download (no git required), falls back to git clone
+  ipcBridge.fs.installSkillFromGitHub.provider(async ({ cloneUrl, repoName, subPath, branch }) => {
     try {
       const userSkillsDir = getUserSkillsDir();
       await fs.mkdir(userSkillsDir, { recursive: true });
 
       const tempDir = path.join(os.tmpdir(), `aionui-skill-${Date.now()}`);
+      await fs.mkdir(tempDir, { recursive: true });
 
-      // Clone the repo to temp directory
-      await new Promise<void>((resolve, reject) => {
-        execFile('git', ['clone', '--depth', '1', cloneUrl, tempDir], { timeout: 60000 }, (error) => {
-          if (error) {
-            reject(new Error(`Git clone failed: ${error.message}`));
+      // Parse GitHub info from cloneUrl for API-based download
+      // cloneUrl format: https://github.com/{owner}/{repo}.git
+      const githubMatch = cloneUrl.match(/github\.com\/([^/]+)\/([^/.]+)/);
+
+      if (githubMatch && subPath) {
+        // Use GitHub API to download only the skill directory (fast, no git needed)
+        const [, owner, repo] = githubMatch;
+        const targetBranch = branch || 'main';
+        console.log(`[fsBridge] Downloading skill via GitHub API: ${owner}/${repo}/${subPath} (branch: ${targetBranch})`);
+        try {
+          await downloadGitHubDir(owner, repo, subPath, targetBranch, tempDir);
+        } catch (apiError) {
+          if (!branch) {
+            // Try 'master' branch if 'main' fails and no explicit branch was given
+            console.log('[fsBridge] main branch failed, trying master...');
+            await downloadGitHubDir(owner, repo, subPath, 'master', tempDir);
           } else {
-            resolve();
+            throw apiError;
           }
+        }
+      } else {
+        // Fall back to git clone for repos without subPath
+        console.log(`[fsBridge] Cloning repo: ${cloneUrl}`);
+        await new Promise<void>((resolve, reject) => {
+          execFile('git', ['clone', '--depth', '1', cloneUrl, tempDir], { timeout: 60000 }, (error) => {
+            if (error) {
+              reject(new Error(`Git clone failed: ${error.message}`));
+            } else {
+              resolve();
+            }
+          });
         });
-      });
+      }
 
-      // Find SKILL.md - check root first, then subdirectories
+      // Find skill content in downloaded files
       let skillSourceDir = tempDir;
       let skillName = repoName;
-      let skillDescription = '';
 
-      const rootSkillMd = path.join(tempDir, 'SKILL.md');
-      try {
-        await fs.access(rootSkillMd);
-      } catch {
-        // SKILL.md not at root - scan subdirectories
+      // Check tempDir for skill content, or scan subdirectories
+      const dirEntries = await fs.readdir(tempDir);
+      const hasMdFiles = dirEntries.some((e) => e.endsWith('.md'));
+
+      if (!hasMdFiles && !subPath) {
+        // For git clone: scan subdirectories
         const entries = await fs.readdir(tempDir, { withFileTypes: true });
         let found = false;
         for (const entry of entries) {
           if (!entry.isDirectory() || entry.name === '.git') continue;
-          const subSkillMd = path.join(tempDir, entry.name, 'SKILL.md');
-          try {
-            await fs.access(subSkillMd);
+          const subEntries = await fs.readdir(path.join(tempDir, entry.name));
+          if (subEntries.some((e) => e.endsWith('.md'))) {
             skillSourceDir = path.join(tempDir, entry.name);
             found = true;
             break;
-          } catch {
-            // Not a skill directory
           }
         }
         if (!found) {
-          // Cleanup temp
           await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
           return {
             success: false,
-            msg: 'No SKILL.md found in the repository. Make sure the repo contains a valid skill.',
+            msg: 'No skill files (.md) found in the repository.',
           };
         }
       }
 
+      // Ensure SKILL.md exists; if not, generate one from .md files
+      const skillMdPath = path.join(skillSourceDir, 'SKILL.md');
+      let hasSkillMd = false;
+      try {
+        await fs.access(skillMdPath);
+        hasSkillMd = true;
+      } catch {
+        const mdFiles = (await fs.readdir(skillSourceDir)).filter((e) => e.endsWith('.md') && e !== 'README.md');
+        if (mdFiles.length > 0) {
+          const mainMd = mdFiles[0];
+          const content = await fs.readFile(path.join(skillSourceDir, mainMd), 'utf-8');
+          const derivedName = mainMd.replace(/\.md$/, '');
+          await fs.writeFile(skillMdPath, `---\nname: ${derivedName}\ndescription: Installed from GitHub\n---\n\n${content}`, 'utf-8');
+          hasSkillMd = true;
+        }
+      }
+
       // Parse SKILL.md for name
-      const skillMdContent = await fs.readFile(path.join(skillSourceDir, 'SKILL.md'), 'utf-8');
-      const frontMatterMatch = skillMdContent.match(/^---\s*\n([\s\S]*?)\n---/);
-      if (frontMatterMatch) {
-        const yaml = frontMatterMatch[1];
-        const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-        const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-        if (nameMatch) skillName = nameMatch[1].trim();
-        if (descMatch) skillDescription = descMatch[1].trim();
+      if (hasSkillMd) {
+        const skillMdContent = await fs.readFile(skillMdPath, 'utf-8');
+        const frontMatterMatch = skillMdContent.match(/^---\s*\n([\s\S]*?)\n---/);
+        if (frontMatterMatch) {
+          const yaml = frontMatterMatch[1];
+          const nameMatch = yaml.match(/^name:\s*(.+)$/m);
+          if (nameMatch) skillName = nameMatch[1].trim();
+        }
+      }
+
+      // Validate skill name
+      const nameValidation = validateSkillName(skillName);
+      if (!nameValidation.valid) {
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        return {
+          success: false,
+          msg: `Invalid skill name: ${nameValidation.error}`,
+        };
       }
 
       // Check for duplicates
@@ -1137,18 +1518,91 @@ export function initFsBridge(): void {
       // Cleanup temp
       await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
 
-      console.log(`[fsBridge] Successfully installed GitHub skill "${skillName}" to ${targetDir}`);
+      console.log(`[fsBridge] Successfully installed skill "${skillName}" to ${targetDir}`);
 
       return {
         success: true,
         data: { skillName, installPath: targetDir },
-        msg: `Skill "${skillName}" installed successfully from GitHub`,
+        msg: `Skill "${skillName}" installed successfully`,
       };
     } catch (error) {
-      console.error('[fsBridge] GitHub skill install failed:', error);
+      console.error('[fsBridge] Skill install failed:', error);
       return {
         success: false,
         msg: `Failed to install skill: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  });
+
+  // ============================================================================
+  // Install skill from skills.sh URL or shorthand
+  // Supports: skills.sh URLs, GitHub URLs, owner/repo shorthand, SkillsMP URLs
+  // ============================================================================
+  ipcBridge.fs.installSkillFromUrl.provider(async ({ input }) => {
+    try {
+      const parsed = parseSkillsShInput(input);
+
+      if (parsed.type === 'skillsmp') {
+        return { success: false, msg: 'SkillsMP URLs are not directly installable. Use the Browse SkillsMP feature instead.' };
+      }
+
+      const { owner, repo, skillName: parsedSkillName } = parsed;
+      const cloneUrl = `https://github.com/${owner}/${repo}.git`;
+
+      if (parsedSkillName) {
+        // Install a specific skill from the repo's skills/ directory
+        // Try common paths: skills/{name}/, {name}/, .claude/skills/{name}/, .agents/skills/{name}/
+        const candidatePaths = [`skills/${parsedSkillName}`, parsedSkillName, `.claude/skills/${parsedSkillName}`, `.agents/skills/${parsedSkillName}`];
+
+        let lastError: string | undefined;
+        for (const subPath of candidatePaths) {
+          try {
+            const result = await ipcBridge.fs.installSkillFromGitHub.invoke({
+              cloneUrl,
+              repoName: parsedSkillName,
+              subPath,
+            });
+            if (result.success && result.data) {
+              return {
+                success: true,
+                data: { skillName: result.data.skillName, installPath: result.data.installPath },
+                msg: `Skill "${result.data.skillName}" installed from ${owner}/${repo}`,
+              };
+            }
+            lastError = result.msg;
+          } catch (err) {
+            lastError = err instanceof Error ? err.message : String(err);
+          }
+        }
+
+        return {
+          success: false,
+          msg: lastError || `Could not find skill "${parsedSkillName}" in ${owner}/${repo}`,
+        };
+      } else {
+        // No specific skill name: try to install the repo as a single skill first,
+        // then scan for multiple skills in the skills/ directory
+        const result = await ipcBridge.fs.installSkillFromGitHub.invoke({
+          cloneUrl,
+          repoName: repo,
+        });
+        if (result.success && result.data) {
+          return {
+            success: true,
+            data: { skillName: result.data.skillName, installPath: result.data.installPath },
+            msg: `Skill "${result.data.skillName}" installed from ${owner}/${repo}`,
+          };
+        }
+        return {
+          success: false,
+          msg: result.msg || `Failed to install skill from ${owner}/${repo}`,
+        };
+      }
+    } catch (error) {
+      console.error('[fsBridge] installSkillFromUrl failed:', error);
+      return {
+        success: false,
+        msg: error instanceof Error ? error.message : String(error),
       };
     }
   });
@@ -1179,6 +1633,176 @@ export function initFsBridge(): void {
     } catch (error) {
       console.error('[fsBridge] Failed to delete custom skill:', error);
       return { success: false, msg: `Failed to delete skill: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  });
+
+  // 从 zip 文件导入助手 / Import assistant from zip file
+  // Simply extract zip to assistants folder and load metadata
+  ipcBridge.fs.importAssistantZip.provider(async ({ zipPath }) => {
+    try {
+      const AdmZip = (await import('adm-zip')).default;
+      const zip = new AdmZip(zipPath);
+
+      // Generate new assistant ID
+      const newId = `custom-${Date.now()}`;
+      const assistantsDir = getAssistantsDir();
+      await fs.mkdir(assistantsDir, { recursive: true });
+
+      // Extract to assistant-specific directory
+      const extractDir = path.join(assistantsDir, newId);
+      await fs.mkdir(extractDir, { recursive: true });
+
+      // Extract all files
+      zip.extractAllTo(extractDir, true);
+      console.log(`[fsBridge] Extracted assistant to: ${extractDir}`);
+
+      // Find assistant.json or manifest.json (may be in subdirectory)
+      const findConfigFile = async (dir: string, depth = 0): Promise<{ path: string; config: any } | null> => {
+        if (depth > 2) return null; // Limit search depth
+
+        // Try current directory
+        for (const filename of ['assistant.json', 'manifest.json']) {
+          const configPath = path.join(dir, filename);
+          try {
+            const configData = await fs.readFile(configPath, 'utf-8');
+            const config = JSON.parse(configData);
+            return { path: configPath, config };
+          } catch {
+            // Continue searching
+          }
+        }
+
+        // Search subdirectories
+        try {
+          const entries = await fs.readdir(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (entry.isDirectory()) {
+              const result = await findConfigFile(path.join(dir, entry.name), depth + 1);
+              if (result) return result;
+            }
+          }
+        } catch {
+          // Ignore read errors
+        }
+
+        return null;
+      };
+
+      const configResult = await findConfigFile(extractDir);
+      if (!configResult) {
+        await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+        return { success: false, msg: 'No assistant.json or manifest.json found in zip' };
+      }
+
+      const assistantConfig = configResult.config;
+      const configDir = path.dirname(configResult.path);
+
+      if (!assistantConfig.name || !assistantConfig.name.trim()) {
+        await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+        return { success: false, msg: 'Invalid config: "name" field is required' };
+      }
+
+      // Build workspace path
+      const workspacePath = path.join(configDir, assistantConfig.workspacePath || 'workspace');
+
+      // Load README.md or CLAUDE.md as assistant rules
+      let hasRules = false;
+      for (const ruleFile of ['CLAUDE.md', 'README.md']) {
+        try {
+          const rulePath = path.join(workspacePath, ruleFile);
+          const ruleContent = await fs.readFile(rulePath, 'utf-8');
+
+          // Save to assistants directory
+          const ruleFileName = `${newId}.en-US.md`;
+          const targetRulePath = path.join(assistantsDir, ruleFileName);
+          await fs.writeFile(targetRulePath, ruleContent, 'utf-8');
+
+          console.log(`[fsBridge] Imported rules from ${ruleFile} to ${ruleFileName}`);
+          hasRules = true;
+          break; // Use first found file
+        } catch {
+          // Try next file
+        }
+      }
+
+      if (!hasRules) {
+        console.warn('[fsBridge] No CLAUDE.md or README.md found in workspace');
+      }
+
+      // Import skills from workspace/.claude/skills/
+      const workspaceSkillsDir = path.join(workspacePath, '.claude', 'skills');
+      const importedSkills: string[] = [];
+
+      try {
+        await fs.access(workspaceSkillsDir);
+        const skillEntries = await fs.readdir(workspaceSkillsDir, { withFileTypes: true });
+        const userSkillsDir = getUserSkillsDir();
+        await fs.mkdir(userSkillsDir, { recursive: true });
+
+        for (const skillEntry of skillEntries) {
+          if (!skillEntry.isDirectory()) continue;
+
+          const skillPath = path.join(workspaceSkillsDir, skillEntry.name);
+          const skillMdPath = path.join(skillPath, 'SKILL.md');
+
+          try {
+            await fs.access(skillMdPath);
+            const targetSkillPath = path.join(userSkillsDir, skillEntry.name);
+
+            // Check if skill already exists
+            try {
+              await fs.access(targetSkillPath);
+              console.log(`[fsBridge] Skill "${skillEntry.name}" already exists, skipping`);
+            } catch {
+              // Copy skill
+              await copyDirectory(skillPath, targetSkillPath);
+              console.log(`[fsBridge] Imported skill: ${skillEntry.name}`);
+            }
+
+            importedSkills.push(skillEntry.name);
+          } catch {
+            // Not a valid skill, skip
+          }
+        }
+      } catch {
+        // No skills directory
+      }
+
+      // Create assistant record
+      const validAgentTypes = ['gemini', 'claude', 'codex', 'opencode'];
+      const agentType = assistantConfig.presetAgentType && validAgentTypes.includes(assistantConfig.presetAgentType) ? assistantConfig.presetAgentType : 'claude';
+
+      const newAssistant = {
+        id: newId,
+        name: assistantConfig.name.trim(),
+        description: assistantConfig.description || '',
+        avatar: assistantConfig.avatar || '🎬',
+        isPreset: true,
+        isBuiltin: false,
+        presetAgentType: agentType,
+        enabled: true,
+        enabledSkills: importedSkills.length > 0 ? importedSkills : [],
+        customSkillNames: importedSkills.length > 0 ? importedSkills : [],
+        extractedPath: configDir, // Path to config directory (contains workspace)
+        workspacePath: workspacePath, // Full path to workspace directory
+      };
+
+      console.log(`[fsBridge] Successfully imported assistant "${newAssistant.name}" (${newId})`);
+      console.log(`[fsBridge] Config directory: ${configDir}`);
+      console.log(`[fsBridge] Workspace path: ${workspacePath}`);
+      console.log(`[fsBridge] Imported ${importedSkills.length} skills: ${importedSkills.join(', ')}`);
+
+      return {
+        success: true,
+        data: { assistant: newAssistant },
+        msg: `Assistant "${newAssistant.name}" imported successfully`,
+      };
+    } catch (error) {
+      console.error('[fsBridge] Failed to import assistant from zip:', error);
+      return {
+        success: false,
+        msg: `Failed to import assistant: ${error instanceof Error ? error.message : String(error)}`,
+      };
     }
   });
 }

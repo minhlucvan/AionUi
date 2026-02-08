@@ -530,14 +530,29 @@ const WebuiModalContent: React.FC = () => {
   };
   const displayPassword = getDisplayPassword();
 
-  // 浏览器端不显示 WebUI 设置，出于安全考虑 / Don't show WebUI settings in browser for security reasons
+  // 打开外部链接（桌面端用 shell.openExternal，浏览器端用 window.open）
+  // Open external link (desktop uses shell.openExternal, browser uses window.open)
+  const openExternal = useCallback(
+    (url: string) => {
+      if (isDesktop) {
+        shell.openExternal.invoke(url).catch(console.error);
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    },
+    [isDesktop]
+  );
+
+  // 浏览器端只显示 Channels 配置，不显示 WebUI 服务配置 / In browser mode, only show Channels config, not WebUI service config
   if (!isDesktop) {
     return (
       <div className='flex flex-col h-full w-full'>
-        <div className='flex flex-col items-center justify-center h-200px px-32px text-center'>
-          <div className='text-16px font-500 text-t-primary mb-8px'>{t('settings.webui.browserNotSupported')}</div>
-          <div className='text-14px text-t-secondary'>{t('settings.webui.browserNotSupportedDesc')}</div>
-        </div>
+        <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
+          <div className='space-y-16px'>
+            <h2 className='text-20px font-500 text-t-primary m-0'>Channels</h2>
+            <ChannelModalContent />
+          </div>
+        </AionScrollArea>
       </div>
     );
   }
@@ -566,7 +581,7 @@ const WebuiModalContent: React.FC = () => {
             {status?.running && (
               <PreferenceRow label={t('settings.webui.accessUrl')}>
                 <div className='flex items-center gap-8px'>
-                  <button className='text-14px text-primary font-mono hover:underline cursor-pointer bg-transparent border-none p-0' onClick={() => shell.openExternal.invoke(getDisplayUrl()).catch(console.error)}>
+                  <button className='text-14px text-primary font-mono hover:underline cursor-pointer bg-transparent border-none p-0' onClick={() => openExternal(getDisplayUrl())}>
                     {getDisplayUrl()}
                   </button>
                   <Tooltip content={t('common.copy')}>
@@ -585,7 +600,7 @@ const WebuiModalContent: React.FC = () => {
                 <>
                   {t('settings.webui.allowRemoteDesc')}
                   {'  '}
-                  <button className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px' onClick={() => shell.openExternal.invoke('https://github.com/iOfficeAI/AionUi/wiki/Remote-Internet-Access-Guide').catch(console.error)}>
+                  <button className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px' onClick={() => openExternal('https://github.com/iOfficeAI/AionUi/wiki/Remote-Internet-Access-Guide')}>
                     {t('settings.webui.viewGuide')}
                   </button>
                 </>
@@ -664,7 +679,7 @@ const WebuiModalContent: React.FC = () => {
 
           {/* Channels 配置 / Channels Configuration */}
           <div className='mt-24px'>
-            <h2 className='text-20px font-500 text-t-primary m-0 mb-16px'>{t('settings.channels', 'Channels')}</h2>
+            <h2 className='text-20px font-500 text-t-primary m-0 mb-16px'>Channels</h2>
             <ChannelModalContent />
           </div>
         </div>

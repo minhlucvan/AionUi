@@ -21,6 +21,7 @@ import { useSettingsViewMode } from '../settingsViewContext';
 import ChannelItem from './channels/ChannelItem';
 import type { ChannelConfig } from './channels/types';
 import LarkConfigForm from './LarkConfigForm';
+import BotsConfigForm from './BotsConfigForm';
 import TelegramConfigForm from './TelegramConfigForm';
 
 /**
@@ -97,9 +98,11 @@ const ChannelModalContent: React.FC = () => {
   // Plugin state
   const [pluginStatus, setPluginStatus] = useState<IChannelPluginStatus | null>(null);
   const [larkPluginStatus, setLarkPluginStatus] = useState<IChannelPluginStatus | null>(null);
+  const [mezonPluginStatus, setMezonPluginStatus] = useState<IChannelPluginStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [enableLoading, setEnableLoading] = useState(false);
   const [larkEnableLoading, setLarkEnableLoading] = useState(false);
+  const [mezonEnableLoading, setMezonEnableLoading] = useState(false);
 
   // Collapse state - true means collapsed (closed), false means expanded (open)
   const [collapseKeys, setCollapseKeys] = useState<Record<string, boolean>>({
@@ -107,12 +110,14 @@ const ChannelModalContent: React.FC = () => {
     slack: true,
     discord: true,
     lark: true,
+    mezon: true,
   });
 
   // Model selection state
   const { modelList } = useChannelModelList();
   const [selectedModel, setSelectedModel] = useState<TProviderWithModel | null>(null);
   const [larkSelectedModel, setLarkSelectedModel] = useState<TProviderWithModel | null>(null);
+  const [mezonSelectedModel, setMezonSelectedModel] = useState<TProviderWithModel | null>(null);
 
   // Load plugin status
   const loadPluginStatus = useCallback(async () => {
@@ -122,8 +127,10 @@ const ChannelModalContent: React.FC = () => {
       if (result.success && result.data) {
         const telegramPlugin = result.data.find((p) => p.type === 'telegram');
         const larkPlugin = result.data.find((p) => p.type === 'lark');
+        const mezonPlugin = result.data.find((p) => p.type === 'mezon');
         setPluginStatus(telegramPlugin || null);
         setLarkPluginStatus(larkPlugin || null);
+        setMezonPluginStatus(mezonPlugin || null);
       }
     } catch (error) {
       console.error('[ChannelSettings] Failed to load plugin status:', error);
@@ -160,6 +167,15 @@ const ChannelModalContent: React.FC = () => {
             setLarkSelectedModel({ ...provider, useModel: savedLarkModel.useModel });
           }
         }
+
+        // Load Mezon model
+        const savedMezonModel = await ConfigStorage.get('assistant.mezon.defaultModel');
+        if (savedMezonModel && savedMezonModel.id && savedMezonModel.useModel) {
+          const provider = modelList.find((p) => p.id === savedMezonModel.id);
+          if (provider && provider.model?.includes(savedMezonModel.useModel)) {
+            setMezonSelectedModel({ ...provider, useModel: savedMezonModel.useModel });
+          }
+        }
       } catch (error) {
         console.error('[ChannelSettings] Failed to load saved model:', error);
       }
@@ -175,6 +191,8 @@ const ChannelModalContent: React.FC = () => {
         setPluginStatus(status);
       } else if (status.type === 'lark') {
         setLarkPluginStatus(status);
+      } else if (status.type === 'mezon') {
+        setMezonPluginStatus(status);
       }
     });
     return () => unsubscribe();
@@ -268,6 +286,46 @@ const ChannelModalContent: React.FC = () => {
     }
   };
 
+  // Enable/Disable Mezon plugin
+  const handleToggleMezonPlugin = async (enabled: boolean) => {
+    setMezonEnableLoading(true);
+    try {
+      if (enabled) {
+        // Check if we have credentials - already saved in database
+        if (!mezonPluginStatus?.hasToken) {
+          Message.warning(t('settings.bots.credentialsRequired', 'Please configure bot credentials first'));
+          setMezonEnableLoading(false);
+          return;
+        }
+
+        const result = await channel.enablePlugin.invoke({
+          pluginId: 'mezon_default',
+          config: {},
+        });
+
+        if (result.success) {
+          Message.success(t('settings.bots.pluginEnabled', 'Mezon bot enabled'));
+          await loadPluginStatus();
+        } else {
+          Message.error(result.msg || t('settings.bots.enableFailed', 'Failed to enable bot'));
+        }
+      } else {
+        const result = await channel.disablePlugin.invoke({ pluginId: 'mezon_default' });
+
+        if (result.success) {
+          Message.success(t('settings.bots.pluginDisabled', 'Mezon bot disabled'));
+          await loadPluginStatus();
+        } else {
+          Message.error(result.msg || t('settings.bots.disableFailed', 'Failed to disable bot'));
+        }
+      }
+    } catch (error: any) {
+      Message.error(error.message);
+    } finally {
+      setMezonEnableLoading(false);
+    }
+  };
+
   // Build channel configurations
   const channels: ChannelConfig[] = useMemo(() => {
     const telegramChannel: ChannelConfig = {
@@ -295,6 +353,18 @@ const ChannelModalContent: React.FC = () => {
       content: <LarkConfigForm pluginStatus={larkPluginStatus} modelList={modelList || []} selectedModel={larkSelectedModel} onStatusChange={setLarkPluginStatus} onModelChange={setLarkSelectedModel} />,
     };
 
+    const mezonChannel: ChannelConfig = {
+      id: 'mezon',
+      title: t('channels.mezonTitle', 'Mezon'),
+      description: t('channels.mezonDesc', 'Chat with AionUi assistant via Mezon'),
+      status: 'active',
+      enabled: mezonPluginStatus?.enabled || false,
+      disabled: mezonEnableLoading,
+      isConnected: mezonPluginStatus?.connected || false,
+      defaultModel: mezonSelectedModel?.useModel,
+      content: <BotsConfigForm pluginStatus={mezonPluginStatus} modelList={modelList || []} selectedModel={mezonSelectedModel} onStatusChange={setMezonPluginStatus} onModelChange={setMezonSelectedModel} />,
+    };
+
     const comingSoonChannels: ChannelConfig[] = [
       {
         id: 'slack',
@@ -316,13 +386,14 @@ const ChannelModalContent: React.FC = () => {
       },
     ];
 
-    return [telegramChannel, larkChannel, ...comingSoonChannels];
-  }, [pluginStatus, larkPluginStatus, selectedModel, larkSelectedModel, modelList, enableLoading, larkEnableLoading, t]);
+    return [telegramChannel, larkChannel, mezonChannel, ...comingSoonChannels];
+  }, [pluginStatus, larkPluginStatus, mezonPluginStatus, selectedModel, larkSelectedModel, mezonSelectedModel, modelList, enableLoading, larkEnableLoading, mezonEnableLoading, t]);
 
   // Get toggle handler for each channel
   const getToggleHandler = (channelId: string) => {
     if (channelId === 'telegram') return handleTogglePlugin;
     if (channelId === 'lark') return handleToggleLarkPlugin;
+    if (channelId === 'mezon') return handleToggleMezonPlugin;
     return undefined;
   };
 

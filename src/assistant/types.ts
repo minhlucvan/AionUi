@@ -31,6 +31,8 @@ export interface AssistantMetadata {
   tags?: string[];
   /** Preset agent type (claude, gemini, codex) */
   presetAgentType?: 'claude' | 'gemini' | 'codex';
+  /** Default agent name (metadata only, injection handled by hooks JS files) */
+  defaultAgent?: string;
   /** Additional metadata */
   metadata?: Record<string, unknown>;
 }

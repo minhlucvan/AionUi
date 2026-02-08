@@ -17,7 +17,7 @@ import { DeleteOne, MessageOne, EditOne } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useConversationTabs } from './context/ConversationTabsContext';
 import WorkspaceCollapse from './WorkspaceCollapse';
 
@@ -164,11 +164,19 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
-  const { id } = useParams();
+  const { id, conversationId } = useParams<{ id?: string; conversationId?: string }>();
+  const currentConversationId = conversationId || id; // Support both param structures
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { openTab, closeAllTabs, activeTab, updateTabName } = useConversationTabs();
   const { getJobStatus, markAsRead } = useCronJobsMap();
+
+  // Detect bot page from URL and extract botId for filtering
+  const botId = useMemo(() => {
+    const match = location.pathname.match(/^\/bots\/([^/]+)/);
+    return match ? match[1] : null;
+  }, [location.pathname]);
 
   // 加载会话列表
   useEffect(() => {
@@ -176,6 +184,10 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
       ipcBridge.database.getUserConversations
         .invoke({ page: 0, pageSize: 10000 })
         .then((data) => {
+          console.log('[WorkspaceGroupedHistory] Loaded conversations:', {
+            count: Array.isArray(data) ? data.length : 0,
+            data: data,
+          });
           if (data && Array.isArray(data)) {
             setConversations(data);
           } else {
@@ -193,16 +205,16 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
 
   // Scroll to active conversation when route changes
   useEffect(() => {
-    if (!id) return;
+    if (!currentConversationId) return;
     // Use requestAnimationFrame to ensure DOM is updated
     const rafId = requestAnimationFrame(() => {
-      const element = document.getElementById('c-' + id);
+      const element = document.getElementById('c-' + currentConversationId);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     });
     return () => cancelAnimationFrame(rafId);
-  }, [id]);
+  }, [currentConversationId]);
 
   // 持久化展开状态
   useEffect(() => {
@@ -213,10 +225,17 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
     }
   }, [expandedWorkspaces]);
 
+  // Filter by botId when on a bot page
+  // Always include the currently viewed conversation for backward compatibility
+  const filteredConversations = useMemo(() => {
+    if (!botId) return conversations;
+    return conversations.filter((conv) => conv.extra?.botId === botId || conv.id === currentConversationId);
+  }, [conversations, botId, currentConversationId]);
+
   // 按时间线和workspace分组
   const timelineSections = useMemo(() => {
-    return groupConversationsByTimelineAndWorkspace(conversations, t);
-  }, [conversations, t]);
+    return groupConversationsByTimelineAndWorkspace(filteredConversations, t);
+  }, [filteredConversations, t]);
 
   // 默认展开所有 workspace（仅在还未记录展开状态时执行一次）
   useEffect(() => {
@@ -242,10 +261,18 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
       // Mark conversation as read (clear unread cron execution indicator)
       markAsRead(conv.id);
 
+      // Determine navigation path based on bot context
+      const getConversationPath = (conversationId: string) => {
+        if (botId) {
+          return `/bots/${botId}/conversation/${conversationId}`;
+        }
+        return `/conversation/${conversationId}`;
+      };
+
       // 如果点击的是非自定义工作空间的会话，关闭所有tabs
       if (!customWorkspace) {
         closeAllTabs();
-        void navigate(`/conversation/${conv.id}`);
+        void navigate(getConversationPath(conv.id));
         if (onSessionClick) {
           onSessionClick();
         }
@@ -263,12 +290,12 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
 
       // 打开新会话的tab
       openTab(conv);
-      void navigate(`/conversation/${conv.id}`);
+      void navigate(getConversationPath(conv.id));
       if (onSessionClick) {
         onSessionClick();
       }
     },
-    [openTab, closeAllTabs, activeTab, navigate, onSessionClick, markAsRead]
+    [openTab, closeAllTabs, activeTab, navigate, onSessionClick, markAsRead, botId]
   );
 
   // 切换 workspace 展开/收起状态

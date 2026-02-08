@@ -9,7 +9,7 @@
 /**
  * Supported platform types for plugins
  */
-export type PluginType = 'telegram' | 'slack' | 'discord' | 'lark';
+export type PluginType = 'telegram' | 'slack' | 'discord' | 'lark' | 'mezon';
 
 /**
  * Plugin connection status
@@ -27,6 +27,8 @@ export interface IPluginCredentials {
   appSecret?: string;
   encryptKey?: string;
   verificationToken?: string;
+  // Mezon
+  botId?: string;
 }
 
 /**
@@ -51,6 +53,20 @@ export interface IChannelPluginConfig {
   config?: IPluginConfigOptions;
   status: PluginStatus;
   lastConnected?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Mezon bot configuration (stored in ConfigStorage, no secrets)
+ * Secrets (token, botId) are stored in the DB plugin entry
+ */
+export interface IMezonBotConfig {
+  id: string; // UUID, plugin ID = `mezon_${id}`
+  name: string; // Display name
+  assistantId?: string; // Reference to assistant from acp.customAgents
+  enabled: boolean;
+  defaultModel?: { id: string; useModel: string };
   createdAt: number;
   updatedAt: number;
 }
@@ -225,7 +241,9 @@ export interface IMessageAction {
 export interface IUnifiedIncomingMessage {
   id: string;
   platform: PluginType;
+  pluginId?: string; // Specific plugin instance ID (for multi-bot support)
   chatId: string;
+  stableChannelId?: string; // Stable channel ID for conversation lookup (without session timestamp)
   user: IUnifiedUser;
   content: IUnifiedMessageContent;
   timestamp: number;

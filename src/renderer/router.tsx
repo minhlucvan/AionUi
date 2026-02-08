@@ -9,13 +9,18 @@ import AgentSettings from './pages/settings/AgentSettings';
 import DisplaySettings from './pages/settings/DisplaySettings';
 import GeminiSettings from './pages/settings/GeminiSettings';
 import ModeSettings from './pages/settings/ModeSettings';
+import SecuritySettings from './pages/settings/SecuritySettings';
 import SystemSettings from './pages/settings/SystemSettings';
 import SkillsSettings from './pages/settings/SkillsSettings';
 import ToolsSettings from './pages/settings/ToolsSettings';
 import MemorySettings from './pages/settings/MemorySettings';
+import BotsSettings from './pages/settings/BotsSettings';
 import WebuiSettings from './pages/settings/WebuiSettings';
 import LoginPage from './pages/login';
 import ComponentsShowcase from './pages/test/ComponentsShowcase';
+import BotsPage from './pages/bots';
+import BotDetailPage from './pages/bots/BotDetailPage';
+import BotConversationPage from './pages/bots/BotConversationPage';
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
@@ -51,8 +56,13 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/about' element={<About />} />
           <Route path='/settings/skills' element={<SkillsSettings />} />
           <Route path='/settings/memory' element={<MemorySettings />} />
+          <Route path='/settings/bots' element={<BotsSettings />} />
           <Route path='/settings/tools' element={<ToolsSettings />} />
+          <Route path='/settings/security' element={<SecuritySettings />} />
           <Route path='/settings' element={<Navigate to='/settings/gemini' replace />} />
+          <Route path='/bots' element={<BotsPage />} />
+          <Route path='/bots/:botId/conversation/:conversationId' element={<BotConversationPage />} />
+          <Route path='/bots/:botId' element={<BotDetailPage />} />
           <Route path='/test/components' element={<ComponentsShowcase />} />
         </Route>
         <Route path='*' element={<Navigate to={status === 'authenticated' ? '/guid' : '/login'} replace />} />

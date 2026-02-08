@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Empty, Input, Message, Modal, Spin, Tag, Typography } from '@arco-design/web-react';
+import type { Message } from '@arco-design/web-react';
+import { Button, Collapse, Empty, Input, Modal, Spin, Tag, Typography } from '@arco-design/web-react';
 import { Download, Star, Search } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -58,7 +59,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
       setLoading(true);
       setHasSearched(true);
       try {
-        const apiKey = ConfigStorage.get('skillsmp.apiKey') || '';
+        const apiKey = (await ConfigStorage.get('skillsmp.apiKey')) || '';
         const response = await ipcBridge.fs.searchSkillsMPSkills.invoke({
           query: q,
           page: pageNum,
@@ -93,12 +94,25 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
         message.error(t('settings.skillBrowseNoGitHub', { defaultValue: 'No GitHub URL available for this skill' }));
         return;
       }
-      const cloneUrl = skill.githubUrl.endsWith('.git') ? skill.githubUrl : `${skill.githubUrl}.git`;
+      // Parse GitHub tree URLs: https://github.com/{owner}/{repo}/tree/{branch}/{path}
+      let cloneUrl: string;
+      let subPath: string | undefined;
+      let branch: string | undefined;
+      const treeMatch = skill.githubUrl.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/tree\/([^/]+)\/(.+)$/);
+      if (treeMatch) {
+        cloneUrl = `${treeMatch[1]}.git`;
+        branch = treeMatch[2];
+        subPath = treeMatch[3];
+      } else {
+        cloneUrl = skill.githubUrl.endsWith('.git') ? skill.githubUrl : `${skill.githubUrl}.git`;
+      }
       setInstalling(skill.id);
       try {
         const response = await ipcBridge.fs.installSkillFromGitHub.invoke({
           cloneUrl,
           repoName: skill.name,
+          subPath,
+          branch,
         });
         if (response.success && response.data) {
           message.success(
@@ -138,16 +152,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
   };
 
   return (
-    <Modal
-      visible={visible}
-      onCancel={onClose}
-      title={t('settings.skillBrowseTitle', { defaultValue: 'Browse Skills on SkillsMP' })}
-      footer={null}
-      style={{ width: 640 }}
-      wrapStyle={{ zIndex: 10001 }}
-      maskStyle={{ zIndex: 10000 }}
-      unmountOnExit
-    >
+    <Modal visible={visible} onCancel={onClose} title={t('settings.skillBrowseTitle', { defaultValue: 'Browse Skills on SkillsMP' })} footer={null} style={{ width: 640 }} wrapStyle={{ zIndex: 10001 }} maskStyle={{ zIndex: 10000 }} unmountOnExit>
       <div className='space-y-16px'>
         {/* Search bar */}
         <div className='flex gap-8px'>
@@ -192,9 +197,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
             </div>
           ) : results.length > 0 ? (
             <>
-              <div className='text-12px text-t-secondary mb-4px'>
-                {t('settings.skillBrowseResultCount', { count: totalCount, defaultValue: `${totalCount} results found` })}
-              </div>
+              <div className='text-12px text-t-secondary mb-4px'>{t('settings.skillBrowseResultCount', { count: totalCount, defaultValue: `${totalCount} results found` })}</div>
               {results.map((skill) => {
                 const isInstalled = installedSkillNames.some((n) => n === skill.name);
                 return (
@@ -242,15 +245,7 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
                           {t('settings.skillAlreadyInstalled', { defaultValue: 'Installed' })}
                         </Tag>
                       ) : (
-                        <Button
-                          type='outline'
-                          size='small'
-                          className='flex-shrink-0'
-                          loading={installing === skill.id}
-                          disabled={!skill.githubUrl}
-                          icon={<Download size={14} />}
-                          onClick={() => void handleInstall(skill)}
-                        >
+                        <Button type='outline' size='small' className='flex-shrink-0' loading={installing === skill.id} disabled={!skill.githubUrl} icon={<Download size={14} />} onClick={() => void handleInstall(skill)}>
                           {t('settings.skillBrowseInstall', { defaultValue: 'Install' })}
                         </Button>
                       )}
@@ -269,10 +264,48 @@ const SkillBrowseModal: React.FC<SkillBrowseModalProps> = ({ visible, onClose, o
           ) : hasSearched ? (
             <Empty description={t('settings.skillBrowseNoResults', { defaultValue: 'No skills found. Try different keywords.' })} className='py-40px' />
           ) : (
-            <div className='text-center text-t-secondary py-32px text-13px'>
-              {t('settings.skillBrowseHint', {
-                defaultValue: 'Search 145k+ community skills on SkillsMP, or click a category above to browse.',
-              })}
+            <div className='space-y-12px py-8px'>
+              <div className='text-center text-t-secondary text-13px'>
+                {t('settings.skillBrowseHint', {
+                  defaultValue: 'Search 145k+ community skills on SkillsMP, or click a category above to browse.',
+                })}
+              </div>
+
+              {/* Collapsible SkillsMP Guide */}
+              <Collapse bordered={false} style={{ background: 'var(--color-fill-2)', borderRadius: 8 }}>
+                <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.skillsmpGuideTitle', { defaultValue: 'How to use SkillsMP' })}</span>} name='skillsmp-guide'>
+                  <div className='space-y-14px text-13px text-t-secondary'>
+                    {/* Step 1 */}
+                    <div>
+                      <div className='font-medium text-t-primary mb-6px'>{t('settings.skillsmpGuideStep1Title', { defaultValue: '1. Search or browse' })}</div>
+                      <div className='text-12px'>{t('settings.skillsmpGuideStep1Desc', { defaultValue: 'Type a keyword in the search bar or click a category preset (Popular, Recent, Claude, etc.) to find skills.' })}</div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div>
+                      <div className='font-medium text-t-primary mb-6px'>{t('settings.skillsmpGuideStep2Title', { defaultValue: '2. Review results' })}</div>
+                      <div className='text-12px'>{t('settings.skillsmpGuideStep2Desc', { defaultValue: 'Each result shows the skill name, author, star count, and description. Click the name to view it on GitHub.' })}</div>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div>
+                      <div className='font-medium text-t-primary mb-6px'>{t('settings.skillsmpGuideStep3Title', { defaultValue: '3. Install' })}</div>
+                      <div className='text-12px'>{t('settings.skillsmpGuideStep3Desc', { defaultValue: 'Click the Install button next to any skill. It will be downloaded from GitHub and added to your available skills.' })}</div>
+                    </div>
+
+                    {/* API Key hint */}
+                    <div>
+                      <div className='font-medium text-t-primary mb-6px'>{t('settings.skillsmpGuideApiKeyTitle', { defaultValue: 'API Key (optional)' })}</div>
+                      <div className='text-12px'>
+                        {t('settings.skillsmpGuideApiKeyDesc', { defaultValue: 'For faster and unlimited searches, add a free SkillsMP API key in Settings > Skills > SkillsMP API Key.' })}{' '}
+                        <span className='text-primary cursor-pointer hover:underline' onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com/docs/api')}>
+                          {t('settings.skillsmpGetKey', { defaultValue: 'Get API key' })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </Collapse.Item>
+              </Collapse>
             </div>
           )}
         </div>

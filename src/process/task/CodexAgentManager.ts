@@ -19,10 +19,11 @@ import { mapPermissionDecision } from '@/common/codex/utils';
 import { AIONUI_FILES_MARKER } from '@/common/constants';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
-import { addMessage } from '@process/message';
+import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { ProcessConfig } from '@process/initStorage';
 import BaseAgentManager from '@process/task/BaseAgentManager';
+import { runHooks } from '@/assistant/hooks';
 import { prepareFirstMessageWithSkillsIndex } from '@process/task/agentUtils';
 import { handlePreviewOpenEvent } from '@process/utils/previewUtils';
 import i18n from '@process/i18n';
@@ -187,6 +188,13 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
         addMessage(this.conversation_id, userMessage);
       }
 
+      // Run assistant hooks from workspace .claude/hooks/ folder
+      const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
+      if (hookResult.blocked) {
+        return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
+      }
+      contentToSend = hookResult.content;
+
       // 处理文件引用 - 参考 ACP 的文件引用处理
       let processedContent = this.agent.getFileOperationHandler().processFileReferences(contentToSend, data.files);
 
@@ -244,6 +252,7 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
         conversation_id: this.conversation_id,
         msg_id: data.msg_id || uuid(),
         data: errorMessage,
+        timestamp: Date.now(),
       };
       // Emit to frontend - frontend will handle transformation and persistence
       ipcBridge.codexConversation.responseStream.emit(message);
@@ -343,9 +352,6 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
   }
 
   private handleNetworkError(error: NetworkError): void {
-    // Emit network error as status message
-    this.emitStatus('error');
-
     // Create a user-friendly error message based on error type
     let userMessage = '';
     let recoveryActions: string[] = [];
@@ -394,20 +400,6 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
       addMessage(this.conversation_id, tMessage);
     }
     ipcBridge.codexConversation.responseStream.emit(networkErrorMessage);
-  }
-
-  private emitStatus(status: 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'error' | 'disconnected') {
-    const statusMessage: IResponseMessage = {
-      type: 'agent_status',
-      conversation_id: this.conversation_id,
-      msg_id: uuid(),
-      data: {
-        backend: 'codex', // Agent identifier from AcpBackend type
-        status,
-      },
-    };
-    // Use emitAndPersistMessage to ensure status messages are both emitted and persisted
-    this.emitAndPersistMessage(statusMessage);
   }
 
   getDiagnostics() {
@@ -465,14 +457,23 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
     if (persist) {
       const tMessage = transformMessage(message);
       if (tMessage) {
-        addMessage(this.conversation_id, tMessage);
+        // These message types go through composeMessage/addOrUpdateMessage for merging:
+        // - agent_status: uses fixed globalStatusMessageId (from CodexSessionManager) to merge with last status
+        // - codex_tool_call: has dedicated merge logic that searches by toolCallId
+        if (tMessage.type === 'agent_status' || tMessage.type === 'codex_tool_call') {
+          addOrUpdateMessage(this.conversation_id, tMessage);
+        } else {
+          addMessage(this.conversation_id, tMessage);
+        }
         // Note: Cron command detection is handled in CodexMessageProcessor.processFinalMessage
         // where we have the complete agent_message text
       }
     }
 
     // Always emit to frontend for UI display
-    ipcBridge.codexConversation.responseStream.emit(message);
+    // Add timestamp to preserve message creation time
+    const messageWithTimestamp = { ...message, timestamp: message.timestamp || Date.now() };
+    ipcBridge.codexConversation.responseStream.emit(messageWithTimestamp);
   }
 
   /**

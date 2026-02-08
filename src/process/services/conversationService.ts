@@ -8,8 +8,7 @@ import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { ConversationSource, TChatConversation, TProviderWithModel } from '@/common/storage';
 import { getDatabase } from '@process/database';
 import path from 'path';
-import { createAcpAgent, createCodexAgent, createGeminiAgent } from '../initAgent';
-import type AcpAgentManager from '../task/AcpAgentManager';
+import { createAcpAgent, createCodexAgent, createGeminiAgent, createOpenClawAgent } from '../initAgent';
 import WorkerManage from '../WorkerManage';
 
 /**
@@ -140,6 +139,8 @@ export class ConversationService {
         conversation = await createAcpAgent(params);
       } else if (type === 'codex') {
         conversation = await createCodexAgent(params);
+      } else if (type === 'openclaw-gateway') {
+        conversation = await createOpenClawAgent(params);
       } else {
         return { success: false, error: 'Invalid conversation type' };
       }
@@ -156,10 +157,9 @@ export class ConversationService {
       }
 
       // Register with WorkerManage
-      const task = WorkerManage.buildConversation(conversation);
-      if (task.type === 'acp') {
-        void (task as AcpAgentManager).initAgent();
-      }
+      // Note: Don't call initAgent() here - let it be lazy initialized when sendMessage() is called
+      // This allows frontend to check agent availability and show AgentSetupCard before auth flow
+      WorkerManage.buildConversation(conversation);
 
       // Save to database
       const db = getDatabase();
@@ -210,9 +210,63 @@ export class ConversationService {
       name: params.name || 'Telegram Assistant',
     });
   }
+
+  /**
+   * 获取或创建 Bot 会话（按外部渠道路由）
+   * Get or create a Bot conversation (routed by external channel)
+   *
+   * 每个外部渠道（Mezon channel/thread, Telegram group 等）对应一个独立的会话
+   * Each external channel (Mezon channel/thread, Telegram group, etc.) gets its own conversation
+   *
+   * @param externalChannelId - 外部渠道 ID（例如 Mezon channel_id 或 thread_id）
+   * @param botId - Bot ID，用于区分同一渠道中的不同 bot
+   * @param params - 会话创建参数
+   */
+  static async getOrCreateBotConversation(externalChannelId: string, botId: string, params: ICreateConversationOptions): Promise<ICreateConversationResult> {
+    const db = getDatabase();
+
+    // Try to find existing conversation for this channel + bot
+    const existingConv = db.getConversationByExternalChannel(externalChannelId, botId);
+    if (existingConv.success && existingConv.data) {
+      console.log(`[ConversationService] Reusing existing bot conversation: ${existingConv.data.id} (channel: ${externalChannelId.slice(0, 12)}..., bot: ${botId})`);
+      return { success: true, conversation: existingConv.data };
+    }
+
+    // Look up bot config to automatically inject assistantId for workspace template
+    let assistantId: string | undefined;
+    try {
+      const { ProcessConfig } = await import('../initStorage');
+      const bots = await ProcessConfig.get('mezon.bots');
+      if (bots && Array.isArray(bots)) {
+        const bot = bots.find((b: { id: string }) => b.id === botId);
+        if (bot?.assistantId) {
+          assistantId = bot.assistantId;
+          console.log(`[ConversationService] Auto-injecting assistantId from bot config: ${assistantId}`);
+        }
+      }
+    } catch (error) {
+      console.warn(`[ConversationService] Failed to look up bot assistantId:`, error);
+    }
+
+    // Create new conversation with externalChannelId, botId, and auto-injected assistantId
+    const conversationParams: ICreateConversationOptions = {
+      ...params,
+      extra: {
+        ...params.extra,
+        externalChannelId,
+        botId,
+        // Auto-inject presetAssistantId from bot config (enables workspace template copy)
+        presetAssistantId: assistantId || params.extra.presetAssistantId,
+      },
+    };
+
+    console.log(`[ConversationService] Creating new bot conversation (channel: ${externalChannelId.slice(0, 12)}..., bot: ${botId})`);
+    return this.createConversation(conversationParams);
+  }
 }
 
 // Export convenience functions
 export const createGeminiConversation = ConversationService.createGeminiConversation.bind(ConversationService);
 export const createConversation = ConversationService.createConversation.bind(ConversationService);
 export const getOrCreateTelegramConversation = ConversationService.getOrCreateTelegramConversation.bind(ConversationService);
+export const getOrCreateBotConversation = ConversationService.getOrCreateBotConversation.bind(ConversationService);

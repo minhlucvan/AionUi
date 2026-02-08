@@ -8,7 +8,7 @@ import type { IConfirmation } from '@/common/chatLib';
 import { bridge } from '@office-ai/platform';
 import type { OpenDialogOptions } from 'electron';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
-import type { AcpBackend, PresetAgentType } from '../types/acpTypes';
+import type { AcpBackend, AcpBackendAll, PresetAgentType } from '../types/acpTypes';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel } from './storage';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult } from './updateTypes';
@@ -139,12 +139,26 @@ export const fs = {
     { query: string; page?: number; perPage?: number; sortBy?: 'stars' | 'recent'; apiKey?: string }
   >('skillsmp-search-skills'),
   // 从 GitHub 安装 skill / Install skill from GitHub repo
-  installSkillFromGitHub: bridge.buildProvider<
-    IBridgeResponse<{ skillName: string; installPath: string }>,
-    { cloneUrl: string; repoName: string }
-  >('install-skill-from-github'),
+  installSkillFromGitHub: bridge.buildProvider<IBridgeResponse<{ skillName: string; installPath: string }>, { cloneUrl: string; repoName: string; subPath?: string; branch?: string }>('install-skill-from-github'),
+  // 从 skills.sh URL 安装 skill / Install skill from skills.sh URL or shorthand
+  installSkillFromUrl: bridge.buildProvider<IBridgeResponse<{ skillName: string; installPath: string; skillCount?: number }>, { input: string }>('install-skill-from-url'),
   // 删除用户自定义 skill / Delete a custom user skill
   deleteCustomSkill: bridge.buildProvider<IBridgeResponse, { skillName: string }>('delete-custom-skill'),
+  // 从 zip 文件导入助手 / Import assistant from zip file
+  importAssistantZip: bridge.buildProvider<
+    IBridgeResponse<{
+      assistant: {
+        id: string;
+        name: string;
+        description?: string;
+        avatar?: string;
+        presetAgentType?: string;
+        enabledSkills?: string[];
+        customSkillNames?: string[];
+      };
+    }>,
+    { zipPath: string }
+  >('import-assistant-zip'),
 };
 
 export const fileWatch = {
@@ -206,6 +220,7 @@ export const acpConversation = {
   >('acp.get-available-agents'),
   checkEnv: bridge.buildProvider<{ env: Record<string, string> }, void>('acp.check.env'),
   refreshCustomAgents: bridge.buildProvider<IBridgeResponse, void>('acp.refresh-custom-agents'),
+  checkAgentHealth: bridge.buildProvider<IBridgeResponse<{ available: boolean; latency?: number; error?: string }>, { backend: AcpBackend }>('acp.check-agent-health'),
   // clearAllCache: bridge.buildProvider<IBridgeResponse<{ details?: any }>, void>('acp.clear.all.cache'),
 };
 
@@ -228,9 +243,15 @@ export const codexConversation = {
   responseStream: conversation.responseStream,
 };
 
+// OpenClaw 对话相关接口 - 复用统一的conversation接口
+export const openclawConversation = {
+  sendMessage: conversation.sendMessage,
+  responseStream: bridge.buildEmitter<IResponseMessage>('openclaw.response.stream'),
+};
+
 // Database operations
 export const database = {
-  getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
+  getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number; order?: 'ASC' | 'DESC' }>('database.get-conversation-messages'),
   getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number }>('database.get-user-conversations'),
 };
 
@@ -320,8 +341,6 @@ export const cron = {
 // Cron job types for IPC
 export type ICronSchedule = { kind: 'at'; atMs: number; description: string } | { kind: 'every'; everyMs: number; description: string } | { kind: 'cron'; expr: string; tz?: string; description: string };
 
-export type ICronAgentType = 'gemini' | 'claude' | 'codex' | 'opencode' | 'qwen' | 'goose' | 'custom';
-
 export interface ICronJob {
   id: string;
   name: string;
@@ -331,7 +350,7 @@ export interface ICronJob {
   metadata: {
     conversationId: string;
     conversationTitle?: string;
-    agentType: ICronAgentType;
+    agentType: AcpBackendAll;
     createdBy: 'user' | 'agent';
     createdAt: number;
     updatedAt: number;
@@ -353,7 +372,7 @@ export interface ICreateCronJobParams {
   message: string;
   conversationId: string;
   conversationTitle?: string;
-  agentType: ICronAgentType;
+  agentType: AcpBackendAll;
   createdBy: 'user' | 'agent';
 }
 
@@ -374,7 +393,7 @@ export interface IConfirmMessageParams {
 }
 
 export interface ICreateConversationParams {
-  type: 'gemini' | 'acp' | 'codex';
+  type: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway';
   id?: string;
   name?: string;
   model: TProviderWithModel;
@@ -402,6 +421,10 @@ export interface ICreateConversationParams {
     presetContext?: string;
     /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
     presetAssistantId?: string;
+    /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
+    botId?: string;
+    /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
+    externalChannelId?: string;
   };
 }
 interface IResetConversationParams {
@@ -436,6 +459,7 @@ export interface IResponseMessage {
   data: unknown;
   msg_id: string;
   conversation_id: string;
+  timestamp?: number; // Message creation timestamp for ordering
 }
 
 interface IBridgeResponse<D = {}> {

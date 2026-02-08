@@ -9,11 +9,10 @@ import { ConfigStorage } from '@/common/storage';
 import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
 import Titlebar from '@/renderer/components/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
-import { MenuFold, MenuUnfold } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useEffect, useRef, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
-import { LayoutContext } from './context/LayoutContext';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutContext, type AppMode } from './context/LayoutContext';
 import { useDirectorySelection } from './hooks/useDirectorySelection';
 import { useMultiAgentDetection } from './hooks/useMultiAgentDetection';
 import { processCustomCss } from './utils/customCssProcessor';
@@ -58,12 +57,47 @@ const Layout: React.FC<{
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [customCss, setCustomCss] = useState<string>('');
-  const { onClick } = useDebug();
+  const [appMode, setAppMode] = useState<AppMode>('chat');
   const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   const location = useLocation();
-  const workspaceAvailable = location.pathname.startsWith('/conversation/');
+  const navigate = useNavigate();
+  const workspaceAvailable = location.pathname.startsWith('/conversation/') || location.pathname.includes('/conversation/');
   const collapsedRef = useRef(collapsed);
+  const lastChatPathRef = useRef('/guid');
+
+  // Sync appMode from route
+  useEffect(() => {
+    if (location.pathname.startsWith('/bots')) {
+      setAppMode('bots');
+    } else if (!location.pathname.startsWith('/settings')) {
+      setAppMode('chat');
+    }
+  }, [location.pathname]);
+
+  // Track last non-settings, non-bots path for returning to chat
+  useEffect(() => {
+    if (!location.pathname.startsWith('/settings') && !location.pathname.startsWith('/bots')) {
+      lastChatPathRef.current = location.pathname;
+    }
+  }, [location.pathname]);
+
+  const handleSetAppMode = useCallback(
+    (mode: AppMode) => {
+      setAppMode(mode);
+      if (mode === 'bots') {
+        Promise.resolve(navigate('/bots')).catch((error) => {
+          console.error('Navigation failed:', error);
+        });
+      } else {
+        const target = lastChatPathRef.current || '/guid';
+        Promise.resolve(navigate(target)).catch((error) => {
+          console.error('Navigation failed:', error);
+        });
+      }
+    },
+    [navigate]
+  );
 
   // 加载并监听自定义 CSS 配置 / Load & watch custom CSS configuration
   useEffect(() => {
@@ -170,7 +204,7 @@ const Layout: React.FC<{
     collapsedRef.current = collapsed;
   }, [collapsed]);
   return (
-    <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
+    <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed, appMode, setAppMode: handleSetAppMode }}>
       <div className='app-shell flex flex-col size-full min-h-0'>
         <Titlebar workspaceAvailable={workspaceAvailable} />
         {/* 移动端左侧边栏蒙板 / Mobile left sider backdrop */}
@@ -197,38 +231,7 @@ const Layout: React.FC<{
                 : undefined
             }
           >
-            <ArcoLayout.Header
-              className={classNames('flex items-center justify-start py-10px px-16px pl-20px gap-12px layout-sider-header', {
-                'cursor-pointer group ': collapsed,
-              })}
-            >
-              <div
-                className={classNames('bg-black shrink-0 size-40px relative rd-0.5rem', {
-                  '!size-24px': collapsed,
-                })}
-                onClick={onClick}
-              >
-                <svg
-                  className={classNames('w-5.5 h-5.5 absolute inset-0 m-auto', {
-                    ' scale-140': !collapsed,
-                  })}
-                  viewBox='0 0 80 80'
-                  fill='none'
-                >
-                  <path key='logo-path-1' d='M40 20 Q38 22 25 40 Q23 42 26 42 L30 42 Q32 40 40 30 Q48 40 50 42 L54 42 Q57 42 55 40 Q42 22 40 20' fill='white'></path>
-                  <circle key='logo-circle' cx='40' cy='46' r='3' fill='white'></circle>
-                  <path key='logo-path-2' d='M18 50 Q40 70 62 50' stroke='white' strokeWidth='3.5' fill='none' strokeLinecap='round'></path>
-                </svg>
-              </div>
-              <div className=' flex-1 text-20px collapsed-hidden font-bold'>AionUi</div>
-              {isMobile && !collapsed && (
-                <button type='button' className='app-titlebar__button' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
-                  {collapsed ? <MenuUnfold theme='outline' size='18' fill='currentColor' /> : <MenuFold theme='outline' size='18' fill='currentColor' />}
-                </button>
-              )}
-              {/* 侧栏折叠改由标题栏统一控制 / Sidebar folding handled by Titlebar toggle */}
-            </ArcoLayout.Header>
-            <ArcoLayout.Content className={classNames('p-8px layout-sider-content', !isMobile && 'h-[calc(100%-72px-16px)]')}>
+            <ArcoLayout.Content className='p-8px layout-sider-content h-full'>
               {React.isValidElement(sider)
                 ? React.cloneElement(sider, {
                     onSessionClick: () => {

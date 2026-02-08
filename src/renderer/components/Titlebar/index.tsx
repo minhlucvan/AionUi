@@ -4,10 +4,12 @@ import { ExpandLeft, ExpandRight, MenuFold, MenuUnfold } from '@icon-park/react'
 import { useTranslation } from 'react-i18next';
 
 import WindowControls from '../WindowControls';
+import { Logo } from '../Logo';
 import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspaceEvents';
 import type { WorkspaceStateDetail } from '@renderer/utils/workspaceEvents';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
+import ModeTabs from './ModeTabs';
 
 interface TitlebarProps {
   workspaceAvailable: boolean;
@@ -77,14 +79,15 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
         'app-titlebar--mac': isMacRuntime,
       })}
     >
-      <div className='app-titlebar__menu' style={menuStyle}>
+      <div className='app-titlebar__menu flex items-center gap-8px' style={menuStyle}>
+        <Logo size={32} />
         {showSiderToggle && (
           <button type='button' className='app-titlebar__button' onClick={handleSiderToggle} aria-label={siderTooltip}>
             {layout?.siderCollapsed ? <MenuUnfold theme='outline' size='18' fill='currentColor' /> : <MenuFold theme='outline' size='18' fill='currentColor' />}
           </button>
         )}
       </div>
-      <div className='app-titlebar__brand'>{appTitle}</div>
+      {layout ? <ModeTabs activeMode={layout.appMode} onChange={layout.setAppMode} /> : <div className='app-titlebar__brand'>{appTitle}</div>}
       <div className='app-titlebar__toolbar'>
         {showWorkspaceButton && (
           <button type='button' className='app-titlebar__button' onClick={handleWorkspaceToggle} aria-label={workspaceTooltip}>

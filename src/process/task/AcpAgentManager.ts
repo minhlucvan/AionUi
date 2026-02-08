@@ -1,4 +1,5 @@
 import { AcpAgent } from '@/agent/acp';
+import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chatLib';
 import { transformMessage } from '@/common/chatLib';
@@ -12,10 +13,12 @@ import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { runHooks } from '@/assistant/hooks';
 import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
+import { stripThinkTags } from './ThinkTagDetector';
 
 interface AcpAgentManagerData {
   workspace?: string;
@@ -33,6 +36,8 @@ interface AcpAgentManagerData {
   acpSessionId?: string;
   /** Last update time of ACP session / ACP session 最后更新时间 */
   acpSessionUpdatedAt?: number;
+  /** Default agent from assistant.json (metadata only) / 来自 assistant.json 的默认 agent */
+  defaultAgent?: string;
 }
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
@@ -44,7 +49,6 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   // Track current message for cron detection (accumulated from streaming chunks)
   private currentMsgId: string | null = null;
   private currentMsgContent: string = '';
-
   constructor(data: AcpAgentManagerData) {
     super('acp', data);
     this.conversation_id = data.conversation_id;
@@ -157,7 +161,14 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
               }
             }
           }
-          ipcBridge.acpConversation.responseStream.emit(message as IResponseMessage);
+
+          // Filter think tags from streaming content before emitting to UI
+          // 在发送到 UI 之前过滤流式内容中的 think 标签
+          const filteredMessage = this.filterThinkTagsFromMessage(message as IResponseMessage);
+          // Add timestamp to preserve message creation time
+          const messageWithTimestamp = { ...filteredMessage, timestamp: filteredMessage.timestamp || Date.now() };
+          ipcBridge.acpConversation.responseStream.emit(messageWithTimestamp);
+          channelEventBus.emitAgentMessage(this.conversation_id, messageWithTimestamp);
         },
         onSignalEvent: async (v) => {
           // 仅发送信号到前端，不更新消息列表
@@ -207,6 +218,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
                 data: sysMsg,
               };
               ipcBridge.acpConversation.responseStream.emit(systemMessage);
+              channelEventBus.emitAgentMessage(this.conversation_id, systemMessage);
             });
             // Send collected responses back to AI agent so it can continue
             if (collectedResponses.length > 0 && this.agent) {
@@ -219,6 +231,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           }
 
           ipcBridge.acpConversation.responseStream.emit(v);
+          channelEventBus.emitAgentMessage(this.conversation_id, v);
         },
       });
       return this.agent.start().then(() => this.agent);
@@ -241,6 +254,13 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         if (contentToSend.includes(AIONUI_FILES_MARKER)) {
           contentToSend = contentToSend.split(AIONUI_FILES_MARKER)[0].trimEnd();
         }
+
+        // Run assistant hooks from workspace .claude/hooks/ folder
+        const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
+        if (hookResult.blocked) {
+          return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
+        }
+        contentToSend = hookResult.content;
 
         // 首条消息时注入预设规则和 skills 索引（来自智能助手配置）
         // Inject preset context and skills INDEX on first message (from smart assistant config)
@@ -270,6 +290,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           data: userMessage.content.content,
         };
         ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
+        channelEventBus.emitAgentMessage(this.conversation_id, userResponseMessage);
 
         const result = await this.agent.sendMessage({ ...data, content: contentToSend });
         // 首条消息发送后标记，无论是否有 presetContext
@@ -297,8 +318,9 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         addOrUpdateMessage(this.conversation_id, tMessage);
       }
 
-      // Emit to frontend for UI display only
+      // Emit to frontend for UI display
       ipcBridge.acpConversation.responseStream.emit(message);
+      channelEventBus.emitAgentMessage(this.conversation_id, message);
       return new Promise((_, reject) => {
         nextTickToLocalFinish(() => {
           reject(e);
@@ -315,6 +337,35 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       // msg_id: dat;
       callId: callId,
     });
+  }
+
+  /**
+   * Filter think tags from message content during streaming
+   * This ensures users don't see internal reasoning tags in real-time
+   *
+   * @param message - The streaming message to filter
+   * @returns Message with think tags removed from content
+   */
+  private filterThinkTagsFromMessage(message: IResponseMessage): IResponseMessage {
+    // Only filter content messages
+    if (message.type !== 'content' || typeof message.data !== 'string') {
+      return message;
+    }
+
+    const content = message.data;
+    // Quick check to avoid unnecessary processing
+    if (!/<think(?:ing)?>/i.test(content)) {
+      return message;
+    }
+
+    // Strip think tags from content
+    const cleanedContent = stripThinkTags(content);
+
+    // Return new message object with cleaned content
+    return {
+      ...message,
+      data: cleanedContent,
+    };
   }
 
   /**
@@ -338,6 +389,8 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       const result = db.getConversation(this.conversation_id);
       if (result.success && result.data && result.data.type === 'acp') {
         const conversation = result.data;
+        // Preserve all existing extra fields (including botId, externalChannelId, etc.)
+        // Only update acpSessionId and acpSessionUpdatedAt
         const updatedExtra = {
           ...conversation.extra,
           acpSessionId: sessionId,

@@ -47,7 +47,8 @@
     "browse": "浏览",
     "remove": "移除",
     "show": "显示",
-    "hide": "隐藏"
+    "hide": "隐藏",
+    "goToSettings": "前往设置"
   },
   "update": {
     "modalTitle": "软件更新",
@@ -310,7 +311,13 @@
       "quotaExceededBody": "当前模型额度已用尽，是否切换到 {{model}}？",
       "quotaExceededNoFallback": "当前模型额度已用尽，请切换到其他可用模型。",
       "quotaSwitched": "已切换到 {{model}}。",
-      "confirmationLoadError": "确认对话框加载失败"
+      "apiErrorNoCli": "API 错误，没有可用的 CLI 代理进行回退。",
+      "apiErrorSwitchFailed": "创建回退会话失败。",
+      "apiErrorSwitched": "API 错误，已自动切换到 {{cli}} CLI",
+      "confirmationLoadError": "确认对话框加载失败",
+      "tryAnotherAgent": "尝试其他 Agent：",
+      "switchedToAgent": "已切换到 {{agent}}",
+      "switchAgentFailed": "切换 Agent 失败"
     },
     "contextUsage": {
       "contextUsed": "上下文已使用"
@@ -375,6 +382,9 @@
     "assistantPromptPlaceholder": "请输入提示词或规则",
     "saveAssistant": "保存设置",
     "createAssistant": "创建助手",
+    "importAssistant": "导入",
+    "importAssistantSuccess": "助手导入成功",
+    "importAssistantFailed": "助手导入失败",
     "assistantCreated": "助手已创建",
     "assistantNameRequired": "名称不能为空",
     "assistantPromptRequired": "提示词不能为空",
@@ -539,6 +549,9 @@
     "addModelTips": "支持直接输入模型名称，建议与服务商保持一致。",
     "customOpenAI": "自定义(兼容OpenAI)",
     "platformCustom": "自定义",
+    "platformNewApi": "New API",
+    "modelProtocol": "请求协议",
+    "modelProtocolTip": "选择该模型的 API 请求格式。new-api 网关将使用所选协议路由到上游服务。",
     "proxyHttpOnly": "仅支持 http/https 协议",
     "baseUrlAutoFix": "base_url 自动修复为：{{base_url}}",
     "updateConfirm": "确认修改",
@@ -552,7 +565,19 @@
     "agent": "代理",
     "tools": "工具",
     "webui": "WebUI",
-    "channels": "Channels",
+    "security": "执行授权",
+    "autoApprove": "执行授权",
+    "autoApproveDesc": "启用后，Agent 执行命令和文件操作时将跳过确认弹框。请谨慎使用。",
+    "installed": "已安装",
+    "builtin": "内置",
+    "noAgentsFound": "未找到 Agent",
+    "yoloNotNeeded": "无权限系统，默认自动批准",
+    "yoloAlwaysOn": "始终开启",
+    "yoloNotSupportedOpencode": "OpenCode v1.1.39 不支持自动批准",
+    "yoloNotSupportedAuggie": "安全优先设计，无绕过选项",
+    "yoloNotSupportedIflow": "未验证，可能需要手动确认",
+    "yoloNotSupportedUnknown": "未验证，可能需要手动确认",
+    "channels": "频道",
     "webui.description": "把 AionUi 当作“7*24小时的远程助手”，,随时随地用远程设备安排任务。",
     "webui.steps": "步骤 1. 打开 WebUI 开关;  步骤 2. 复制访问地址;  步骤 3.远程浏览器打开",
     "webui.configuration": "WebUI 配置",
@@ -617,6 +642,7 @@
     "webui.checkConsoleForPassword": "请查看应用控制台获取初始密码",
     "webui.browserNotSupported": "浏览器端无法访问 WebUI 设置",
     "webui.browserNotSupportedDesc": "出于安全考虑，WebUI 设置只能在桌面应用中管理。请在 AionUi 桌面应用中打开设置面板进行配置。",
+    "webui.browserServiceHint": "请在桌面应用中管理",
     "webui.passwordHidden": "******",
     "webui.passwordOnlyFirstTime": "密码仅在首次启动时显示，之后将被隐藏",
     "webui.resetPasswordWarning": "请保管好重置之后的密码！",
@@ -676,6 +702,8 @@
     "channels.discordDesc": "通过 Discord 与 AionUi 助手对话",
     "channels.larkTitle": "Lark",
     "channels.larkDesc": "通过 Lark 与 AionUi 助手对话",
+    "channels.mezonTitle": "Mezon",
+    "channels.mezonDesc": "通过 Mezon 与 AionUi 助手对话",
     "channels.comingSoon": "即将上线",
     "channels.comingSoonDesc": "即将支持通过 {{channel}} 与助手直接对话",
     "channels.notConfigured": "未配置",
@@ -897,6 +925,17 @@
       "step4": "授权成功后，你可以通过飞书与 AI 助手聊天！",
       "waitingConnection": "WebSocket 连接正在建立，请稍候..."
     },
+    "bots": {
+      "title": "机器人",
+      "channel": "渠道",
+      "channelDesc": "机器人连接的平台",
+      "mezonSetup": "Mezon 配置指南",
+      "mezonStep1": "打开 Mezon 开发者门户",
+      "mezonStep2": "创建机器人应用并复制其令牌",
+      "mezonStep3": "将机器人添加到你想要监控的任意频道",
+      "mezonTip": "提示：你也可以在环境变量中设置 MEZON_TOKEN",
+      "mezonDocs": "查看文档"
+    },
     "skillAlreadyInstalled": "已安装",
     "skillBrowseHint": "在 SkillsMP 上搜索 145k+ 社区技能，或点击上方分类浏览。",
     "skillBrowseInstall": "安装",
@@ -927,6 +966,33 @@
     "skillsmpGetKey": "获取 API 密钥",
     "skillsmpApiKeySaved": "SkillsMP API 密钥已保存",
     "uploadSkill": "上传",
+    "installFromUrl": "从 URL 安装",
+    "skillUrlInstallTitle": "从 URL 安装",
+    "skillUrlInstallBtn": "安装",
+    "skillUrlLabel": "技能 URL 或简写",
+    "skillUrlEmpty": "请输入技能 URL 或简写",
+    "skillUrlInstallSuccess": "技能 \"{{name}}\" 安装成功",
+    "skillUrlInstallFailed": "从 URL 安装技能失败",
+    "skillGuideTitle": "如何安装技能",
+    "skillGuideStep1Title": "1. 查找技能",
+    "skillGuideStep1Desc": "在 skills.sh 或任何包含 SKILL.md 文件的 GitHub 仓库中浏览技能。",
+    "skillGuideStep2Title": "2. 复制标识符",
+    "skillGuideStep2Desc": "将以下任意格式粘贴到上方输入框中：",
+    "skillGuideFormatShorthand": "简写",
+    "skillGuideFormatSkillsSh": "skills.sh 链接",
+    "skillGuideFormatGitHub": "GitHub 链接",
+    "skillGuideFormatNpx": "npx 命令",
+    "skillGuideStep3Title": "3. 点击安装",
+    "skillGuideStep3Desc": "技能将从 GitHub 下载并添加到您的可用技能中。您可以按会话启用或禁用它。",
+    "skillsmpGuideTitle": "如何使用 SkillsMP",
+    "skillsmpGuideStep1Title": "1. 搜索或浏览",
+    "skillsmpGuideStep1Desc": "在搜索栏中输入关键词，或点击分类预设（热门、最新、Claude 等）来查找技能。",
+    "skillsmpGuideStep2Title": "2. 查看结果",
+    "skillsmpGuideStep2Desc": "每个结果显示技能名称、作者、星标数和描述。点击名称可在 GitHub 上查看。",
+    "skillsmpGuideStep3Title": "3. 安装",
+    "skillsmpGuideStep3Desc": "点击任意技能旁的安装按钮。技能将从 GitHub 下载并添加到您的可用技能中。",
+    "skillsmpGuideApiKeyTitle": "API 密钥（可选）",
+    "skillsmpGuideApiKeyDesc": "如需更快且无限制的搜索，请在 设置 > 技能 > SkillsMP API 密钥 中添加免费的 SkillsMP API 密钥。",
     "skillDetailTitle": "技能详情",
     "skillDetailName": "名称",
     "skillDetailDescription": "描述",
@@ -1087,31 +1153,10 @@
       "quick_switch_title": "💡 **快速切换方案：**",
       "quick_switch_content": "当前服务遇到网络限制时，您可以：\n\n1. **立即切换 AI 助手**：在左侧面板选择其他可用的助手\n2. **检查服务状态**：不同 AI 服务的可用性可能因地区而异\n3. **网络优化**：使用稳定的网络环境可以提高连接成功率\n4. **稍后重试**：网络限制通常是临时的\n\n**提示**：建议配置多个 AI 服务作为备选，确保工作连续性。",
       "recovery_actions": {
-        "cloudflare_blocked": [
-          "• 使用 VPN 或代理服务",
-          "• 更换网络环境（如移动热点）",
-          "• 等待 10-30 分钟后重试",
-          "• 清除浏览器缓存和 Cookie",
-          "• 切换到其他可用服务：ChatGPT、Claude、Qwen、Gemini"
-        ],
-        "network_timeout": [
-          "• 检查网络连接是否稳定",
-          "• 重试连接操作",
-          "• 切换到更稳定的网络环境",
-          "• 检查防火墙设置"
-        ],
-        "connection_refused": [
-          "• 检查 Codex CLI 是否正确安装",
-          "• 验证服务配置和API密钥",
-          "• 重启应用程序",
-          "• 检查本地端口是否被占用"
-        ],
-        "unknown": [
-          "• 检查网络连接状态",
-          "• 重试当前操作",
-          "• 切换网络环境",
-          "• 联系技术支持"
-        ]
+        "cloudflare_blocked": ["• 使用 VPN 或代理服务", "• 更换网络环境（如移动热点）", "• 等待 10-30 分钟后重试", "• 清除浏览器缓存和 Cookie", "• 切换到其他可用服务：ChatGPT、Claude、Qwen、Gemini"],
+        "network_timeout": ["• 检查网络连接是否稳定", "• 重试连接操作", "• 切换到更稳定的网络环境", "• 检查防火墙设置"],
+        "connection_refused": ["• 检查 Codex CLI 是否正确安装", "• 验证服务配置和API密钥", "• 重启应用程序", "• 检查本地端口是否被占用"],
+        "unknown": ["• 检查网络连接状态", "• 重试当前操作", "• 切换网络环境", "• 联系技术支持"]
       }
     },
     "thinking": {
@@ -1321,5 +1366,70 @@
   "cron.drawer.schedule": "执行规则",
   "cron.drawer.nextRun": "下次执行",
   "cron.drawer.save": "保存",
-  "cron.drawer.saveSuccess": "保存成功"
+  "cron.drawer.saveSuccess": "保存成功",
+  "titlebar": {
+    "mode": {
+      "chat": "聊天",
+      "bots": "机器人"
+    }
+  },
+  "bots": {
+    "title": "机器人",
+    "subtitle": "在消息平台上自动运行的助手",
+    "empty": "尚未配置机器人",
+    "running": "运行中",
+    "stopped": "已停止",
+    "conversationCount": "{{count}} 个对话",
+    "untitled": "未命名",
+    "notFound": "未找到机器人",
+    "backToList": "所有机器人",
+    "noConversations": "暂无对话",
+    "chatWith": "与{{botName}}聊天"
+  },
+  "guid.agentFallbackNotice": "{{original}} 不可用，已自动切换到 {{fallback}}。",
+  "guid.noAgentAvailable": "没有可用的 Main Agent。请登录 Google 或安装 Claude/Codex CLI。是否前往设置？",
+  "guid.noAgentAvailableShort": "没有可用的 Main Agent。点击配置。",
+  "guid.agentTabAutoSwitch": "模型不兼容 Gemini，已自动切换到 {{fallback}}",
+  "guid.autoSwitchToAgent": "Gemini 未配置，正在自动切换到 {{agent}}",
+  "guid.autoSwitchedAgent": "{{from}} 不可用，已自动切换到 {{to}}",
+  "guid.scanning": {
+    "initialMessage": "当前Agent不可用, 正在检测其他可用agent...",
+    "scanningMessage": "正在扫描本地可用agent...",
+    "connectingMessage": "已连接成功，请稍后...",
+    "establishingConnection": "正在建立连接...",
+    "statusQueued": "排队中",
+    "statusTesting": "正在测试延迟...",
+    "statusUnreachable": "不可达",
+    "statusAvailable": "可用"
+  },
+  "agent": {
+    "health": {
+      "detectedError": "检测到当前 Agent ({{agent}}) 响应异常",
+      "autoSwitching": "。系统将自动尝试切换线路。",
+      "evaluating": "正在评估网络延迟与模型可用性...",
+      "checking": "检查 {{agent}} 节点...",
+      "foundBest": "已找到最佳替代方案",
+      "recommendSwitch": "推荐切换",
+      "available": "可用",
+      "lowLatency": "低延迟",
+      "mediumLatency": "中等延迟",
+      "highLatency": "高延迟",
+      "bestMatch": "最佳匹配",
+      "noAvailable": "当前环境没有可用 agent",
+      "checkConfig": "请检查配置或稍后重试"
+    },
+    "setup": {
+      "connectionError": "连接错误",
+      "notConfigured": "{{agent}} 尚未配置",
+      "authRequired": "使用此 Agent 需要先完成认证或配置 API Key。",
+      "findingAlternatives": "正在查找可用的替代方案...",
+      "checkingAgent": "正在检查 {{agent}}...",
+      "alternativesFound": "找到 {{count}} 个可用的替代方案",
+      "autoSwitching": "正在自动切换到最佳可用 Agent...",
+      "configError": "配置有问题，请检查配置或选择其他 Agent：",
+      "noAlternatives": "未找到可用的 Agent",
+      "configureFirst": "请先在设置中配置一个 Agent。",
+      "switching": "正在切换 Agent..."
+    }
+  }
 }

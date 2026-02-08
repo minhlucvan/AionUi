@@ -80,6 +80,23 @@ export interface IConfigStorageRefer {
     id: string;
     useModel: string;
   };
+  // Mezon assistant default model / Mezon 助手默认模型
+  'assistant.mezon.defaultModel'?: {
+    id: string;
+    useModel: string;
+  };
+  // Mezon multi-bot configurations / Mezon 多 Bot 配置列表
+  'mezon.bots'?: Array<{
+    id: string;
+    name: string;
+    assistantId?: string;
+    enabled: boolean;
+    defaultModel?: { id: string; useModel: string };
+    createdAt: number;
+    updatedAt: number;
+  }>;
+  // Disabled skill names / 已禁用的 skill 名称列表
+  'skills.disabledSkills'?: string[];
   // SkillsMP API key for skill marketplace search / SkillsMP API 密钥
   'skillsmp.apiKey'?: string;
   // memU memory service configuration / memU 记忆服务配置
@@ -147,6 +164,10 @@ export type TChatConversation =
         enabledSkills?: string[];
         /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
         presetAssistantId?: string;
+        /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
+        botId?: string;
+        /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
+        externalChannelId?: string;
       }
     >
   | Omit<
@@ -164,6 +185,12 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
           presetAssistantId?: string;
+          /** Default agent from assistant.json (metadata only) / 来自 assistant.json 的默认 agent */
+          defaultAgent?: string;
+          /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
+          botId?: string;
+          /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
+          externalChannelId?: string;
           /** ACP 后端的 session UUID，用于会话恢复 / ACP backend session UUID for session resume */
           acpSessionId?: string;
           /** ACP session 最后更新时间 / Last update time of ACP session */
@@ -185,6 +212,39 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
           presetAssistantId?: string;
+          /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
+          botId?: string;
+          /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
+          externalChannelId?: string;
+        }
+      >,
+      'model'
+    >
+  | Omit<
+      IChatConversation<
+        'openclaw-gateway',
+        {
+          workspace?: string;
+          customWorkspace?: boolean;
+          /** Gateway configuration */
+          gateway?: {
+            host?: string;
+            port?: number;
+            token?: string;
+            password?: string;
+            useExternalGateway?: boolean;
+            cliPath?: string;
+          };
+          /** Session key for resume */
+          sessionKey?: string;
+          /** 启用的 skills 列表 / Enabled skills list */
+          enabledSkills?: string[];
+          /** 预设助手 ID / Preset assistant ID */
+          presetAssistantId?: string;
+          /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
+          botId?: string;
+          /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
+          externalChannelId?: string;
         }
       >,
       'model'
@@ -228,6 +288,14 @@ export interface IProvider {
    * 上下文token限制，可选字段，只在明确知道时填写
    */
   contextLimit?: number;
+  /**
+   * 每个模型的协议覆盖配置。映射模型名称到协议字符串。
+   * 仅在 platform 为 'new-api' 时使用。
+   * Per-model protocol overrides. Maps model name to protocol string.
+   * Only used when platform is 'new-api'.
+   * e.g. { "gemini-2.5-pro": "gemini", "claude-sonnet-4": "anthropic", "gpt-4o": "openai" }
+   */
+  modelProtocols?: Record<string, string>;
 }
 
 export type TProviderWithModel = Omit<IProvider, 'model'> & { useModel: string };

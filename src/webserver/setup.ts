@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Express } from 'express';
+import type { Express, RequestHandler } from 'express';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -89,7 +89,7 @@ export function setupBasicMiddleware(app: Express): void {
       ['POST', 'PUT', 'DELETE', 'PATCH'], // Protected methods
       ['/login', '/api/auth/qr-login'], // Excluded: login form and QR login
       [] // No service worker URLs
-    )
+    ) as unknown as RequestHandler
   );
   app.use(attachCsrfToken); // Attach token to response headers
 

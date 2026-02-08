@@ -19,6 +19,7 @@ export const mainConfig: Configuration = {
     gemini: './src/worker/gemini.ts',
     acp: './src/worker/acp.ts',
     codex: './src/worker/codex.ts',
+    'openclaw-gateway': './src/worker/openclaw-gateway.ts',
   },
   output: {
     filename: '[name].js',
@@ -42,6 +43,8 @@ export const mainConfig: Configuration = {
   externals: {
     'better-sqlite3': 'commonjs better-sqlite3',
     'node-pty': 'commonjs node-pty',
+    // mezon-sdk uses better-sqlite3 and ws internally
+    'mezon-sdk': 'commonjs mezon-sdk',
     // tree-sitter 相关依赖需要作为外部模块，避免 webpack 处理 .wasm 文件
     // tree-sitter dependencies need to be external to avoid webpack processing .wasm files
     'tree-sitter': 'commonjs tree-sitter',

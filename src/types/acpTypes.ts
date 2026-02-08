@@ -51,6 +51,7 @@ export type AcpBackendAll =
   | 'opencode' // OpenCode CLI
   | 'copilot' // GitHub Copilot CLI
   | 'qoder' // Qoder CLI
+  | 'openclaw-gateway' // OpenClaw Gateway WebSocket
   | 'custom'; // User-configured custom ACP agent
 
 /**
@@ -285,6 +286,26 @@ export interface AcpBackendConfig {
    * When enabled, conversations are automatically memorized and relevant memories are retrieved.
    */
   memoryEnabled?: boolean;
+
+  /**
+   * 导入的助手包解压路径（仅自定义助手）
+   * 包含完整的 workspace 目录结构
+   *
+   * Extracted path for imported assistant package (custom assistants only).
+   * Contains the full workspace directory structure.
+   * Example: ~/.../assistants/custom-123456/video-generator/
+   */
+  extractedPath?: string;
+
+  /**
+   * workspace 目录的完整路径（仅自定义助手）
+   * 用作 ACP 对话的工作目录
+   *
+   * Full path to the workspace directory (custom assistants only).
+   * Used as the working directory for ACP conversations.
+   * Example: ~/.../assistants/custom-123456/video-generator/workspace/
+   */
+  workspacePath?: string;
 }
 
 // 所有后端配置 - 包括暂时禁用的 / All backend configurations - including temporarily disabled ones
@@ -394,6 +415,15 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: true, // ✅ Qoder CLI，使用 `qodercli --acp` 启动
     supportsStreaming: false,
     acpArgs: ['--acp'], // qoder 使用 --acp flag
+  },
+  'openclaw-gateway': {
+    id: 'openclaw-gateway',
+    name: 'OpenClaw',
+    cliCommand: 'openclaw',
+    authRequired: false,
+    enabled: true, // ✅ OpenClaw Gateway WebSocket mode
+    supportsStreaming: true,
+    acpArgs: ['gateway'], // openclaw gateway command (for detection)
   },
   custom: {
     id: 'custom',

@@ -11,6 +11,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
 import { copyWorkspaceTemplate } from '@/assistant/WorkspaceTemplateCopy';
+import { runHooks } from '@/assistant/hooks';
+import { ConfigStorage } from '@/common/storage';
 
 // Regex to match AionUI timestamp suffix pattern
 const AIONUI_TIMESTAMP_REGEX = /^(.+?)_aionui_\d+(\.[^.]+)$/;
@@ -28,6 +30,29 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   // 使用前端提供的customWorkspace标志，如果没有则根据workspace参数判断
   const customWorkspace = providedCustomWorkspace !== undefined ? providedCustomWorkspace : !!workspace;
 
+  // If presetAssistantId is provided, check if it has a workspacePath
+  if (presetAssistantId && !workspace) {
+    try {
+      // Add timeout to prevent hanging (5 seconds)
+      const customAgentsPromise = ConfigStorage.get('acp.customAgents');
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('ConfigStorage.get timeout')), 5000));
+      const customAgents = await Promise.race([customAgentsPromise, timeoutPromise]).catch((error) => {
+        console.warn(`[AionUi] ConfigStorage.get failed or timed out:`, error);
+        return null;
+      });
+
+      if (customAgents && Array.isArray(customAgents)) {
+        const assistant = customAgents.find((a) => a.id === presetAssistantId);
+        if (assistant?.workspacePath) {
+          console.log(`[AionUi] Using workspace from assistant ${presetAssistantId}: ${assistant.workspacePath}`);
+          workspace = assistant.workspacePath;
+        }
+      }
+    } catch (error) {
+      console.warn(`[AionUi] Failed to load workspace path for assistant ${presetAssistantId}:`, error);
+    }
+  }
+
   if (!workspace) {
     const tempPath = getSystemDir().workDir;
     workspace = path.join(tempPath, defaultWorkspaceName);
@@ -38,13 +63,38 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   }
 
   // Copy workspace template if presetAssistantId is provided (auto-resolve from assistant config)
+  // Skip copying if workspace was loaded from assistant (already has the template)
+  let defaultAgent: string | undefined;
   if (presetAssistantId) {
-    console.log(`[AionUi] Copying workspace template from assistant: ${presetAssistantId}`);
-    const copySuccess = await copyWorkspaceTemplate(presetAssistantId, workspace);
-    if (!copySuccess) {
-      console.warn(`[AionUi] Failed to copy workspace template for assistant: ${presetAssistantId}`);
-    } else {
-      console.log(`[AionUi] Successfully copied workspace template to: ${workspace}`);
+    try {
+      // Add timeout to prevent hanging (5 seconds)
+      const customAgentsPromise = ConfigStorage.get('acp.customAgents');
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('ConfigStorage.get timeout')), 5000));
+      const customAgents = await Promise.race([customAgentsPromise, timeoutPromise]).catch((error) => {
+        console.warn(`[AionUi] ConfigStorage.get failed or timed out:`, error);
+        return null;
+      });
+
+      const assistant = customAgents?.find((a: any) => a.id === presetAssistantId);
+      const hasExistingWorkspace = assistant?.workspacePath;
+
+      if (!hasExistingWorkspace) {
+        console.log(`[AionUi] Copying workspace template from assistant: ${presetAssistantId}`);
+        // Add timeout for copyWorkspaceTemplate (10 seconds)
+        const copyPromise = copyWorkspaceTemplate(presetAssistantId, workspace);
+        const copyTimeoutPromise = new Promise<{ success: false }>((resolve) => setTimeout(() => resolve({ success: false }), 10000));
+        const copyResult = await Promise.race([copyPromise, copyTimeoutPromise]);
+        if (!copyResult.success) {
+          console.warn(`[AionUi] Failed to copy workspace template for assistant: ${presetAssistantId}`);
+        } else {
+          console.log(`[AionUi] Successfully copied workspace template to: ${workspace}`);
+          defaultAgent = copyResult.defaultAgent;
+        }
+      } else {
+        console.log(`[AionUi] Using existing workspace, skipping template copy`);
+      }
+    } catch (error) {
+      console.warn(`[AionUi] Error checking workspace template:`, error);
     }
   }
 
@@ -83,7 +133,10 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     }
   }
 
-  return { workspace, customWorkspace };
+  // Run on-conversation-init hooks from workspace hooks/ folder
+  await runHooks('on-conversation-init', '', workspace);
+
+  return { workspace, customWorkspace, defaultAgent };
 };
 
 export const createGeminiAgent = async (model: TProviderWithModel, workspace?: string, defaultFiles?: string[], webSearchEngine?: 'google' | 'default', customWorkspace?: boolean, contextFileName?: string, presetRules?: string, enabledSkills?: string[], presetAssistantId?: string): Promise<TChatConversation> => {
@@ -119,23 +172,29 @@ export const createGeminiAgent = async (model: TProviderWithModel, workspace?: s
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   // Use presetAssistantId as workspace template source (resolves automatically)
-  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
+  const { workspace, customWorkspace, defaultAgent } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
+
+  // Build extra object, only including defined fields to prevent undefined values from being JSON.stringify'd
+  const conversationExtra: any = {
+    workspace: workspace,
+    customWorkspace,
+    backend: extra.backend,
+    cliPath: extra.cliPath,
+    agentName: extra.agentName,
+  };
+
+  // Only add optional fields if they have values (undefined values get stripped during JSON serialization)
+  if (extra.customAgentId !== undefined) conversationExtra.customAgentId = extra.customAgentId;
+  if (extra.presetContext !== undefined) conversationExtra.presetContext = extra.presetContext;
+  if (extra.enabledSkills !== undefined) conversationExtra.enabledSkills = extra.enabledSkills;
+  if (extra.presetAssistantId !== undefined) conversationExtra.presetAssistantId = extra.presetAssistantId;
+  if (extra.botId !== undefined) conversationExtra.botId = extra.botId;
+  if (extra.externalChannelId !== undefined) conversationExtra.externalChannelId = extra.externalChannelId;
+  if (defaultAgent !== undefined) conversationExtra.defaultAgent = defaultAgent;
+
   return {
-    type: 'acp',
-    extra: {
-      workspace: workspace,
-      customWorkspace,
-      backend: extra.backend,
-      cliPath: extra.cliPath,
-      agentName: extra.agentName,
-      customAgentId: extra.customAgentId, // 同时用于标识预设助手 / Also used to identify preset assistant
-      presetContext: extra.presetContext, // 智能助手的预设规则/提示词
-      // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
-      enabledSkills: extra.enabledSkills,
-      // 预设助手 ID，用于在会话面板显示助手名称和头像，同时用于复制工作空间模板
-      // Preset assistant ID for displaying name and avatar in conversation panel, also used for workspace template
-      presetAssistantId: extra.presetAssistantId,
-    },
+    type: 'acp' as const,
+    extra: conversationExtra,
     createTime: Date.now(),
     modifyTime: Date.now(),
     name: workspace,
@@ -158,6 +217,29 @@ export const createCodexAgent = async (options: ICreateConversationParams): Prom
       // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
       enabledSkills: extra.enabledSkills,
       // 预设助手 ID，用于在会话面板显示助手名称和头像
+      // Preset assistant ID for displaying name and avatar in conversation panel
+      presetAssistantId: extra.presetAssistantId,
+    },
+    createTime: Date.now(),
+    modifyTime: Date.now(),
+    name: workspace,
+    id: uuid(),
+  };
+};
+
+export const createOpenClawAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
+  const { extra } = options;
+  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`openclaw-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  return {
+    type: 'openclaw-gateway',
+    extra: {
+      workspace: workspace,
+      customWorkspace,
+      gateway: {
+        cliPath: extra.cliPath,
+      },
+      // Enabled skills list (loaded via SkillManager)
+      enabledSkills: extra.enabledSkills,
       // Preset assistant ID for displaying name and avatar in conversation panel
       presetAssistantId: extra.presetAssistantId,
     },

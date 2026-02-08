@@ -113,11 +113,18 @@ const SystemModalContent: React.FC<SystemModalContentProps> = ({ onRequestClose 
   const [message, messageContext] = Message.useMessage({ maxCount: 10 });
 
   // SkillsMP API key state
-  const [apiKey, setApiKey] = useState(() => ConfigStorage.get('skillsmp.apiKey') || '');
+  const [apiKey, setApiKey] = useState('');
   const handleSaveApiKey = useCallback(() => {
-    ConfigStorage.set('skillsmp.apiKey', apiKey.trim());
+    void ConfigStorage.set('skillsmp.apiKey', apiKey.trim());
     message.success(t('settings.skillsmpApiKeySaved', { defaultValue: 'SkillsMP API key saved' }));
   }, [apiKey, message, t]);
+
+  // Load API key from storage
+  useEffect(() => {
+    void ConfigStorage.get('skillsmp.apiKey').then((key) => {
+      if (key) setApiKey(key);
+    });
+  }, []);
 
   // Get system directory info
   const { data: systemInfo } = useSWR('system.dir.info', () => ipcBridge.application.systemInfo.invoke());
@@ -231,9 +238,7 @@ const SystemModalContent: React.FC<SystemModalContentProps> = ({ onRequestClose 
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
             <div className='text-14px font-medium text-t-primary'>{t('settings.skillsmpApiKeyTitle', { defaultValue: 'SkillsMP API Key' })}</div>
             <div className='flex items-center gap-8px'>
-              <div className='text-12px text-t-secondary'>
-                {t('settings.skillsmpApiKeyDesc', { defaultValue: 'Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.' })}
-              </div>
+              <div className='text-12px text-t-secondary'>{t('settings.skillsmpApiKeyDesc', { defaultValue: 'Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.' })}</div>
               <span className='text-11px text-primary cursor-pointer hover:underline flex-shrink-0' onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com/docs/api')}>
                 {t('settings.skillsmpGetKey', { defaultValue: 'Get API key' })}
               </span>

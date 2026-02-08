@@ -299,6 +299,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
           content: message.data as string,
           type: 'error',
         },
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'content':
@@ -312,6 +313,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         content: {
           content: message.data as string,
         },
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'tool_call': {
@@ -322,6 +324,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         conversation_id: message.conversation_id,
         position: 'left',
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'tool_group': {
@@ -331,6 +334,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         msg_id: message.msg_id,
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'agent_status': {
@@ -341,6 +345,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'center',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'acp_permission': {
@@ -351,6 +356,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'acp_tool_call': {
@@ -361,6 +367,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'codex_permission': {
@@ -371,6 +378,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'codex_tool_call': {
@@ -381,6 +389,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'plan': {
@@ -391,6 +400,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'start':
@@ -410,12 +420,10 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
 export const composeMessage = (message: TMessage | undefined, list: TMessage[] | undefined, messageHandler: (type: 'update' | 'insert', message: TMessage) => void = () => {}): TMessage[] => {
   if (!message) return list || [];
   if (!list?.length) {
-    console.log('[composeMessage] Empty list, inserting first message:', message.msg_id, message.type);
     messageHandler('insert', message);
     return [message];
   }
   const last = list[list.length - 1];
-  console.log('[composeMessage] Comparing - incoming msg_id:', message.msg_id, 'type:', message.type, '| last msg_id:', last.msg_id, 'type:', last.type);
 
   const updateMessage = (index: number, message: TMessage, change = true) => {
     message.id = list[index].id;
@@ -455,10 +463,8 @@ export const composeMessage = (message: TMessage | undefined, list: TMessage[] |
     }
     if (tools.length) {
       message.content = tools;
-      console.log('[composeMessage] tool_group with new tools, inserting');
       return pushMessage(message);
     }
-    console.log('[composeMessage] tool_group with no new tools, skipping');
     return list;
   }
 
@@ -517,10 +523,8 @@ export const composeMessage = (message: TMessage | undefined, list: TMessage[] |
   }
 
   if (last.msg_id !== message.msg_id || last.type !== message.type) {
-    console.log('[composeMessage] msg_id or type mismatch, inserting new message');
     return pushMessage(message);
   }
-  console.log('[composeMessage] Same msg_id and type, updating existing message');
   if (message.type === 'text' && last.type === 'text') {
     message.content.content = last.content.content + message.content.content;
   }

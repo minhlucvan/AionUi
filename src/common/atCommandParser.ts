@@ -42,6 +42,12 @@ function unescapeAtPath(rawPath: string): string {
  * // ]
  */
 export function parseAllAtCommands(query: string): AtCommandPart[] {
+  // Guard against undefined/null query
+  if (!query || typeof query !== 'string') {
+    console.warn('[atCommandParser] parseAllAtCommands received invalid query:', query);
+    return [];
+  }
+
   const parts: AtCommandPart[] = [];
   let currentIndex = 0;
 

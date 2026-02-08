@@ -1,19 +1,16 @@
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
+import { Tooltip } from '@arco-design/web-react';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { Computer, Gemini, Info, Lightning, LinkCloud, System, Toolkit, Robot, Earth, Brain } from '@icon-park/react';
+import { Api, Brain, Communication, Computer, Earth, Gemini, Info, Lightning, LinkCloud, Robot, Shield, System, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Tooltip } from '@arco-design/web-react';
 
 const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { pathname } = useLocation();
-
-  // 检测是否在 Electron 桌面环境 / Check if running in Electron desktop environment
-  const isDesktop = isElectronDesktop();
 
   const menus = useMemo(() => {
     const items = [
@@ -33,6 +30,11 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
         path: 'agent',
       },
       {
+        label: t('settings.bots.title', { defaultValue: 'Bots' }),
+        icon: <Api />,
+        path: 'bots',
+      },
+      {
         label: t('settings.skills', { defaultValue: 'Skills' }),
         icon: <Lightning />,
         path: 'skills',
@@ -48,20 +50,23 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
         path: 'memory',
       },
       {
+        label: t('settings.security'),
+        icon: <Shield />,
+        path: 'security',
+      },
+      {
         label: t('settings.display'),
         icon: <Computer />,
         path: 'display',
       },
     ];
 
-    // 仅在桌面端添加 WebUI 选项（包含 Assistant 配置）/ Only add WebUI option on desktop (includes Assistant config)
-    if (isDesktop) {
-      items.push({
-        label: t('settings.webui'),
-        icon: <Earth />,
-        path: 'webui',
-      });
-    }
+    // WebUI 选项（桌面端和 WebUI 浏览器端均可访问）/ WebUI option (accessible on both desktop and WebUI browser)
+    items.push({
+      label: t('settings.webui'),
+      icon: <Earth />,
+      path: 'webui',
+    });
 
     items.push(
       {
@@ -77,7 +82,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
     );
 
     return items;
-  }, [t, isDesktop]);
+  }, [t]);
   return (
     <div className={classNames('flex-1 settings-sider flex flex-col gap-2px', { 'settings-sider--collapsed': collapsed })}>
       {menus.map((item) => {
