@@ -307,6 +307,7 @@ export class MezonPlugin extends BasePlugin {
 
     // Handle long messages by splitting
     const chunks = splitMessage(text, MEZON_MESSAGE_LIMIT);
+    console.log(`[MezonPlugin] Message split into ${chunks.length} chunks (total length: ${text.length}, limit: ${MEZON_MESSAGE_LIMIT})`);
     let lastMessageId = '';
 
     // Look up session context to determine how to send
@@ -440,7 +441,7 @@ export class MezonPlugin extends BasePlugin {
 
     // Handle incoming channel messages
     this.client.onChannelMessage((msg: ChannelMessage) => {
-      console.log(`[MezonPlugin] *** Channel message received *** senderId=${msg.sender_id}, channelId=${msg.channel_id}`);
+      console.log(`[MezonPlugin] *** Channel message received *** senderId=${msg.sender_id}, channelId=${msg.channel_id}, msgId=${msg.id}, messageId=${msg.message_id}`);
       void this.handleIncomingMessage(msg);
     });
 
@@ -456,7 +457,10 @@ export class MezonPlugin extends BasePlugin {
       if (!userId) return;
 
       // Ignore messages from the bot itself
-      if (userId === this.botUserId) return;
+      if (userId === this.botUserId) {
+        console.log(`[MezonPlugin] Ignoring bot's own message: ${userId} === ${this.botUserId}`);
+        return;
+      }
 
       // Ignore messages sent before bot started (avoid processing old messages when connecting)
       const messageTime = msg.create_time_seconds ? msg.create_time_seconds * 1000 : Date.now();
@@ -468,9 +472,11 @@ export class MezonPlugin extends BasePlugin {
 
       // Deduplicate messages by channelId + messageId (composite key)
       // This prevents false positives when same message ID appears in different channels
-      const messageId = msg.id;
+      const messageId = msg.id || msg.message_id;
       const channelId = msg.channel_id;
       const compositeKey = `${channelId}_${messageId}`;
+
+      console.log(`[MezonPlugin] Dedup check - compositeKey: ${compositeKey}, has: ${this.processedMessages.has(compositeKey)}, cacheSize: ${this.processedMessages.size}`);
 
       if (!messageId) {
         console.warn('[MezonPlugin] Message without ID, skipping deduplication');
@@ -478,6 +484,7 @@ export class MezonPlugin extends BasePlugin {
         console.log(`[MezonPlugin] Duplicate message detected: ${compositeKey}, skipping`);
         return;
       } else {
+        console.log(`[MezonPlugin] New message, adding to cache: ${compositeKey}`);
         // Add to processed set using composite key
         this.processedMessages.add(compositeKey);
 
