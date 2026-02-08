@@ -384,14 +384,28 @@ export class ActionExecutor {
           // Extract botId from pluginId (format: "mezon_{botId}" or "telegram_{botId}")
           const botId = message.pluginId.includes('_') ? message.pluginId.split('_')[1] : message.pluginId;
 
-          console.log(`[ActionExecutor] Using bot conversation routing (channel: ${message.chatId.slice(0, 12)}..., bot: ${botId})`);
+          // IMPORTANT: Extract stable channel ID for conversation lookup
+          // MezonPlugin sessionId format: "{channelId}_timestamp" or "{threadId}_timestamp"
+          // We need the base channel/thread ID without timestamp for conversation persistence
+          const stableChannelId = message.chatId.includes('_') ? message.chatId.substring(0, message.chatId.lastIndexOf('_')) : message.chatId;
 
-          result = await ConversationService.getOrCreateBotConversation(message.chatId, botId, {
-            type: detectConversationType(model),
+          console.log(`[ActionExecutor] Using bot conversation routing (channel: ${stableChannelId.slice(0, 12)}..., bot: ${botId})`);
+
+          // For Mezon bots, default to ACP (Claude) if no model configured
+          const conversationType = model.platform ? detectConversationType(model) : 'acp';
+
+          // ConversationService will automatically inject assistantId from bot config
+          result = await ConversationService.getOrCreateBotConversation(stableChannelId, botId, {
+            type: conversationType,
             model,
             name: conversationName,
             extra: {
-              workspace: getSystemDir().workDir,
+              workspace: '', // Empty string to create unique temp workspace (claude-temp-timestamp)
+              defaultFiles: [],
+              backend: conversationType === 'acp' ? 'claude' : undefined,
+              cliPath: conversationType === 'acp' ? 'claude' : undefined,
+              agentName: conversationType === 'acp' ? 'Claude Code' : undefined,
+              customWorkspace: false,
             },
           });
         } else {
@@ -695,10 +709,12 @@ export class ActionExecutor {
     if (pluginId) {
       try {
         const bots = await ProcessConfig.get('mezon.bots');
+        console.log('[ActionExecutor] mezon.bots config:', JSON.stringify(bots, null, 2));
         if (bots && Array.isArray(bots)) {
           // Extract bot UUID from plugin ID (format: mezon_<uuid>)
           const botUuid = pluginId.replace(/^mezon_/, '');
           const botConfig = bots.find((b) => b.id === botUuid);
+          console.log('[ActionExecutor] Found bot config:', JSON.stringify(botConfig, null, 2));
           if (botConfig?.defaultModel?.id && botConfig.defaultModel.useModel) {
             const providers = await ProcessConfig.get('model.config');
             if (providers && Array.isArray(providers)) {
@@ -714,6 +730,18 @@ export class ActionExecutor {
       }
     }
     // Fallback to default model
+    // For Mezon bots without configured model, return a minimal Claude ACP model config
+    if (pluginId?.startsWith('mezon_')) {
+      return {
+        id: 'acp_default',
+        platform: 'anthropic',
+        name: 'Claude (ACP)',
+        baseUrl: '',
+        apiKey: '',
+        model: [],
+        useModel: 'claude-sonnet-4.5',
+      } as TProviderWithModel;
+    }
     return getTelegramDefaultModel();
   }
 

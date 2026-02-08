@@ -87,11 +87,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
           </button>
         )}
       </div>
-      {layout ? (
-        <ModeTabs activeMode={layout.appMode} onChange={layout.setAppMode} />
-      ) : (
-        <div className='app-titlebar__brand'>{appTitle}</div>
-      )}
+      {layout ? <ModeTabs activeMode={layout.appMode} onChange={layout.setAppMode} /> : <div className='app-titlebar__brand'>{appTitle}</div>}
       <div className='app-titlebar__toolbar'>
         {showWorkspaceButton && (
           <button type='button' className='app-titlebar__button' onClick={handleWorkspaceToggle} aria-label={workspaceTooltip}>

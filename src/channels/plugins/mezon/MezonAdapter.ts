@@ -144,6 +144,12 @@ export const MEZON_MESSAGE_LIMIT = 4000;
  * Convert unified outgoing message to Mezon ChannelMessageContent
  */
 export function toMezonSendParams(message: IUnifiedOutgoingMessage): ChannelMessageContent {
+  // Guard against undefined/null message or text
+  if (!message || typeof message !== 'object') {
+    console.warn('[MezonAdapter] toMezonSendParams received invalid message:', message);
+    return { t: '' };
+  }
+
   return {
     t: message.text || '',
   };
@@ -153,6 +159,12 @@ export function toMezonSendParams(message: IUnifiedOutgoingMessage): ChannelMess
  * Split long text into chunks that fit Mezon's message limit
  */
 export function splitMessage(text: string, maxLength: number = MEZON_MESSAGE_LIMIT): string[] {
+  // Guard against undefined/null text
+  if (!text || typeof text !== 'string') {
+    console.warn('[MezonAdapter] splitMessage received invalid text:', text);
+    return [''];
+  }
+
   if (text.length <= maxLength) {
     return [text];
   }

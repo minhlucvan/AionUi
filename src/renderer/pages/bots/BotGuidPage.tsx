@@ -55,6 +55,7 @@ const BotGuidPage: React.FC = () => {
           backend: 'claude',
           cliPath: claudeAgent.cliPath,
           agentName: claudeAgent.name,
+          presetAssistantId: botContext?.assistantId,
           ...(botContext?.botId && { botId: botContext.botId }),
         },
       });

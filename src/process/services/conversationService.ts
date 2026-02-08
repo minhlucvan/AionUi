@@ -232,13 +232,31 @@ export class ConversationService {
       return { success: true, conversation: existingConv.data };
     }
 
-    // Create new conversation with externalChannelId and botId in extra
+    // Look up bot config to automatically inject assistantId for workspace template
+    let assistantId: string | undefined;
+    try {
+      const { ProcessConfig } = await import('../initStorage');
+      const bots = await ProcessConfig.get('mezon.bots');
+      if (bots && Array.isArray(bots)) {
+        const bot = bots.find((b: { id: string }) => b.id === botId);
+        if (bot?.assistantId) {
+          assistantId = bot.assistantId;
+          console.log(`[ConversationService] Auto-injecting assistantId from bot config: ${assistantId}`);
+        }
+      }
+    } catch (error) {
+      console.warn(`[ConversationService] Failed to look up bot assistantId:`, error);
+    }
+
+    // Create new conversation with externalChannelId, botId, and auto-injected assistantId
     const conversationParams: ICreateConversationOptions = {
       ...params,
       extra: {
         ...params.extra,
         externalChannelId,
         botId,
+        // Auto-inject presetAssistantId from bot config (enables workspace template copy)
+        presetAssistantId: assistantId || params.extra.presetAssistantId,
       },
     };
 

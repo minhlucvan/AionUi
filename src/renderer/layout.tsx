@@ -62,7 +62,7 @@ const Layout: React.FC<{
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   const location = useLocation();
   const navigate = useNavigate();
-  const workspaceAvailable = location.pathname.startsWith('/conversation/');
+  const workspaceAvailable = location.pathname.startsWith('/conversation/') || location.pathname.includes('/conversation/');
   const collapsedRef = useRef(collapsed);
   const lastChatPathRef = useRef('/guid');
 

@@ -1,4 +1,5 @@
 import { AcpAgent } from '@/agent/acp';
+import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chatLib';
 import { transformMessage } from '@/common/chatLib';
@@ -163,6 +164,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           // 在发送到 UI 之前过滤流式内容中的 think 标签
           const filteredMessage = this.filterThinkTagsFromMessage(message as IResponseMessage);
           ipcBridge.acpConversation.responseStream.emit(filteredMessage);
+          channelEventBus.emitAgentMessage(this.conversation_id, filteredMessage);
         },
         onSignalEvent: async (v) => {
           // 仅发送信号到前端，不更新消息列表
@@ -212,6 +214,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
                 data: sysMsg,
               };
               ipcBridge.acpConversation.responseStream.emit(systemMessage);
+              channelEventBus.emitAgentMessage(this.conversation_id, systemMessage);
             });
             // Send collected responses back to AI agent so it can continue
             if (collectedResponses.length > 0 && this.agent) {
@@ -224,6 +227,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           }
 
           ipcBridge.acpConversation.responseStream.emit(v);
+          channelEventBus.emitAgentMessage(this.conversation_id, v);
         },
       });
       return this.agent.start().then(() => this.agent);
@@ -275,6 +279,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           data: userMessage.content.content,
         };
         ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
+        channelEventBus.emitAgentMessage(this.conversation_id, userResponseMessage);
 
         const result = await this.agent.sendMessage({ ...data, content: contentToSend });
         // 首条消息发送后标记，无论是否有 presetContext
@@ -302,8 +307,9 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         addOrUpdateMessage(this.conversation_id, tMessage);
       }
 
-      // Emit to frontend for UI display only
+      // Emit to frontend for UI display
       ipcBridge.acpConversation.responseStream.emit(message);
+      channelEventBus.emitAgentMessage(this.conversation_id, message);
       return new Promise((_, reject) => {
         nextTickToLocalFinish(() => {
           reject(e);

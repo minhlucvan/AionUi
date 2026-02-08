@@ -31,11 +31,12 @@ export class MezonPlugin extends BasePlugin {
   // Track active users for status reporting
   private activeUsers: Set<string> = new Set();
 
-  // Track chat sessions by session key (thread_id or channel_id or dm_user_id)
+  // Track chat sessions by unique sessionId (includes timestamp)
   private chatSessions: Map<
     string,
     {
       sessionId: string;
+      baseKey: string; // For finding existing sessions by channel/thread/dm
       threadId?: string;
       channelId: string;
       clanId: string;
@@ -177,9 +178,9 @@ export class MezonPlugin extends BasePlugin {
 
     // Convert to array for iteration compatibility
     const entries = Array.from(this.chatSessions.entries());
-    for (const [baseKey, session] of entries) {
+    for (const [sessionId, session] of entries) {
       if (now - session.lastActivity > this.SESSION_TIMEOUT_MS) {
-        this.chatSessions.delete(baseKey);
+        this.chatSessions.delete(sessionId);
         removedCount++;
       }
     }
@@ -195,15 +196,17 @@ export class MezonPlugin extends BasePlugin {
    */
   private hasActiveSession(threadId: string | undefined, channelId: string, userId: string): boolean {
     const baseKey = threadId && threadId !== '0' ? threadId : channelId || `dm_${userId}`;
-    const session = this.chatSessions.get(baseKey);
 
-    if (session) {
-      const now = Date.now();
-      const inactive = now - session.lastActivity > this.SESSION_TIMEOUT_MS;
+    // Find session by baseKey
+    for (const session of this.chatSessions.values()) {
+      if (session.baseKey === baseKey) {
+        const now = Date.now();
+        const inactive = now - session.lastActivity > this.SESSION_TIMEOUT_MS;
 
-      if (!inactive) {
-        console.log(`[MezonPlugin] ✓ Active session found: ${session.sessionId.slice(0, 20)}... (last activity: ${Math.floor((now - session.lastActivity) / 1000)}s ago)`);
-        return true;
+        if (!inactive) {
+          console.log(`[MezonPlugin] ✓ Active session found: ${session.sessionId.slice(0, 20)}... (last activity: ${Math.floor((now - session.lastActivity) / 1000)}s ago)`);
+          return true;
+        }
       }
     }
 
@@ -224,6 +227,7 @@ export class MezonPlugin extends BasePlugin {
     userName: string
   ): {
     sessionId: string;
+    baseKey: string;
     threadId?: string;
     channelId: string;
     clanId: string;
@@ -236,8 +240,14 @@ export class MezonPlugin extends BasePlugin {
     // Base key: threadId if exists, otherwise channelId, otherwise DM with userId
     const baseKey = threadId && threadId !== '0' ? threadId : channelId || `dm_${userId}`;
 
-    // Look for existing active session for this channel/thread
-    const existingSession = this.chatSessions.get(baseKey);
+    // Look for existing active session for this channel/thread by baseKey
+    let existingSession: any = null;
+    for (const session of this.chatSessions.values()) {
+      if (session.baseKey === baseKey) {
+        existingSession = session;
+        break;
+      }
+    }
 
     // If session exists and is still active (within timeout), reuse it
     if (existingSession) {
@@ -252,7 +262,7 @@ export class MezonPlugin extends BasePlugin {
       } else {
         // Session expired, remove it and create new one below
         console.log(`[MezonPlugin] Session expired: ${existingSession.sessionId.slice(0, 12)}...`);
-        this.chatSessions.delete(baseKey);
+        this.chatSessions.delete(existingSession.sessionId);
       }
     }
 
@@ -261,6 +271,7 @@ export class MezonPlugin extends BasePlugin {
     const uniqueSessionId = `${baseKey}_${Date.now()}`;
     const session = {
       sessionId: uniqueSessionId,
+      baseKey,
       threadId: threadId && threadId !== '0' ? threadId : undefined,
       channelId,
       clanId,
@@ -270,7 +281,8 @@ export class MezonPlugin extends BasePlugin {
       createdAt: Date.now(),
       lastActivity: Date.now(),
     };
-    this.chatSessions.set(baseKey, session);
+    // Store with sessionId as key (not baseKey!)
+    this.chatSessions.set(uniqueSessionId, session);
     console.log(`[MezonPlugin] New chat session: ${uniqueSessionId.slice(0, 20)}... (${userName})`);
 
     return session;
@@ -294,6 +306,17 @@ export class MezonPlugin extends BasePlugin {
     // Look up session context to determine how to send
     const session = this.chatSessions.get(chatId);
 
+    // Debug logging for session lookup
+    console.log(`[MezonPlugin] sendMessage: chatId=${chatId}, session found=${!!session}`);
+    if (!session) {
+      console.warn(`[MezonPlugin] No session found for chatId=${chatId}, available sessions:`, Array.from(this.chatSessions.keys()));
+    }
+
+    // Validate required parameters before sending
+    if (!session?.clanId || !session?.channelId) {
+      throw new Error(`Missing required message parameters: clan_id=${session?.clanId}, channel_id=${session?.channelId}`);
+    }
+
     // Periodically cleanup inactive sessions (every 50 messages)
     if (this.chatSessions.size > 0 && this.chatSessions.size % 50 === 0) {
       this.cleanupInactiveSessions();
@@ -306,17 +329,25 @@ export class MezonPlugin extends BasePlugin {
 
         // Determine message parameters based on session context
         const messageParams: any = {
-          clan_id: session?.clanId || '',
-          channel_id: session?.channelId || chatId,
-          mode: session?.channelId ? 2 : 1, // mode: 2 for channels/threads, 1 for DMs
-          is_public: !session?.threadId, // Public for channels, private for threads
+          clan_id: session.clanId,
+          channel_id: session.channelId,
+          mode: 2, // mode: 2 for channels/threads, 1 for DMs
+          is_public: !session.threadId, // Public for channels, private for threads
           content: chunkContent,
         };
 
         // Add topic_id for thread messages
-        if (session?.threadId) {
+        if (session.threadId) {
           messageParams.topic_id = session.threadId;
         }
+
+        console.log(`[MezonPlugin] Sending message chunk ${i + 1}/${chunks.length} with params:`, {
+          clan_id: messageParams.clan_id,
+          channel_id: messageParams.channel_id,
+          mode: messageParams.mode,
+          is_public: messageParams.is_public,
+          topic_id: messageParams.topic_id,
+        });
 
         const result = await socketMgr.writeChatMessage(messageParams);
         lastMessageId = result?.message_id || '';
@@ -346,20 +377,25 @@ export class MezonPlugin extends BasePlugin {
     // Look up session context
     const session = this.chatSessions.get(chatId);
 
+    if (!session) {
+      console.warn(`[MezonPlugin] editMessage: No session found for chatId=${chatId}`);
+      throw new Error(`No session found for chatId=${chatId}`);
+    }
+
     try {
       const socketMgr = (this.client as any).socketManager;
 
       const updateParams: any = {
-        clan_id: session?.clanId || '',
-        channel_id: session?.channelId || chatId,
-        mode: session?.channelId ? 2 : 1,
-        is_public: !session?.threadId,
+        clan_id: session.clanId,
+        channel_id: session.channelId,
+        mode: 2,
+        is_public: !session.threadId,
         message_id: messageId,
         content: { t: truncatedText },
       };
 
       // Add topic_id for thread messages
-      if (session?.threadId) {
+      if (session.threadId) {
         updateParams.topic_id = session.threadId;
       }
 

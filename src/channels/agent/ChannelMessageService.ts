@@ -174,9 +174,12 @@ export class ChannelMessageService {
 
       // 发送消息
       // Send message
+      // Map 'input' to 'content' for ACP agents (which expect 'content' parameter)
+      // Gemini and other agents use 'input', but this works for all
       task
         .sendMessage({
           input: message,
+          content: message, // For ACP agent compatibility
           msg_id: msgId,
         })
         .catch((error: Error) => {

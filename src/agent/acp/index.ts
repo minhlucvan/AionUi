@@ -267,6 +267,18 @@ export class AcpAgent {
         }
       }
       this.adapter.resetMessageTracking();
+
+      // Guard against undefined/null content
+      if (!data.content || typeof data.content !== 'string') {
+        const errorMsg = `Invalid message content: ${data.content}`;
+        console.error(`[ACP] ${errorMsg}`);
+        this.emitErrorMessage(errorMsg);
+        return {
+          success: false,
+          error: createAcpError(AcpErrorType.UNKNOWN, errorMsg, false),
+        };
+      }
+
       let processedContent = data.content;
 
       // Add @ prefix to ALL uploaded files (including images) with FULL PATH
