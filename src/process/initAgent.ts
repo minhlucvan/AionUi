@@ -38,13 +38,15 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   }
 
   // Copy workspace template if presetAssistantId is provided (auto-resolve from assistant config)
+  let defaultAgent: string | undefined;
   if (presetAssistantId) {
     console.log(`[AionUi] Copying workspace template from assistant: ${presetAssistantId}`);
-    const copySuccess = await copyWorkspaceTemplate(presetAssistantId, workspace);
-    if (!copySuccess) {
+    const copyResult = await copyWorkspaceTemplate(presetAssistantId, workspace);
+    if (!copyResult.success) {
       console.warn(`[AionUi] Failed to copy workspace template for assistant: ${presetAssistantId}`);
     } else {
       console.log(`[AionUi] Successfully copied workspace template to: ${workspace}`);
+      defaultAgent = copyResult.defaultAgent;
     }
   }
 
@@ -83,7 +85,7 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     }
   }
 
-  return { workspace, customWorkspace };
+  return { workspace, customWorkspace, defaultAgent };
 };
 
 export const createGeminiAgent = async (model: TProviderWithModel, workspace?: string, defaultFiles?: string[], webSearchEngine?: 'google' | 'default', customWorkspace?: boolean, contextFileName?: string, presetRules?: string, enabledSkills?: string[], presetAssistantId?: string): Promise<TChatConversation> => {
@@ -119,7 +121,7 @@ export const createGeminiAgent = async (model: TProviderWithModel, workspace?: s
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   // Use presetAssistantId as workspace template source (resolves automatically)
-  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
+  const { workspace, customWorkspace, defaultAgent } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
   return {
     type: 'acp',
     extra: {
@@ -135,6 +137,9 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       // 预设助手 ID，用于在会话面板显示助手名称和头像，同时用于复制工作空间模板
       // Preset assistant ID for displaying name and avatar in conversation panel, also used for workspace template
       presetAssistantId: extra.presetAssistantId,
+      // Default agent from assistant.json, auto-injected as @agent prefix in messages
+      // 来自 assistant.json 的默认 agent，自动注入为消息中的 @agent 前缀
+      defaultAgent,
     },
     createTime: Date.now(),
     modifyTime: Date.now(),

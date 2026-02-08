@@ -31,6 +31,8 @@ export interface AssistantMetadata {
   tags?: string[];
   /** Preset agent type (claude, gemini, codex) */
   presetAgentType?: 'claude' | 'gemini' | 'codex';
+  /** Default agent to auto-invoke for every message (e.g., "game-developer") / 每条消息自动调用的默认 agent */
+  defaultAgent?: string;
   /** Additional metadata */
   metadata?: Record<string, unknown>;
 }
