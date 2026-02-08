@@ -8,7 +8,7 @@ import type { IConfirmation } from '@/common/chatLib';
 import { bridge } from '@office-ai/platform';
 import type { OpenDialogOptions } from 'electron';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
-import type { AcpBackend, PresetAgentType } from '../types/acpTypes';
+import type { AcpBackend, AcpBackendAll, PresetAgentType } from '../types/acpTypes';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel } from './storage';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult } from './updateTypes';
@@ -341,8 +341,6 @@ export const cron = {
 // Cron job types for IPC
 export type ICronSchedule = { kind: 'at'; atMs: number; description: string } | { kind: 'every'; everyMs: number; description: string } | { kind: 'cron'; expr: string; tz?: string; description: string };
 
-export type ICronAgentType = 'gemini' | 'claude' | 'codex' | 'opencode' | 'qwen' | 'goose' | 'custom';
-
 export interface ICronJob {
   id: string;
   name: string;
@@ -352,7 +350,7 @@ export interface ICronJob {
   metadata: {
     conversationId: string;
     conversationTitle?: string;
-    agentType: ICronAgentType;
+    agentType: AcpBackendAll;
     createdBy: 'user' | 'agent';
     createdAt: number;
     updatedAt: number;
@@ -374,7 +372,7 @@ export interface ICreateCronJobParams {
   message: string;
   conversationId: string;
   conversationTitle?: string;
-  agentType: ICronAgentType;
+  agentType: AcpBackendAll;
   createdBy: 'user' | 'agent';
 }
 
