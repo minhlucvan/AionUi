@@ -11,11 +11,12 @@ import type { HookContext, HookEvent, HookResult } from './types';
 /**
  * Run hooks for a given event by executing JS files from the workspace hooks folder.
  *
- * Hook files are loaded from: {workspace}/.aionui/hooks/{event}.js
- * Or from a directory: {workspace}/.aionui/hooks/{event}/*.js
+ * Hook files are loaded from: {workspace}/hooks/{event}.js
+ * Or from a directory: {workspace}/hooks/{event}/*.js
  *
- * Uses .aionui/hooks/ (not .claude/hooks/) so hooks work across all agent types
- * (Claude, Gemini, Codex, OpenClaw, etc.)
+ * Hooks are defined at the assistant level (assistant/{id}/hooks/) and copied
+ * into the workspace during template copy. This keeps hooks separate from
+ * CLI-specific config (.claude/, etc.) and works across all agent types.
  *
  * Each hook file should export a function:
  *   module.exports = function(context) { return { content: ... }; };
@@ -29,7 +30,7 @@ export async function runHooks(event: HookEvent, content: string, workspace?: st
   const defaultResult: HookResult = { content };
   if (!workspace) return defaultResult;
 
-  const hooksDir = path.join(workspace, '.aionui', 'hooks');
+  const hooksDir = path.join(workspace, 'hooks');
   if (!fs.existsSync(hooksDir)) return defaultResult;
 
   // Collect hook files: single file or directory of files

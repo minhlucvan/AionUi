@@ -151,6 +151,14 @@ export async function copyWorkspaceTemplate(assistantId: string, targetWorkspace
       mergeMcpConfig(mcpTemplatePath, mcpTargetPath);
     }
 
+    // Copy assistant-level hooks/ folder into workspace (hooks are defined outside workspace)
+    const hooksSourcePath = path.join(assistantPath, 'hooks');
+    if (fs.existsSync(hooksSourcePath)) {
+      const hooksTargetPath = path.join(targetWorkspace, 'hooks');
+      await copyDirectoryRecursively(hooksSourcePath, hooksTargetPath, { overwrite: false });
+      console.log(`[WorkspaceTemplate] Copied hooks to workspace`);
+    }
+
     return { success: true, defaultAgent: config.defaultAgent };
   } catch (error) {
     console.error(`[WorkspaceTemplate] Failed to copy workspace template:`, error);

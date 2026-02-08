@@ -7,8 +7,9 @@
 /**
  * Assistant Hooks - Simple JS file-based hooks
  *
- * Hooks are JS files placed in the assistant workspace:
- *   .aionui/hooks/on-send-message.js
+ * Hooks are JS files defined at the assistant level (assistant/{id}/hooks/)
+ * and copied into the workspace at runtime:
+ *   hooks/on-send-message.js
  *
  * Each JS file exports a function that receives a context and returns a result:
  *   module.exports = function(context) {

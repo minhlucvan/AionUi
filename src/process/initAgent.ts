@@ -133,7 +133,7 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     }
   }
 
-  // Run on-conversation-init hooks from workspace .aionui/hooks/ folder
+  // Run on-conversation-init hooks from workspace hooks/ folder
   await runHooks('on-conversation-init', '', workspace);
 
   return { workspace, customWorkspace, defaultAgent };
