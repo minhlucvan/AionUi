@@ -5,7 +5,7 @@
  */
 
 import { Button, Collapse, Drawer, Empty, Input, Message, Modal, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
-import { Close, Download, FolderOpen, Search, SettingOne, UploadOne } from '@icon-park/react';
+import { Close, Download, SettingOne, UploadOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -38,25 +38,12 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
 
   // Modal/Drawer states
   const [browseVisible, setBrowseVisible] = useState(false);
-  const [importVisible, setImportVisible] = useState(false);
   const [detailSkill, setDetailSkill] = useState<SkillInfo | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const [deleteSkillName, setDeleteSkillName] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [drawerWidth, setDrawerWidth] = useState(500);
-
-  // Import modal state
-  const [skillPath, setSkillPath] = useState('');
-  const [commonPaths, setCommonPaths] = useState<Array<{ name: string; path: string }>>([]);
-  const [importing, setImporting] = useState(false);
-
-  // Install from URL modal state
-  const [urlInstallVisible, setUrlInstallVisible] = useState(false);
-  const [skillUrl, setSkillUrl] = useState('');
-  const [urlInstalling, setUrlInstalling] = useState(false);
-
-  // API key state
-  const [apiKey, setApiKey] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     const updateDrawerWidth = () => {
@@ -69,29 +56,13 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
     return () => window.removeEventListener('resize', updateDrawerWidth);
   }, []);
 
-  // Load disabled skills and API key from storage
+  // Load disabled skills from storage
   useEffect(() => {
     void (async () => {
-      const [savedDisabledSkills, savedApiKey] = await Promise.all([ConfigStorage.get('skills.disabledSkills'), ConfigStorage.get('skillsmp.apiKey')]);
+      const savedDisabledSkills = await ConfigStorage.get('skills.disabledSkills');
       if (savedDisabledSkills) setDisabledSkills(savedDisabledSkills);
-      if (savedApiKey) setApiKey(savedApiKey);
     })();
   }, []);
-
-  useEffect(() => {
-    if (importVisible) {
-      void (async () => {
-        try {
-          const response = await ipcBridge.fs.detectCommonSkillPaths.invoke();
-          if (response.success && response.data) {
-            setCommonPaths(response.data);
-          }
-        } catch {
-          // ignore
-        }
-      })();
-    }
-  }, [importVisible]);
 
   const loadSkills = useCallback(async () => {
     setLoading(true);
@@ -145,87 +116,40 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
     }
   }, [deleteSkillName, message, t, loadSkills]);
 
-  const handleImport = useCallback(async () => {
-    const paths = skillPath
-      .trim()
-      .split(',')
-      .map((p) => p.trim())
-      .filter(Boolean);
-    if (paths.length === 0) {
-      message.warning(t('settings.pleaseSelectSkillPath', { defaultValue: 'Please select a skill folder path' }));
-      return;
-    }
-
-    setImporting(true);
+  const handleUpload = useCallback(async () => {
     try {
-      let totalAdded = 0;
-      let totalSkipped = 0;
+      const result = await ipcBridge.dialog.showOpen.invoke({
+        properties: ['openFile'],
+        filters: [{ name: 'Zip Files', extensions: ['zip'] }],
+      });
 
-      for (const p of paths) {
-        const scanResult = await ipcBridge.fs.scanForSkills.invoke({ folderPath: p });
-        if (!scanResult.success || !scanResult.data || scanResult.data.length === 0) continue;
+      if (!result || result.length === 0) return;
 
-        for (const skill of scanResult.data) {
-          const importResult = await ipcBridge.fs.importSkill.invoke({ skillPath: skill.path });
-          if (importResult.success) totalAdded++;
-          else totalSkipped++;
-        }
-      }
+      const zipPath = result[0];
+      setUploading(true);
 
-      if (totalAdded > 0) {
-        const skippedText = totalSkipped > 0 ? ` (${totalSkipped} skipped)` : '';
-        message.success(t('settings.skillsImported', { count: totalAdded, skipped: skippedText, defaultValue: `${totalAdded} skills imported${skippedText}` }));
-        setSkillPath('');
-        void loadSkills();
-        setImportVisible(false);
-      } else if (totalSkipped > 0) {
-        message.warning(t('settings.allSkillsExist', { defaultValue: 'All found skills already exist' }));
-      } else {
-        message.warning(t('settings.noSkillsFound', { defaultValue: 'No valid skills found in the selected path(s)' }));
-      }
-    } catch (error) {
-      console.error('Failed to import skills:', error);
-      message.error(t('settings.skillScanFailed', { defaultValue: 'Failed to scan skills' }));
-    } finally {
-      setImporting(false);
-    }
-  }, [skillPath, message, t, loadSkills]);
-
-  const handleSaveApiKey = useCallback(() => {
-    void ConfigStorage.set('skillsmp.apiKey', apiKey.trim());
-    message.success(t('settings.skillsmpApiKeySaved', { defaultValue: 'SkillsMP API key saved' }));
-  }, [apiKey, message, t]);
-
-  const handleInstallFromUrl = useCallback(async () => {
-    const trimmed = skillUrl.trim();
-    if (!trimmed) {
-      message.warning(t('settings.skillUrlEmpty', { defaultValue: 'Please enter a skill URL or shorthand' }));
-      return;
-    }
-
-    setUrlInstalling(true);
-    try {
-      const response = await ipcBridge.fs.installSkillFromUrl.invoke({ input: trimmed });
+      const response = await ipcBridge.fs.importSkillZip.invoke({ zipPath });
       if (response.success && response.data) {
+        const { skillNames, skipped } = response.data;
+        const skippedText = skipped > 0 ? ` (${skipped} skipped)` : '';
         message.success(
-          t('settings.skillUrlInstallSuccess', {
-            name: response.data.skillName,
-            defaultValue: `Skill "${response.data.skillName}" installed successfully`,
+          t('settings.skillZipImportSuccess', {
+            count: skillNames.length,
+            skipped: skippedText,
+            defaultValue: `${skillNames.length} skill(s) imported${skippedText}`,
           })
         );
-        setSkillUrl('');
-        setUrlInstallVisible(false);
         void loadSkills();
       } else {
-        message.error(response.msg || t('settings.skillUrlInstallFailed', { defaultValue: 'Failed to install skill from URL' }));
+        message.error(response.msg || t('settings.skillZipImportFailed', { defaultValue: 'Failed to import skills from zip' }));
       }
     } catch (error) {
-      console.error('Failed to install skill from URL:', error);
-      message.error(t('settings.skillUrlInstallFailed', { defaultValue: 'Failed to install skill from URL' }));
+      console.error('Failed to upload skill zip:', error);
+      message.error(t('settings.skillZipImportFailed', { defaultValue: 'Failed to import skills from zip' }));
     } finally {
-      setUrlInstalling(false);
+      setUploading(false);
     }
-  }, [skillUrl, message, t, loadSkills]);
+  }, [message, t, loadSkills]);
 
   const handleViewDetail = useCallback((skill: SkillInfo) => {
     setDetailSkill(skill);
@@ -252,22 +176,11 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
               type='text'
               size='small'
               style={{ color: 'var(--text-primary)' }}
-              icon={<Download size={14} fill='currentColor' />}
-              onClick={(e) => {
-                e.stopPropagation();
-                setUrlInstallVisible(true);
-              }}
-            >
-              {t('settings.installFromUrl', { defaultValue: 'Install from URL' })}
-            </Button>
-            <Button
-              type='text'
-              size='small'
-              style={{ color: 'var(--text-primary)' }}
               icon={<UploadOne size={14} fill='currentColor' />}
+              loading={uploading}
               onClick={(e) => {
                 e.stopPropagation();
-                setImportVisible(true);
+                void handleUpload();
               }}
             >
               {t('settings.uploadSkill', { defaultValue: 'Upload' })}
@@ -276,13 +189,13 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
               type='text'
               size='small'
               style={{ color: 'var(--text-primary)' }}
-              icon={<Search size={14} fill='currentColor' />}
+              icon={<Download size={14} fill='currentColor' />}
               onClick={(e) => {
                 e.stopPropagation();
                 setBrowseVisible(true);
               }}
             >
-              {t('settings.browseSkillsMP', { defaultValue: 'Browse SkillsMP' })}
+              {t('settings.installFromSkillsSh', { defaultValue: 'Install from skills.sh' })}
             </Button>
           </div>
         }
@@ -347,13 +260,13 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
               </div>
             ) : (
               <div className='text-center py-20px'>
-                <Empty description={t('settings.skillsNoneInstalled', { defaultValue: 'No skills installed yet. Browse SkillsMP or import from a local folder.' })} />
+                <Empty description={t('settings.skillsNoneInstalled', { defaultValue: 'No skills installed yet. Browse SkillsMP or upload a skill zip file.' })} />
                 <div className='mt-16px flex items-center justify-center gap-12px'>
-                  <Button type='outline' size='small' icon={<UploadOne size={14} />} onClick={() => setImportVisible(true)}>
+                  <Button type='outline' size='small' icon={<UploadOne size={14} />} loading={uploading} onClick={() => void handleUpload()}>
                     {t('settings.uploadSkill', { defaultValue: 'Upload' })}
                   </Button>
-                  <Button type='primary' size='small' icon={<Search size={14} />} onClick={() => setBrowseVisible(true)}>
-                    {t('settings.browseSkillsMP', { defaultValue: 'Browse SkillsMP' })}
+                  <Button type='primary' size='small' icon={<Download size={14} />} onClick={() => setBrowseVisible(true)}>
+                    {t('settings.installFromSkillsSh', { defaultValue: 'Install from skills.sh' })}
                   </Button>
                 </div>
               </div>
@@ -365,31 +278,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
       {/* ================================================================ */}
       {/* SkillsMP API Key Collapse.Item */}
       {/* ================================================================ */}
-      <Collapse.Item
-        header={
-          <div className='flex items-center justify-between w-full'>
-            <span>{t('settings.skillsmpApiKeyTitle', { defaultValue: 'SkillsMP API Key' })}</span>
-          </div>
-        }
-        name='skillsmp-api-key'
-      >
-        <div className='py-2'>
-          <div className='bg-fill-2 rounded-2xl p-20px'>
-            <div className='flex items-center gap-8px mb-8px'>
-              <div className='text-12px text-t-secondary'>{t('settings.skillsmpApiKeyDesc', { defaultValue: 'Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.' })}</div>
-              <span className='text-11px text-primary cursor-pointer hover:underline flex-shrink-0' onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com/docs/api')}>
-                {t('settings.skillsmpGetKey', { defaultValue: 'Get API key' })}
-              </span>
-            </div>
-            <div className='flex items-center gap-8px'>
-              <Input.Password value={apiKey} onChange={setApiKey} placeholder='sk_live_...' className='flex-1' />
-              <Button type='primary' onClick={handleSaveApiKey}>
-                {t('common.save', { defaultValue: 'Save' })}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Collapse.Item>
+      <SkillsmpApiKeySection message={message} />
 
       {/* ================================================================ */}
       {/* Skill Detail Drawer */}
@@ -481,153 +370,7 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
       </Drawer>
 
       {/* ================================================================ */}
-      {/* Import Skill Modal */}
-      {/* ================================================================ */}
-      <Modal
-        visible={importVisible}
-        onCancel={() => {
-          setSkillPath('');
-          setImportVisible(false);
-        }}
-        title={t('settings.skillsImportTitle', { defaultValue: 'Import from Folder' })}
-        okText={t('settings.skillsImportBtn', { defaultValue: 'Import' })}
-        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
-        onOk={() => void handleImport()}
-        okButtonProps={{ loading: importing }}
-        className='w-[90vw] md:w-[500px]'
-        wrapStyle={{ zIndex: 2500 }}
-        maskStyle={{ zIndex: 2490 }}
-      >
-        <div className='space-y-16px'>
-          {commonPaths.length > 0 && (
-            <div>
-              <div className='text-12px text-t-secondary mb-8px'>{t('settings.quickScan', { defaultValue: 'Quick Scan Common Paths' })}</div>
-              <div className='flex flex-wrap gap-8px'>
-                {commonPaths.map((cp) => (
-                  <Button
-                    key={cp.path}
-                    size='small'
-                    type='secondary'
-                    className='rounded-[100px] bg-fill-2 hover:bg-fill-3'
-                    onClick={() => {
-                      if (skillPath.includes(cp.path)) return;
-                      setSkillPath(skillPath ? `${skillPath}, ${cp.path}` : cp.path);
-                    }}
-                  >
-                    {cp.name}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className='space-y-12px'>
-            <Typography.Text>{t('settings.skillFolderPath', { defaultValue: 'Skill Folder Path' })}</Typography.Text>
-            <div className='flex items-center gap-8px'>
-              <Input value={skillPath} onChange={(value) => setSkillPath(value)} placeholder={t('settings.skillPathPlaceholder', { defaultValue: 'Enter or browse skill folder path' })} className='flex-1' />
-              <Button
-                type='outline'
-                icon={<FolderOpen size={16} />}
-                onClick={async () => {
-                  try {
-                    const result = await ipcBridge.dialog.showOpen.invoke({
-                      properties: ['openDirectory', 'multiSelections'],
-                    });
-                    if (result && result.length > 0) {
-                      setSkillPath(result.join(', '));
-                    }
-                  } catch (error) {
-                    console.error('Failed to open directory dialog:', error);
-                  }
-                }}
-              >
-                {t('common.browse', { defaultValue: 'Browse' })}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Modal>
-
-      {/* ================================================================ */}
-      {/* Install from URL Modal (skills.sh / GitHub / shorthand) */}
-      {/* ================================================================ */}
-      <Modal
-        visible={urlInstallVisible}
-        onCancel={() => {
-          setSkillUrl('');
-          setUrlInstallVisible(false);
-        }}
-        title={t('settings.skillUrlInstallTitle', { defaultValue: 'Install from URL' })}
-        okText={t('settings.skillUrlInstallBtn', { defaultValue: 'Install' })}
-        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
-        onOk={() => void handleInstallFromUrl()}
-        okButtonProps={{ loading: urlInstalling, disabled: !skillUrl.trim() }}
-        className='w-[90vw] md:w-[520px]'
-        wrapStyle={{ zIndex: 2500 }}
-        maskStyle={{ zIndex: 2490 }}
-      >
-        <div className='space-y-16px'>
-          <div className='space-y-12px'>
-            <Typography.Text>{t('settings.skillUrlLabel', { defaultValue: 'Skill URL or shorthand' })}</Typography.Text>
-            <Input
-              value={skillUrl}
-              onChange={(value) => setSkillUrl(value)}
-              placeholder='owner/repo, skills.sh/owner/repo/skill, or GitHub URL'
-              onPressEnter={() => {
-                if (skillUrl.trim()) void handleInstallFromUrl();
-              }}
-            />
-          </div>
-
-          {/* Collapsible Installation Guide */}
-          <Collapse bordered={false} style={{ background: 'var(--color-fill-2)', borderRadius: 8 }}>
-            <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.skillGuideTitle', { defaultValue: 'How to install a skill' })}</span>} name='install-guide'>
-              <div className='space-y-14px text-13px text-t-secondary'>
-                {/* Step 1: Find a skill */}
-                <div>
-                  <div className='font-medium text-t-primary mb-6px'>{t('settings.skillGuideStep1Title', { defaultValue: '1. Find a skill' })}</div>
-                  <div className='text-12px mb-6px'>{t('settings.skillGuideStep1Desc', { defaultValue: 'Browse skills on skills.sh or any GitHub repository that contains SKILL.md files.' })}</div>
-                  <span className='text-12px text-primary cursor-pointer hover:underline' onClick={() => void ipcBridge.shell.openExternal.invoke('https://skills.sh')}>
-                    skills.sh
-                  </span>
-                </div>
-
-                {/* Step 2: Copy the identifier */}
-                <div>
-                  <div className='font-medium text-t-primary mb-6px'>{t('settings.skillGuideStep2Title', { defaultValue: '2. Copy the identifier' })}</div>
-                  <div className='text-12px mb-8px'>{t('settings.skillGuideStep2Desc', { defaultValue: 'Paste any of these formats into the input above:' })}</div>
-                  <div className='space-y-6px'>
-                    {[
-                      { label: t('settings.skillGuideFormatShorthand', { defaultValue: 'Shorthand' }), example: 'vercel-labs/agent-skills' },
-                      { label: t('settings.skillGuideFormatSkillsSh', { defaultValue: 'skills.sh URL' }), example: 'https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices' },
-                      { label: t('settings.skillGuideFormatGitHub', { defaultValue: 'GitHub URL' }), example: 'https://github.com/owner/repo --skill skill-name' },
-                      { label: t('settings.skillGuideFormatNpx', { defaultValue: 'npx command' }), example: 'npx skills add openclaw/openclaw' },
-                    ].map(({ label, example }) => (
-                      <div key={example} className='flex items-start gap-8px'>
-                        <Tag size='small' color='arcoblue' className='text-11px flex-shrink-0 mt-1px'>
-                          {label}
-                        </Tag>
-                        <code className='text-12px text-t-tertiary font-mono cursor-pointer hover:text-primary transition-colors truncate' title={example} onClick={() => setSkillUrl(example)}>
-                          {example}
-                        </code>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Step 3: Install */}
-                <div>
-                  <div className='font-medium text-t-primary mb-6px'>{t('settings.skillGuideStep3Title', { defaultValue: '3. Click Install' })}</div>
-                  <div className='text-12px'>{t('settings.skillGuideStep3Desc', { defaultValue: 'The skill will be downloaded from GitHub and added to your available skills. You can enable or disable it per conversation.' })}</div>
-                </div>
-              </div>
-            </Collapse.Item>
-          </Collapse>
-        </div>
-      </Modal>
-
-      {/* ================================================================ */}
-      {/* Browse SkillsMP Modal */}
+      {/* Browse / Install Modal (unified skills.sh + SkillsMP) */}
       {/* ================================================================ */}
       <SkillBrowseModal
         visible={browseVisible}
@@ -658,6 +401,58 @@ const SkillManagement: React.FC<SkillManagementProps> = ({ message }) => {
         )}
       </Modal>
     </div>
+  );
+};
+
+// ============================================================================
+// SkillsMP API Key Section (extracted for clarity)
+// ============================================================================
+interface SkillsmpApiKeySectionProps {
+  message: MessageInstance;
+}
+
+const SkillsmpApiKeySection: React.FC<SkillsmpApiKeySectionProps> = ({ message }) => {
+  const { t } = useTranslation();
+  const [apiKey, setApiKey] = useState('');
+
+  useEffect(() => {
+    void (async () => {
+      const savedApiKey = await ConfigStorage.get('skillsmp.apiKey');
+      if (savedApiKey) setApiKey(savedApiKey);
+    })();
+  }, []);
+
+  const handleSaveApiKey = useCallback(() => {
+    void ConfigStorage.set('skillsmp.apiKey', apiKey.trim());
+    message.success(t('settings.skillsmpApiKeySaved', { defaultValue: 'SkillsMP API key saved' }));
+  }, [apiKey, message, t]);
+
+  return (
+    <Collapse.Item
+      header={
+        <div className='flex items-center justify-between w-full'>
+          <span>{t('settings.skillsmpApiKeyTitle', { defaultValue: 'SkillsMP API Key' })}</span>
+        </div>
+      }
+      name='skillsmp-api-key'
+    >
+      <div className='py-2'>
+        <div className='bg-fill-2 rounded-2xl p-20px'>
+          <div className='flex items-center gap-8px mb-8px'>
+            <div className='text-12px text-t-secondary'>{t('settings.skillsmpApiKeyDesc', { defaultValue: 'Enter your SkillsMP API key to search the skill marketplace. Get one free at skillsmp.com.' })}</div>
+            <span className='text-11px text-primary cursor-pointer hover:underline flex-shrink-0' onClick={() => void ipcBridge.shell.openExternal.invoke('https://skillsmp.com/docs/api')}>
+              {t('settings.skillsmpGetKey', { defaultValue: 'Get API key' })}
+            </span>
+          </div>
+          <div className='flex items-center gap-8px'>
+            <Input.Password value={apiKey} onChange={setApiKey} placeholder='sk_live_...' className='flex-1' />
+            <Button type='primary' onClick={handleSaveApiKey}>
+              {t('common.save', { defaultValue: 'Save' })}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Collapse.Item>
   );
 };
 
