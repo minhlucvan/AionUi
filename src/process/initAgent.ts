@@ -150,22 +150,27 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
   const { extra } = options;
   // Use presetAssistantId as workspace template source (resolves automatically)
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
+
+  // Build extra object, only including defined fields to prevent undefined values from being JSON.stringify'd
+  const conversationExtra: any = {
+    workspace: workspace,
+    customWorkspace,
+    backend: extra.backend,
+    cliPath: extra.cliPath,
+    agentName: extra.agentName,
+  };
+
+  // Only add optional fields if they have values (undefined values get stripped during JSON serialization)
+  if (extra.customAgentId !== undefined) conversationExtra.customAgentId = extra.customAgentId;
+  if (extra.presetContext !== undefined) conversationExtra.presetContext = extra.presetContext;
+  if (extra.enabledSkills !== undefined) conversationExtra.enabledSkills = extra.enabledSkills;
+  if (extra.presetAssistantId !== undefined) conversationExtra.presetAssistantId = extra.presetAssistantId;
+  if (extra.botId !== undefined) conversationExtra.botId = extra.botId;
+  if (extra.externalChannelId !== undefined) conversationExtra.externalChannelId = extra.externalChannelId;
+
   return {
-    type: 'acp',
-    extra: {
-      workspace: workspace,
-      customWorkspace,
-      backend: extra.backend,
-      cliPath: extra.cliPath,
-      agentName: extra.agentName,
-      customAgentId: extra.customAgentId, // 同时用于标识预设助手 / Also used to identify preset assistant
-      presetContext: extra.presetContext, // 智能助手的预设规则/提示词
-      // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
-      enabledSkills: extra.enabledSkills,
-      // 预设助手 ID，用于在会话面板显示助手名称和头像，同时用于复制工作空间模板
-      // Preset assistant ID for displaying name and avatar in conversation panel, also used for workspace template
-      presetAssistantId: extra.presetAssistantId,
-    },
+    type: 'acp' as const,
+    extra: conversationExtra,
     createTime: Date.now(),
     modifyTime: Date.now(),
     name: workspace,

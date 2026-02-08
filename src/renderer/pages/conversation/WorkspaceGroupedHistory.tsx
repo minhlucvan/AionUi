@@ -184,6 +184,10 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
       ipcBridge.database.getUserConversations
         .invoke({ page: 0, pageSize: 10000 })
         .then((data) => {
+          console.log('[WorkspaceGroupedHistory] Loaded conversations:', {
+            count: Array.isArray(data) ? data.length : 0,
+            data: data,
+          });
           if (data && Array.isArray(data)) {
             setConversations(data);
           } else {
@@ -257,10 +261,18 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
       // Mark conversation as read (clear unread cron execution indicator)
       markAsRead(conv.id);
 
+      // Determine navigation path based on bot context
+      const getConversationPath = (conversationId: string) => {
+        if (botId) {
+          return `/bots/${botId}/conversation/${conversationId}`;
+        }
+        return `/conversation/${conversationId}`;
+      };
+
       // 如果点击的是非自定义工作空间的会话，关闭所有tabs
       if (!customWorkspace) {
         closeAllTabs();
-        void navigate(`/conversation/${conv.id}`);
+        void navigate(getConversationPath(conv.id));
         if (onSessionClick) {
           onSessionClick();
         }
@@ -278,12 +290,12 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
 
       // 打开新会话的tab
       openTab(conv);
-      void navigate(`/conversation/${conv.id}`);
+      void navigate(getConversationPath(conv.id));
       if (onSessionClick) {
         onSessionClick();
       }
     },
-    [openTab, closeAllTabs, activeTab, navigate, onSessionClick, markAsRead]
+    [openTab, closeAllTabs, activeTab, navigate, onSessionClick, markAsRead, botId]
   );
 
   // 切换 workspace 展开/收起状态

@@ -372,6 +372,8 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       const result = db.getConversation(this.conversation_id);
       if (result.success && result.data && result.data.type === 'acp') {
         const conversation = result.data;
+        // Preserve all existing extra fields (including botId, externalChannelId, etc.)
+        // Only update acpSessionId and acpSessionUpdatedAt
         const updatedExtra = {
           ...conversation.extra,
           acpSessionId: sessionId,

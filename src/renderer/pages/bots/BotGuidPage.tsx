@@ -55,8 +55,7 @@ const BotGuidPage: React.FC = () => {
           backend: 'claude',
           cliPath: claudeAgent.cliPath,
           agentName: claudeAgent.name,
-          botId: botContext?.botId,
-          // Don't pass the Gemini assistant
+          ...(botContext?.botId && { botId: botContext.botId }),
         },
       });
 
