@@ -5,5 +5,4 @@
  */
 
 export { runHooks } from './HookRunner';
-export { buildDefaultHooks } from './builtinHooks';
-export type { AssistantHookAction, AssistantHookEvent, AssistantHooksConfig, HookResult } from './types';
+export type { HookContext, HookEvent, HookResult } from './types';

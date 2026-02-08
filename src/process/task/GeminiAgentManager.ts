@@ -12,7 +12,6 @@ import type { IResponseMessage } from '@/common/ipcBridge';
 import type { IMcpServer, TProviderWithModel } from '@/common/storage';
 import { ProcessConfig, getSkillsDir } from '@/process/initStorage';
 import { runHooks } from '@/assistant/hooks';
-import type { AssistantHooksConfig } from '@/assistant/hooks/types';
 import { buildSystemInstructions } from './agentUtils';
 import { uuid } from '@/common/utils';
 import { getProviderAuthType } from '@/common/utils/platformAuthType';
@@ -62,7 +61,6 @@ export class GeminiAgentManager extends BaseAgentManager<
   presetRules?: string;
   contextContent?: string;
   enabledSkills?: string[];
-  private assistantHooks?: AssistantHooksConfig;
   private bootstrap: Promise<void>;
 
   /** Session-level approval store for "always allow" memory */
@@ -88,8 +86,6 @@ export class GeminiAgentManager extends BaseAgentManager<
       enabledSkills?: string[];
       /** Force yolo mode (for cron jobs) / 强制 yolo 模式（用于定时任务） */
       yoloMode?: boolean;
-      /** Assistant hooks for pipeline interception / 助手 hooks 用于管道拦截 */
-      assistantHooks?: AssistantHooksConfig;
     },
     model: TProviderWithModel
   ) {
@@ -101,7 +97,6 @@ export class GeminiAgentManager extends BaseAgentManager<
     this.presetRules = data.presetRules;
     this.enabledSkills = data.enabledSkills;
     this.forceYoloMode = data.yoloMode;
-    this.assistantHooks = data.assistantHooks;
     // 向后兼容 / Backward compatible
     this.contextContent = data.contextContent || data.presetRules;
     this.bootstrap = Promise.all([ProcessConfig.get('gemini.config'), this.getImageGenerationModel(), this.getMcpServers()])
@@ -209,8 +204,8 @@ export class GeminiAgentManager extends BaseAgentManager<
   }
 
   async sendMessage(data: { input: string; msg_id: string; files?: string[] }) {
-    // Run assistant hooks (onSendMessage) / 运行助手 hooks（onSendMessage）
-    const hookResult = runHooks('onSendMessage', data.input, this.assistantHooks);
+    // Run assistant hooks from workspace .claude/hooks/ folder
+    const hookResult = await runHooks('on-send-message', data.input, this.workspace);
     if (hookResult.blocked) {
       return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
     }

@@ -5,37 +5,36 @@
  */
 
 /**
- * Assistant Hooks Type Definitions
+ * Assistant Hooks - Simple JS file-based hooks
  *
- * Declarative hooks that intercept the message pipeline for all agent types.
- * Configured in assistant.json and stored in conversation.extra.assistantHooks.
+ * Hooks are JS files placed in the assistant workspace:
+ *   .claude/hooks/on-send-message.js
+ *
+ * Each JS file exports a function that receives a context and returns a result:
+ *   module.exports = function(context) {
+ *     return { content: context.content };
+ *   };
  */
 
-/** Hook event types / Hook 事件类型 */
-export type AssistantHookEvent = 'onSendMessage' | 'onReceiveMessage' | 'onConversationStart' | 'onConversationEnd';
+/** Supported hook events */
+export type HookEvent = 'on-send-message';
 
-/** Hook action definitions (declarative, JSON-safe) / Hook 动作定义（声明式，JSON 安全） */
-export type AssistantHookAction =
-  | { action: 'prefixContent'; value: string }
-  | { action: 'suffixContent'; value: string }
-  | { action: 'replaceContent'; pattern: string; replacement: string; flags?: string }
-  | { action: 'blockMessage'; pattern: string; message?: string }
-  | { action: 'addMetadata'; key: string; value: string }
-  | { action: 'injectDefaultAgent'; agentName: string };
-
-/** Hook configuration as stored in assistant.json / assistant.json 中的 hooks 配置 */
-export type AssistantHooksConfig = {
-  [K in AssistantHookEvent]?: AssistantHookAction[];
+/** Context passed to hook JS files */
+export type HookContext = {
+  /** The hook event name */
+  event: HookEvent;
+  /** The message content */
+  content: string;
+  /** The workspace directory path */
+  workspace: string;
 };
 
-/** Result of running a hook chain / 运行 hook 链的结果 */
+/** Result returned by hook JS files */
 export type HookResult = {
-  /** The (possibly transformed) content / 转换后的内容 */
+  /** The (possibly transformed) content */
   content: string;
-  /** Whether the message was blocked / 消息是否被阻止 */
-  blocked: boolean;
-  /** Reason for blocking, if blocked / 阻止原因 */
+  /** Whether the message should be blocked */
+  blocked?: boolean;
+  /** Reason for blocking */
   blockReason?: string;
-  /** Additional metadata added by hooks / hooks 添加的额外元数据 */
-  metadata: Record<string, string>;
 };

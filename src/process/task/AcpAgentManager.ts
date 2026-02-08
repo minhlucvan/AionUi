@@ -13,7 +13,6 @@ import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../messag
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { runHooks } from '@/assistant/hooks';
-import type { AssistantHooksConfig } from '@/assistant/hooks/types';
 import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
@@ -36,10 +35,8 @@ interface AcpAgentManagerData {
   acpSessionId?: string;
   /** Last update time of ACP session / ACP session 最后更新时间 */
   acpSessionUpdatedAt?: number;
-  /** Default agent from assistant.json (legacy, used alongside hooks) / 来自 assistant.json 的默认 agent */
+  /** Default agent from assistant.json (metadata only) / 来自 assistant.json 的默认 agent */
   defaultAgent?: string;
-  /** Assistant hooks for pipeline interception / 助手 hooks 用于管道拦截 */
-  assistantHooks?: AssistantHooksConfig;
 }
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
@@ -51,16 +48,11 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   // Track current message for cron detection (accumulated from streaming chunks)
   private currentMsgId: string | null = null;
   private currentMsgContent: string = '';
-  // Assistant hooks for pipeline interception (from assistant.json)
-  // 来自 assistant.json 的 hooks，用于管道拦截
-  private assistantHooks: AssistantHooksConfig | undefined;
-
   constructor(data: AcpAgentManagerData) {
     super('acp', data);
     this.conversation_id = data.conversation_id;
     this.workspace = data.workspace;
     this.options = data;
-    this.assistantHooks = data.assistantHooks;
   }
 
   initAgent(data: AcpAgentManagerData = this.options) {
@@ -257,9 +249,8 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           contentToSend = contentToSend.split(AIONUI_FILES_MARKER)[0].trimEnd();
         }
 
-        // Run assistant hooks (onSendMessage) - handles defaultAgent injection and custom transformations
-        // 运行助手 hooks（onSendMessage）- 处理 defaultAgent 注入和自定义转换
-        const hookResult = runHooks('onSendMessage', contentToSend, this.assistantHooks);
+        // Run assistant hooks from workspace .claude/hooks/ folder
+        const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
         if (hookResult.blocked) {
           return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
         }

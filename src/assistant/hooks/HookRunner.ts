@@ -4,76 +4,97 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AssistantHookEvent, AssistantHooksConfig, HookResult } from './types';
+import * as fs from 'fs';
+import * as path from 'path';
+import type { HookContext, HookEvent, HookResult } from './types';
 
 /**
- * Run hooks for a given event against message content.
- * Pure function with no side effects - safe to call from any agent manager.
+ * Run hooks for a given event by executing JS files from the workspace hooks folder.
  *
- * 运行指定事件的 hooks 对消息内容进行处理。
- * 纯函数，无副作用 - 可在任何 agent manager 中安全调用。
+ * Hook files are loaded from: {workspace}/.claude/hooks/{event}.js
+ * Or from a directory: {workspace}/.claude/hooks/{event}/*.js
  *
- * @param event - The hook event type
+ * Each hook file should export a function:
+ *   module.exports = function(context) { return { content: ... }; };
+ *
+ * @param event - The hook event name (e.g., 'on-send-message')
  * @param content - The message content to process
- * @param hooks - The hooks config (from conversation.extra.assistantHooks)
- * @returns HookResult with transformed content and status
+ * @param workspace - The workspace directory path
+ * @returns HookResult with transformed content
  */
-export function runHooks(event: AssistantHookEvent, content: string, hooks?: AssistantHooksConfig): HookResult {
-  const result: HookResult = {
-    content,
-    blocked: false,
-    metadata: {},
-  };
+export async function runHooks(event: HookEvent, content: string, workspace?: string): Promise<HookResult> {
+  const defaultResult: HookResult = { content };
+  if (!workspace) return defaultResult;
 
-  if (!hooks) return result;
+  const hooksDir = path.join(workspace, '.claude', 'hooks');
+  if (!fs.existsSync(hooksDir)) return defaultResult;
 
-  const actions = hooks[event];
-  if (!actions || actions.length === 0) return result;
+  // Collect hook files: single file or directory of files
+  const hookFiles = resolveHookFiles(hooksDir, event);
+  if (hookFiles.length === 0) return defaultResult;
 
-  for (const action of actions) {
+  let result: HookResult = { content };
+
+  for (const hookFile of hookFiles) {
     if (result.blocked) break;
 
-    switch (action.action) {
-      case 'prefixContent':
-        result.content = action.value + result.content;
-        break;
+    try {
+      // Clear require cache to support hot-reload
+      delete require.cache[require.resolve(hookFile)];
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const hookModule = require(hookFile);
 
-      case 'suffixContent':
-        result.content = result.content + action.value;
-        break;
+      const hookFn = typeof hookModule === 'function' ? hookModule : hookModule?.default;
+      if (typeof hookFn !== 'function') {
+        console.warn(`[AssistantHooks] Hook file does not export a function: ${hookFile}`);
+        continue;
+      }
 
-      case 'replaceContent':
-        try {
-          const regex = new RegExp(action.pattern, action.flags || 'g');
-          result.content = result.content.replace(regex, action.replacement);
-        } catch (e) {
-          console.warn(`[AssistantHooks] Invalid regex pattern in replaceContent: ${action.pattern}`, e);
-        }
-        break;
+      const ctx: HookContext = { event, content: result.content, workspace };
+      const output = hookFn(ctx);
 
-      case 'blockMessage':
-        try {
-          const regex = new RegExp(action.pattern);
-          if (regex.test(result.content)) {
-            result.blocked = true;
-            result.blockReason = action.message || 'Message blocked by assistant hook';
-          }
-        } catch (e) {
-          console.warn(`[AssistantHooks] Invalid regex pattern in blockMessage: ${action.pattern}`, e);
-        }
-        break;
+      // Support both sync and async hooks
+      const resolved: HookResult = output instanceof Promise ? await output : output;
 
-      case 'addMetadata':
-        result.metadata[action.key] = action.value;
-        break;
-
-      case 'injectDefaultAgent':
-        if (!result.content.includes(`@${action.agentName}`)) {
-          result.content = `@${action.agentName} ${result.content}`;
-        }
-        break;
+      if (resolved && typeof resolved === 'object') {
+        result = {
+          content: typeof resolved.content === 'string' ? resolved.content : result.content,
+          blocked: resolved.blocked,
+          blockReason: resolved.blockReason,
+        };
+      }
+    } catch (error) {
+      console.warn(`[AssistantHooks] Error running hook ${hookFile}:`, error);
     }
   }
 
   return result;
+}
+
+/**
+ * Resolve hook files for an event.
+ * Supports: single file ({event}.js) or directory ({event}/*.js)
+ */
+function resolveHookFiles(hooksDir: string, event: string): string[] {
+  const files: string[] = [];
+
+  // Check for single file: on-send-message.js
+  const singleFile = path.join(hooksDir, `${event}.js`);
+  if (fs.existsSync(singleFile) && fs.statSync(singleFile).isFile()) {
+    files.push(singleFile);
+    return files;
+  }
+
+  // Check for directory: on-send-message/*.js
+  const eventDir = path.join(hooksDir, event);
+  if (fs.existsSync(eventDir) && fs.statSync(eventDir).isDirectory()) {
+    const entries = fs.readdirSync(eventDir).sort();
+    for (const entry of entries) {
+      if (entry.endsWith('.js')) {
+        files.push(path.join(eventDir, entry));
+      }
+    }
+  }
+
+  return files;
 }

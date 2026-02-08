@@ -188,8 +188,8 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
         addMessage(this.conversation_id, userMessage);
       }
 
-      // Run assistant hooks (onSendMessage) / 运行助手 hooks（onSendMessage）
-      const hookResult = runHooks('onSendMessage', contentToSend, this.options.assistantHooks);
+      // Run assistant hooks from workspace .claude/hooks/ folder
+      const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
       if (hookResult.blocked) {
         return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
       }

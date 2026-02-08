@@ -11,7 +11,6 @@ import { transformMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { runHooks } from '@/assistant/hooks';
-import type { AssistantHooksConfig } from '@/assistant/hooks/types';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import BaseAgentManager from '@process/task/BaseAgentManager';
@@ -32,8 +31,6 @@ export interface OpenClawAgentManagerData {
   sessionKey?: string;
   /** YOLO mode (auto-approve all permissions) */
   yoloMode?: boolean;
-  /** Assistant hooks for pipeline interception / 助手 hooks 用于管道拦截 */
-  assistantHooks?: AssistantHooksConfig;
 }
 
 class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
@@ -41,7 +38,6 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
   agent!: OpenClawAgent;
   bootstrap: Promise<OpenClawAgent>;
   private isFirstMessage: boolean = true;
-  private assistantHooks?: AssistantHooksConfig;
   private options: OpenClawAgentManagerData;
 
   constructor(data: OpenClawAgentManagerData) {
@@ -49,7 +45,6 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
     this.conversation_id = data.conversation_id;
     this.workspace = data.workspace;
     this.options = data;
-    this.assistantHooks = data.assistantHooks;
 
     this.bootstrap = this.initAgent(data);
   }
@@ -166,9 +161,9 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
         addMessage(this.conversation_id, userMessage);
       }
 
-      // Run assistant hooks (onSendMessage) / 运行助手 hooks（onSendMessage）
+      // Run assistant hooks from workspace .claude/hooks/ folder
       let contentToSend = data.content;
-      const hookResult = runHooks('onSendMessage', contentToSend, this.assistantHooks);
+      const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
       if (hookResult.blocked) {
         return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
       }

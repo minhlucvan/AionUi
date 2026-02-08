@@ -326,8 +326,6 @@ export interface CodexAgentManagerData {
   enabledSkills?: string[];
   /** Full auto mode for cron jobs - skip confirmation prompts while keeping sandbox protection */
   yoloMode?: boolean;
-  /** Assistant hooks for pipeline interception / 助手 hooks 用于管道拦截 */
-  assistantHooks?: import('@/assistant/hooks/types').AssistantHooksConfig;
 }
 
 export interface ElicitationCreateData {
