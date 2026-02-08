@@ -15,6 +15,8 @@ import * as path from 'path';
 import { app } from 'electron';
 import { copyDirectoryRecursively } from '../process/utils';
 import type { AssistantMetadata } from './types';
+import type { AssistantHooksConfig } from './hooks/types';
+import { buildDefaultHooks } from './hooks/builtinHooks';
 
 /**
  * Resolve builtin directory path (handles both dev and packaged modes)
@@ -61,6 +63,8 @@ export interface CopyWorkspaceResult {
   success: boolean;
   /** Default agent name from assistant.json / 来自 assistant.json 的默认 agent 名称 */
   defaultAgent?: string;
+  /** Resolved assistant hooks (explicit or auto-generated from legacy fields) / 解析后的 hooks */
+  assistantHooks?: AssistantHooksConfig;
 }
 
 /**
@@ -151,7 +155,10 @@ export async function copyWorkspaceTemplate(assistantId: string, targetWorkspace
       mergeMcpConfig(mcpTemplatePath, mcpTargetPath);
     }
 
-    return { success: true, defaultAgent: config.defaultAgent };
+    // Resolve hooks: use explicit hooks or auto-generate from legacy fields (e.g. defaultAgent)
+    const assistantHooks = buildDefaultHooks(config);
+
+    return { success: true, defaultAgent: config.defaultAgent, assistantHooks };
   } catch (error) {
     console.error(`[WorkspaceTemplate] Failed to copy workspace template:`, error);
     return { success: false };

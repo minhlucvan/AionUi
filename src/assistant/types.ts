@@ -10,6 +10,8 @@
  * Minimal types for assistant workspace template copying
  */
 
+import type { AssistantHooksConfig } from './hooks/types';
+
 /**
  * Assistant metadata (assistant.json)
  * Defines an assistant with an associated workspace template
@@ -33,6 +35,8 @@ export interface AssistantMetadata {
   presetAgentType?: 'claude' | 'gemini' | 'codex';
   /** Default agent to auto-invoke for every message (e.g., "game-developer") / 每条消息自动调用的默认 agent */
   defaultAgent?: string;
+  /** Pipeline hooks for intercepting messages (works with all agent types) / 拦截消息的管道 hooks（支持所有 agent 类型）*/
+  hooks?: AssistantHooksConfig;
   /** Additional metadata */
   metadata?: Record<string, unknown>;
 }

@@ -56,6 +56,8 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
           contextContent: conversation.extra.contextContent,
           // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
           enabledSkills: conversation.extra.enabledSkills,
+          // Assistant hooks for pipeline interception / 助手 hooks 用于管道拦截
+          assistantHooks: conversation.extra.assistantHooks,
           // Runtime options / 运行时选项
           yoloMode: options?.yoloMode,
         },
