@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
 import { copyWorkspaceTemplate } from '@/assistant/WorkspaceTemplateCopy';
+import { runHooks } from '@/assistant/hooks';
 import { ConfigStorage } from '@/common/storage';
 
 // Regex to match AionUI timestamp suffix pattern
@@ -63,6 +64,7 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
 
   // Copy workspace template if presetAssistantId is provided (auto-resolve from assistant config)
   // Skip copying if workspace was loaded from assistant (already has the template)
+  let defaultAgent: string | undefined;
   if (presetAssistantId) {
     try {
       // Add timeout to prevent hanging (5 seconds)
@@ -80,12 +82,13 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
         console.log(`[AionUi] Copying workspace template from assistant: ${presetAssistantId}`);
         // Add timeout for copyWorkspaceTemplate (10 seconds)
         const copyPromise = copyWorkspaceTemplate(presetAssistantId, workspace);
-        const copyTimeoutPromise = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 10000));
-        const copySuccess = await Promise.race([copyPromise, copyTimeoutPromise]);
-        if (!copySuccess) {
+        const copyTimeoutPromise = new Promise<{ success: false }>((resolve) => setTimeout(() => resolve({ success: false }), 10000));
+        const copyResult = await Promise.race([copyPromise, copyTimeoutPromise]);
+        if (!copyResult.success) {
           console.warn(`[AionUi] Failed to copy workspace template for assistant: ${presetAssistantId}`);
         } else {
           console.log(`[AionUi] Successfully copied workspace template to: ${workspace}`);
+          defaultAgent = copyResult.defaultAgent;
         }
       } else {
         console.log(`[AionUi] Using existing workspace, skipping template copy`);
@@ -130,7 +133,10 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     }
   }
 
-  return { workspace, customWorkspace };
+  // Run on-conversation-init hooks from workspace hooks/ folder
+  await runHooks('on-conversation-init', '', workspace);
+
+  return { workspace, customWorkspace, defaultAgent };
 };
 
 export const createGeminiAgent = async (model: TProviderWithModel, workspace?: string, defaultFiles?: string[], webSearchEngine?: 'google' | 'default', customWorkspace?: boolean, contextFileName?: string, presetRules?: string, enabledSkills?: string[], presetAssistantId?: string): Promise<TChatConversation> => {
@@ -166,7 +172,7 @@ export const createGeminiAgent = async (model: TProviderWithModel, workspace?: s
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   // Use presetAssistantId as workspace template source (resolves automatically)
-  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
+  const { workspace, customWorkspace, defaultAgent } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
 
   // Build extra object, only including defined fields to prevent undefined values from being JSON.stringify'd
   const conversationExtra: any = {
@@ -184,6 +190,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
   if (extra.presetAssistantId !== undefined) conversationExtra.presetAssistantId = extra.presetAssistantId;
   if (extra.botId !== undefined) conversationExtra.botId = extra.botId;
   if (extra.externalChannelId !== undefined) conversationExtra.externalChannelId = extra.externalChannelId;
+  if (defaultAgent !== undefined) conversationExtra.defaultAgent = defaultAgent;
 
   return {
     type: 'acp' as const,
