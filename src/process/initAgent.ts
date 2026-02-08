@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
 import { copyWorkspaceTemplate } from '@/assistant/WorkspaceTemplateCopy';
+import { runHooks } from '@/assistant/hooks';
 import { ConfigStorage } from '@/common/storage';
 
 // Regex to match AionUI timestamp suffix pattern
@@ -131,6 +132,9 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
       }
     }
   }
+
+  // Run on-conversation-init hooks from workspace .claude/hooks/ folder
+  await runHooks('on-conversation-init', '', workspace);
 
   return { workspace, customWorkspace, defaultAgent };
 };

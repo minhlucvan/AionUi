@@ -17,7 +17,7 @@
  */
 
 /** Supported hook events */
-export type HookEvent = 'on-send-message';
+export type HookEvent = 'on-conversation-init' | 'on-send-message';
 
 /** Context passed to hook JS files */
 export type HookContext = {
