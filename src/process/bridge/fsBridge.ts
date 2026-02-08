@@ -84,9 +84,7 @@ function getUserSkillsDir(): string {
  *   - npx skills add owner/repo --skill skill-name
  *   - https://skillsmp.com/skills/...
  */
-type SkillsShParseResult =
-  | { type: 'github'; owner: string; repo: string; skillName?: string }
-  | { type: 'skillsmp'; url: string };
+type SkillsShParseResult = { type: 'github'; owner: string; repo: string; skillName?: string } | { type: 'skillsmp'; url: string };
 
 function parseSkillsShInput(raw: string): SkillsShParseResult {
   let input = raw.trim();
@@ -103,7 +101,10 @@ function parseSkillsShInput(raw: string): SkillsShParseResult {
   }
 
   // Strip common CLI flags (-a, -g, -y, --list)
-  input = input.replace(/\s+--list\b/g, '').replace(/\s+-[agy]\s+\S*/g, '').trim();
+  input = input
+    .replace(/\s+--list\b/g, '')
+    .replace(/\s+-[agy]\s+\S*/g, '')
+    .trim();
 
   // skills.sh URL: https://skills.sh/owner/repo or https://skills.sh/owner/repo/skill-name
   const skillsShMatch = input.match(/^https?:\/\/skills\.sh\/([^/?#]+)\/([^/?#]+)(?:\/([^/?#]+))?/);
@@ -1551,12 +1552,7 @@ export function initFsBridge(): void {
       if (parsedSkillName) {
         // Install a specific skill from the repo's skills/ directory
         // Try common paths: skills/{name}/, {name}/, .claude/skills/{name}/, .agents/skills/{name}/
-        const candidatePaths = [
-          `skills/${parsedSkillName}`,
-          parsedSkillName,
-          `.claude/skills/${parsedSkillName}`,
-          `.agents/skills/${parsedSkillName}`,
-        ];
+        const candidatePaths = [`skills/${parsedSkillName}`, parsedSkillName, `.claude/skills/${parsedSkillName}`, `.agents/skills/${parsedSkillName}`];
 
         let lastError: string | undefined;
         for (const subPath of candidatePaths) {
@@ -1641,94 +1637,160 @@ export function initFsBridge(): void {
   });
 
   // 从 zip 文件导入助手 / Import assistant from zip file
-  // Expected zip structure:
-  //   manifest.json  - { name, description, avatar, presetAgentType, enabledSkills, customSkillNames }
-  //   rules/         - Rule markdown files named by locale (e.g., en-US.md, zh-CN.md)
+  // Simply extract zip to assistants folder and load metadata
   ipcBridge.fs.importAssistantZip.provider(async ({ zipPath }) => {
     try {
       const AdmZip = (await import('adm-zip')).default;
       const zip = new AdmZip(zipPath);
-      const zipEntries = zip.getEntries();
 
-      // 1. Find and parse manifest.json / 查找并解析 manifest.json
-      const manifestEntry = zipEntries.find((e) => {
-        const name = e.entryName.replace(/^\//, '');
-        return name === 'manifest.json' || name.endsWith('/manifest.json');
-      });
-
-      if (!manifestEntry) {
-        return { success: false, msg: 'Invalid zip: manifest.json not found. Expected a zip containing manifest.json and a rules/ folder.' };
-      }
-
-      let manifest: {
-        name?: string;
-        description?: string;
-        avatar?: string;
-        presetAgentType?: string;
-        enabledSkills?: string[];
-        customSkillNames?: string[];
-      };
-
-      try {
-        manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
-      } catch {
-        return { success: false, msg: 'Invalid manifest.json: could not parse JSON' };
-      }
-
-      if (!manifest.name || !manifest.name.trim()) {
-        return { success: false, msg: 'Invalid manifest.json: "name" field is required' };
-      }
-
-      // 2. Generate new assistant ID / 生成新的助手 ID
+      // Generate new assistant ID
       const newId = `custom-${Date.now()}`;
       const assistantsDir = getAssistantsDir();
       await fs.mkdir(assistantsDir, { recursive: true });
 
-      // 3. Extract rule files from rules/ directory / 从 rules/ 目录提取规则文件
-      const manifestPrefix = manifestEntry.entryName.replace('manifest.json', '');
-      const rulesPrefix = manifestPrefix + 'rules/';
-      let hasRules = false;
+      // Extract to assistant-specific directory
+      const extractDir = path.join(assistantsDir, newId);
+      await fs.mkdir(extractDir, { recursive: true });
 
-      for (const entry of zipEntries) {
-        if (entry.isDirectory) continue;
-        const entryName = entry.entryName;
+      // Extract all files
+      zip.extractAllTo(extractDir, true);
+      console.log(`[fsBridge] Extracted assistant to: ${extractDir}`);
 
-        if (entryName.startsWith(rulesPrefix) && entryName.endsWith('.md')) {
-          const fileName = path.basename(entryName);
-          // Expected format: {locale}.md (e.g., en-US.md)
-          const locale = fileName.replace('.md', '');
-          if (locale) {
-            const targetFileName = `${newId}.${locale}.md`;
-            const targetPath = path.join(assistantsDir, targetFileName);
-            await fs.writeFile(targetPath, entry.getData().toString('utf-8'), 'utf-8');
-            hasRules = true;
-            console.log(`[fsBridge] Imported rule file: ${targetFileName}`);
+      // Find assistant.json or manifest.json (may be in subdirectory)
+      const findConfigFile = async (dir: string, depth = 0): Promise<{ path: string; config: any } | null> => {
+        if (depth > 2) return null; // Limit search depth
+
+        // Try current directory
+        for (const filename of ['assistant.json', 'manifest.json']) {
+          const configPath = path.join(dir, filename);
+          try {
+            const configData = await fs.readFile(configPath, 'utf-8');
+            const config = JSON.parse(configData);
+            return { path: configPath, config };
+          } catch {
+            // Continue searching
           }
+        }
+
+        // Search subdirectories
+        try {
+          const entries = await fs.readdir(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (entry.isDirectory()) {
+              const result = await findConfigFile(path.join(dir, entry.name), depth + 1);
+              if (result) return result;
+            }
+          }
+        } catch {
+          // Ignore read errors
+        }
+
+        return null;
+      };
+
+      const configResult = await findConfigFile(extractDir);
+      if (!configResult) {
+        await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+        return { success: false, msg: 'No assistant.json or manifest.json found in zip' };
+      }
+
+      const assistantConfig = configResult.config;
+      const configDir = path.dirname(configResult.path);
+
+      if (!assistantConfig.name || !assistantConfig.name.trim()) {
+        await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+        return { success: false, msg: 'Invalid config: "name" field is required' };
+      }
+
+      // Build workspace path
+      const workspacePath = path.join(configDir, assistantConfig.workspacePath || 'workspace');
+
+      // Load README.md or CLAUDE.md as assistant rules
+      let hasRules = false;
+      for (const ruleFile of ['CLAUDE.md', 'README.md']) {
+        try {
+          const rulePath = path.join(workspacePath, ruleFile);
+          const ruleContent = await fs.readFile(rulePath, 'utf-8');
+
+          // Save to assistants directory
+          const ruleFileName = `${newId}.en-US.md`;
+          const targetRulePath = path.join(assistantsDir, ruleFileName);
+          await fs.writeFile(targetRulePath, ruleContent, 'utf-8');
+
+          console.log(`[fsBridge] Imported rules from ${ruleFile} to ${ruleFileName}`);
+          hasRules = true;
+          break; // Use first found file
+        } catch {
+          // Try next file
         }
       }
 
       if (!hasRules) {
-        console.warn('[fsBridge] No rule files found in zip, assistant will have empty rules');
+        console.warn('[fsBridge] No CLAUDE.md or README.md found in workspace');
       }
 
-      // 4. Create assistant config / 创建助手配置
+      // Import skills from workspace/.claude/skills/
+      const workspaceSkillsDir = path.join(workspacePath, '.claude', 'skills');
+      const importedSkills: string[] = [];
+
+      try {
+        await fs.access(workspaceSkillsDir);
+        const skillEntries = await fs.readdir(workspaceSkillsDir, { withFileTypes: true });
+        const userSkillsDir = getUserSkillsDir();
+        await fs.mkdir(userSkillsDir, { recursive: true });
+
+        for (const skillEntry of skillEntries) {
+          if (!skillEntry.isDirectory()) continue;
+
+          const skillPath = path.join(workspaceSkillsDir, skillEntry.name);
+          const skillMdPath = path.join(skillPath, 'SKILL.md');
+
+          try {
+            await fs.access(skillMdPath);
+            const targetSkillPath = path.join(userSkillsDir, skillEntry.name);
+
+            // Check if skill already exists
+            try {
+              await fs.access(targetSkillPath);
+              console.log(`[fsBridge] Skill "${skillEntry.name}" already exists, skipping`);
+            } catch {
+              // Copy skill
+              await copyDirectory(skillPath, targetSkillPath);
+              console.log(`[fsBridge] Imported skill: ${skillEntry.name}`);
+            }
+
+            importedSkills.push(skillEntry.name);
+          } catch {
+            // Not a valid skill, skip
+          }
+        }
+      } catch {
+        // No skills directory
+      }
+
+      // Create assistant record
       const validAgentTypes = ['gemini', 'claude', 'codex', 'opencode'];
-      const agentType = manifest.presetAgentType && validAgentTypes.includes(manifest.presetAgentType) ? manifest.presetAgentType : 'gemini';
+      const agentType = assistantConfig.presetAgentType && validAgentTypes.includes(assistantConfig.presetAgentType) ? assistantConfig.presetAgentType : 'claude';
 
       const newAssistant = {
         id: newId,
-        name: manifest.name.trim(),
-        description: manifest.description || '',
-        avatar: manifest.avatar || '🤖',
+        name: assistantConfig.name.trim(),
+        description: assistantConfig.description || '',
+        avatar: assistantConfig.avatar || '🎬',
         isPreset: true,
         isBuiltin: false,
         presetAgentType: agentType,
         enabled: true,
-        enabledSkills: Array.isArray(manifest.enabledSkills) ? manifest.enabledSkills : [],
-        customSkillNames: Array.isArray(manifest.customSkillNames) ? manifest.customSkillNames : [],
+        enabledSkills: importedSkills.length > 0 ? importedSkills : [],
+        customSkillNames: importedSkills.length > 0 ? importedSkills : [],
+        extractedPath: configDir, // Path to config directory (contains workspace)
+        workspacePath: workspacePath, // Full path to workspace directory
       };
 
-      console.log(`[fsBridge] Successfully imported assistant "${newAssistant.name}" (${newId}) from zip`);
+      console.log(`[fsBridge] Successfully imported assistant "${newAssistant.name}" (${newId})`);
+      console.log(`[fsBridge] Config directory: ${configDir}`);
+      console.log(`[fsBridge] Workspace path: ${workspacePath}`);
+      console.log(`[fsBridge] Imported ${importedSkills.length} skills: ${importedSkills.join(', ')}`);
 
       return {
         success: true,

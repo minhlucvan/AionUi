@@ -277,6 +277,26 @@ export interface AcpBackendConfig {
    * These skills will be displayed in the Custom Skills section even after being imported.
    */
   customSkillNames?: string[];
+
+  /**
+   * 导入的助手包解压路径（仅自定义助手）
+   * 包含完整的 workspace 目录结构
+   *
+   * Extracted path for imported assistant package (custom assistants only).
+   * Contains the full workspace directory structure.
+   * Example: ~/.../assistants/custom-123456/video-generator/
+   */
+  extractedPath?: string;
+
+  /**
+   * workspace 目录的完整路径（仅自定义助手）
+   * 用作 ACP 对话的工作目录
+   *
+   * Full path to the workspace directory (custom assistants only).
+   * Used as the working directory for ACP conversations.
+   * Example: ~/.../assistants/custom-123456/video-generator/workspace/
+   */
+  workspacePath?: string;
 }
 
 // 所有后端配置 - 包括暂时禁用的 / All backend configurations - including temporarily disabled ones

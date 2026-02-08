@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
 import { copyWorkspaceTemplate } from '@/assistant/WorkspaceTemplateCopy';
+import { ConfigStorage } from '@/common/storage';
 
 // Regex to match AionUI timestamp suffix pattern
 const AIONUI_TIMESTAMP_REGEX = /^(.+?)_aionui_\d+(\.[^.]+)$/;
@@ -28,6 +29,22 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   // 使用前端提供的customWorkspace标志，如果没有则根据workspace参数判断
   const customWorkspace = providedCustomWorkspace !== undefined ? providedCustomWorkspace : !!workspace;
 
+  // If presetAssistantId is provided, check if it has a workspacePath
+  if (presetAssistantId && !workspace) {
+    try {
+      const customAgents = await ConfigStorage.get('acp.customAgents');
+      if (customAgents && Array.isArray(customAgents)) {
+        const assistant = customAgents.find((a) => a.id === presetAssistantId);
+        if (assistant?.workspacePath) {
+          console.log(`[AionUi] Using workspace from assistant ${presetAssistantId}: ${assistant.workspacePath}`);
+          workspace = assistant.workspacePath;
+        }
+      }
+    } catch (error) {
+      console.warn(`[AionUi] Failed to load workspace path for assistant ${presetAssistantId}:`, error);
+    }
+  }
+
   if (!workspace) {
     const tempPath = getSystemDir().workDir;
     workspace = path.join(tempPath, defaultWorkspaceName);
@@ -38,13 +55,26 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   }
 
   // Copy workspace template if presetAssistantId is provided (auto-resolve from assistant config)
+  // Skip copying if workspace was loaded from assistant (already has the template)
   if (presetAssistantId) {
-    console.log(`[AionUi] Copying workspace template from assistant: ${presetAssistantId}`);
-    const copySuccess = await copyWorkspaceTemplate(presetAssistantId, workspace);
-    if (!copySuccess) {
-      console.warn(`[AionUi] Failed to copy workspace template for assistant: ${presetAssistantId}`);
-    } else {
-      console.log(`[AionUi] Successfully copied workspace template to: ${workspace}`);
+    try {
+      const customAgents = await ConfigStorage.get('acp.customAgents');
+      const assistant = customAgents?.find((a) => a.id === presetAssistantId);
+      const hasExistingWorkspace = assistant?.workspacePath;
+
+      if (!hasExistingWorkspace) {
+        console.log(`[AionUi] Copying workspace template from assistant: ${presetAssistantId}`);
+        const copySuccess = await copyWorkspaceTemplate(presetAssistantId, workspace);
+        if (!copySuccess) {
+          console.warn(`[AionUi] Failed to copy workspace template for assistant: ${presetAssistantId}`);
+        } else {
+          console.log(`[AionUi] Successfully copied workspace template to: ${workspace}`);
+        }
+      } else {
+        console.log(`[AionUi] Using existing workspace, skipping template copy`);
+      }
+    } catch (error) {
+      console.warn(`[AionUi] Error checking workspace template:`, error);
     }
   }
 
