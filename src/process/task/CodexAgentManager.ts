@@ -23,6 +23,7 @@ import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { ProcessConfig } from '@process/initStorage';
 import BaseAgentManager from '@process/task/BaseAgentManager';
+import { runHooks } from '@/assistant/hooks';
 import { prepareFirstMessageWithSkillsIndex } from '@process/task/agentUtils';
 import { handlePreviewOpenEvent } from '@process/utils/previewUtils';
 import i18n from '@process/i18n';
@@ -186,6 +187,13 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
         };
         addMessage(this.conversation_id, userMessage);
       }
+
+      // Run assistant hooks from workspace .claude/hooks/ folder
+      const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
+      if (hookResult.blocked) {
+        return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
+      }
+      contentToSend = hookResult.content;
 
       // 处理文件引用 - 参考 ACP 的文件引用处理
       let processedContent = this.agent.getFileOperationHandler().processFileReferences(contentToSend, data.files);
