@@ -32,7 +32,9 @@ export default forkTask(({ data }, pipe) => {
           return other;
         });
       }
-      pipe.call('gemini.message', event);
+      // Add timestamp to preserve message creation time
+      const eventWithTimestamp = { ...event, timestamp: (event as any).timestamp || Date.now() };
+      pipe.call('gemini.message', eventWithTimestamp);
     },
   });
   pipe.on('stop.stream', (_, deferred) => {

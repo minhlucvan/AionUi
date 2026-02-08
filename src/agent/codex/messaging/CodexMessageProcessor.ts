@@ -125,6 +125,7 @@ export class CodexMessageProcessor {
           conversation_id: this.conversation_id,
           msg_id: uuid(),
           data: sysMsg,
+          timestamp: Date.now(),
         });
       }).then(() => {
         // Send collected responses back to AI agent so it can continue

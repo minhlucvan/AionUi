@@ -222,6 +222,7 @@ export class GeminiAgentManager extends BaseAgentManager<
           type: 'error',
           data: e.message || JSON.stringify(e),
           msg_id: data.msg_id,
+          timestamp: Date.now(),
         });
         // 需要同步后才返回结果
         // 为什么需要如此?
@@ -488,6 +489,7 @@ export class GeminiAgentManager extends BaseAgentManager<
             conversation_id: this.conversation_id,
             msg_id: uuid(),
             data: sysMsg,
+            timestamp: Date.now(),
           });
         });
         // Send collected responses back to AI agent so it can continue

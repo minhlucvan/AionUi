@@ -251,7 +251,7 @@ export const openclawConversation = {
 
 // Database operations
 export const database = {
-  getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
+  getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number; order?: 'ASC' | 'DESC' }>('database.get-conversation-messages'),
   getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number }>('database.get-user-conversations'),
 };
 
@@ -461,6 +461,7 @@ export interface IResponseMessage {
   data: unknown;
   msg_id: string;
   conversation_id: string;
+  timestamp?: number; // Message creation timestamp for ordering
 }
 
 interface IBridgeResponse<D = {}> {

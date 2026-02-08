@@ -244,6 +244,7 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
         conversation_id: this.conversation_id,
         msg_id: data.msg_id || uuid(),
         data: errorMessage,
+        timestamp: Date.now(),
       };
       // Emit to frontend - frontend will handle transformation and persistence
       ipcBridge.codexConversation.responseStream.emit(message);
@@ -462,7 +463,9 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
     }
 
     // Always emit to frontend for UI display
-    ipcBridge.codexConversation.responseStream.emit(message);
+    // Add timestamp to preserve message creation time
+    const messageWithTimestamp = { ...message, timestamp: message.timestamp || Date.now() };
+    ipcBridge.codexConversation.responseStream.emit(messageWithTimestamp);
   }
 
   /**

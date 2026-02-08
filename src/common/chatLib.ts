@@ -299,6 +299,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
           content: message.data as string,
           type: 'error',
         },
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'content':
@@ -312,6 +313,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         content: {
           content: message.data as string,
         },
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'tool_call': {
@@ -322,6 +324,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         conversation_id: message.conversation_id,
         position: 'left',
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'tool_group': {
@@ -331,6 +334,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         msg_id: message.msg_id,
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'agent_status': {
@@ -341,6 +345,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'center',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'acp_permission': {
@@ -351,6 +356,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'acp_tool_call': {
@@ -361,6 +367,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'codex_permission': {
@@ -371,6 +378,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'codex_tool_call': {
@@ -381,6 +389,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'plan': {
@@ -391,6 +400,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        createdAt: message.timestamp || Date.now(),
       };
     }
     case 'start':

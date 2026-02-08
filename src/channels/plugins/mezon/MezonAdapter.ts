@@ -30,7 +30,7 @@ export function toUnifiedIncomingMessage(msg: ChannelMessage, botUserId: string,
   const user = toUnifiedUser(msg);
   if (!user) return null;
 
-  const content = extractMessageContent(msg);
+  const content = extractMessageContent(msg, botUserId);
 
   return {
     id: msg.message_id || msg.id,
@@ -62,9 +62,32 @@ export function toUnifiedUser(msg: ChannelMessage): IUnifiedUser | null {
 
 /**
  * Extract message content from Mezon ChannelMessage
+ * Strips bot mentions from the text
  */
-function extractMessageContent(msg: ChannelMessage): IUnifiedMessageContent {
-  const text = msg.content?.t || '';
+function extractMessageContent(msg: ChannelMessage, botUserId: string): IUnifiedMessageContent {
+  let text = msg.content?.t || '';
+
+  // Strip bot mentions from text
+  // Check if bot is mentioned and remove the mention
+  if (msg.mentions && Array.isArray(msg.mentions)) {
+    for (const mention of msg.mentions) {
+      if (mention.user_id === botUserId) {
+        // Mezon mentions have start (s) and end (e) positions
+        // Extract the actual mention text from the message using these positions
+        if (typeof mention.s === 'number' && typeof mention.e === 'number') {
+          const mentionText = text.substring(mention.s, mention.e);
+          if (mentionText) {
+            // Remove the mention text and any surrounding whitespace
+            const escapedMention = mentionText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            text = text.replace(new RegExp(`\\s*${escapedMention}\\s*`, 'g'), ' ');
+          }
+        }
+      }
+    }
+  }
+
+  // Clean up extra whitespace
+  text = text.trim().replace(/\s+/g, ' ');
 
   // Check for attachments
   if (msg.attachments && msg.attachments.length > 0) {

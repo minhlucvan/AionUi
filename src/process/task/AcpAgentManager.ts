@@ -163,8 +163,10 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           // Filter think tags from streaming content before emitting to UI
           // 在发送到 UI 之前过滤流式内容中的 think 标签
           const filteredMessage = this.filterThinkTagsFromMessage(message as IResponseMessage);
-          ipcBridge.acpConversation.responseStream.emit(filteredMessage);
-          channelEventBus.emitAgentMessage(this.conversation_id, filteredMessage);
+          // Add timestamp to preserve message creation time
+          const messageWithTimestamp = { ...filteredMessage, timestamp: filteredMessage.timestamp || Date.now() };
+          ipcBridge.acpConversation.responseStream.emit(messageWithTimestamp);
+          channelEventBus.emitAgentMessage(this.conversation_id, messageWithTimestamp);
         },
         onSignalEvent: async (v) => {
           // 仅发送信号到前端，不更新消息列表
