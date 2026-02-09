@@ -7,6 +7,7 @@ import enUS from './locales/en-US.json';
 import jaJP from './locales/ja-JP.json';
 import koKR from './locales/ko-KR.json';
 import trTR from './locales/tr-TR.json';
+import viVN from './locales/vi-VN.json';
 import zhCN from './locales/zh-CN.json';
 import zhTW from './locales/zh-TW.json';
 
@@ -28,6 +29,9 @@ const resources = {
   },
   'tr-TR': {
     translation: trTR,
+  },
+  'vi-VN': {
+    translation: viVN,
   },
 };
 
