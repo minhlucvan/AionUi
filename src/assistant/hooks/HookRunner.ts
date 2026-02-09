@@ -6,7 +6,37 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { HookContext, HookEvent, HookResult } from './types';
+import { copyDirectoryRecursively } from '@/process/utils';
+import type { HookContext, HookEvent, HookResult, HookUtils } from './types';
+
+/**
+ * Create utility functions for hooks
+ */
+function createHookUtils(): HookUtils {
+  return {
+    copyDirectory: async (source: string, target: string, options?: { overwrite?: boolean }) => {
+      await copyDirectoryRecursively(source, target, options);
+    },
+    readFile: async (filePath: string, encoding: BufferEncoding = 'utf-8') => {
+      return await fs.promises.readFile(filePath, encoding);
+    },
+    writeFile: async (filePath: string, content: string, encoding: BufferEncoding = 'utf-8') => {
+      await fs.promises.writeFile(filePath, content, encoding);
+    },
+    exists: async (filePath: string) => {
+      try {
+        await fs.promises.access(filePath);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    ensureDir: async (dirPath: string) => {
+      await fs.promises.mkdir(dirPath, { recursive: true });
+    },
+    join: (...paths: string[]) => path.join(...paths),
+  };
+}
 
 /**
  * Run hooks for a given event by executing JS files from the workspace hooks folder.
@@ -24,9 +54,10 @@ import type { HookContext, HookEvent, HookResult } from './types';
  * @param event - The hook event name (e.g., 'on-send-message')
  * @param content - The message content to process
  * @param workspace - The workspace directory path
+ * @param context - Additional context (assistantPath, conversationId, etc.)
  * @returns HookResult with transformed content
  */
-export async function runHooks(event: HookEvent, content: string, workspace?: string): Promise<HookResult> {
+export async function runHooks(event: HookEvent, content: string, workspace?: string, context?: Partial<HookContext>): Promise<HookResult> {
   const defaultResult: HookResult = { content };
   if (!workspace) return defaultResult;
 
@@ -38,6 +69,7 @@ export async function runHooks(event: HookEvent, content: string, workspace?: st
   if (hookFiles.length === 0) return defaultResult;
 
   let result: HookResult = { content };
+  const utils = createHookUtils();
 
   for (const hookFile of hookFiles) {
     if (result.blocked) break;
@@ -45,7 +77,7 @@ export async function runHooks(event: HookEvent, content: string, workspace?: st
     try {
       // Clear require cache to support hot-reload
       delete require.cache[require.resolve(hookFile)];
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
       const hookModule = require(hookFile);
 
       const hookFn = typeof hookModule === 'function' ? hookModule : hookModule?.default;
@@ -54,7 +86,13 @@ export async function runHooks(event: HookEvent, content: string, workspace?: st
         continue;
       }
 
-      const ctx: HookContext = { event, content: result.content, workspace };
+      const ctx: HookContext = {
+        event,
+        content: result.content,
+        workspace,
+        utils,
+        ...context,
+      };
       const output = hookFn(ctx);
 
       // Support both sync and async hooks

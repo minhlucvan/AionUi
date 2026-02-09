@@ -20,14 +20,36 @@
 /** Supported hook events */
 export type HookEvent = 'on-conversation-init' | 'on-send-message';
 
+/** Utility functions provided to hooks */
+export type HookUtils = {
+  /** Copy a directory recursively */
+  copyDirectory: (source: string, target: string, options?: { overwrite?: boolean }) => Promise<void>;
+  /** Read a file */
+  readFile: (filePath: string, encoding?: BufferEncoding) => Promise<string>;
+  /** Write a file */
+  writeFile: (filePath: string, content: string, encoding?: BufferEncoding) => Promise<void>;
+  /** Check if path exists */
+  exists: (filePath: string) => Promise<boolean>;
+  /** Ensure directory exists */
+  ensureDir: (dirPath: string) => Promise<void>;
+  /** Join paths */
+  join: (...paths: string[]) => string;
+};
+
 /** Context passed to hook JS files */
 export type HookContext = {
   /** The hook event name */
   event: HookEvent;
-  /** The message content */
+  /** The message content (for on-send-message) */
   content: string;
   /** The workspace directory path */
   workspace: string;
+  /** The assistant directory path (for on-conversation-init) */
+  assistantPath?: string;
+  /** The conversation ID (for on-conversation-init) */
+  conversationId?: string;
+  /** Utility functions */
+  utils?: HookUtils;
 };
 
 /** Result returned by hook JS files */

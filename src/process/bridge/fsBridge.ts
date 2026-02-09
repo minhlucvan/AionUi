@@ -1643,13 +1643,15 @@ export function initFsBridge(): void {
       const AdmZip = (await import('adm-zip')).default;
       const zip = new AdmZip(zipPath);
 
-      // Generate new assistant ID
-      const newId = `custom-${Date.now()}`;
+      // Generate new assistant ID (timestamp only, without 'custom-' prefix in directory name)
+      const timestamp = Date.now();
+      const newId = `custom-${timestamp}`;
       const assistantsDir = getAssistantsDir();
       await fs.mkdir(assistantsDir, { recursive: true });
 
-      // Extract to assistant-specific directory
-      const extractDir = path.join(assistantsDir, newId);
+      // Extract to assistants directory with timestamp-based ID
+      // Using timestamp as folder name for uniqueness
+      const extractDir = path.join(assistantsDir, `${timestamp}`);
       await fs.mkdir(extractDir, { recursive: true });
 
       // Extract all files
@@ -1783,13 +1785,13 @@ export function initFsBridge(): void {
         enabled: true,
         enabledSkills: importedSkills.length > 0 ? importedSkills : [],
         customSkillNames: importedSkills.length > 0 ? importedSkills : [],
-        extractedPath: configDir, // Path to config directory (contains workspace)
-        workspacePath: workspacePath, // Full path to workspace directory
+        assistantPath: configDir, // Path to assistant directory
+        // Note: workspacePath is not set here - workspace will be initialized via hooks
+        // Only set workspacePath if user explicitly provides a persistent workspace location
       };
 
       console.log(`[fsBridge] Successfully imported assistant "${newAssistant.name}" (${newId})`);
-      console.log(`[fsBridge] Config directory: ${configDir}`);
-      console.log(`[fsBridge] Workspace path: ${workspacePath}`);
+      console.log(`[fsBridge] Assistant directory: ${configDir}`);
       console.log(`[fsBridge] Imported ${importedSkills.length} skills: ${importedSkills.join(', ')}`);
 
       return {

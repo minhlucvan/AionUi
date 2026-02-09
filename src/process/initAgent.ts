@@ -10,9 +10,9 @@ import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
-import { copyWorkspaceTemplate } from '@/assistant/WorkspaceTemplateCopy';
 import { runHooks } from '@/assistant/hooks';
 import { ConfigStorage } from '@/common/storage';
+import { getAssistantsDir } from './migrations/assistantMigration';
 
 // Regex to match AionUI timestamp suffix pattern
 const AIONUI_TIMESTAMP_REGEX = /^(.+?)_aionui_\d+(\.[^.]+)$/;
@@ -36,7 +36,7 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
       // Add timeout to prevent hanging (5 seconds)
       const customAgentsPromise = ConfigStorage.get('acp.customAgents');
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('ConfigStorage.get timeout')), 5000));
-      const customAgents = await Promise.race([customAgentsPromise, timeoutPromise]).catch((error) => {
+      const customAgents = await Promise.race([customAgentsPromise, timeoutPromise]).catch((error): null => {
         console.warn(`[AionUi] ConfigStorage.get failed or timed out:`, error);
         return null;
       });
@@ -62,39 +62,53 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     workspace = path.resolve(workspace);
   }
 
-  // Copy workspace template if presetAssistantId is provided (auto-resolve from assistant config)
-  // Skip copying if workspace was loaded from assistant (already has the template)
+  // Initialize workspace via on-conversation-init hook if presetAssistantId is provided
+  // Skip if workspace was loaded from assistant (already has the template)
   let defaultAgent: string | undefined;
   if (presetAssistantId) {
     try {
-      // Add timeout to prevent hanging (5 seconds)
+      // Check if this workspace is from assistant config
       const customAgentsPromise = ConfigStorage.get('acp.customAgents');
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('ConfigStorage.get timeout')), 5000));
-      const customAgents = await Promise.race([customAgentsPromise, timeoutPromise]).catch((error) => {
+      const customAgents = await Promise.race([customAgentsPromise, timeoutPromise]).catch((error): null => {
         console.warn(`[AionUi] ConfigStorage.get failed or timed out:`, error);
         return null;
       });
 
-      const assistant = customAgents?.find((a: any) => a.id === presetAssistantId);
+      const assistant = Array.isArray(customAgents) ? customAgents.find((a: any) => a.id === presetAssistantId) : null;
       const hasExistingWorkspace = assistant?.workspacePath;
 
       if (!hasExistingWorkspace) {
-        console.log(`[AionUi] Copying workspace template from assistant: ${presetAssistantId}`);
-        // Add timeout for copyWorkspaceTemplate (10 seconds)
-        const copyPromise = copyWorkspaceTemplate(presetAssistantId, workspace);
-        const copyTimeoutPromise = new Promise<{ success: false }>((resolve) => setTimeout(() => resolve({ success: false }), 10000));
-        const copyResult = await Promise.race([copyPromise, copyTimeoutPromise]);
-        if (!copyResult.success) {
-          console.warn(`[AionUi] Failed to copy workspace template for assistant: ${presetAssistantId}`);
-        } else {
-          console.log(`[AionUi] Successfully copied workspace template to: ${workspace}`);
-          defaultAgent = copyResult.defaultAgent;
+        console.log(`[AionUi] Initializing workspace for assistant: ${presetAssistantId}`);
+
+        // Get assistant path
+        const resolvedId = presetAssistantId.startsWith('builtin-') ? presetAssistantId.slice(8) : presetAssistantId;
+        const assistantPath = path.join(getAssistantsDir(), resolvedId);
+
+        // Execute on-conversation-init hook
+        // The hook will copy workspace template and perform any custom initialization
+        const conversationId = uuid();
+        await runHooks('on-conversation-init', '', workspace, {
+          assistantPath,
+          conversationId,
+        });
+
+        console.log(`[AionUi] Workspace initialized via hook: ${workspace}`);
+
+        // Read assistant.json to get defaultAgent
+        const configPath = path.join(assistantPath, 'assistant.json');
+        try {
+          const configContent = await fs.readFile(configPath, 'utf-8');
+          const config = JSON.parse(configContent);
+          defaultAgent = config.defaultAgent;
+        } catch (error) {
+          console.warn(`[AionUi] Failed to read assistant.json for defaultAgent:`, error);
         }
       } else {
-        console.log(`[AionUi] Using existing workspace, skipping template copy`);
+        console.log(`[AionUi] Using existing workspace, skipping initialization`);
       }
     } catch (error) {
-      console.warn(`[AionUi] Error checking workspace template:`, error);
+      console.warn(`[AionUi] Error initializing workspace:`, error);
     }
   }
 
@@ -133,7 +147,10 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     }
   }
 
-  // Run on-conversation-init hooks from workspace hooks/ folder
+  // Note: on-conversation-init hooks are now run earlier in this function
+  // (when presetAssistantId is provided) to initialize the workspace template.
+  // This legacy call is kept for backward compatibility with existing workspaces
+  // that may have hooks already in place.
   await runHooks('on-conversation-init', '', workspace);
 
   return { workspace, customWorkspace, defaultAgent };

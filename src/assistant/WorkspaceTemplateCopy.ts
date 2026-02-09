@@ -12,44 +12,26 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { app } from 'electron';
 import { copyDirectoryRecursively } from '../process/utils';
 import type { AssistantMetadata } from './types';
-
-/**
- * Resolve builtin directory path (handles both dev and packaged modes)
- */
-function resolveBuiltinDir(dirPath: string): string {
-  const appPath = app.getAppPath();
-  let candidates: string[];
-
-  if (app.isPackaged) {
-    // asarUnpack extracts files to app.asar.unpacked directory
-    const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
-    candidates = [path.join(unpackedPath, dirPath), path.join(appPath, dirPath)];
-  } else {
-    // Development mode: try various paths relative to app path
-    candidates = [path.join(appPath, dirPath), path.join(appPath, '..', dirPath), path.join(appPath, '..', '..', dirPath), path.join(appPath, '..', '..', '..', dirPath), path.join(process.cwd(), dirPath)];
-  }
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  console.warn(`[WorkspaceTemplate] Could not find builtin ${dirPath} directory, tried:`, candidates);
-  return candidates[0];
-}
+import { getAssistantsDir } from '../process/migrations/assistantMigration';
 
 /**
  * Get the assistant root directory path
+ *
+ * All assistants (built-in and custom) are now stored in Application Support:
+ * ~/Library/Application Support/AionUi/config/assistants/{id}/
+ *
+ * @param assistantId - Assistant ID (e.g., 'builtin-video-generator' or 'video-generator')
+ * @returns Absolute path to assistant directory
  */
 function getAssistantRootPath(assistantId: string): string {
   // Strip 'builtin-' prefix if present (presets are stored as "builtin-{id}" but directories are just "{id}")
   const resolvedId = assistantId.startsWith('builtin-') ? assistantId.slice(8) : assistantId;
-  // Assistant directories are at assistant/{id}
-  return resolveBuiltinDir(`assistant/${resolvedId}`);
+
+  // All assistants are in Application Support
+  const assistantsDir = getAssistantsDir();
+  return path.join(assistantsDir, resolvedId);
 }
 
 /**

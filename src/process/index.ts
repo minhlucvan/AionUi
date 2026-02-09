@@ -16,8 +16,12 @@ import initStorage from './initStorage';
 import './initBridge';
 import './i18n'; // Initialize i18n for main process
 import { getChannelManager } from '@/channels';
+import { runAssistantMigration } from './migrations/assistantMigration';
 
 export const initializeProcess = async () => {
+  // Run assistant migration before initializing storage
+  await runAssistantMigration();
+
   await initStorage();
 
   // Initialize Channel subsystem

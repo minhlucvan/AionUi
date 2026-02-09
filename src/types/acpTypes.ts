@@ -279,22 +279,32 @@ export interface AcpBackendConfig {
   customSkillNames?: string[];
 
   /**
+   * 助手目录的完整路径（所有助手）
+   * 包含 assistant.json、workspace/、hooks/ 等
+   *
+   * Full path to the assistant directory (all assistants).
+   * Contains assistant.json, workspace/, hooks/, etc.
+   * Example (built-in): ~/.../assistants/video-generator/
+   * Example (custom): ~/.../assistants/1770594679706/video-generator/
+   */
+  assistantPath?: string;
+
+  /**
    * 导入的助手包解压路径（仅自定义助手）
-   * 包含完整的 workspace 目录结构
+   * @deprecated Use assistantPath instead. This field is kept for backward compatibility.
    *
    * Extracted path for imported assistant package (custom assistants only).
-   * Contains the full workspace directory structure.
-   * Example: ~/.../assistants/custom-123456/video-generator/
+   * @deprecated Use assistantPath instead. This field is kept for backward compatibility.
    */
   extractedPath?: string;
 
   /**
-   * workspace 目录的完整路径（仅自定义助手）
-   * 用作 ACP 对话的工作目录
+   * 用户指定的持久化 workspace 目录路径（可选）
+   * 如果未指定，将使用临时 workspace 并通过 hooks 初始化
    *
-   * Full path to the workspace directory (custom assistants only).
-   * Used as the working directory for ACP conversations.
-   * Example: ~/.../assistants/custom-123456/video-generator/workspace/
+   * User-specified persistent workspace directory path (optional).
+   * If not specified, a temporary workspace will be used and initialized via hooks.
+   * Example: ~/my-projects/video-editing/
    */
   workspacePath?: string;
 }
