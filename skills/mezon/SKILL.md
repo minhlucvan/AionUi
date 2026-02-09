@@ -11,7 +11,7 @@ Enables AI agents to interact with the Mezon platform as a power tool - reading 
 
 ## Overview
 
-The Mezon tools (`src/mcp-servers/mezon/`) can be used in two modes:
+The Mezon tools (`skills/mezon/`) can be used in two modes:
 
 1. **CLI mode** - One-shot commands via Node.js subprocess (agents call directly)
 2. **MCP mode** - Long-running stdio server (for MCP-compatible agents)
@@ -32,10 +32,9 @@ Mezon Platform (channels, threads, DMs)
 |-----------|------|---------|
 | CLI | `skills/mezon/cli.ts` | CLI entry point, command parsing, JSON output |
 | MCP Server | Built into `cli.ts serve` | MCP stdio server for MCP-compatible agents |
-| Provider | `src/mcp-servers/mezon/provider.ts` | SDK wrapper, tool method implementations |
-| Cache | `src/mcp-servers/mezon/cache.ts` | In-memory message/channel cache |
-| Types | `src/mcp-servers/mezon/types.ts` | TypeScript type definitions |
-| Exports | `src/mcp-servers/mezon/index.ts` | Module re-exports for programmatic use |
+| Provider | `skills/mezon/provider.ts` | SDK wrapper, tool method implementations |
+| Cache | `skills/mezon/cache.ts` | In-memory message/channel cache |
+| Types | `skills/mezon/types.ts` | TypeScript type definitions |
 
 ## CLI Usage (Recommended for Agents)
 
@@ -142,7 +141,7 @@ execSync(
 Or use the provider directly in Node.js:
 
 ```typescript
-import { MezonToolProvider } from './src/mcp-servers/mezon';
+import { MezonToolProvider } from './skills/mezon/provider';
 
 const provider = new MezonToolProvider({ token: 'xxx', botId: 'yyy' });
 await provider.connect();
@@ -248,6 +247,6 @@ The `--wait` flag (default: 3000ms) controls how long the CLI listens for messag
 
 ### Adding New Provider Methods
 
-1. Add parameter/result types to `src/mcp-servers/mezon/types.ts`
-2. Add the method to `src/mcp-servers/mezon/provider.ts`
+1. Add parameter/result types to `skills/mezon/types.ts`
+2. Add the method to `skills/mezon/provider.ts`
 3. Expose via CLI command and/or MCP tool

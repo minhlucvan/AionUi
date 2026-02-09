@@ -31,7 +31,7 @@
  *   help                Show this help text
  */
 
-import { MezonToolProvider } from '../../src/mcp-servers/mezon/provider';
+import { MezonToolProvider } from './provider';
 
 // ==================== Argument Parsing ====================
 
