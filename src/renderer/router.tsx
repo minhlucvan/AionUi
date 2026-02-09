@@ -12,7 +12,6 @@ import ModeSettings from './pages/settings/ModeSettings';
 import SecuritySettings from './pages/settings/SecuritySettings';
 import SystemSettings from './pages/settings/SystemSettings';
 import SkillsSettings from './pages/settings/SkillsSettings';
-import CliToolsSettings from './pages/settings/CliToolsSettings';
 import ToolsSettings from './pages/settings/ToolsSettings';
 import BotsSettings from './pages/settings/BotsSettings';
 import WebuiSettings from './pages/settings/WebuiSettings';
@@ -57,7 +56,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/skills' element={<SkillsSettings />} />
           <Route path='/settings/bots' element={<BotsSettings />} />
           <Route path='/settings/tools' element={<ToolsSettings />} />
-          <Route path='/settings/cli-tools' element={<CliToolsSettings />} />
+          <Route path='/settings/cli-tools' element={<Navigate to='/settings/tools' replace />} />
           <Route path='/settings/security' element={<SecuritySettings />} />
           <Route path='/settings' element={<Navigate to='/settings/gemini' replace />} />
           <Route path='/bots' element={<BotsPage />} />

@@ -18,6 +18,7 @@ import McpServerItem from '@/renderer/pages/settings/McpManagement/McpServerItem
 import { useMcpServers, useMcpAgentStatus, useMcpOperations, useMcpConnection, useMcpModal, useMcpServerCRUD, useMcpOAuth } from '@/renderer/hooks/mcp';
 import classNames from 'classnames';
 import { useSettingsViewMode } from '../settingsViewContext';
+import { CliToolsSection } from './CliToolsModalContent';
 
 type MessageInstance = ReturnType<typeof Message.useMessage>[0];
 
@@ -308,6 +309,10 @@ const ToolsModalContent: React.FC = () => {
                 <ModalMcpManagementSection message={mcpMessage} isPageMode={isPageMode} />
               </AionScrollArea>
             </div>
+          </div>
+          {/* CLI Tools */}
+          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-border-2'>
+            <CliToolsSection isPageMode={isPageMode} />
           </div>
           {/* 图像生成 */}
           <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px border border-border-2'>
