@@ -17,7 +17,7 @@
  *   MEZON_BOT_ID     - Bot identifier (required)
  *
  * Usage:
- *   npx ts-node skills/mezon/cli.ts <command> [options]
+ *   npx ts-node skills/mezon/scripts/cli.ts <command> [options]
  *
  * Commands:
  *   serve               Start as MCP stdio server (long-running)
@@ -31,7 +31,7 @@
  *   help                Show this help text
  */
 
-import { MezonToolProvider } from './provider';
+import { MezonToolProvider } from '../provider';
 
 // ==================== Argument Parsing ====================
 
@@ -453,7 +453,7 @@ function showHelp(): void {
 mezon-cli - Mezon tools for AI agents
 
 USAGE:
-  npx ts-node skills/mezon/cli.ts <command> [options]
+  npx ts-node skills/mezon/scripts/cli.ts <command> [options]
 
 ENVIRONMENT:
   MEZON_BOT_TOKEN    Bot authentication token (required)
