@@ -144,6 +144,8 @@ export const fs = {
   installSkillFromUrl: bridge.buildProvider<IBridgeResponse<{ skillName: string; installPath: string; skillCount?: number }>, { input: string }>('install-skill-from-url'),
   // 删除用户自定义 skill / Delete a custom user skill
   deleteCustomSkill: bridge.buildProvider<IBridgeResponse, { skillName: string }>('delete-custom-skill'),
+  // 从 zip 文件导入 skill / Import skill from zip file
+  importSkillZip: bridge.buildProvider<IBridgeResponse<{ skillNames: string[]; skipped: number }>, { zipPath: string }>('import-skill-zip'),
   // 从 zip 文件导入助手 / Import assistant from zip file
   importAssistantZip: bridge.buildProvider<
     IBridgeResponse<{
