@@ -11,16 +11,13 @@ Enables AI agents to interact with the Mezon platform as a power tool - reading 
 
 ## Overview
 
-The Mezon tools (`skills/mezon/`) can be used in two modes:
-
-1. **CLI mode** - One-shot commands via Node.js subprocess (agents call directly)
-2. **MCP mode** - Long-running stdio server (for MCP-compatible agents)
+The Mezon CLI (`skills/mezon/scripts/cli.ts`) provides one-shot commands via Node.js subprocess that agents can call directly.
 
 ## Architecture
 
 ```
 Agent (Claude, Gemini, Codex, etc.)
-  ↓ CLI (subprocess) or MCP Protocol (stdio)
+  ↓ CLI (subprocess)
 mezon-cli
   ↓ WebSocket + mezon-sdk
 Mezon Platform (channels, threads, DMs)
@@ -31,12 +28,11 @@ Mezon Platform (channels, threads, DMs)
 | Component | File | Purpose |
 |-----------|------|---------|
 | CLI | `skills/mezon/scripts/cli.ts` | CLI entry point, command parsing, JSON output |
-| MCP Server | Built into `cli.ts serve` | MCP stdio server for MCP-compatible agents |
 | Provider | `skills/mezon/scripts/provider.ts` | SDK wrapper, tool method implementations |
 | Cache | `skills/mezon/scripts/cache.ts` | In-memory message/channel cache |
 | Types | `skills/mezon/scripts/types.ts` | TypeScript type definitions |
 
-## CLI Usage (Recommended for Agents)
+## CLI Usage
 
 ### Environment Setup
 
@@ -78,20 +74,6 @@ npx ts-node skills/mezon/scripts/cli.ts summary --channel-id abc123
 
 # Stream messages in real-time (long-running)
 npx ts-node skills/mezon/scripts/cli.ts listen
-
-# Start as MCP stdio server
-npx ts-node skills/mezon/scripts/cli.ts serve
-```
-
-### npm Script Shortcuts
-
-```bash
-npm run mezon-cli -- status
-npm run mezon-cli -- read-messages --channel-id abc123
-npm run mezon-cli -- send-message --channel-id abc123 --clan-id clan456 --text "Hello"
-npm run mezon:status
-npm run mezon:serve
-npm run mezon:listen
 ```
 
 ### CLI Output Format
@@ -116,78 +98,6 @@ All commands return JSON with `ok: true` on success:
 }
 ```
 
-### Agent Integration via Node.js
-
-Agents can invoke the CLI as a subprocess:
-
-```typescript
-import { execSync } from 'child_process';
-
-// Read messages
-const result = JSON.parse(
-  execSync('npx ts-node skills/mezon/scripts/cli.ts read-messages --channel-id abc123', {
-    env: { ...process.env, MEZON_BOT_TOKEN: 'xxx', MEZON_BOT_ID: 'yyy' },
-    encoding: 'utf-8',
-  })
-);
-
-// Send a message
-execSync(
-  'npx ts-node skills/mezon/scripts/cli.ts send-message --channel-id abc123 --clan-id clan456 --text "Summary: ..."',
-  { env: { ...process.env, MEZON_BOT_TOKEN: 'xxx', MEZON_BOT_ID: 'yyy' } }
-);
-```
-
-Or use the provider directly in Node.js:
-
-```typescript
-import { MezonToolProvider } from './skills/mezon/scripts/provider';
-
-const provider = new MezonToolProvider({ token: 'xxx', botId: 'yyy' });
-await provider.connect();
-
-const messages = provider.readMessages({ channelId: 'abc123', limit: 50 });
-await provider.sendMessage({ channelId: 'abc123', clanId: 'clan456', text: 'Hello!' });
-
-provider.disconnect();
-```
-
-## MCP Server Usage
-
-For MCP-compatible agents, start the server and register it:
-
-```bash
-# Register with Claude
-claude mcp add mezon -- npx ts-node skills/mezon/scripts/cli.ts serve
-```
-
-**MCP config JSON:**
-```json
-{
-  "name": "mezon",
-  "transport": {
-    "type": "stdio",
-    "command": "npx",
-    "args": ["ts-node", "skills/mezon/scripts/cli.ts", "serve"],
-    "env": {
-      "MEZON_BOT_TOKEN": "<your-bot-token>",
-      "MEZON_BOT_ID": "<your-bot-id>"
-    }
-  }
-}
-```
-
-### MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `mezon_read_messages` | Read recent messages from a channel/thread |
-| `mezon_send_message` | Send text to a channel/thread with optional reply |
-| `mezon_search_messages` | Full-text search across cached messages |
-| `mezon_channel_summary` | Get conversation summary |
-| `mezon_list_channels` | List channels with activity |
-| `mezon_status` | Check connection and cache stats |
-
 ## CLI Command Reference
 
 | Command | Required Flags | Optional Flags |
@@ -199,7 +109,6 @@ claude mcp add mezon -- npx ts-node skills/mezon/scripts/cli.ts serve
 | `search` | `--query` | `--channel-id`, `--limit`, `--wait` |
 | `summary` | `--channel-id` | `--thread-id`, `--wait` |
 | `listen` | - | `--channel-id` |
-| `serve` | - | - |
 
 The `--wait` flag (default: 3000ms) controls how long the CLI listens for messages before returning results. Increase for channels with less frequent traffic.
 
@@ -242,11 +151,10 @@ The `--wait` flag (default: 3000ms) controls how long the CLI listens for messag
 1. Add the command function in `skills/mezon/scripts/cli.ts`
 2. Add the case to the `switch` in `main()`
 3. Update `showHelp()` with usage info
-4. If it should also be an MCP tool, add it to `cmdServe()`
-5. Update this skill documentation
+4. Update this skill documentation
 
 ### Adding New Provider Methods
 
 1. Add parameter/result types to `skills/mezon/scripts/types.ts`
 2. Add the method to `skills/mezon/scripts/provider.ts`
-3. Expose via CLI command and/or MCP tool
+3. Expose via CLI command

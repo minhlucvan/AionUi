@@ -6,11 +6,7 @@
  */
 
 /**
- * Mezon CLI - Run Mezon tools as standalone commands or as an MCP server
- *
- * Modes:
- *   1. CLI mode  - One-shot commands: `mezon-cli read-messages --channel-id xxx`
- *   2. MCP mode  - Long-running stdio server: `mezon-cli serve`
+ * Mezon CLI - Run Mezon tools as standalone commands
  *
  * Environment variables:
  *   MEZON_BOT_TOKEN  - Bot authentication token (required)
@@ -20,7 +16,6 @@
  *   npx ts-node skills/mezon/scripts/cli.ts <command> [options]
  *
  * Commands:
- *   serve               Start as MCP stdio server (long-running)
  *   status              Show bot connection status and cache stats
  *   list-channels       List channels with message activity
  *   read-messages       Read messages from a channel/thread
@@ -305,149 +300,6 @@ async function cmdListen(flags: Record<string, string>): Promise<void> {
   });
 }
 
-async function cmdServe(): Promise<void> {
-  // Dynamically import to avoid loading MCP SDK for CLI commands
-  const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
-  const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
-  const { z } = await import('zod');
-
-  const server = new McpServer({ name: 'mezon', version: '1.0.0' });
-
-  let provider: MezonToolProvider | null = null;
-
-  async function getProvider(): Promise<MezonToolProvider> {
-    if (provider && provider.isConnected()) return provider;
-    const { token, botId } = getCredentials();
-    provider = new MezonToolProvider({ token, botId });
-    await provider.connect();
-    return provider;
-  }
-
-  // Register all tools (same as index.ts but using dynamic imports)
-  server.tool(
-    'mezon_read_messages',
-    'Read recent messages from a Mezon channel or thread.',
-    {
-      channel_id: z.string().describe('The Mezon channel ID'),
-      thread_id: z.string().optional().describe('Optional thread/topic ID'),
-      limit: z.number().optional().default(50).describe('Max messages (default: 50)'),
-      before_timestamp: z.number().optional().describe('Before this Unix timestamp (ms)'),
-      after_timestamp: z.number().optional().describe('After this Unix timestamp (ms)'),
-    },
-    async ({ channel_id, thread_id, limit, before_timestamp, after_timestamp }: any) => {
-      const p = await getProvider();
-      const messages = p.readMessages({
-        channelId: channel_id,
-        threadId: thread_id,
-        limit,
-        beforeTimestamp: before_timestamp,
-        afterTimestamp: after_timestamp,
-      });
-      if (messages.length === 0) {
-        return { content: [{ type: 'text' as const, text: `No messages found in channel ${channel_id}${thread_id ? ` thread ${thread_id}` : ''}.` }] };
-      }
-      const formatted = messages.map((m) => {
-        const time = new Date(m.timestamp).toISOString();
-        const att = m.attachments?.length ? ` [${m.attachments.length} attachment(s)]` : '';
-        return `[${time}] ${m.senderName}: ${m.text}${att}`;
-      });
-      return { content: [{ type: 'text' as const, text: `Found ${messages.length} message(s):\n\n${formatted.join('\n')}` }] };
-    }
-  );
-
-  server.tool(
-    'mezon_send_message',
-    'Send a text message to a Mezon channel or thread.',
-    {
-      channel_id: z.string().describe('Target channel ID'),
-      clan_id: z.string().describe('Clan/organization ID'),
-      text: z.string().describe('Message text (max 4000 chars)'),
-      thread_id: z.string().optional().describe('Optional thread ID'),
-      reply_to_message_id: z.string().optional().describe('Optional message ID to reply to'),
-    },
-    async ({ channel_id, clan_id, text, thread_id, reply_to_message_id }: any) => {
-      const p = await getProvider();
-      const result = await p.sendMessage({ channelId: channel_id, clanId: clan_id, text, threadId: thread_id, replyToMessageId: reply_to_message_id });
-      return { content: [{ type: 'text' as const, text: `Message sent. ID: ${result.messageId}, Channel: ${result.channelId}${result.threadId ? `, Thread: ${result.threadId}` : ''}` }] };
-    }
-  );
-
-  server.tool(
-    'mezon_search_messages',
-    'Search cached messages by text content.',
-    {
-      query: z.string().describe('Search text (case-insensitive)'),
-      channel_id: z.string().optional().describe('Limit to specific channel'),
-      limit: z.number().optional().default(20).describe('Max results (default: 20)'),
-    },
-    async ({ query, channel_id, limit }: any) => {
-      const p = await getProvider();
-      const results = p.searchMessages({ query, channelId: channel_id, limit });
-      if (results.length === 0) {
-        return { content: [{ type: 'text' as const, text: `No messages matching "${query}".` }] };
-      }
-      const formatted = results.map((m) => {
-        const time = new Date(m.timestamp).toISOString();
-        return `[${time}] [ch:${m.channelId}${m.threadId ? ` t:${m.threadId}` : ''}] ${m.senderName}: ${m.text}`;
-      });
-      return { content: [{ type: 'text' as const, text: `Found ${results.length} result(s):\n\n${formatted.join('\n')}` }] };
-    }
-  );
-
-  server.tool(
-    'mezon_channel_summary',
-    'Get channel/thread conversation summary.',
-    {
-      channel_id: z.string().describe('Channel ID to summarize'),
-      thread_id: z.string().optional().describe('Optional thread ID'),
-    },
-    async ({ channel_id, thread_id }: any) => {
-      const p = await getProvider();
-      const summary = p.getChannelSummary(channel_id, thread_id);
-      if (!summary) {
-        return { content: [{ type: 'text' as const, text: `No data for channel ${channel_id}.` }] };
-      }
-      const msgs = summary.messages.map((m) => `[${new Date(m.timestamp).toISOString()}] ${m.senderName}: ${m.text}`);
-      return {
-        content: [{
-          type: 'text' as const,
-          text: `Channel: ${channel_id}${thread_id ? ` (thread: ${thread_id})` : ''}\nMessages: ${summary.messageCount}\nParticipants: ${summary.participants.join(', ')}\nRange: ${new Date(summary.timeRange.from).toISOString()} to ${new Date(summary.timeRange.to).toISOString()}\n\n${msgs.join('\n')}`,
-        }],
-      };
-    }
-  );
-
-  server.tool('mezon_list_channels', 'List channels with message activity.', {}, async () => {
-    const p = await getProvider();
-    const channels = p.listChannels();
-    if (channels.length === 0) {
-      return { content: [{ type: 'text' as const, text: 'No active channels.' }] };
-    }
-    const lines = channels.map((ch) => `- ${ch.id} | Clan: ${ch.clanId} | Msgs: ${ch.messageCount} | Last: ${ch.lastMessageAt ? new Date(ch.lastMessageAt).toISOString() : 'n/a'}`);
-    return { content: [{ type: 'text' as const, text: `Channels (${channels.length}):\n${lines.join('\n')}` }] };
-  });
-
-  server.tool('mezon_status', 'Get connection status and cache stats.', {}, async () => {
-    const p = await getProvider();
-    const s = p.getStats();
-    return { content: [{ type: 'text' as const, text: `Connected: ${s.connected}\nBot: ${s.botId}\nChannels: ${s.channelCount}\nMessages: ${s.totalMessages}` }] };
-  });
-
-  // Start MCP server
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  process.stderr.write('[mezon-cli] MCP server started on stdio\n');
-
-  if (process.env.MEZON_BOT_TOKEN && process.env.MEZON_BOT_ID) {
-    try {
-      await getProvider();
-      process.stderr.write('[mezon-cli] Connected to Mezon\n');
-    } catch (err) {
-      process.stderr.write(`[mezon-cli] Mezon connection deferred: ${err}\n`);
-    }
-  }
-}
-
 function showHelp(): void {
   const help = `
 mezon-cli - Mezon tools for AI agents
@@ -460,7 +312,6 @@ ENVIRONMENT:
   MEZON_BOT_ID       Bot identifier (required)
 
 COMMANDS:
-  serve              Start as MCP stdio server (for MCP-compatible agents)
   status             Show bot connection status
   list-channels      List channels with activity
   read-messages      Read messages from a channel
@@ -522,11 +373,8 @@ EXAMPLES:
   # Stream messages in real-time
   mezon-cli listen
 
-  # Start as MCP server
-  mezon-cli serve
-
 OUTPUT:
-  All commands (except serve/listen) output JSON to stdout.
+  All commands (except listen) output JSON to stdout.
   Status/progress messages go to stderr.
   Agent can parse stdout with JSON.parse().
 `;
@@ -539,10 +387,6 @@ async function main(): Promise<void> {
   const { command, flags } = parseArgs(process.argv);
 
   switch (command) {
-    case 'serve':
-    case 'mcp':
-      await cmdServe();
-      break;
     case 'status':
       await cmdStatus();
       break;
