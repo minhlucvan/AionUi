@@ -4,11 +4,33 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { exec, execSync } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
+import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
+import type { AcpBackendAll } from '@/types/acpTypes';
 import { ipcBridge } from '../../common';
 import * as os from 'os';
+
+/** Known install/setup commands for CLI tools */
+const CLI_INSTALL_INFO: Partial<Record<AcpBackendAll, { installCommand?: string; setupCommand?: string; installUrl?: string }>> = {
+  claude: { installCommand: 'npm install -g @anthropic-ai/claude-code', setupCommand: 'claude --version', installUrl: 'https://docs.anthropic.com/en/docs/claude-code' },
+  codex: { installCommand: 'npm install -g @openai/codex', setupCommand: 'codex --version', installUrl: 'https://github.com/openai/codex' },
+  qwen: { installCommand: 'npm install -g @qwen-code/qwen-code', setupCommand: 'qwen --version', installUrl: 'https://github.com/QwenLM/qwen-code' },
+  goose: { installCommand: 'brew install block/goose/goose', setupCommand: 'goose --version', installUrl: 'https://github.com/block/goose' },
+  copilot: { installUrl: 'https://github.com/github/copilot-cli' },
+  opencode: { installCommand: 'npm install -g opencode-ai', setupCommand: 'opencode --version', installUrl: 'https://github.com/nichochar/opencode' },
+  kimi: { installUrl: 'https://github.com/anthropics/kimi-cli' },
+  auggie: { installUrl: 'https://www.augmentcode.com/' },
+  iflow: { installUrl: 'https://iflow.dev/' },
+  droid: { installUrl: 'https://www.factory.ai/' },
+  qoder: { installUrl: 'https://github.com/qoder-ai/qodercli' },
+  'openclaw-gateway': { installUrl: 'https://github.com/openclaw/openclaw' },
+};
 
 export function initAcpConversationBridge(): void {
   // Debug provider to check environment variables
@@ -176,6 +198,129 @@ export function initAcpConversationBridge(): void {
         success: false,
         msg: `${backend} health check failed: ${errorMsg}`,
         data: { available: false, error: errorMsg },
+      };
+    }
+  });
+
+  // Get CLI version info for all known backends
+  ipcBridge.acpConversation.getCliVersions.provider(() => {
+    const detectedAgents = acpDetector.getDetectedAgents();
+
+    const results = Object.entries(ACP_BACKENDS_ALL)
+      .filter(([id, config]) => {
+        // Exclude gemini (built-in) and custom (user-configured)
+        if (id === 'gemini' || id === 'custom') return false;
+        return config.enabled && config.cliCommand;
+      })
+      .map(([id, config]) => {
+        const backendId = id as AcpBackendAll;
+        const detected = detectedAgents.find((a) => a.backend === backendId);
+        const installed = !!detected?.cliPath;
+        const installInfo = CLI_INSTALL_INFO[backendId];
+
+        let version: string | undefined;
+        if (installed && detected?.cliPath) {
+          try {
+            const output = execSync(`${detected.cliPath} --version`, {
+              encoding: 'utf-8',
+              stdio: 'pipe',
+              timeout: 5000,
+            }).trim();
+            // Extract version from output - often contains extra text
+            const versionMatch = output.match(/v?(\d+\.\d+[\.\d]*[-\w]*)/);
+            version = versionMatch ? versionMatch[0] : output.split('\n')[0].trim();
+          } catch {
+            // Version command failed - CLI may not support --version
+            version = undefined;
+          }
+        }
+
+        return {
+          backend: backendId,
+          name: config.name,
+          installed,
+          version,
+          cliCommand: config.cliCommand,
+          installCommand: installInfo?.installCommand,
+          installUrl: installInfo?.installUrl,
+        };
+      });
+
+    return Promise.resolve({ success: true, data: results });
+  });
+
+  // Install a CLI tool via its install command
+  ipcBridge.acpConversation.installCli.provider(async ({ backend }) => {
+    const backendId = backend as AcpBackendAll;
+    const installInfo = CLI_INSTALL_INFO[backendId];
+    const backendConfig = ACP_BACKENDS_ALL[backendId];
+
+    if (!installInfo?.installCommand) {
+      return {
+        success: false,
+        msg: `No install command available for ${backendConfig?.name || backend}. Please visit the documentation to install manually.`,
+      };
+    }
+
+    try {
+      console.log(`[ACP] Installing CLI: ${installInfo.installCommand}`);
+      const { stdout, stderr } = await execAsync(installInfo.installCommand, {
+        timeout: 120000, // 2 minute timeout for install
+        env: { ...process.env },
+      });
+
+      const output = (stdout + (stderr ? `\n${stderr}` : '')).trim();
+      console.log(`[ACP] Install completed for ${backend}:`, output.slice(0, 200));
+
+      // Re-initialize detector to pick up the newly installed CLI
+      await acpDetector.reinitialize();
+
+      return {
+        success: true,
+        data: { output },
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[ACP] Install failed for ${backend}:`, errorMsg);
+      return {
+        success: false,
+        msg: `Installation failed: ${errorMsg}`,
+        data: { output: errorMsg },
+      };
+    }
+  });
+
+  // Setup/verify a CLI tool after installation
+  ipcBridge.acpConversation.setupCli.provider(async ({ backend }) => {
+    const backendId = backend as AcpBackendAll;
+    const installInfo = CLI_INSTALL_INFO[backendId];
+    const backendConfig = ACP_BACKENDS_ALL[backendId];
+
+    if (!installInfo?.setupCommand) {
+      return {
+        success: false,
+        msg: `No setup command available for ${backendConfig?.name || backend}.`,
+      };
+    }
+
+    try {
+      console.log(`[ACP] Running setup for ${backend}: ${installInfo.setupCommand}`);
+      const { stdout, stderr } = await execAsync(installInfo.setupCommand, {
+        timeout: 30000,
+        env: { ...process.env },
+      });
+
+      const output = (stdout + (stderr ? `\n${stderr}` : '')).trim();
+      return {
+        success: true,
+        data: { output },
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        msg: `Setup failed: ${errorMsg}`,
+        data: { output: errorMsg },
       };
     }
   });

@@ -9,7 +9,7 @@ import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { iconColors } from '@/renderer/theme/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Tabs } from '@arco-design/web-react';
-import { Computer, Earth, Gemini, Info, LinkCloud, Shield, Toolkit } from '@icon-park/react';
+import { Computer, Earth, Gemini, Info, LinkCloud, Shield, Terminal, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,7 @@ import GeminiModalContent from './contents/GeminiModalContent';
 import ModelModalContent from './contents/ModelModalContent';
 import SecurityModalContent from './contents/SecurityModalContent';
 import SystemModalContent from './contents/SystemModalContent';
+import CliToolsModalContent from './contents/CliToolsModalContent';
 import ToolsModalContent from './contents/ToolsModalContent';
 import WebuiModalContent from './contents/WebuiModalContent';
 import { SettingsViewModeProvider } from './settingsViewContext';
@@ -52,7 +53,7 @@ const RESIZE_DEBOUNCE_DELAY = 150;
 /**
  * 设置标签页类型 / Settings tab type
  */
-export type SettingTab = 'gemini' | 'model' | 'agent' | 'tools' | 'security' | 'webui' | 'system' | 'about';
+export type SettingTab = 'gemini' | 'model' | 'agent' | 'tools' | 'cli-tools' | 'security' | 'webui' | 'system' | 'about';
 
 /**
  * 设置弹窗组件属性 / Settings modal component props
@@ -176,6 +177,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
         icon: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
       },
       {
+        key: 'cli-tools',
+        label: t('settings.cliTools.title', { defaultValue: 'CLI Tools' }),
+        icon: <Terminal theme='outline' size='20' fill={iconColors.secondary} />,
+      },
+      {
         key: 'security',
         label: t('settings.security'),
         icon: <Shield theme='outline' size='20' fill={iconColors.secondary} />,
@@ -220,6 +226,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
         return <AgentModalContent />;
       case 'tools':
         return <ToolsModalContent />;
+      case 'cli-tools':
+        return <CliToolsModalContent />;
       case 'security':
         return <SecurityModalContent />;
       case 'webui':
