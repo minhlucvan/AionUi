@@ -3,10 +3,12 @@
  */
 
 import { ipcBridge } from '@/common';
+import FilePreview from '@/renderer/components/FilePreview';
+import HorizontalFileList from '@/renderer/components/HorizontalFileList';
 import { useBotContext } from '@/renderer/context/BotContext';
 import { emitter } from '@/renderer/utils/emitter';
 import { Button, Input, Message } from '@arco-design/web-react';
-import { ArrowUp } from '@icon-park/react';
+import { ArrowUp, Plus } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +20,7 @@ const BotGuidPage: React.FC = () => {
   const navigate = useNavigate();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploadFiles, setUploadFiles] = useState<string[]>([]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -70,7 +73,7 @@ const BotGuidPage: React.FC = () => {
         `acp_initial_message_${conversation.id}`,
         JSON.stringify({
           input: input,
-          files: [],
+          files: uploadFiles,
         })
       );
 
@@ -97,6 +100,14 @@ const BotGuidPage: React.FC = () => {
             minHeight: '120px',
           }}
         >
+          {uploadFiles.length > 0 && (
+            <HorizontalFileList>
+              {uploadFiles.map((path) => (
+                <FilePreview key={path} path={path} onRemove={() => setUploadFiles(uploadFiles.filter((v) => v !== path))} />
+              ))}
+            </HorizontalFileList>
+          )}
+
           <Input.TextArea
             autoSize={{ minRows: 3, maxRows: 20 }}
             placeholder={t('conversation.welcome.placeholder')}
@@ -112,7 +123,21 @@ const BotGuidPage: React.FC = () => {
           />
 
           <div className='flex justify-between items-center mt-12px'>
-            <div className='text-t-secondary text-13px'>Using Claude (Bot: {botContext?.botName})</div>
+            <div className='flex items-center gap-4px'>
+              <Button
+                type='secondary'
+                shape='circle'
+                icon={<Plus theme='outline' size='14' strokeWidth={2} />}
+                onClick={() => {
+                  void ipcBridge.dialog.showOpen.invoke({ properties: ['openFile', 'multiSelections'] }).then((files) => {
+                    if (files && files.length > 0) {
+                      setUploadFiles((prev) => [...prev, ...files]);
+                    }
+                  });
+                }}
+              />
+              <span className='text-t-secondary text-13px'>Using Claude (Bot: {botContext?.botName})</span>
+            </div>
             <Button shape='circle' type='primary' loading={loading} disabled={!input.trim()} icon={<ArrowUp theme='outline' size='14' fill='white' strokeWidth={2} />} onClick={handleSend} />
           </div>
         </div>
