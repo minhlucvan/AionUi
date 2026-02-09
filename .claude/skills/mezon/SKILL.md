@@ -30,7 +30,7 @@ Mezon Platform (channels, threads, DMs)
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| CLI | `.claude/skills/mezon/cli.ts` | CLI entry point, command parsing, JSON output |
+| CLI | `.claude/skills/mezon/scripts/cli.ts` | CLI entry point, command parsing, JSON output |
 | MCP Server | Built into `cli.ts serve` | MCP stdio server for MCP-compatible agents |
 | Provider | `src/mcp-servers/mezon/provider.ts` | SDK wrapper, tool method implementations |
 | Cache | `src/mcp-servers/mezon/cache.ts` | In-memory message/channel cache |
@@ -52,36 +52,36 @@ All CLI commands output **JSON to stdout** (machine-readable). Status/progress g
 
 ```bash
 # Check bot connection
-npx ts-node .claude/skills/mezon/cli.ts status
+npx ts-node .claude/skills/mezon/scripts/cli.ts status
 
 # List channels with activity
-npx ts-node .claude/skills/mezon/cli.ts list-channels
+npx ts-node .claude/skills/mezon/scripts/cli.ts list-channels
 
 # Read last 20 messages from a channel
-npx ts-node .claude/skills/mezon/cli.ts read-messages --channel-id abc123 --limit 20
+npx ts-node .claude/skills/mezon/scripts/cli.ts read-messages --channel-id abc123 --limit 20
 
 # Read from a thread
-npx ts-node .claude/skills/mezon/cli.ts read-messages --channel-id abc123 --thread-id thread456
+npx ts-node .claude/skills/mezon/scripts/cli.ts read-messages --channel-id abc123 --thread-id thread456
 
 # Send a message
-npx ts-node .claude/skills/mezon/cli.ts send-message \
+npx ts-node .claude/skills/mezon/scripts/cli.ts send-message \
   --channel-id abc123 --clan-id clan456 --text "Hello!"
 
 # Reply to a specific message
-npx ts-node .claude/skills/mezon/cli.ts send-message \
+npx ts-node .claude/skills/mezon/scripts/cli.ts send-message \
   --channel-id abc123 --clan-id clan456 --text "Great point!" --reply-to msg789
 
 # Search messages
-npx ts-node .claude/skills/mezon/cli.ts search --query "deployment" --limit 10
+npx ts-node .claude/skills/mezon/scripts/cli.ts search --query "deployment" --limit 10
 
 # Get channel summary (participants, time range, all messages)
-npx ts-node .claude/skills/mezon/cli.ts summary --channel-id abc123
+npx ts-node .claude/skills/mezon/scripts/cli.ts summary --channel-id abc123
 
 # Stream messages in real-time (long-running)
-npx ts-node .claude/skills/mezon/cli.ts listen
+npx ts-node .claude/skills/mezon/scripts/cli.ts listen
 
 # Start as MCP stdio server
-npx ts-node .claude/skills/mezon/cli.ts serve
+npx ts-node .claude/skills/mezon/scripts/cli.ts serve
 ```
 
 ### npm Script Shortcuts
@@ -126,7 +126,7 @@ import { execSync } from 'child_process';
 
 // Read messages
 const result = JSON.parse(
-  execSync('npx ts-node .claude/skills/mezon/cli.ts read-messages --channel-id abc123', {
+  execSync('npx ts-node .claude/skills/mezon/scripts/cli.ts read-messages --channel-id abc123', {
     env: { ...process.env, MEZON_BOT_TOKEN: 'xxx', MEZON_BOT_ID: 'yyy' },
     encoding: 'utf-8',
   })
@@ -134,7 +134,7 @@ const result = JSON.parse(
 
 // Send a message
 execSync(
-  'npx ts-node .claude/skills/mezon/cli.ts send-message --channel-id abc123 --clan-id clan456 --text "Summary: ..."',
+  'npx ts-node .claude/skills/mezon/scripts/cli.ts send-message --channel-id abc123 --clan-id clan456 --text "Summary: ..."',
   { env: { ...process.env, MEZON_BOT_TOKEN: 'xxx', MEZON_BOT_ID: 'yyy' } }
 );
 ```
@@ -159,7 +159,7 @@ For MCP-compatible agents, start the server and register it:
 
 ```bash
 # Register with Claude
-claude mcp add mezon -- npx ts-node .claude/skills/mezon/cli.ts serve
+claude mcp add mezon -- npx ts-node .claude/skills/mezon/scripts/cli.ts serve
 ```
 
 **MCP config JSON:**
@@ -169,7 +169,7 @@ claude mcp add mezon -- npx ts-node .claude/skills/mezon/cli.ts serve
   "transport": {
     "type": "stdio",
     "command": "npx",
-    "args": ["ts-node", ".claude/skills/mezon/cli.ts", "serve"],
+    "args": ["ts-node", ".claude/skills/mezon/scripts/cli.ts", "serve"],
     "env": {
       "MEZON_BOT_TOKEN": "<your-bot-token>",
       "MEZON_BOT_ID": "<your-bot-id>"
@@ -240,7 +240,7 @@ The `--wait` flag (default: 3000ms) controls how long the CLI listens for messag
 
 ### Adding New CLI Commands
 
-1. Add the command function in `.claude/skills/mezon/cli.ts`
+1. Add the command function in `.claude/skills/mezon/scripts/cli.ts`
 2. Add the case to the `switch` in `main()`
 3. Update `showHelp()` with usage info
 4. If it should also be an MCP tool, add it to `cmdServe()`
