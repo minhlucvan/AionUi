@@ -171,6 +171,15 @@ class AcpDetector {
   }
 
   /**
+   * Force re-detection of all CLI tools (called after installing a new CLI)
+   */
+  async reinitialize(): Promise<void> {
+    this.isDetected = false;
+    this.detectedAgents = [];
+    await this.initialize();
+  }
+
+  /**
    * Refresh custom agents detection only (called when config changes)
    */
   async refreshCustomAgents(): Promise<void> {

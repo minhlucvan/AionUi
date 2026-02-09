@@ -1,7 +1,7 @@
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { Tooltip } from '@arco-design/web-react';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { Api, Communication, Computer, Earth, Gemini, Info, Lightning, LinkCloud, Robot, Shield, System, Toolkit } from '@icon-park/react';
+import { Api, Communication, Computer, Earth, Gemini, Info, Lightning, LinkCloud, Robot, Shield, System, Terminal, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -43,6 +43,11 @@ const SettingsSider: React.FC<{ collapsed?: boolean }> = ({ collapsed = false })
         label: t('settings.tools'),
         icon: <Toolkit />,
         path: 'tools',
+      },
+      {
+        label: t('settings.cliTools.title', { defaultValue: 'CLI Tools' }),
+        icon: <Terminal />,
+        path: 'cli-tools',
       },
       {
         label: t('settings.security'),
