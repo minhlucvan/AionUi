@@ -18,7 +18,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
 import { copyDirectoryRecursively } from '../utils';
-import { ConfigStorage } from '@/common/storage';
+import { ProcessConfig } from '../initStorage';
 
 /**
  * Get the Application Support assistants directory
@@ -56,7 +56,7 @@ function resolveResourcesDir(dirPath: string): string | null {
  */
 export async function needsAssistantMigration(): Promise<boolean> {
   const MIGRATION_KEY = 'migration.assistantsToAppSupport_v1';
-  const migrationDone = await ConfigStorage.get(MIGRATION_KEY).catch(() => false);
+  const migrationDone = await ProcessConfig.get(MIGRATION_KEY).catch(() => false);
   return !migrationDone;
 }
 
@@ -65,7 +65,7 @@ export async function needsAssistantMigration(): Promise<boolean> {
  */
 async function markMigrationComplete(): Promise<void> {
   const MIGRATION_KEY = 'migration.assistantsToAppSupport_v1';
-  await ConfigStorage.set(MIGRATION_KEY, true);
+  await ProcessConfig.set(MIGRATION_KEY, true);
 }
 
 /**

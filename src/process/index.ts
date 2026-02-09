@@ -19,10 +19,10 @@ import { getChannelManager } from '@/channels';
 import { runAssistantMigration } from './migrations/assistantMigration';
 
 export const initializeProcess = async () => {
-  // Run assistant migration before initializing storage
-  await runAssistantMigration();
-
   await initStorage();
+
+  // Run assistant migration after storage is initialized (needs ConfigStorage interceptor)
+  await runAssistantMigration();
 
   // Initialize Channel subsystem
   try {
