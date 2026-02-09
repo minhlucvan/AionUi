@@ -3,7 +3,7 @@
  *
  * Runs when a new conversation is created and the workspace is ready.
  * Installs the interface-design plugin from https://github.com/Dammyjay93/interface-design
- * by cloning the repo and copying .claude/ commands and skills into the workspace.
+ * by cloning the repo and copying .claude/ contents (commands, skills) into the workspace.
  *
  * @param {Object} context
  * @param {string} context.workspace - The workspace directory path
@@ -19,25 +19,15 @@ const REPO_URL = 'https://github.com/Dammyjay93/interface-design.git';
 module.exports = function (context) {
   const workspace = context.workspace;
 
-  // Ensure base directories exist
-  const dirs = [
-    '.interface-design',
-    '.claude',
-    '.claude/commands',
-    '.claude/skills',
-    '.claude/skills/interface-design',
-    '.claude/skills/interface-design/references',
-  ];
-
-  for (const dir of dirs) {
-    const dirPath = path.join(workspace, dir);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-    }
+  // Ensure .interface-design directory exists for design system storage
+  const designDir = path.join(workspace, '.interface-design');
+  if (!fs.existsSync(designDir)) {
+    fs.mkdirSync(designDir, { recursive: true });
   }
 
   // Check if plugin is already installed
-  const skillFile = path.join(workspace, '.claude', 'skills', 'interface-design', 'SKILL.md');
+  const claudeDir = path.join(workspace, '.claude');
+  const skillFile = path.join(claudeDir, 'skills', 'interface-design', 'SKILL.md');
   if (fs.existsSync(skillFile)) {
     console.log('[interface-design] Plugin already installed, skipping.');
     return { content: context.content };
@@ -52,34 +42,22 @@ module.exports = function (context) {
       timeout: 30000,
     });
 
-    // Copy .claude/commands/
-    const srcCommands = path.join(tmpDir, '.claude', 'commands');
-    const destCommands = path.join(workspace, '.claude', 'commands');
-    if (fs.existsSync(srcCommands)) {
-      copyDirRecursive(srcCommands, destCommands);
-    }
-
-    // Copy .claude/skills/interface-design/
-    const srcSkills = path.join(tmpDir, '.claude', 'skills', 'interface-design');
-    const destSkills = path.join(workspace, '.claude', 'skills', 'interface-design');
-    if (fs.existsSync(srcSkills)) {
-      copyDirRecursive(srcSkills, destSkills);
+    // Copy entire .claude/ directory from the plugin repo
+    const srcClaude = path.join(tmpDir, '.claude');
+    if (fs.existsSync(srcClaude)) {
+      copyDirRecursive(srcClaude, claudeDir);
     }
 
     // Copy reference/ directory if it exists
     const srcReference = path.join(tmpDir, 'reference');
     const destReference = path.join(workspace, 'reference');
     if (fs.existsSync(srcReference)) {
-      if (!fs.existsSync(destReference)) {
-        fs.mkdirSync(destReference, { recursive: true });
-      }
       copyDirRecursive(srcReference, destReference);
     }
 
     console.log('[interface-design] Plugin installed successfully.');
   } catch (err) {
     console.error('[interface-design] Failed to install plugin:', err.message);
-    console.log('[interface-design] Workspace initialized with base structure only.');
   } finally {
     // Clean up temp directory
     try {

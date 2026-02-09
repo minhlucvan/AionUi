@@ -6,6 +6,5 @@
   "author": "AionUi",
   "workspacePath": "./workspace",
   "tags": ["design", "ui", "design-system", "interface", "craft", "tokens", "consistency"],
-  "presetAgentType": "claude",
-  "defaultAgent": "interface-designer"
+  "presetAgentType": "claude"
 }
