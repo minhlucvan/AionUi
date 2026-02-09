@@ -24,7 +24,7 @@ const CLI_INSTALL_INFO: Partial<Record<AcpBackendAll, { installCommand?: string;
   goose: { installCommand: 'brew install block/goose/goose', setupCommand: 'goose --version', installUrl: 'https://github.com/block/goose' },
   copilot: { installUrl: 'https://github.com/github/copilot-cli' },
   opencode: { installCommand: 'npm install -g opencode-ai', setupCommand: 'opencode --version', installUrl: 'https://github.com/nichochar/opencode' },
-  kimi: { installUrl: 'https://github.com/anthropics/kimi-cli' },
+  kimi: { installCommand: 'curl -LsSf https://code.kimi.com/install.sh | bash', setupCommand: 'kimi --version', installUrl: 'https://github.com/MoonshotAI/kimi-cli' },
   auggie: { installUrl: 'https://www.augmentcode.com/' },
   iflow: { installUrl: 'https://iflow.dev/' },
   droid: { installUrl: 'https://www.factory.ai/' },
