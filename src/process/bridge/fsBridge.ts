@@ -1636,6 +1636,122 @@ export function initFsBridge(): void {
     }
   });
 
+  // 从 zip 文件导入 skill / Import skill from zip file
+  ipcBridge.fs.importSkillZip.provider(async ({ zipPath }) => {
+    try {
+      const AdmZip = (await import('adm-zip')).default;
+      const zip = new AdmZip(zipPath);
+
+      // Extract to a temporary directory
+      const tmpDir = path.join(getUserSkillsDir(), `_tmp_zip_${Date.now()}`);
+      await fs.mkdir(tmpDir, { recursive: true });
+
+      try {
+        zip.extractAllTo(tmpDir, true);
+
+        // Find all SKILL.md files recursively (up to 3 levels deep)
+        const findSkillDirs = async (dir: string, depth = 0): Promise<string[]> => {
+          if (depth > 3) return [];
+          const dirs: string[] = [];
+
+          // Check if current directory has SKILL.md
+          try {
+            await fs.access(path.join(dir, 'SKILL.md'));
+            dirs.push(dir);
+            return dirs; // Don't recurse into skill directories
+          } catch {
+            // No SKILL.md here, check subdirectories
+          }
+
+          try {
+            const entries = await fs.readdir(dir, { withFileTypes: true });
+            for (const entry of entries) {
+              if (entry.isDirectory()) {
+                const subDirs = await findSkillDirs(path.join(dir, entry.name), depth + 1);
+                dirs.push(...subDirs);
+              }
+            }
+          } catch {
+            // Ignore read errors
+          }
+
+          return dirs;
+        };
+
+        const skillDirs = await findSkillDirs(tmpDir);
+
+        if (skillDirs.length === 0) {
+          return { success: false, msg: 'No valid skills found in zip file (no SKILL.md found)' };
+        }
+
+        const userSkillsDir = getUserSkillsDir();
+        const importedNames: string[] = [];
+        let skipped = 0;
+
+        for (const skillDir of skillDirs) {
+          const skillMdPath = path.join(skillDir, 'SKILL.md');
+          const content = await fs.readFile(skillMdPath, 'utf-8');
+
+          // Extract skill name from YAML front matter
+          let skillName = path.basename(skillDir);
+          const frontMatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+          if (frontMatterMatch) {
+            const yaml = frontMatterMatch[1];
+            const nameMatch = yaml.match(/^name:\s*(.+)$/m);
+            if (nameMatch) {
+              skillName = nameMatch[1].trim();
+            }
+          }
+
+          // Validate skill name
+          const nameValidation = validateSkillName(skillName);
+          if (!nameValidation.valid) {
+            skipped++;
+            continue;
+          }
+
+          const targetDir = path.join(userSkillsDir, skillName);
+
+          // Check if already exists
+          try {
+            await fs.access(targetDir);
+            skipped++;
+            continue;
+          } catch {
+            // Doesn't exist, proceed
+          }
+
+          await copyDirectory(skillDir, targetDir);
+          importedNames.push(skillName);
+        }
+
+        if (importedNames.length === 0 && skipped > 0) {
+          return { success: false, msg: 'All skills in zip already exist' };
+        }
+
+        if (importedNames.length === 0) {
+          return { success: false, msg: 'No valid skills found in zip file' };
+        }
+
+        console.log(`[fsBridge] Imported ${importedNames.length} skills from zip, skipped ${skipped}`);
+        return {
+          success: true,
+          data: { skillNames: importedNames, skipped },
+          msg: `Imported ${importedNames.length} skill(s) from zip`,
+        };
+      } finally {
+        // Clean up temp directory
+        await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      }
+    } catch (error) {
+      console.error('[fsBridge] Failed to import skill from zip:', error);
+      return {
+        success: false,
+        msg: `Failed to import skill from zip: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  });
+
   // 从 zip 文件导入助手 / Import assistant from zip file
   // Simply extract zip to assistants folder and load metadata
   ipcBridge.fs.importAssistantZip.provider(async ({ zipPath }) => {

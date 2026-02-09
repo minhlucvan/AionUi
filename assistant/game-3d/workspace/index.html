@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Game - Three.js Workspace</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      overflow: hidden;
+      background: #000;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* Loading Screen */
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      color: #fff;
+    }
+
+    #loading .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #e94560;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #loading p {
+      font-size: 16px;
+      opacity: 0.8;
+    }
+
+    /* HUD */
+    #hud {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    #controls-hint {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 14px;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    /* Win Modal */
+    #win-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      justify-content: center;
+      align-items: center;
+      z-index: 500;
+    }
+
+    #win-modal .modal-content {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 40px 60px;
+      border-radius: 16px;
+      text-align: center;
+      color: #fff;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    #win-modal h2 {
+      font-size: 36px;
+      margin-bottom: 10px;
+    }
+
+    #win-modal p {
+      font-size: 18px;
+      margin-bottom: 24px;
+      opacity: 0.9;
+    }
+
+    #win-modal button {
+      padding: 12px 36px;
+      font-size: 18px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      background: #fff;
+      color: #764ba2;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    #win-modal button:hover {
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Loading assets...</p>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">Stars: 0 / 5</div>
+
+  <!-- Controls Hint -->
+  <div id="controls-hint">WASD or Arrow Keys to Move | Space to Jump</div>
+
+  <!-- Win Modal -->
+  <div id="win-modal">
+    <div class="modal-content">
+      <h2>Level Complete!</h2>
+      <p>You collected all the stars!</p>
+      <button id="play-again-btn">Play Again</button>
+    </div>
+  </div>
+
+  <!-- Three.js (local) -->
+  <script src="three.min.js"></script>
+
+  <script>
+    // ============================================================
+    // CONFIG - All tunable constants
+    // ============================================================
+    const CONFIG = {
+      playerSpeed: 0.08,
+      jumpForce: 0.35,
+      gravity: 0.015,
+      colors: {
+        player: 0xffb6c1,
+        platform: 0x7cfc00,
+        star: 0xffd700,
+        enemy: 0xff4444,
+        sky: 0x87ceeb,
+      },
+    };
+
+    // ============================================================
+    // GAME STATE
+    // ============================================================
+    const gameState = {
+      score: 0,
+      isPlaying: true,
+      isWon: false,
+    };
+
+    const player = {
+      mesh: null,
+      velocityY: 0,
+      isGrounded: false,
+    };
+
+    const keys = { w: false, a: false, s: false, d: false, space: false };
+
+    let scene, camera, renderer;
+    let platforms = [];
+    let stars = [];
+    let enemies = [];
+
+    // DOM references
+    const hudEl = document.getElementById('hud');
+    const winModal = document.getElementById('win-modal');
+    const loadingEl = document.getElementById('loading');
+
+    // ============================================================
+    // INITIALIZATION
+    // ============================================================
+    window.onload = function () {
+      initGame();
+    };
+
+    function initGame() {
+      // Safety check
+      if (typeof THREE === 'undefined') {
+        alert('Three.js failed to load. Please check your network connection.');
+        return;
+      }
+
+      // Scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(CONFIG.colors.sky);
+      scene.fog = new THREE.Fog(CONFIG.colors.sky, 20, 60);
+
+      // Camera
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      document.body.appendChild(renderer.domElement);
+
+      // Lights
+      setupLights();
+
+      // Entities
+      createPlayer();
+      createPlatforms();
+      createStars();
+      createEnemies();
+
+      // Input
+      setupInput();
+
+      // Resize handler
+      window.addEventListener('resize', onWindowResize);
+
+      // Play Again button
+      document.getElementById('play-again-btn').addEventListener('click', restartGame);
+
+      // Hide loading screen and start
+      loadingEl.style.display = 'none';
+      animate();
+    }
+
+    // ============================================================
+    // SCENE SETUP
+    // ============================================================
+    function setupLights() {
+      const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambient);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(20, 50, 20);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 1024;
+      dirLight.shadow.mapSize.height = 1024;
+      dirLight.shadow.camera.near = 0.5;
+      dirLight.shadow.camera.far = 100;
+      dirLight.shadow.camera.left = -30;
+      dirLight.shadow.camera.right = 30;
+      dirLight.shadow.camera.top = 30;
+      dirLight.shadow.camera.bottom = -30;
+      scene.add(dirLight);
+    }
+
+    // ============================================================
+    // PLAYER
+    // ============================================================
+    function createPlayer() {
+      player.mesh = new THREE.Group();
+
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: CONFIG.colors.player,
+        roughness: 0.4,
+      });
+
+      // Body (sphere)
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), bodyMat);
+      body.castShadow = true;
+      player.mesh.add(body);
+
+      // Eyes
+      const eyeMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+      const eyeGeo = new THREE.SphereGeometry(0.08, 8, 8);
+
+      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+      leftEye.position.set(-0.15, 0.15, 0.42);
+      player.mesh.add(leftEye);
+
+      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+      rightEye.position.set(0.15, 0.15, 0.42);
+      player.mesh.add(rightEye);
+
+      // Blush
+      const blushMat = new THREE.MeshStandardMaterial({ color: 0xff8888, transparent: true, opacity: 0.5 });
+      const blushGeo = new THREE.CircleGeometry(0.08, 8);
+
+      const leftBlush = new THREE.Mesh(blushGeo, blushMat);
+      leftBlush.position.set(-0.3, 0.0, 0.44);
+      player.mesh.add(leftBlush);
+
+      const rightBlush = new THREE.Mesh(blushGeo, blushMat);
+      rightBlush.position.set(0.3, 0.0, 0.44);
+      player.mesh.add(rightBlush);
+
+      // Feet
+      const footGeo = new THREE.SphereGeometry(0.15, 8, 8);
+      footGeo.scale(1, 0.6, 1.2);
+
+      const leftFoot = new THREE.Mesh(footGeo, bodyMat);
+      leftFoot.position.set(-0.2, -0.45, 0.1);
+      leftFoot.castShadow = true;
+      player.mesh.add(leftFoot);
+
+      const rightFoot = new THREE.Mesh(footGeo, bodyMat);
+      rightFoot.position.set(0.2, -0.45, 0.1);
+      rightFoot.castShadow = true;
+      player.mesh.add(rightFoot);
+
+      player.mesh.position.set(0, 2, 0);
+      scene.add(player.mesh);
+    }
+
+    // ============================================================
+    // PLATFORMS
+    // ============================================================
+    function createPlatforms() {
+      const platformData = [
+        { x: 0, y: 0, z: 0, w: 8, h: 1, d: 8 },
+        { x: 6, y: 1.5, z: -4, w: 4, h: 1, d: 4 },
+        { x: -5, y: 2.5, z: -6, w: 4, h: 1, d: 4 },
+        { x: 3, y: 4, z: -10, w: 5, h: 1, d: 3 },
+        { x: -4, y: 5.5, z: -14, w: 4, h: 1, d: 4 },
+        { x: 2, y: 7, z: -18, w: 6, h: 1, d: 5 },
+      ];
+
+      const platMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.platform, roughness: 0.8 });
+
+      for (const p of platformData) {
+        const geo = new THREE.BoxGeometry(p.w, p.h, p.d);
+        const mesh = new THREE.Mesh(geo, platMat);
+        mesh.position.set(p.x, p.y, p.z);
+        mesh.receiveShadow = true;
+        mesh.castShadow = true;
+        mesh.userData = { width: p.w, height: p.h, depth: p.d };
+        scene.add(mesh);
+        platforms.push(mesh);
+      }
+    }
+
+    // ============================================================
+    // STARS
+    // ============================================================
+    function createStars() {
+      const starPositions = [
+        { x: 0, y: 2, z: 0 },
+        { x: 6, y: 3.5, z: -4 },
+        { x: -5, y: 4.5, z: -6 },
+        { x: 3, y: 6, z: -10 },
+        { x: 2, y: 9, z: -18 },
+      ];
+
+      const starMat = new THREE.MeshStandardMaterial({
+        color: CONFIG.colors.star,
+        emissive: CONFIG.colors.star,
+        emissiveIntensity: 0.5,
+        metalness: 0.5,
+        roughness: 0.2,
+      });
+
+      for (const pos of starPositions) {
+        const starGroup = new THREE.Group();
+
+        // Star shape using octahedron
+        const starGeo = new THREE.OctahedronGeometry(0.3, 0);
+        const starMesh = new THREE.Mesh(starGeo, starMat);
+        starMesh.castShadow = true;
+        starGroup.add(starMesh);
+
+        starGroup.position.set(pos.x, pos.y, pos.z);
+        starGroup.userData.baseY = pos.y;
+        scene.add(starGroup);
+        stars.push(starGroup);
+      }
+    }
+
+    // ============================================================
+    // ENEMIES
+    // ============================================================
+    function createEnemies() {
+      const enemyData = [
+        { x: 3, y: 2, z: -10, range: 2 },
+        { x: -4, y: 7, z: -14, range: 1.5 },
+      ];
+
+      const enemyMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.enemy, roughness: 0.5 });
+
+      for (const e of enemyData) {
+        const enemyMesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), enemyMat);
+        enemyMesh.position.set(e.x, e.y, e.z);
+        enemyMesh.castShadow = true;
+        enemyMesh.userData = { baseX: e.x, range: e.range, direction: 1 };
+        scene.add(enemyMesh);
+        enemies.push(enemyMesh);
+      }
+    }
+
+    // ============================================================
+    // INPUT
+    // ============================================================
+    function setupInput() {
+      document.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        if (key === 'w' || key === 'arrowup') keys.w = true;
+        if (key === 's' || key === 'arrowdown') keys.s = true;
+        if (key === 'a' || key === 'arrowleft') keys.a = true;
+        if (key === 'd' || key === 'arrowright') keys.d = true;
+        if (key === ' ') keys.space = true;
+      });
+
+      document.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+        if (key === 'w' || key === 'arrowup') keys.w = false;
+        if (key === 's' || key === 'arrowdown') keys.s = false;
+        if (key === 'a' || key === 'arrowleft') keys.a = false;
+        if (key === 'd' || key === 'arrowright') keys.d = false;
+        if (key === ' ') keys.space = false;
+      });
+    }
+
+    // ============================================================
+    // GAME LOOP
+    // ============================================================
+    function animate() {
+      requestAnimationFrame(animate);
+      if (gameState.isPlaying) {
+        updatePhysics();
+        updateEnemies();
+        checkStarCollection();
+        updateCamera();
+        updateStarAnimation();
+      }
+      renderer.render(scene, camera);
+    }
+
+    // ============================================================
+    // PHYSICS & MOVEMENT
+    // ============================================================
+    function updatePhysics() {
+      // Camera-relative movement
+      const camForward = new THREE.Vector3();
+      camera.getWorldDirection(camForward);
+      camForward.y = 0;
+      camForward.normalize();
+
+      const camRight = new THREE.Vector3();
+      camRight.crossVectors(camForward, new THREE.Vector3(0, 1, 0));
+
+      const moveDir = new THREE.Vector3();
+      if (keys.w) moveDir.add(camForward);
+      if (keys.s) moveDir.sub(camForward);
+      if (keys.d) moveDir.add(camRight);
+      if (keys.a) moveDir.sub(camRight);
+
+      if (moveDir.length() > 0) {
+        moveDir.normalize();
+        player.mesh.position.add(moveDir.multiplyScalar(CONFIG.playerSpeed));
+        const targetRotation = Math.atan2(moveDir.x, moveDir.z);
+        player.mesh.rotation.y = targetRotation;
+      }
+
+      // Jump
+      if (keys.space && player.isGrounded) {
+        player.velocityY = CONFIG.jumpForce;
+        player.isGrounded = false;
+      }
+
+      // Gravity
+      player.velocityY -= CONFIG.gravity;
+      const nextY = player.mesh.position.y + player.velocityY;
+
+      // Ground collision
+      player.isGrounded = false;
+      for (const plat of platforms) {
+        const pw = plat.userData.width / 2;
+        const pd = plat.userData.depth / 2;
+        const platTop = plat.position.y + plat.userData.height / 2;
+
+        const px = player.mesh.position.x;
+        const pz = player.mesh.position.z;
+        const currentFeetY = player.mesh.position.y - 0.5;
+        const nextFeetY = nextY - 0.5;
+
+        if (
+          px > plat.position.x - pw &&
+          px < plat.position.x + pw &&
+          pz > plat.position.z - pd &&
+          pz < plat.position.z + pd
+        ) {
+          if (currentFeetY >= platTop - 0.5 && nextFeetY <= platTop + 0.1) {
+            player.mesh.position.y = platTop + 0.5;
+            player.velocityY = 0;
+            player.isGrounded = true;
+            break;
+          }
+        }
+      }
+
+      if (!player.isGrounded) {
+        player.mesh.position.y = nextY;
+      }
+
+      // Fall reset
+      if (player.mesh.position.y < -20) {
+        player.mesh.position.set(0, 2, 0);
+        player.velocityY = 0;
+      }
+    }
+
+    // ============================================================
+    // ENEMIES
+    // ============================================================
+    function updateEnemies() {
+      for (const enemy of enemies) {
+        const data = enemy.userData;
+        enemy.position.x += 0.05 * data.direction;
+
+        if (enemy.position.x > data.baseX + data.range) data.direction = -1;
+        if (enemy.position.x < data.baseX - data.range) data.direction = 1;
+
+        // Player collision
+        const dist = player.mesh.position.distanceTo(enemy.position);
+        if (dist < 1.4) {
+          const pushDir = new THREE.Vector3()
+            .subVectors(player.mesh.position, enemy.position)
+            .normalize();
+          player.mesh.position.add(pushDir.multiplyScalar(2.0));
+          player.velocityY = 0.2;
+        }
+      }
+    }
+
+    // ============================================================
+    // STAR COLLECTION
+    // ============================================================
+    function checkStarCollection() {
+      for (let i = stars.length - 1; i >= 0; i--) {
+        const star = stars[i];
+        const dist = player.mesh.position.distanceTo(star.position);
+
+        if (dist < 1.5) {
+          scene.remove(star);
+          stars.splice(i, 1);
+          gameState.score++;
+          updateScoreDisplay();
+
+          // Win condition check (immediately after collection)
+          if (gameState.score >= 5) {
+            gameState.isPlaying = false;
+            gameState.isWon = true;
+            winModal.style.display = 'flex';
+          }
+        }
+      }
+    }
+
+    // ============================================================
+    // CAMERA
+    // ============================================================
+    function updateCamera() {
+      const offset = new THREE.Vector3(0, 5, 8);
+      const targetPos = new THREE.Vector3().copy(player.mesh.position).add(offset);
+      camera.position.lerp(targetPos, 0.05);
+      camera.lookAt(player.mesh.position);
+    }
+
+    // ============================================================
+    // STAR ANIMATION (float & spin)
+    // ============================================================
+    function updateStarAnimation() {
+      const time = Date.now() * 0.002;
+      for (const star of stars) {
+        star.rotation.y += 0.02;
+        star.position.y = star.userData.baseY + Math.sin(time + star.position.x) * 0.3;
+      }
+    }
+
+    // ============================================================
+    // UI
+    // ============================================================
+    function updateScoreDisplay() {
+      hudEl.textContent = `Stars: ${gameState.score} / 5`;
+    }
+
+    // ============================================================
+    // RESTART
+    // ============================================================
+    function restartGame() {
+      winModal.style.display = 'none';
+
+      gameState.score = 0;
+      gameState.isPlaying = true;
+      gameState.isWon = false;
+
+      player.mesh.position.set(0, 2, 0);
+      player.velocityY = 0;
+
+      stars.forEach((star) => scene.remove(star));
+      stars.length = 0;
+      createStars();
+
+      updateScoreDisplay();
+    }
+
+    // ============================================================
+    // RESIZE
+    // ============================================================
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+  </script>
+</body>
+</html>
