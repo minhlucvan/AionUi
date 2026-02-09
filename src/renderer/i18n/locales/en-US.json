@@ -526,7 +526,16 @@
       "copyInstall": "Copy Install",
       "viewDocs": "View documentation",
       "installGuide": "Installation guide",
-      "summary": "{{installed}} of {{total}} CLI tools installed"
+      "summary": "{{installed}} of {{total}} CLI tools installed",
+      "installBtn": "Install",
+      "installConfirmTitle": "Install {{name}}",
+      "installConfirmDesc": "This will run the following command on your system:",
+      "installTooltip": "Install {{name}} on your system",
+      "installSuccess": "{{name}} installed successfully!",
+      "installFailed": "Installation failed",
+      "verifySetup": "Verify setup",
+      "setupSuccess": "{{name}} is working correctly",
+      "setupFailed": "Setup verification failed"
     },
     "security": "Auto-Approve",
     "autoApprove": "Auto-Approve",

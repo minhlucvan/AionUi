@@ -524,7 +524,16 @@
       "copyInstall": "Yükleme Komutunu Kopyala",
       "viewDocs": "Belgeleri görüntüle",
       "installGuide": "Yükleme kılavuzu",
-      "summary": "{{total}} CLI aracından {{installed}} tanesi yüklü"
+      "summary": "{{total}} CLI aracından {{installed}} tanesi yüklü",
+      "installBtn": "Yükle",
+      "installConfirmTitle": "{{name}} Yükle",
+      "installConfirmDesc": "Sisteminizde aşağıdaki komut çalıştırılacak:",
+      "installTooltip": "{{name}} sisteminize yükleyin",
+      "installSuccess": "{{name}} başarıyla yüklendi!",
+      "installFailed": "Yükleme başarısız",
+      "verifySetup": "Kurulumu doğrula",
+      "setupSuccess": "{{name}} düzgün çalışıyor",
+      "setupFailed": "Kurulum doğrulaması başarısız"
     },
     "security": "Otomatik Onay",
     "autoApprove": "Otomatik Onay",

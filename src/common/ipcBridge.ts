@@ -237,6 +237,14 @@ export const acpConversation = {
     >,
     void
   >('acp.get-cli-versions'),
+  installCli: bridge.buildProvider<
+    IBridgeResponse<{ output: string }>,
+    { backend: AcpBackendAll }
+  >('acp.install-cli'),
+  setupCli: bridge.buildProvider<
+    IBridgeResponse<{ output: string }>,
+    { backend: AcpBackendAll }
+  >('acp.setup-cli'),
 };
 
 // MCP 服务相关接口

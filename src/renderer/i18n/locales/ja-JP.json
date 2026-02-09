@@ -611,7 +611,16 @@
       "copyInstall": "インストールコマンドをコピー",
       "viewDocs": "ドキュメントを見る",
       "installGuide": "インストールガイド",
-      "summary": "{{total}}個中{{installed}}個のCLIツールがインストール済み"
+      "summary": "{{total}}個中{{installed}}個のCLIツールがインストール済み",
+      "installBtn": "インストール",
+      "installConfirmTitle": "{{name}} をインストール",
+      "installConfirmDesc": "以下のコマンドをシステムで実行します：",
+      "installTooltip": "{{name}} をシステムにインストール",
+      "installSuccess": "{{name}} のインストールに成功しました！",
+      "installFailed": "インストールに失敗しました",
+      "verifySetup": "セットアップを確認",
+      "setupSuccess": "{{name}} は正常に動作しています",
+      "setupFailed": "セットアップの確認に失敗しました"
     },
     "security": "自動承認",
     "autoApprove": "自動承認",

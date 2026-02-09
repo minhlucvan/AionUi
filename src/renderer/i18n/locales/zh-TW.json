@@ -582,7 +582,16 @@
       "copyInstall": "複製安裝指令",
       "viewDocs": "檢視文件",
       "installGuide": "安裝指南",
-      "summary": "已安裝 {{installed}} / {{total}} 個 CLI 工具"
+      "summary": "已安裝 {{installed}} / {{total}} 個 CLI 工具",
+      "installBtn": "安裝",
+      "installConfirmTitle": "安裝 {{name}}",
+      "installConfirmDesc": "將在系統上執行以下指令：",
+      "installTooltip": "在系統上安裝 {{name}}",
+      "installSuccess": "{{name}} 安裝成功！",
+      "installFailed": "安裝失敗",
+      "verifySetup": "驗證安裝",
+      "setupSuccess": "{{name}} 運行正常",
+      "setupFailed": "安裝驗證失敗"
     },
     "security": "執行授權",
     "autoApprove": "執行授權",

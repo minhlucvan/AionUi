@@ -523,7 +523,16 @@
       "copyInstall": "复制安装命令",
       "viewDocs": "查看文档",
       "installGuide": "安装指南",
-      "summary": "已安装 {{installed}} / {{total}} 个 CLI 工具"
+      "summary": "已安装 {{installed}} / {{total}} 个 CLI 工具",
+      "installBtn": "安装",
+      "installConfirmTitle": "安装 {{name}}",
+      "installConfirmDesc": "将在系统上执行以下命令：",
+      "installTooltip": "在系统上安装 {{name}}",
+      "installSuccess": "{{name}} 安装成功！",
+      "installFailed": "安装失败",
+      "verifySetup": "验证安装",
+      "setupSuccess": "{{name}} 运行正常",
+      "setupFailed": "安装验证失败"
     },
     "security": "执行授权",
     "autoApprove": "执行授权",

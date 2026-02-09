@@ -7,7 +7,7 @@
 import { ipcBridge } from '@/common';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { iconColors } from '@/renderer/theme/colors';
-import { Button, Message, Spin, Tag, Tooltip } from '@arco-design/web-react';
+import { Button, Message, Modal, Spin, Tag, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, DownloadOne, LinkCloud, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +27,7 @@ interface CliToolInfo {
  * CLI Tools settings content component
  *
  * Shows installation status and version info for all supported CLI agent tools.
- * Provides install commands and links for tools that are not yet installed.
+ * Provides install commands, one-click install, and links for tools that are not yet installed.
  */
 const CliToolsModalContent: React.FC = () => {
   const { t } = useTranslation();
@@ -35,7 +35,10 @@ const CliToolsModalContent: React.FC = () => {
   const isPageMode = viewMode === 'page';
   const [cliTools, setCliTools] = useState<CliToolInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [installingBackend, setInstallingBackend] = useState<string | null>(null);
+  const [settingUpBackend, setSettingUpBackend] = useState<string | null>(null);
   const [message, messageContext] = Message.useMessage({ maxCount: 5 });
+  const [modal, modalContext] = Modal.useModal();
 
   const fetchCliVersions = useCallback(async () => {
     setLoading(true);
@@ -68,12 +71,76 @@ const CliToolsModalContent: React.FC = () => {
     void ipcBridge.shell.openExternal.invoke(url);
   }, []);
 
+  const handleInstall = useCallback(
+    (tool: CliToolInfo) => {
+      if (!tool.installCommand) return;
+
+      modal.confirm({
+        title: t('settings.cliTools.installConfirmTitle', { defaultValue: 'Install {{name}}', name: tool.name }),
+        content: (
+          <div className='space-y-8px'>
+            <div className='text-14px text-t-secondary'>
+              {t('settings.cliTools.installConfirmDesc', { defaultValue: 'This will run the following command on your system:' })}
+            </div>
+            <div className='bg-fill-2 rd-8px px-12px py-8px font-mono text-13px text-t-primary break-all'>{tool.installCommand}</div>
+          </div>
+        ),
+        okText: t('settings.cliTools.installBtn', { defaultValue: 'Install' }),
+        cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
+        onOk: async () => {
+          setInstallingBackend(tool.backend);
+          try {
+            const result = await ipcBridge.acpConversation.installCli.invoke({ backend: tool.backend as any });
+            if (result.success) {
+              message.success(t('settings.cliTools.installSuccess', { defaultValue: '{{name}} installed successfully!', name: tool.name }));
+              // Refresh the list to reflect new installation
+              await fetchCliVersions();
+            } else {
+              message.error(result.msg || t('settings.cliTools.installFailed', { defaultValue: 'Installation failed' }));
+            }
+          } catch (error) {
+            message.error(t('settings.cliTools.installFailed', { defaultValue: 'Installation failed' }));
+          } finally {
+            setInstallingBackend(null);
+          }
+        },
+      });
+    },
+    [modal, message, t, fetchCliVersions]
+  );
+
+  const handleSetup = useCallback(
+    async (tool: CliToolInfo) => {
+      setSettingUpBackend(tool.backend);
+      try {
+        const result = await ipcBridge.acpConversation.setupCli.invoke({ backend: tool.backend as any });
+        if (result.success) {
+          const output = result.data?.output || '';
+          message.success(
+            t('settings.cliTools.setupSuccess', {
+              defaultValue: '{{name}} is working correctly',
+              name: tool.name,
+            }) + (output ? `: ${output.slice(0, 100)}` : '')
+          );
+        } else {
+          message.warning(result.msg || t('settings.cliTools.setupFailed', { defaultValue: 'Setup verification failed' }));
+        }
+      } catch {
+        message.error(t('settings.cliTools.setupFailed', { defaultValue: 'Setup verification failed' }));
+      } finally {
+        setSettingUpBackend(null);
+      }
+    },
+    [message, t]
+  );
+
   const installedTools = cliTools.filter((tool) => tool.installed);
   const notInstalledTools = cliTools.filter((tool) => !tool.installed);
 
   return (
     <div className='flex flex-col h-full w-full'>
       {messageContext}
+      {modalContext}
 
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
         <div className='space-y-16px'>
@@ -113,6 +180,15 @@ const CliToolsModalContent: React.FC = () => {
                               {tool.version}
                             </Tag>
                           )}
+                          <Tooltip content={t('settings.cliTools.verifySetup', { defaultValue: 'Verify setup' })}>
+                            <Button
+                              type='text'
+                              size='mini'
+                              loading={settingUpBackend === tool.backend}
+                              icon={<CheckOne theme='outline' size='14' fill={iconColors.secondary} />}
+                              onClick={() => void handleSetup(tool)}
+                            />
+                          </Tooltip>
                           {tool.installUrl && (
                             <Tooltip content={t('settings.cliTools.viewDocs', { defaultValue: 'View documentation' })}>
                               <Button type='text' size='mini' icon={<LinkCloud theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
@@ -143,20 +219,31 @@ const CliToolsModalContent: React.FC = () => {
                         </div>
                         <div className='flex items-center gap-8px flex-shrink-0'>
                           {tool.installCommand && (
-                            <Tooltip content={tool.installCommand}>
-                              <Button
-                                type='outline'
-                                size='mini'
-                                icon={<Copy theme='outline' size='14' />}
-                                onClick={() => handleCopyCommand(tool.installCommand!)}
-                              >
-                                {t('settings.cliTools.copyInstall', { defaultValue: 'Copy Install' })}
-                              </Button>
-                            </Tooltip>
+                            <>
+                              <Tooltip content={t('settings.cliTools.installTooltip', { defaultValue: 'Install {{name}} on your system', name: tool.name })}>
+                                <Button
+                                  type='primary'
+                                  size='mini'
+                                  loading={installingBackend === tool.backend}
+                                  icon={<DownloadOne theme='outline' size='14' />}
+                                  onClick={() => handleInstall(tool)}
+                                >
+                                  {t('settings.cliTools.installBtn', { defaultValue: 'Install' })}
+                                </Button>
+                              </Tooltip>
+                              <Tooltip content={tool.installCommand}>
+                                <Button
+                                  type='text'
+                                  size='mini'
+                                  icon={<Copy theme='outline' size='14' fill={iconColors.secondary} />}
+                                  onClick={() => handleCopyCommand(tool.installCommand!)}
+                                />
+                              </Tooltip>
+                            </>
                           )}
                           {tool.installUrl && (
                             <Tooltip content={t('settings.cliTools.installGuide', { defaultValue: 'Installation guide' })}>
-                              <Button type='text' size='mini' icon={<DownloadOne theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
+                              <Button type='text' size='mini' icon={<LinkCloud theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
                             </Tooltip>
                           )}
                         </div>

@@ -525,7 +525,16 @@
       "copyInstall": "설치 명령 복사",
       "viewDocs": "문서 보기",
       "installGuide": "설치 가이드",
-      "summary": "{{total}}개 중 {{installed}}개 CLI 도구 설치됨"
+      "summary": "{{total}}개 중 {{installed}}개 CLI 도구 설치됨",
+      "installBtn": "설치",
+      "installConfirmTitle": "{{name}} 설치",
+      "installConfirmDesc": "시스템에서 다음 명령을 실행합니다:",
+      "installTooltip": "시스템에 {{name}} 설치",
+      "installSuccess": "{{name}} 설치 성공!",
+      "installFailed": "설치 실패",
+      "verifySetup": "설치 확인",
+      "setupSuccess": "{{name}}이(가) 정상 작동 중입니다",
+      "setupFailed": "설치 확인 실패"
     },
     "security": "자동 승인",
     "autoApprove": "자동 승인",
