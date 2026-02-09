@@ -260,6 +260,15 @@
       "refresh": "刷新",
       "temporarySpace": "临时空间",
       "changeWorkspace": "更换工作空间",
+      "workspaceModal": {
+        "title": "工作空间",
+        "currentPath": "当前路径",
+        "revealInExplorer": "在文件管理器中打开",
+        "changeFolder": "更改文件夹",
+        "changeFolderSuccess": "工作空间文件夹已更新",
+        "changeFolderError": "更改工作空间文件夹失败",
+        "selectFolder": "选择文件夹"
+      },
       "migration": {
         "title": "更换工作空间",
         "currentWorkspaceLabel": "当前临时工作空间：",

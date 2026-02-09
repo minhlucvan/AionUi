@@ -263,6 +263,15 @@
       "refresh": "Refresh",
       "temporarySpace": "Temporary Space",
       "changeWorkspace": "Change Workspace",
+      "workspaceModal": {
+        "title": "Workspace",
+        "currentPath": "Current Path",
+        "revealInExplorer": "Open in Explorer",
+        "changeFolder": "Change Folder",
+        "changeFolderSuccess": "Workspace folder updated",
+        "changeFolderError": "Failed to change workspace folder",
+        "selectFolder": "Select folder"
+      },
       "migration": {
         "title": "Change Workspace",
         "currentWorkspaceLabel": "Current temporary workspace: ",
