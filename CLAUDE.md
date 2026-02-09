@@ -208,6 +208,7 @@ Detailed rules and guidelines are organized into Skills for better modularity:
 | Skill    | Purpose                                                              | Triggers                                               |
 | -------- | -------------------------------------------------------------------- | ------------------------------------------------------ |
 | **i18n** | Key naming, sync checking, hardcoded detection, translation workflow | Adding user-facing text, creating components with text |
+| **mezon** | Mezon platform read/write, channel summaries, message search, reply | Reading/summarizing conversations, sending messages to Mezon |
 
 > Skills are located in `.claude/skills/` and loaded automatically when relevant.
 
