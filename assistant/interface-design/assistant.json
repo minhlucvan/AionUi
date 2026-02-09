@@ -1,0 +1,9 @@
+{
+  "id": "interface-design",
+  "name": "Interface Design Assistant",
+  "version": "1.0.0",
+  "description": "Design engineering assistant for crafting consistent UI interfaces with design memory and enforcement",
+  "author": "AionUi",
+  "tags": ["design", "ui", "design-system", "interface", "craft", "tokens", "consistency"],
+  "presetAgentType": "claude"
+}
