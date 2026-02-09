@@ -13,7 +13,7 @@ import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
-import { runHooks } from '@/assistant/hooks';
+import { runHooks, runMemoryRetrieveHook, runMemoryMemorizeHook } from '@/assistant/hooks';
 import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
@@ -38,6 +38,8 @@ interface AcpAgentManagerData {
   acpSessionUpdatedAt?: number;
   /** Default agent from assistant.json (metadata only) / 来自 assistant.json 的默认 agent */
   defaultAgent?: string;
+  /** Preset assistant ID for memory hooks / 预设助手 ID 用于记忆钩子 */
+  presetAssistantId?: string;
 }
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
@@ -193,6 +195,11 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             cronBusyGuard.setProcessing(this.conversation_id, false);
           }
 
+          // Run memory memorize hook when agent turn finishes
+          if (v.type === 'finish' && this.currentMsgContent) {
+            void runMemoryMemorizeHook(this.conversation_id, this.currentMsgContent, data.presetAssistantId);
+          }
+
           // Process cron commands when turn ends (finish signal)
           // ACP streams content in chunks, so we check the accumulated content here
           if (v.type === 'finish' && this.currentMsgContent && hasCronCommands(this.currentMsgContent)) {
@@ -261,6 +268,9 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
         }
         contentToSend = hookResult.content;
+
+        // Run memory retrieve hook: inject relevant memories into the message
+        contentToSend = await runMemoryRetrieveHook(contentToSend, this.options.presetAssistantId);
 
         // 首条消息时注入预设规则和 skills 索引（来自智能助手配置）
         // Inject preset context and skills INDEX on first message (from smart assistant config)

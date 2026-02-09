@@ -11,7 +11,7 @@ import { transformMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import type { IMcpServer, TProviderWithModel } from '@/common/storage';
 import { ProcessConfig, getSkillsDir } from '@/process/initStorage';
-import { runHooks } from '@/assistant/hooks';
+import { runHooks, runMemoryRetrieveHook, runMemoryMemorizeHook } from '@/assistant/hooks';
 import { buildSystemInstructions } from './agentUtils';
 import { uuid } from '@/common/utils';
 import { getProviderAuthType } from '@/common/utils/platformAuthType';
@@ -52,6 +52,8 @@ export class GeminiAgentManager extends BaseAgentManager<
     enabledSkills?: string[];
     /** Yolo mode: auto-approve all tool calls / 自动允许模式 */
     yoloMode?: boolean;
+    /** Preset assistant ID for memory hooks / 预设助手 ID 用于记忆钩子 */
+    presetAssistantId?: string;
   },
   string
 > {
@@ -61,6 +63,7 @@ export class GeminiAgentManager extends BaseAgentManager<
   presetRules?: string;
   contextContent?: string;
   enabledSkills?: string[];
+  presetAssistantId?: string;
   private bootstrap: Promise<void>;
 
   /** Session-level approval store for "always allow" memory */
@@ -86,6 +89,8 @@ export class GeminiAgentManager extends BaseAgentManager<
       enabledSkills?: string[];
       /** Force yolo mode (for cron jobs) / 强制 yolo 模式（用于定时任务） */
       yoloMode?: boolean;
+      /** Preset assistant ID for memory hooks / 预设助手 ID 用于记忆钩子 */
+      presetAssistantId?: string;
     },
     model: TProviderWithModel
   ) {
@@ -96,6 +101,7 @@ export class GeminiAgentManager extends BaseAgentManager<
     this.contextFileName = data.contextFileName;
     this.presetRules = data.presetRules;
     this.enabledSkills = data.enabledSkills;
+    this.presetAssistantId = data.presetAssistantId;
     this.forceYoloMode = data.yoloMode;
     // 向后兼容 / Backward compatible
     this.contextContent = data.contextContent || data.presetRules;
@@ -209,7 +215,9 @@ export class GeminiAgentManager extends BaseAgentManager<
     if (hookResult.blocked) {
       return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
     }
-    const processedData = hookResult.content !== data.input ? { ...data, input: hookResult.content } : data;
+    // Run memory retrieve hook: inject relevant memories into the message
+    const contentAfterMemory = await runMemoryRetrieveHook(hookResult.content, this.presetAssistantId);
+    const processedData = contentAfterMemory !== data.input ? { ...data, input: contentAfterMemory } : data;
 
     const message: TMessage = {
       id: data.msg_id,
@@ -387,6 +395,8 @@ export class GeminiAgentManager extends BaseAgentManager<
     this.on('gemini.message', (data) => {
       if (data.type === 'finish') {
         this.status = 'finished';
+        // Run memory memorize hook on finished assistant message
+        this.memorizeLatestAssistantMessage();
         // When stream finishes, check for cron commands in the accumulated message
         // Use longer delay and retry logic to ensure message is persisted
         this.checkCronWithRetry(0);
@@ -516,6 +526,28 @@ export class GeminiAgentManager extends BaseAgentManager<
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Queue the latest assistant message for memory memorization
+   */
+  private memorizeLatestAssistantMessage(): void {
+    setTimeout(async () => {
+      try {
+        const { getDatabase } = await import('@process/database');
+        const db = getDatabase();
+        const result = db.getConversationMessages(this.conversation_id, 0, 5, 'DESC');
+        if (!result.data) return;
+        const latestMsg = result.data.find((m) => m.position === 'left');
+        if (!latestMsg) return;
+        const text = extractTextFromMessage(latestMsg);
+        if (text) {
+          void runMemoryMemorizeHook(this.conversation_id, text, this.presetAssistantId);
+        }
+      } catch {
+        // Silently ignore
+      }
+    }, 1500);
   }
 
   confirm(id: string, callId: string, data: string) {

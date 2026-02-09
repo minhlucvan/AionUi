@@ -23,8 +23,9 @@ import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { ProcessConfig } from '@process/initStorage';
 import BaseAgentManager from '@process/task/BaseAgentManager';
-import { runHooks } from '@/assistant/hooks';
+import { runHooks, runMemoryRetrieveHook, runMemoryMemorizeHook } from '@/assistant/hooks';
 import { prepareFirstMessageWithSkillsIndex } from '@process/task/agentUtils';
+import { extractTextFromMessage } from '@process/task/MessageMiddleware';
 import { handlePreviewOpenEvent } from '@process/utils/previewUtils';
 import i18n from '@process/i18n';
 import { getConfiguredAppClientName, getConfiguredAppClientVersion, getConfiguredCodexMcpProtocolVersion, setAppConfig } from '../../common/utils/appConfig';
@@ -194,6 +195,9 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
         return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
       }
       contentToSend = hookResult.content;
+
+      // Run memory retrieve hook: inject relevant memories into the message
+      contentToSend = await runMemoryRetrieveHook(contentToSend, this.options.presetAssistantId);
 
       // 处理文件引用 - 参考 ACP 的文件引用处理
       let processedContent = this.agent.getFileOperationHandler().processFileReferences(contentToSend, data.files);
@@ -464,6 +468,13 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
           addOrUpdateMessage(this.conversation_id, tMessage);
         } else {
           addMessage(this.conversation_id, tMessage);
+          // Run memory memorize hook for finished text messages
+          if (tMessage.type === 'text' && tMessage.position === 'left' && tMessage.status === 'finish') {
+            const text = extractTextFromMessage(tMessage);
+            if (text) {
+              void runMemoryMemorizeHook(this.conversation_id, text, this.options.presetAssistantId);
+            }
+          }
         }
         // Note: Cron command detection is handled in CodexMessageProcessor.processFinalMessage
         // where we have the complete agent_message text
