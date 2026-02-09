@@ -515,6 +515,18 @@
     "agent": "에이전트",
     "tools": "도구",
     "webui": "WebUI",
+    "cliTools": {
+      "title": "CLI 도구",
+      "description": "시스템에 설치된 CLI 에이전트 도구를 관리합니다. 이 도구들은 AionUi의 AI 에이전트를 구동합니다.",
+      "installed": "설치됨",
+      "notInstalled": "미설치",
+      "refresh": "새로고침",
+      "copied": "클립보드에 복사됨",
+      "copyInstall": "설치 명령 복사",
+      "viewDocs": "문서 보기",
+      "installGuide": "설치 가이드",
+      "summary": "{{total}}개 중 {{installed}}개 CLI 도구 설치됨"
+    },
     "security": "자동 승인",
     "autoApprove": "자동 승인",
     "autoApproveDesc": "활성화하면 Agent가 명령 및 파일 작업을 실행할 때 확인 대화 상자를 건너뜁니다. 주의해서 사용하세요.",

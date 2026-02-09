@@ -514,6 +514,18 @@
     "agent": "Ajan",
     "tools": "Araçlar",
     "webui": "Web Arayüzü",
+    "cliTools": {
+      "title": "CLI Araçları",
+      "description": "Sisteminizde yüklü CLI ajan araçlarını yönetin. Bu araçlar AionUi'deki AI ajanlarını çalıştırır.",
+      "installed": "Yüklü",
+      "notInstalled": "Yüklü Değil",
+      "refresh": "Yenile",
+      "copied": "Panoya kopyalandı",
+      "copyInstall": "Yükleme Komutunu Kopyala",
+      "viewDocs": "Belgeleri görüntüle",
+      "installGuide": "Yükleme kılavuzu",
+      "summary": "{{total}} CLI aracından {{installed}} tanesi yüklü"
+    },
     "security": "Otomatik Onay",
     "autoApprove": "Otomatik Onay",
     "autoApproveDesc": "Etkinleştirildiğinde, Agent komut ve dosya işlemlerini yürütürken onay iletişim kutularını atlar. Dikkatli kullanın.",

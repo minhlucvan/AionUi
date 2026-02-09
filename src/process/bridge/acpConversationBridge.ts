@@ -4,11 +4,30 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { execSync } from 'child_process';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
+import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
+import type { AcpBackendAll } from '@/types/acpTypes';
 import { ipcBridge } from '../../common';
 import * as os from 'os';
+
+/** Known install commands for CLI tools */
+const CLI_INSTALL_INFO: Partial<Record<AcpBackendAll, { installCommand?: string; installUrl?: string }>> = {
+  claude: { installCommand: 'npm install -g @anthropic-ai/claude-code', installUrl: 'https://docs.anthropic.com/en/docs/claude-code' },
+  codex: { installCommand: 'npm install -g @openai/codex', installUrl: 'https://github.com/openai/codex' },
+  qwen: { installCommand: 'npm install -g @anthropic-ai/qwen-code', installUrl: 'https://github.com/QwenLM/qwen-code' },
+  goose: { installCommand: 'brew install block/goose/goose', installUrl: 'https://github.com/block/goose' },
+  copilot: { installUrl: 'https://github.com/github/copilot-cli' },
+  opencode: { installCommand: 'npm install -g opencode', installUrl: 'https://github.com/nichochar/opencode' },
+  kimi: { installUrl: 'https://github.com/anthropics/kimi-cli' },
+  auggie: { installUrl: 'https://www.augmentcode.com/' },
+  iflow: { installUrl: 'https://iflow.dev/' },
+  droid: { installUrl: 'https://www.factory.ai/' },
+  qoder: { installUrl: 'https://github.com/qoder-ai/qodercli' },
+  'openclaw-gateway': { installUrl: 'https://github.com/openclaw/openclaw' },
+};
 
 export function initAcpConversationBridge(): void {
   // Debug provider to check environment variables
@@ -178,5 +197,52 @@ export function initAcpConversationBridge(): void {
         data: { available: false, error: errorMsg },
       };
     }
+  });
+
+  // Get CLI version info for all known backends
+  ipcBridge.acpConversation.getCliVersions.provider(() => {
+    const detectedAgents = acpDetector.getDetectedAgents();
+
+    const results = Object.entries(ACP_BACKENDS_ALL)
+      .filter(([id, config]) => {
+        // Exclude gemini (built-in) and custom (user-configured)
+        if (id === 'gemini' || id === 'custom') return false;
+        return config.enabled && config.cliCommand;
+      })
+      .map(([id, config]) => {
+        const backendId = id as AcpBackendAll;
+        const detected = detectedAgents.find((a) => a.backend === backendId);
+        const installed = !!detected?.cliPath;
+        const installInfo = CLI_INSTALL_INFO[backendId];
+
+        let version: string | undefined;
+        if (installed && detected?.cliPath) {
+          try {
+            const output = execSync(`${detected.cliPath} --version`, {
+              encoding: 'utf-8',
+              stdio: 'pipe',
+              timeout: 5000,
+            }).trim();
+            // Extract version from output - often contains extra text
+            const versionMatch = output.match(/v?(\d+\.\d+[\.\d]*[-\w]*)/);
+            version = versionMatch ? versionMatch[0] : output.split('\n')[0].trim();
+          } catch {
+            // Version command failed - CLI may not support --version
+            version = undefined;
+          }
+        }
+
+        return {
+          backend: backendId,
+          name: config.name,
+          installed,
+          version,
+          cliCommand: config.cliCommand,
+          installCommand: installInfo?.installCommand,
+          installUrl: installInfo?.installUrl,
+        };
+      });
+
+    return Promise.resolve({ success: true, data: results });
   });
 }
