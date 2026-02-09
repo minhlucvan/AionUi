@@ -1,0 +1,7 @@
+{
+  "name": "Interface Design Assistant",
+  "description": "Design engineering workspace for crafting consistent UI with memory and enforcement",
+  "version": "1.0.0",
+  "skills": ["interface-design"],
+  "agents": ["interface-designer"]
+}
