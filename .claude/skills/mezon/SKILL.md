@@ -11,15 +11,18 @@ Enables AI agents to interact with the Mezon platform as a power tool - reading 
 
 ## Overview
 
-The Mezon MCP server (`src/mcp-servers/mezon/`) exposes Mezon operations as MCP tools that any AI agent can use. It connects to Mezon via `mezon-sdk`, caches messages in real-time via WebSocket, and provides tools for agents to query and interact with the data.
+The Mezon tools (`src/mcp-servers/mezon/`) can be used in two modes:
+
+1. **CLI mode** - One-shot commands via Node.js subprocess (agents call directly)
+2. **MCP mode** - Long-running stdio server (for MCP-compatible agents)
 
 ## Architecture
 
 ```
 Agent (Claude, Gemini, Codex, etc.)
-  ↓ MCP Protocol (stdio)
-Mezon MCP Server
-  ↓ WebSocket + SDK
+  ↓ CLI (subprocess) or MCP Protocol (stdio)
+mezon-cli
+  ↓ WebSocket + mezon-sdk
 Mezon Platform (channels, threads, DMs)
 ```
 
@@ -27,77 +30,146 @@ Mezon Platform (channels, threads, DMs)
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| MCP Server | `src/mcp-servers/mezon/index.ts` | Entry point, tool definitions |
+| CLI | `src/mcp-servers/mezon/cli.ts` | CLI entry point, command parsing, JSON output |
+| MCP Server | Built into `cli.ts serve` | MCP stdio server for MCP-compatible agents |
 | Provider | `src/mcp-servers/mezon/provider.ts` | SDK wrapper, tool method implementations |
 | Cache | `src/mcp-servers/mezon/cache.ts` | In-memory message/channel cache |
 | Types | `src/mcp-servers/mezon/types.ts` | TypeScript type definitions |
+| Exports | `src/mcp-servers/mezon/index.ts` | Module re-exports for programmatic use |
 
-## Available MCP Tools
+## CLI Usage (Recommended for Agents)
 
-### `mezon_read_messages`
-Read recent messages from a channel or thread.
+### Environment Setup
 
-**Parameters:**
-- `channel_id` (string, required) - Channel ID
-- `thread_id` (string, optional) - Thread/topic ID
-- `limit` (number, optional, default: 50) - Max messages
-- `before_timestamp` (number, optional) - Filter before timestamp (ms)
-- `after_timestamp` (number, optional) - Filter after timestamp (ms)
-
-### `mezon_send_message`
-Send a message to a channel or thread. Supports replies.
-
-**Parameters:**
-- `channel_id` (string, required) - Target channel ID
-- `clan_id` (string, required) - Clan/organization ID
-- `text` (string, required) - Message text (max 4000 chars)
-- `thread_id` (string, optional) - Target thread ID
-- `reply_to_message_id` (string, optional) - Message ID to reply to
-
-### `mezon_search_messages`
-Search cached messages by text content.
-
-**Parameters:**
-- `query` (string, required) - Search text (case-insensitive)
-- `channel_id` (string, optional) - Limit to specific channel
-- `limit` (number, optional, default: 20) - Max results
-
-### `mezon_channel_summary`
-Get a full summary of channel/thread activity.
-
-**Parameters:**
-- `channel_id` (string, required) - Channel ID
-- `thread_id` (string, optional) - Thread ID
-
-### `mezon_list_channels`
-List all channels with message activity. No parameters.
-
-### `mezon_status`
-Get bot connection status and cache stats. No parameters.
-
-## Setup
-
-### 1. Register as MCP Server
-
-Add the Mezon MCP server to your agent's MCP configuration:
-
-**For Claude:**
 ```bash
-claude mcp add mezon -- npx ts-node src/mcp-servers/mezon/index.ts
+export MEZON_BOT_TOKEN="<your-bot-token>"
+export MEZON_BOT_ID="<your-bot-id>"
 ```
 
-**Environment variables required:**
-- `MEZON_BOT_TOKEN` - Bot authentication token
-- `MEZON_BOT_ID` - Bot identifier
+### Commands
 
-**MCP Server JSON config:**
+All CLI commands output **JSON to stdout** (machine-readable). Status/progress goes to stderr.
+
+```bash
+# Check bot connection
+npx ts-node src/mcp-servers/mezon/cli.ts status
+
+# List channels with activity
+npx ts-node src/mcp-servers/mezon/cli.ts list-channels
+
+# Read last 20 messages from a channel
+npx ts-node src/mcp-servers/mezon/cli.ts read-messages --channel-id abc123 --limit 20
+
+# Read from a thread
+npx ts-node src/mcp-servers/mezon/cli.ts read-messages --channel-id abc123 --thread-id thread456
+
+# Send a message
+npx ts-node src/mcp-servers/mezon/cli.ts send-message \
+  --channel-id abc123 --clan-id clan456 --text "Hello!"
+
+# Reply to a specific message
+npx ts-node src/mcp-servers/mezon/cli.ts send-message \
+  --channel-id abc123 --clan-id clan456 --text "Great point!" --reply-to msg789
+
+# Search messages
+npx ts-node src/mcp-servers/mezon/cli.ts search --query "deployment" --limit 10
+
+# Get channel summary (participants, time range, all messages)
+npx ts-node src/mcp-servers/mezon/cli.ts summary --channel-id abc123
+
+# Stream messages in real-time (long-running)
+npx ts-node src/mcp-servers/mezon/cli.ts listen
+
+# Start as MCP stdio server
+npx ts-node src/mcp-servers/mezon/cli.ts serve
+```
+
+### npm Script Shortcuts
+
+```bash
+npm run mezon-cli -- status
+npm run mezon-cli -- read-messages --channel-id abc123
+npm run mezon-cli -- send-message --channel-id abc123 --clan-id clan456 --text "Hello"
+npm run mezon:status
+npm run mezon:serve
+npm run mezon:listen
+```
+
+### CLI Output Format
+
+All commands return JSON with `ok: true` on success:
+
+```json
+{
+  "ok": true,
+  "channelId": "abc123",
+  "count": 3,
+  "messages": [
+    {
+      "id": "msg1",
+      "channelId": "abc123",
+      "senderId": "user1",
+      "senderName": "Alice",
+      "text": "Hello everyone",
+      "timestamp": 1705312200000
+    }
+  ]
+}
+```
+
+### Agent Integration via Node.js
+
+Agents can invoke the CLI as a subprocess:
+
+```typescript
+import { execSync } from 'child_process';
+
+// Read messages
+const result = JSON.parse(
+  execSync('npx ts-node src/mcp-servers/mezon/cli.ts read-messages --channel-id abc123', {
+    env: { ...process.env, MEZON_BOT_TOKEN: 'xxx', MEZON_BOT_ID: 'yyy' },
+    encoding: 'utf-8',
+  })
+);
+
+// Send a message
+execSync(
+  'npx ts-node src/mcp-servers/mezon/cli.ts send-message --channel-id abc123 --clan-id clan456 --text "Summary: ..."',
+  { env: { ...process.env, MEZON_BOT_TOKEN: 'xxx', MEZON_BOT_ID: 'yyy' } }
+);
+```
+
+Or use the provider directly in Node.js:
+
+```typescript
+import { MezonToolProvider } from './src/mcp-servers/mezon';
+
+const provider = new MezonToolProvider({ token: 'xxx', botId: 'yyy' });
+await provider.connect();
+
+const messages = provider.readMessages({ channelId: 'abc123', limit: 50 });
+await provider.sendMessage({ channelId: 'abc123', clanId: 'clan456', text: 'Hello!' });
+
+provider.disconnect();
+```
+
+## MCP Server Usage
+
+For MCP-compatible agents, start the server and register it:
+
+```bash
+# Register with Claude
+claude mcp add mezon -- npx ts-node src/mcp-servers/mezon/cli.ts serve
+```
+
+**MCP config JSON:**
 ```json
 {
   "name": "mezon",
   "transport": {
     "type": "stdio",
     "command": "npx",
-    "args": ["ts-node", "src/mcp-servers/mezon/index.ts"],
+    "args": ["ts-node", "src/mcp-servers/mezon/cli.ts", "serve"],
     "env": {
       "MEZON_BOT_TOKEN": "<your-bot-token>",
       "MEZON_BOT_ID": "<your-bot-id>"
@@ -106,38 +178,54 @@ claude mcp add mezon -- npx ts-node src/mcp-servers/mezon/index.ts
 }
 ```
 
-### 2. Verify Connection
+### MCP Tools
 
-After registering, use `mezon_status` to verify the bot is connected.
+| Tool | Description |
+|------|-------------|
+| `mezon_read_messages` | Read recent messages from a channel/thread |
+| `mezon_send_message` | Send text to a channel/thread with optional reply |
+| `mezon_search_messages` | Full-text search across cached messages |
+| `mezon_channel_summary` | Get conversation summary |
+| `mezon_list_channels` | List channels with activity |
+| `mezon_status` | Check connection and cache stats |
+
+## CLI Command Reference
+
+| Command | Required Flags | Optional Flags |
+|---------|---------------|----------------|
+| `status` | - | - |
+| `list-channels` | - | - |
+| `read-messages` | `--channel-id` | `--thread-id`, `--limit`, `--before`, `--after`, `--wait` |
+| `send-message` | `--channel-id`, `--clan-id`, `--text` | `--thread-id`, `--reply-to` |
+| `search` | `--query` | `--channel-id`, `--limit`, `--wait` |
+| `summary` | `--channel-id` | `--thread-id`, `--wait` |
+| `listen` | - | `--channel-id` |
+| `serve` | - | - |
+
+The `--wait` flag (default: 3000ms) controls how long the CLI listens for messages before returning results. Increase for channels with less frequent traffic.
 
 ## Usage Patterns
 
 ### Summarize a Channel Discussion
 ```
-1. mezon_list_channels → find the target channel ID
-2. mezon_channel_summary(channel_id) → get all messages and participants
-3. Agent processes the messages and generates a summary
+1. mezon-cli list-channels             → find the target channel ID + clan ID
+2. mezon-cli summary --channel-id xxx  → get all messages and participants
+3. Agent processes messages and generates a summary
+4. mezon-cli send-message ...          → post summary back to channel
 ```
 
 ### Reply to a Discussion
 ```
-1. mezon_read_messages(channel_id) → read recent context
+1. mezon-cli read-messages --channel-id xxx  → read recent context
 2. Agent formulates a response
-3. mezon_send_message(channel_id, clan_id, text) → post the response
+3. mezon-cli send-message --reply-to yyy ... → reply to specific message
 ```
 
 ### Search and Respond
 ```
-1. mezon_search_messages(query) → find relevant messages
+1. mezon-cli search --query "topic"    → find relevant messages
 2. Agent analyzes search results
-3. mezon_send_message(..., reply_to_message_id) → reply to specific message
-```
-
-### Monitor Multiple Channels
-```
-1. mezon_list_channels → see all active channels
-2. For each channel: mezon_channel_summary → review activity
-3. Agent prioritizes and responds as needed
+3. mezon-cli send-message ...          → respond in channel
 ```
 
 ## Limitations
@@ -146,30 +234,20 @@ After registering, use `mezon_status` to verify the bot is connected.
 - **Text-only sending**: Currently supports sending text messages only (no file uploads).
 - **4000 char limit**: Mezon messages are limited to 4000 characters. Longer texts are truncated.
 - **No channel management**: Cannot create/delete channels or threads (SDK limitation).
-- **WebSocket-dependent**: Requires active WebSocket connection for message caching.
+- **WebSocket-dependent**: CLI commands connect, wait briefly to collect messages, then disconnect.
 
 ## Development
 
-### Adding New Tools
+### Adding New CLI Commands
 
-1. Add parameter types to `src/mcp-servers/mezon/types.ts`
-2. Add the implementation method to `src/mcp-servers/mezon/provider.ts`
-3. Register the tool in `src/mcp-servers/mezon/index.ts` using `server.tool()`
-4. Update this skill documentation
+1. Add the command function in `src/mcp-servers/mezon/cli.ts`
+2. Add the case to the `switch` in `main()`
+3. Update `showHelp()` with usage info
+4. If it should also be an MCP tool, add it to `cmdServe()`
+5. Update this skill documentation
 
-### Extending the Cache
+### Adding New Provider Methods
 
-The `MezonMessageCache` class in `cache.ts` can be extended with:
-- Persistent storage (SQLite) for message history
-- Channel metadata caching
-- User profile caching
-- Attachment content caching
-
-### Future SDK Capabilities
-
-When the Mezon SDK adds new APIs, the provider can be extended to support:
-- Message history fetch (HTTP API)
-- Channel/user listing
-- Thread creation
-- File uploads
-- Reaction management
+1. Add parameter/result types to `src/mcp-servers/mezon/types.ts`
+2. Add the method to `src/mcp-servers/mezon/provider.ts`
+3. Expose via CLI command and/or MCP tool
