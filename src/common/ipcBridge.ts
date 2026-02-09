@@ -470,6 +470,35 @@ interface IBridgeResponse<D = {}> {
   msg?: string;
 }
 
+// ==================== Memory API ====================
+
+export const memory = {
+  // Get current memory configuration
+  getConfig: bridge.buildProvider<IBridgeResponse<import('@process/services/memoryService/types').MemuConfig>, void>('memory.get-config'),
+  // Update memory configuration
+  updateConfig: bridge.buildProvider<IBridgeResponse, Partial<import('@process/services/memoryService/types').MemuConfig>>('memory.update-config'),
+  // Test memU API connection
+  testConnection: bridge.buildProvider<IBridgeResponse<{ connected: boolean }>, void>('memory.test-connection'),
+  // Retrieve relevant memories for a query
+  retrieve: bridge.buildProvider<IBridgeResponse<{ context: string }>, { query: string; conversationHistory?: Array<{ role: string; content: string }> }>('memory.retrieve'),
+  // List all memory items
+  listItems: bridge.buildProvider<IBridgeResponse<{ items: import('@process/services/memoryService/types').MemuMemoryItem[] }>, void>('memory.list-items'),
+  // List all memory categories
+  listCategories: bridge.buildProvider<IBridgeResponse<{ categories: import('@process/services/memoryService/types').MemuCategory[] }>, void>('memory.list-categories'),
+  // Create a memory item
+  createItem: bridge.buildProvider<IBridgeResponse<{ item: import('@process/services/memoryService/types').MemuMemoryItem | null }>, { content: string; type?: string; categories?: string[] }>('memory.create-item'),
+  // Delete a memory item
+  deleteItem: bridge.buildProvider<IBridgeResponse, { memoryId: string }>('memory.delete-item'),
+  // Clear all memories
+  clearAll: bridge.buildProvider<IBridgeResponse, void>('memory.clear-all'),
+  // Local server management
+  startLocal: bridge.buildProvider<IBridgeResponse<{ info: import('@process/services/memoryService/LocalMemuManager').LocalServerInfo }>, void>('memory.start-local'),
+  stopLocal: bridge.buildProvider<IBridgeResponse<{ info: import('@process/services/memoryService/LocalMemuManager').LocalServerInfo }>, void>('memory.stop-local'),
+  localStatus: bridge.buildProvider<IBridgeResponse<{ info: import('@process/services/memoryService/LocalMemuManager').LocalServerInfo }>, void>('memory.local-status'),
+  checkDeps: bridge.buildProvider<IBridgeResponse<{ pythonFound: boolean; installed: boolean; missing: string[] }>, void>('memory.check-deps'),
+  installDeps: bridge.buildProvider<IBridgeResponse, void>('memory.install-deps'),
+};
+
 // ==================== Channel API ====================
 
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser } from '@/channels/types';

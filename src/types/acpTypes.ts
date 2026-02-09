@@ -279,6 +279,15 @@ export interface AcpBackendConfig {
   customSkillNames?: string[];
 
   /**
+   * 是否为此助手启用 memU 记忆功能（仅 isPreset=true 时生效）
+   * 启用后，会话将自动记忆对话内容，并在后续对话中检索相关记忆
+   *
+   * Whether to enable memU memory for this assistant (only applies when isPreset=true).
+   * When enabled, conversations are automatically memorized and relevant memories are retrieved.
+   */
+  memoryEnabled?: boolean;
+
+  /**
    * 导入的助手包解压路径（仅自定义助手）
    * 包含完整的 workspace 目录结构
    *

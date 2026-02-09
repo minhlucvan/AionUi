@@ -5,4 +5,5 @@
  */
 
 export { runHooks } from './HookRunner';
+export { runMemoryRetrieveHook, runMemoryMemorizeHook } from './MemoryHooks';
 export type { HookContext, HookEvent, HookResult } from './types';

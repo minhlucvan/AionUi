@@ -56,6 +56,8 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
           contextContent: conversation.extra.contextContent,
           // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
           enabledSkills: conversation.extra.enabledSkills,
+          // Preset assistant ID for memory hooks / 预设助手 ID 用于记忆钩子
+          presetAssistantId: conversation.extra.presetAssistantId,
           // Runtime options / 运行时选项
           yoloMode: options?.yoloMode,
         },

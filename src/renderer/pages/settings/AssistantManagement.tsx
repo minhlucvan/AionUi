@@ -10,6 +10,7 @@ import type { Message } from '@arco-design/web-react';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Modal, Select, Switch, Typography } from '@arco-design/web-react';
 import { Close, Delete, FolderOpen, InboxIn, Plus, Robot, Search, SettingOne } from '@icon-park/react';
 import SkillBrowseModal from './components/SkillBrowseModal';
+import type { MemuMode } from '@process/services/memoryService/types';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
@@ -72,6 +73,8 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   const [pendingSkills, setPendingSkills] = useState<PendingSkill[]>([]); // 待导入的 skills / Pending skills to import
   const [deletePendingSkillName, setDeletePendingSkillName] = useState<string | null>(null); // 待删除的 pending skill 名称 / Pending skill name to delete
   const [deleteCustomSkillName, setDeleteCustomSkillName] = useState<string | null>(null); // 待从助手移除的 custom skill 名称 / Custom skill to remove from assistant
+  const [editMemoryEnabled, setEditMemoryEnabled] = useState(false); // memU memory enabled / memU 记忆功能开关
+  const [memoryMode, setMemoryMode] = useState<MemuMode>('cloud'); // memory mode: cloud or local
   const textareaWrapperRef = useRef<HTMLDivElement>(null);
   const localeKey = resolveLocaleKey(i18n.language);
   const avatarImageMap: Record<string, string> = {
@@ -228,6 +231,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     setEditDescription(assistant.description || '');
     setEditAvatar(assistant.avatar || '');
     setEditAgent(assistant.presetAgentType || 'gemini');
+    setEditMemoryEnabled(assistant.memoryEnabled ?? false);
     setEditVisible(true);
 
     // 先加载规则、技能内容 / Load rules, skills content
@@ -270,6 +274,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     setEditSkills('');
     setSelectedSkills([]); // 没有启用的 skills
     setCustomSkills([]); // 没有通过 Add Skills 添加的 skills
+    setEditMemoryEnabled(false);
     setPromptViewMode('edit'); // 创建助手时，规则默认处于编辑状态 / Default to edit mode when creating
     setEditVisible(true);
 
@@ -291,6 +296,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     setEditDescription(assistant.descriptionI18n?.[localeKey] || assistant.description || '');
     setEditAvatar(assistant.avatar || '🤖');
     setEditAgent(assistant.presetAgentType || 'gemini');
+    setEditMemoryEnabled(assistant.memoryEnabled ?? false);
     setPromptViewMode('edit');
     setEditVisible(true);
 
@@ -411,6 +417,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
           enabled: true,
           enabledSkills: selectedSkills,
           customSkillNames: finalCustomSkills,
+          memoryEnabled: editMemoryEnabled,
         };
 
         // 保存规则文件 / Save rule file
@@ -439,6 +446,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
           presetAgentType: editAgent,
           enabledSkills: selectedSkills,
           customSkillNames: finalCustomSkills,
+          memoryEnabled: editMemoryEnabled,
         };
 
         // 保存规则文件（如果有更改）/ Save rule file (if changed)
@@ -698,6 +706,31 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
                 <Select.Option value='codex'>Codex</Select.Option>
                 <Select.Option value='opencode'>OpenCode</Select.Option>
               </Select>
+            </div>
+            <div className='flex-shrink-0'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <Typography.Text bold>{t('settings.assistantMemory', { defaultValue: 'Memory (memU)' })}</Typography.Text>
+                  <div className='text-12px text-t-secondary mt-2px'>{t('settings.assistantMemoryDesc', { defaultValue: 'Enable AI memory powered by memU. The assistant will remember context across conversations.' })}</div>
+                </div>
+                <Switch size='small' checked={editMemoryEnabled} onChange={(checked) => setEditMemoryEnabled(checked)} />
+              </div>
+              {editMemoryEnabled && (
+                <div className='mt-8px p-10px bg-fill-2 rounded-4px'>
+                  <div className='flex items-center gap-8px mb-6px'>
+                    <Typography.Text className='text-12px text-t-secondary'>{t('settings.memoryMode', { defaultValue: 'Mode' })}</Typography.Text>
+                    <Select size='mini' className='w-120px' value={memoryMode} onChange={(value) => setMemoryMode(value as MemuMode)}>
+                      <Select.Option value='cloud'>{t('settings.memoryModeCloud', { defaultValue: 'Cloud' })}</Select.Option>
+                      <Select.Option value='local'>{t('settings.memoryModeLocal', { defaultValue: 'Local' })}</Select.Option>
+                    </Select>
+                  </div>
+                  <div className='text-11px text-t-tertiary'>
+                    {memoryMode === 'cloud'
+                      ? t('settings.memoryModeCloudDesc', { defaultValue: 'Uses memU cloud API (api.memu.so). Requires API key configured in System Settings.' })
+                      : t('settings.memoryModeLocalDesc', { defaultValue: 'Runs memU locally via Python. Requires Python 3.10+ with memU installed. Data stays on your machine.' })}
+                  </div>
+                </div>
+              )}
             </div>
             <div className='flex-shrink-0'>
               <Typography.Text bold className='flex-shrink-0'>

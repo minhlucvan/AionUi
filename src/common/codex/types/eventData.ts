@@ -326,6 +326,8 @@ export interface CodexAgentManagerData {
   enabledSkills?: string[];
   /** Full auto mode for cron jobs - skip confirmation prompts while keeping sandbox protection */
   yoloMode?: boolean;
+  /** Preset assistant ID for memory hooks / 预设助手 ID 用于记忆钩子 */
+  presetAssistantId?: string;
 }
 
 export interface ElicitationCreateData {

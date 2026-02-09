@@ -10,6 +10,7 @@ import type { AcpBackendAll } from '@/types/acpTypes';
 import { cronService } from '@process/services/cron/CronService';
 import { detectCronCommands, stripCronCommands, type CronCommand } from './CronCommandDetector';
 import { hasThinkTags, stripThinkTags } from './ThinkTagDetector';
+import { getMemoryService } from '@process/services/memoryService';
 
 /**
  * Result of processing an agent response
@@ -173,6 +174,47 @@ export async function processCronInMessage(conversationId: string, agentType: Ac
     }
   } catch {
     // Silently handle errors
+  }
+}
+
+/**
+ * Queue a completed agent message for memorization via memU
+ * Called after a conversation turn completes with a finished assistant message
+ *
+ * @param conversationId - The conversation ID
+ * @param message - The completed assistant message
+ */
+export function queueMemoryMemorize(conversationId: string, message: TMessage): void {
+  try {
+    const service = getMemoryService();
+    if (!service.isEnabled()) return;
+
+    const textContent = extractTextFromMessage(message);
+    if (!textContent) return;
+
+    service.queueMemorize(conversationId, [{ role: 'assistant', content: textContent }]);
+  } catch {
+    // Silently ignore memory errors to not affect main flow
+  }
+}
+
+/**
+ * Retrieve relevant memory context for a user message
+ * Returns a formatted context string to inject into the agent's system prompt
+ *
+ * @param userMessage - The user's message text
+ * @param conversationHistory - Recent conversation history for better retrieval
+ * @returns Memory context string or empty string if unavailable
+ */
+export async function retrieveMemoryContext(userMessage: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<string> {
+  try {
+    const service = getMemoryService();
+    if (!service.isEnabled()) return '';
+
+    await service.initialize();
+    return service.retrieveContext(userMessage, conversationHistory);
+  } catch {
+    return '';
   }
 }
 

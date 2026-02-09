@@ -13,6 +13,7 @@ import SecuritySettings from './pages/settings/SecuritySettings';
 import SystemSettings from './pages/settings/SystemSettings';
 import SkillsSettings from './pages/settings/SkillsSettings';
 import ToolsSettings from './pages/settings/ToolsSettings';
+import MemorySettings from './pages/settings/MemorySettings';
 import BotsSettings from './pages/settings/BotsSettings';
 import WebuiSettings from './pages/settings/WebuiSettings';
 import LoginPage from './pages/login';
@@ -54,6 +55,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/system' element={<SystemSettings />} />
           <Route path='/settings/about' element={<About />} />
           <Route path='/settings/skills' element={<SkillsSettings />} />
+          <Route path='/settings/memory' element={<MemorySettings />} />
           <Route path='/settings/bots' element={<BotsSettings />} />
           <Route path='/settings/tools' element={<ToolsSettings />} />
           <Route path='/settings/security' element={<SecuritySettings />} />

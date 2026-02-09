@@ -10,7 +10,8 @@ import type { IConfirmation, TMessage } from '@/common/chatLib';
 import { transformMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
-import { runHooks } from '@/assistant/hooks';
+import { runHooks, runMemoryRetrieveHook, runMemoryMemorizeHook } from '@/assistant/hooks';
+import { extractTextFromMessage } from '@process/task/MessageMiddleware';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import BaseAgentManager from '@process/task/BaseAgentManager';
@@ -31,6 +32,8 @@ export interface OpenClawAgentManagerData {
   sessionKey?: string;
   /** YOLO mode (auto-approve all permissions) */
   yoloMode?: boolean;
+  /** Preset assistant ID for memory hooks / 预设助手 ID 用于记忆钩子 */
+  presetAssistantId?: string;
 }
 
 class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
@@ -130,6 +133,8 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
     // Handle finish event
     if (msg.type === 'finish') {
       cronBusyGuard.setProcessing(this.conversation_id, false);
+      // Run memory memorize hook: queue the latest response for memorization
+      this.memorizeLatestMessage();
     }
 
     // Emit signal events to frontend
@@ -168,6 +173,9 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
         return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
       }
       contentToSend = hookResult.content;
+
+      // Run memory retrieve hook: inject relevant memories into the message
+      contentToSend = await runMemoryRetrieveHook(contentToSend, this.options.presetAssistantId);
 
       // Send message to agent
       const result = await this.agent.sendMessage({
@@ -211,6 +219,25 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
     }
 
     ipcBridge.openclawConversation.responseStream.emit(message);
+  }
+
+  private memorizeLatestMessage(): void {
+    setTimeout(async () => {
+      try {
+        const { getDatabase } = await import('@process/database');
+        const db = getDatabase();
+        const result = db.getConversationMessages(this.conversation_id, 0, 5, 'DESC');
+        if (!result.data) return;
+        const latestMsg = result.data.find((m) => m.position === 'left');
+        if (!latestMsg) return;
+        const text = extractTextFromMessage(latestMsg);
+        if (text) {
+          void runMemoryMemorizeHook(this.conversation_id, text, this.options.presetAssistantId);
+        }
+      } catch {
+        // Silently ignore
+      }
+    }, 1500);
   }
 
   stop() {
