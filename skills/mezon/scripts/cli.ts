@@ -22,7 +22,6 @@
  *   send-message        Send a message to a channel/thread
  *   search              Search messages by text
  *   summary             Get channel conversation summary
- *   listen              Connect and print messages in real-time
  *   help                Show this help text
  */
 
@@ -246,60 +245,6 @@ async function cmdSummary(flags: Record<string, string>): Promise<void> {
   provider.disconnect();
 }
 
-async function cmdListen(flags: Record<string, string>): Promise<void> {
-  const provider = await createProvider();
-
-  const channelFilter = flags['channel-id'];
-  process.stderr.write(
-    `Listening for messages${channelFilter ? ` in channel ${channelFilter}` : ''}... (Ctrl+C to stop)\n`
-  );
-
-  // Poll the cache for new messages
-  let lastCount = 0;
-  const interval = setInterval(() => {
-    const stats = provider.getStats();
-    if (stats.totalMessages > lastCount) {
-      // Read latest messages
-      const channels = provider.listChannels();
-      for (const ch of channels) {
-        if (channelFilter && ch.id !== channelFilter) continue;
-        const messages = provider.readMessages({
-          channelId: ch.id,
-          limit: stats.totalMessages - lastCount,
-        });
-        for (const msg of messages) {
-          if (msg.timestamp > Date.now() - 2000) {
-            // Recent messages only
-            const time = new Date(msg.timestamp).toISOString();
-            process.stdout.write(
-              JSON.stringify({
-                time,
-                channel: msg.channelId,
-                thread: msg.threadId || null,
-                sender: msg.senderName,
-                text: msg.text,
-              }) + '\n'
-            );
-          }
-        }
-      }
-      lastCount = stats.totalMessages;
-    }
-  }, 500);
-
-  // Handle graceful shutdown
-  process.on('SIGINT', () => {
-    clearInterval(interval);
-    provider.disconnect();
-    process.exit(0);
-  });
-  process.on('SIGTERM', () => {
-    clearInterval(interval);
-    provider.disconnect();
-    process.exit(0);
-  });
-}
-
 function showHelp(): void {
   const help = `
 mezon-cli - Mezon tools for AI agents
@@ -318,7 +263,6 @@ COMMANDS:
   send-message       Send a message to a channel
   search             Search messages by text
   summary            Get channel conversation summary
-  listen             Stream messages in real-time (long-running)
   help               Show this help
 
 OPTIONS (read-messages):
@@ -347,9 +291,6 @@ OPTIONS (summary):
   --thread-id ID     Thread ID (optional)
   --wait MS          Listen duration in ms, default 3000
 
-OPTIONS (listen):
-  --channel-id ID    Filter to specific channel (optional)
-
 EXAMPLES:
   # Check bot status
   mezon-cli status
@@ -370,11 +311,8 @@ EXAMPLES:
   # Get channel summary
   mezon-cli summary --channel-id abc123
 
-  # Stream messages in real-time
-  mezon-cli listen
-
 OUTPUT:
-  All commands (except listen) output JSON to stdout.
+  All commands output JSON to stdout.
   Status/progress messages go to stderr.
   Agent can parse stdout with JSON.parse().
 `;
@@ -407,10 +345,6 @@ async function main(): Promise<void> {
       break;
     case 'summary':
       await cmdSummary(flags);
-      break;
-    case 'listen':
-    case 'watch':
-      await cmdListen(flags);
       break;
     case 'help':
     case '--help':

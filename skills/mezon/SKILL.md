@@ -71,9 +71,6 @@ npx ts-node skills/mezon/scripts/cli.ts search --query "deployment" --limit 10
 
 # Get channel summary (participants, time range, all messages)
 npx ts-node skills/mezon/scripts/cli.ts summary --channel-id abc123
-
-# Stream messages in real-time (long-running)
-npx ts-node skills/mezon/scripts/cli.ts listen
 ```
 
 ### CLI Output Format
@@ -108,7 +105,6 @@ All commands return JSON with `ok: true` on success:
 | `send-message` | `--channel-id`, `--clan-id`, `--text` | `--thread-id`, `--reply-to` |
 | `search` | `--query` | `--channel-id`, `--limit`, `--wait` |
 | `summary` | `--channel-id` | `--thread-id`, `--wait` |
-| `listen` | - | `--channel-id` |
 
 The `--wait` flag (default: 3000ms) controls how long the CLI listens for messages before returning results. Increase for channels with less frequent traffic.
 
