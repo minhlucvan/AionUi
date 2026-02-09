@@ -32,9 +32,9 @@ Mezon Platform (channels, threads, DMs)
 |-----------|------|---------|
 | CLI | `skills/mezon/scripts/cli.ts` | CLI entry point, command parsing, JSON output |
 | MCP Server | Built into `cli.ts serve` | MCP stdio server for MCP-compatible agents |
-| Provider | `skills/mezon/provider.ts` | SDK wrapper, tool method implementations |
-| Cache | `skills/mezon/cache.ts` | In-memory message/channel cache |
-| Types | `skills/mezon/types.ts` | TypeScript type definitions |
+| Provider | `skills/mezon/scripts/provider.ts` | SDK wrapper, tool method implementations |
+| Cache | `skills/mezon/scripts/cache.ts` | In-memory message/channel cache |
+| Types | `skills/mezon/scripts/types.ts` | TypeScript type definitions |
 
 ## CLI Usage (Recommended for Agents)
 
@@ -141,7 +141,7 @@ execSync(
 Or use the provider directly in Node.js:
 
 ```typescript
-import { MezonToolProvider } from './skills/mezon/provider';
+import { MezonToolProvider } from './skills/mezon/scripts/provider';
 
 const provider = new MezonToolProvider({ token: 'xxx', botId: 'yyy' });
 await provider.connect();
@@ -247,6 +247,6 @@ The `--wait` flag (default: 3000ms) controls how long the CLI listens for messag
 
 ### Adding New Provider Methods
 
-1. Add parameter/result types to `skills/mezon/types.ts`
-2. Add the method to `skills/mezon/provider.ts`
+1. Add parameter/result types to `skills/mezon/scripts/types.ts`
+2. Add the method to `skills/mezon/scripts/provider.ts`
 3. Expose via CLI command and/or MCP tool
