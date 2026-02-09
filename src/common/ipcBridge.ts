@@ -237,14 +237,8 @@ export const acpConversation = {
     >,
     void
   >('acp.get-cli-versions'),
-  installCli: bridge.buildProvider<
-    IBridgeResponse<{ output: string }>,
-    { backend: AcpBackendAll }
-  >('acp.install-cli'),
-  setupCli: bridge.buildProvider<
-    IBridgeResponse<{ output: string }>,
-    { backend: AcpBackendAll }
-  >('acp.setup-cli'),
+  installCli: bridge.buildProvider<IBridgeResponse<{ output: string }>, { backend: AcpBackendAll }>('acp.install-cli'),
+  setupCli: bridge.buildProvider<IBridgeResponse<{ output: string }>, { backend: AcpBackendAll }>('acp.setup-cli'),
 };
 
 // MCP 服务相关接口
@@ -258,6 +252,35 @@ export const mcpService = {
   loginMcpOAuth: bridge.buildProvider<IBridgeResponse<{ success: boolean; error?: string }>, { server: IMcpServer; config?: any }>('mcp.login-oauth'),
   logoutMcpOAuth: bridge.buildProvider<IBridgeResponse, string>('mcp.logout-oauth'),
   getAuthenticatedServers: bridge.buildProvider<IBridgeResponse<string[]>, void>('mcp.get-authenticated-servers'),
+};
+
+// Utility CLI tools management (non-agent tools like gh, docker, etc.)
+export const utilityTools = {
+  getStatus: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        id: string;
+        name: string;
+        description: string;
+        cliCommand: string;
+        installed: boolean;
+        version?: string;
+        loggedIn?: boolean;
+        loginUser?: string;
+        installCommand?: string;
+        updateCommand?: string;
+        loginCommand?: string;
+        installUrl?: string;
+        hasSkill?: boolean;
+        skillInstalled?: boolean;
+      }>
+    >,
+    void
+  >('utility-tools.get-status'),
+  install: bridge.buildProvider<IBridgeResponse<{ output: string }>, { toolId: string }>('utility-tools.install'),
+  update: bridge.buildProvider<IBridgeResponse<{ output: string }>, { toolId: string }>('utility-tools.update'),
+  login: bridge.buildProvider<IBridgeResponse<{ output: string }>, { toolId: string }>('utility-tools.login'),
+  installSkill: bridge.buildProvider<IBridgeResponse<{ skillName: string; installPath: string }>, { toolId: string }>('utility-tools.install-skill'),
 };
 
 // Codex 对话相关接口 - 复用统一的conversation接口
