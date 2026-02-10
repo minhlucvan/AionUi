@@ -1,0 +1,15 @@
+{
+  "type": "utility",
+  "id": "agent-browser",
+  "name": "Agent Browser",
+  "description": "Headless browser automation CLI for AI agents",
+  "cliCommand": "agent-browser",
+  "installCommand": {
+    "darwin": "brew install agent-browser && agent-browser install",
+    "linux": "npm install -g agent-browser && agent-browser install",
+    "win32": "npm install -g agent-browser && agent-browser install"
+  },
+  "versionCommand": "agent-browser --version",
+  "installUrl": "https://github.com/vercel-labs/agent-browser",
+  "skills": ["agent-browser"]
+}

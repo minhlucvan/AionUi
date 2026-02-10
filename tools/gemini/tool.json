@@ -1,0 +1,9 @@
+{
+  "type": "backend",
+  "id": "gemini",
+  "name": "Google CLI",
+  "cliCommand": "gemini",
+  "authRequired": true,
+  "enabled": false,
+  "supportsStreaming": true
+}

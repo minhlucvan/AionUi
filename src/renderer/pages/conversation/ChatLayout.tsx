@@ -41,7 +41,7 @@ const AGENT_LOGO_MAP: Partial<Record<AcpBackend, string>> = {
 
 import { iconColors } from '@/renderer/theme/colors';
 import { WORKSPACE_HAS_FILES_EVENT, WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent, type WorkspaceHasFilesDetail } from '@/renderer/utils/workspaceEvents';
-import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
+import { toolRegistryBridge } from '@/common/ipcBridge';
 import classNames from 'classnames';
 
 const MIN_CHAT_RATIO = 25;
@@ -134,8 +134,14 @@ const ChatLayout: React.FC<{
   // Fetch custom agents config as fallback when agentName is not provided
   const { data: customAgents } = useSWR(backend === 'custom' && !agentName ? 'acp.customAgents' : null, () => ConfigStorage.get('acp.customAgents'));
 
+  // Fetch ACP backend configs for display name lookup
+  const { data: acpBackends } = useSWR('tool-registry.acp-backends', async () => {
+    const res = await toolRegistryBridge.getAcpBackends.invoke();
+    return res.success ? res.data : {};
+  });
+
   // Compute display name with fallback chain (use first custom agent as fallback for backward compatibility)
-  const displayName = agentName || (backend === 'custom' && customAgents?.[0]?.name) || ACP_BACKENDS_ALL[backend as keyof typeof ACP_BACKENDS_ALL]?.name || backend;
+  const displayName = agentName || (backend === 'custom' && customAgents?.[0]?.name) || acpBackends?.[backend]?.name || backend;
 
   // 获取 tabs 状态，有 tabs 时隐藏会话标题
   const { openTabs } = useConversationTabs();

@@ -1,0 +1,13 @@
+{
+  "type": "backend",
+  "id": "kimi",
+  "name": "Kimi CLI",
+  "cliCommand": "kimi",
+  "authRequired": false,
+  "enabled": true,
+  "supportsStreaming": false,
+  "acpArgs": ["acp"],
+  "installCommand": "curl -LsSf https://code.kimi.com/install.sh | bash",
+  "setupCommand": "kimi --version",
+  "installUrl": "https://github.com/MoonshotAI/kimi-cli"
+}

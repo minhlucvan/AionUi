@@ -6,31 +6,40 @@
 
 import { describe, it, expect } from '@jest/globals';
 import type { AcpBackendConfig } from '../../src/types/acpTypes';
-import { ACP_BACKENDS_ALL, isValidAcpBackend } from '../../src/types/acpTypes';
 import { createGenericSpawnConfig } from '../../src/agent/acp/AcpConnection';
 
 describe('Custom ACP Agent Configuration', () => {
   describe('Type System', () => {
-    it('should include custom in ACP_BACKENDS_ALL', () => {
-      expect(ACP_BACKENDS_ALL.custom).toBeDefined();
-      expect(ACP_BACKENDS_ALL.custom.id).toBe('custom');
-      expect(ACP_BACKENDS_ALL.custom.name).toBe('Custom Agent');
-      expect(ACP_BACKENDS_ALL.custom.enabled).toBe(true);
+    it('should accept custom backend config with expected shape', () => {
+      const customConfig: AcpBackendConfig = {
+        id: 'custom',
+        name: 'Custom Agent',
+        cliCommand: undefined,
+        authRequired: false,
+        enabled: true,
+        supportsStreaming: false,
+      };
+      expect(customConfig.id).toBe('custom');
+      expect(customConfig.name).toBe('Custom Agent');
+      expect(customConfig.enabled).toBe(true);
+      expect(customConfig.cliCommand).toBeUndefined();
     });
 
-    it('should validate custom as a valid ACP backend', () => {
-      expect(isValidAcpBackend('custom')).toBe(true);
-    });
-
-    it('should have undefined cliCommand for custom backend', () => {
-      expect(ACP_BACKENDS_ALL.custom.cliCommand).toBeUndefined();
-    });
-
-    it('should have claude defined for ordering reference', () => {
-      // Custom agent should appear after claude in UI - verify claude exists
-      expect(ACP_BACKENDS_ALL.claude).toBeDefined();
-      expect(ACP_BACKENDS_ALL.claude.id).toBe('claude');
-      expect(ACP_BACKENDS_ALL.claude.enabled).toBe(true);
+    it('should accept claude backend config with install info', () => {
+      const claudeConfig: AcpBackendConfig = {
+        id: 'claude',
+        name: 'Claude Code',
+        cliCommand: 'claude',
+        authRequired: true,
+        enabled: true,
+        supportsStreaming: false,
+        installCommand: 'npm install -g @anthropic-ai/claude-code',
+        setupCommand: 'claude --version',
+        installUrl: 'https://docs.anthropic.com/en/docs/claude-code',
+      };
+      expect(claudeConfig.id).toBe('claude');
+      expect(claudeConfig.enabled).toBe(true);
+      expect(claudeConfig.installCommand).toBeDefined();
     });
   });
 

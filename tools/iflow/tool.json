@@ -1,0 +1,10 @@
+{
+  "type": "backend",
+  "id": "iflow",
+  "name": "iFlow CLI",
+  "cliCommand": "iflow",
+  "authRequired": true,
+  "enabled": true,
+  "supportsStreaming": false,
+  "installUrl": "https://iflow.dev/"
+}

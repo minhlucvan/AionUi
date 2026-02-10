@@ -1,0 +1,11 @@
+{
+  "type": "backend",
+  "id": "copilot",
+  "name": "GitHub Copilot",
+  "cliCommand": "copilot",
+  "authRequired": false,
+  "enabled": true,
+  "supportsStreaming": true,
+  "acpArgs": ["--acp", "--stdio"],
+  "installUrl": "https://github.com/github/copilot-cli"
+}

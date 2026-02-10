@@ -1,0 +1,12 @@
+{
+  "type": "backend",
+  "id": "codex",
+  "name": "Codex",
+  "cliCommand": "codex",
+  "authRequired": false,
+  "enabled": true,
+  "supportsStreaming": false,
+  "installCommand": "npm install -g @openai/codex",
+  "setupCommand": "codex --version",
+  "installUrl": "https://github.com/openai/codex"
+}
