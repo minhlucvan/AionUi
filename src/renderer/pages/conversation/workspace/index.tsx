@@ -20,8 +20,10 @@ import { Down, FileText, FolderOpen, Refresh, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { useSWRConfig } from 'swr';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
 import { uuid } from '@/common/utils';
+import type { TChatConversation } from '@/common/storage';
 import { useWorkspaceEvents } from './hooks/useWorkspaceEvents';
 import { useWorkspaceFileOps } from './hooks/useWorkspaceFileOps';
 import { useWorkspaceModals } from './hooks/useWorkspaceModals';
@@ -53,6 +55,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const { t } = useTranslation();
   const { openPreview } = usePreviewContext();
   const navigate = useNavigate();
+  const { mutate } = useSWRConfig();
 
   // Message API setup
   const [internalMessageApi, messageContext] = Message.useMessage();
@@ -352,6 +355,65 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     }
   }, [migrationLoading]);
 
+  // Reveal workspace folder in system file explorer
+  const handleRevealWorkspace = useCallback(async () => {
+    try {
+      await ipcBridge.shell.showItemInFolder.invoke(workspace);
+    } catch (error) {
+      console.error('Failed to reveal workspace:', error);
+      messageApi.error(t('conversation.workspace.contextMenu.revealFailed'));
+    }
+  }, [workspace, messageApi, t]);
+
+  // Change workspace folder for non-temporary workspaces (simple path update)
+  const handleChangeFolderConfirm = useCallback(async () => {
+    const targetWorkspace = selectedTargetPath.trim();
+    if (!targetWorkspace) {
+      messageApi.error(t('conversation.workspace.migration.noTargetPath'));
+      return;
+    }
+
+    if (targetWorkspace === workspace) {
+      return;
+    }
+
+    setMigrationLoading(true);
+    try {
+      const conversation = (await ipcBridge.conversation.get.invoke({ id: conversation_id })) as TChatConversation | null;
+      if (!conversation) {
+        throw new Error('Conversation not found');
+      }
+
+      const nextExtra = { ...(conversation.extra || {}), workspace: targetWorkspace };
+      const success = await ipcBridge.conversation.update.invoke({ id: conversation_id, updates: { extra: nextExtra } });
+      if (!success) {
+        throw new Error('Failed to update conversation');
+      }
+
+      await mutate(`conversation/${conversation_id}`, { ...conversation, extra: nextExtra }, false);
+      emitter.emit(`${eventPrefix}.workspace.refresh`);
+      emitter.emit('chat.history.refresh');
+
+      setShowMigrationModal(false);
+      setSelectedTargetPath('');
+      messageApi.success(t('conversation.workspace.workspaceModal.changeFolderSuccess'));
+    } catch (error) {
+      console.error('Failed to change workspace folder:', error);
+      messageApi.error(t('conversation.workspace.workspaceModal.changeFolderError'));
+    } finally {
+      setMigrationLoading(false);
+    }
+  }, [selectedTargetPath, conversation_id, workspace, eventPrefix, mutate, messageApi, t]);
+
+  // Unified confirm handler: delegates to migration or simple update
+  const handleWorkspaceConfirm = useCallback(async () => {
+    if (isTemporaryWorkspace) {
+      await handleMigrationConfirm();
+    } else {
+      await handleChangeFolderConfirm();
+    }
+  }, [isTemporaryWorkspace, handleMigrationConfirm, handleChangeFolderConfirm]);
+
   let contextMenuStyle: React.CSSProperties | undefined;
   if (modalsHook.contextMenu.visible) {
     let x = modalsHook.contextMenu.x;
@@ -601,40 +663,76 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           <div className='text-14px text-t-secondary'>{t('conversation.workspace.contextMenu.deleteConfirm')}</div>
         </Modal>
 
-        {/* Workspace Migration Modal */}
-        <Modal visible={showMigrationModal} title={t('conversation.workspace.migration.title')} onCancel={handleCloseMigrationModal} footer={null} style={{ borderRadius: '12px' }} className='workspace-migration-modal' alignCenter getPopupContainer={() => document.body}>
+        {/* Workspace Info Modal */}
+        <Modal visible={showMigrationModal} title={t('conversation.workspace.workspaceModal.title')} onCancel={handleCloseMigrationModal} footer={null} style={{ borderRadius: '12px' }} className='workspace-migration-modal' alignCenter getPopupContainer={() => document.body}>
           <div className='py-8px'>
-            {/* Current workspace info */}
-            <div className='text-14px mb-16px' style={{ color: 'var(--color-text-3)' }}>
-              {t('conversation.workspace.migration.currentWorkspaceLabel')}
-              <span className='font-mono'>/{workspace.split('/').pop()}</span>
+            {/* Current path display */}
+            <div className='mb-16px'>
+              <div className='text-13px mb-6px font-medium' style={{ color: 'var(--color-text-3)' }}>
+                {t('conversation.workspace.workspaceModal.currentPath')}
+              </div>
+              <div
+                className='flex items-center gap-8px px-12px py-10px rounded-8px'
+                style={{ backgroundColor: 'var(--color-fill-1)', border: '1px solid var(--color-border-2)' }}
+              >
+                <FolderOpen theme='outline' size='16' fill='var(--color-text-2)' className='flex-shrink-0' />
+                <span className='text-13px font-mono break-all flex-1' style={{ color: 'var(--color-text-1)' }}>
+                  {workspace}
+                </span>
+              </div>
             </div>
 
-            {/* Target folder selection card */}
-            <div className='mb-16px p-16px rounded-12px' style={{ backgroundColor: 'var(--color-fill-1)' }}>
-              <div className='text-14px mb-8px' style={{ color: 'var(--color-text-1)' }}>
-                {t('conversation.workspace.migration.moveToNewFolder')}
+            {/* Reveal in Explorer button */}
+            <div className='mb-16px'>
+              <button
+                className='flex items-center gap-6px px-14px py-8px rounded-8px text-13px font-medium transition-colors border-none cursor-pointer'
+                style={{
+                  backgroundColor: 'var(--color-fill-2)',
+                  color: 'var(--color-text-1)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--color-fill-3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--color-fill-2)';
+                }}
+                onClick={() => void handleRevealWorkspace()}
+              >
+                <FolderOpen theme='outline' size='14' fill='var(--color-text-2)' />
+                {t('conversation.workspace.workspaceModal.revealInExplorer')}
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className='border-b mb-16px' style={{ borderColor: 'var(--color-border-2)' }} />
+
+            {/* Change folder section */}
+            <div className='mb-16px'>
+              <div className='text-13px mb-6px font-medium' style={{ color: 'var(--color-text-3)' }}>
+                {t('conversation.workspace.workspaceModal.changeFolder')}
               </div>
               <div
                 className='flex items-center justify-between px-12px py-10px rounded-8px cursor-pointer transition-colors hover:bg-[var(--color-fill-2)]'
                 style={{
-                  backgroundColor: 'var(--color-bg-1)',
+                  backgroundColor: 'var(--color-fill-1)',
                   border: '1px solid var(--color-border-2)',
                 }}
                 onClick={handleSelectFolder}
               >
-                <span className='text-14px' style={{ color: selectedTargetPath ? 'var(--color-text-1)' : 'var(--color-text-3)' }}>
-                  {selectedTargetPath || t('conversation.workspace.migration.selectFolder')}
+                <span className='text-13px' style={{ color: selectedTargetPath ? 'var(--color-text-1)' : 'var(--color-text-3)' }}>
+                  {selectedTargetPath || t('conversation.workspace.workspaceModal.selectFolder')}
                 </span>
-                <FolderOpen theme='outline' size='18' fill='var(--color-text-3)' />
+                <FolderOpen theme='outline' size='16' fill='var(--color-text-3)' />
               </div>
             </div>
 
-            {/* Hint */}
-            <div className='flex items-center gap-8px mb-20px text-14px' style={{ color: 'var(--color-text-3)' }}>
-              <span>💡</span>
-              <span>{t('conversation.workspace.migration.hint')}</span>
-            </div>
+            {/* Hint for temporary workspaces */}
+            {isTemporaryWorkspace && (
+              <div className='flex items-center gap-8px mb-16px text-13px' style={{ color: 'var(--color-text-3)' }}>
+                <span>💡</span>
+                <span>{t('conversation.workspace.migration.hint')}</span>
+              </div>
+            )}
 
             {/* Button area */}
             <div className='flex gap-12px justify-end'>
@@ -660,21 +758,21 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                 className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
                 style={{
                   border: 'none',
-                  backgroundColor: migrationLoading ? 'var(--color-fill-3)' : 'var(--color-text-1)',
+                  backgroundColor: migrationLoading || !selectedTargetPath ? 'var(--color-fill-3)' : 'var(--color-text-1)',
                   color: 'var(--color-bg-1)',
-                  cursor: migrationLoading ? 'not-allowed' : 'pointer',
+                  cursor: migrationLoading || !selectedTargetPath ? 'not-allowed' : 'pointer',
                 }}
                 onMouseEnter={(e) => {
-                  if (!migrationLoading) {
+                  if (!migrationLoading && selectedTargetPath) {
                     e.currentTarget.style.opacity = '0.85';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (!migrationLoading) {
+                  if (!migrationLoading && selectedTargetPath) {
                     e.currentTarget.style.opacity = '1';
                   }
                 }}
-                onClick={handleMigrationConfirm}
+                onClick={handleWorkspaceConfirm}
                 disabled={migrationLoading || !selectedTargetPath}
               >
                 {migrationLoading ? t('conversation.workspace.migration.migrating') : t('common.confirm')}
@@ -718,13 +816,11 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               <span className='font-bold text-14px text-t-primary overflow-hidden text-ellipsis whitespace-nowrap'>{workspaceDisplayName}</span>
             </div>
             <div className='flex items-center gap-8px flex-shrink-0'>
-              {isTemporaryWorkspace && (
-                <Tooltip content={t('conversation.workspace.changeWorkspace')}>
-                  <span>
-                    <ChangeWorkspaceIcon className='line-height-0 cursor-pointer w-24px h-24px flex-shrink-0' onClick={handleOpenMigrationModal} />
-                  </span>
-                </Tooltip>
-              )}
+              <Tooltip content={t('conversation.workspace.workspaceModal.title')}>
+                <span>
+                  <ChangeWorkspaceIcon className='line-height-0 cursor-pointer w-24px h-24px flex-shrink-0' onClick={handleOpenMigrationModal} />
+                </span>
+              </Tooltip>
               <Tooltip content={t('conversation.workspace.refresh')}>
                 <span>
                   <Refresh className={treeHook.loading ? 'loading lh-[1] flex cursor-pointer' : 'flex cursor-pointer'} theme='outline' size='16' fill={iconColors.secondary} onClick={() => treeHook.refreshWorkspace()} />

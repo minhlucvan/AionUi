@@ -387,6 +387,15 @@
       "refresh": "更新",
       "temporarySpace": "一時スペース",
       "changeWorkspace": "ワークスペースを変更",
+      "workspaceModal": {
+        "title": "ワークスペース",
+        "currentPath": "現在のパス",
+        "revealInExplorer": "エクスプローラーで開く",
+        "changeFolder": "フォルダーを変更",
+        "changeFolderSuccess": "ワークスペースフォルダーを更新しました",
+        "changeFolderError": "ワークスペースフォルダーの変更に失敗しました",
+        "selectFolder": "フォルダーを選択"
+      },
       "migration": {
         "title": "ワークスペースを変更",
         "currentWorkspaceLabel": "現在の一時ワークスペース：",
