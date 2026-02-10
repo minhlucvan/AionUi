@@ -535,6 +535,52 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
     const presetRulesDir = preset.resourceDir ? resolveBuiltinDir(preset.resourceDir) : rulesDir;
     const presetSkillsDir = preset.resourceDir ? resolveBuiltinDir(preset.resourceDir) : builtinSkillsDir;
 
+    // For auto-discovered presets with resourceDir, copy assistant.json, workspace/, and hooks/
+    // to the installed assistant directory so WorkspaceTemplateCopy can find them
+    if (preset.resourceDir) {
+      const presetSourceDir = resolveBuiltinDir(preset.resourceDir);
+      const assistantSubDir = path.join(assistantsDir, assistantId);
+      if (!existsSync(assistantSubDir)) {
+        mkdirSync(assistantSubDir);
+      }
+
+      // Copy assistant.json (always overwrite to keep metadata in sync)
+      const sourceConfigPath = path.join(presetSourceDir, 'assistant.json');
+      if (existsSync(sourceConfigPath)) {
+        const targetConfigPath = path.join(assistantSubDir, 'assistant.json');
+        await fs.copyFile(sourceConfigPath, targetConfigPath);
+
+        // If assistant.json lacks workspacePath but workspace/ dir exists, inject it
+        try {
+          const configContent = await fs.readFile(targetConfigPath, 'utf-8');
+          const config = JSON.parse(configContent);
+          const workspaceSrcDir = path.join(presetSourceDir, 'workspace');
+          if (!config.workspacePath && existsSync(workspaceSrcDir)) {
+            config.workspacePath = 'workspace';
+            await fs.writeFile(targetConfigPath, JSON.stringify(config, null, 2), 'utf-8');
+          }
+        } catch (error) {
+          console.warn(`[AionUi] Failed to patch workspacePath in assistant.json for ${preset.id}:`, error);
+        }
+      }
+
+      // Copy workspace/ template directory (always overwrite for builtin assistants)
+      const workspaceSrcDir = path.join(presetSourceDir, 'workspace');
+      if (existsSync(workspaceSrcDir)) {
+        const workspaceTargetDir = path.join(assistantSubDir, 'workspace');
+        await copyDirectoryRecursively(workspaceSrcDir, workspaceTargetDir, { overwrite: true });
+        console.log(`[AionUi] Synced workspace template for ${preset.id}`);
+      }
+
+      // Copy hooks/ directory (always overwrite for builtin assistants)
+      const hooksSrcDir = path.join(presetSourceDir, 'hooks');
+      if (existsSync(hooksSrcDir)) {
+        const hooksTargetDir = path.join(assistantSubDir, 'hooks');
+        await copyDirectoryRecursively(hooksSrcDir, hooksTargetDir, { overwrite: true });
+        console.log(`[AionUi] Synced hooks for ${preset.id}`);
+      }
+    }
+
     // 复制规则文件 / Copy rule files
     const hasRuleFiles = Object.keys(preset.ruleFiles).length > 0;
     if (hasRuleFiles) {
@@ -640,6 +686,28 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
           }
         } catch (error) {
           // 忽略删除失败 / Ignore deletion failure
+        }
+      }
+    }
+
+    // Sync workspace-embedded skills (always overwrite for builtin assistants)
+    // This ensures changes in assistant/*/workspace/.claude/skills/ propagate on next app start
+    if (preset.resourceDir) {
+      const workspaceSkillsSrc = path.join(resolveBuiltinDir(preset.resourceDir), 'workspace', '.claude', 'skills');
+      if (existsSync(workspaceSkillsSrc)) {
+        try {
+          const skillEntries = readdirSync(workspaceSkillsSrc, { withFileTypes: true });
+          for (const skillEntry of skillEntries) {
+            if (!skillEntry.isDirectory()) continue;
+            const srcSkillPath = path.join(workspaceSkillsSrc, skillEntry.name);
+            const skillMdPath = path.join(srcSkillPath, 'SKILL.md');
+            if (!existsSync(skillMdPath)) continue;
+            const targetSkillPath = path.join(userSkillsDir, skillEntry.name);
+            await copyDirectoryRecursively(srcSkillPath, targetSkillPath, { overwrite: true });
+            console.log(`[AionUi] Synced workspace skill: ${skillEntry.name} from ${preset.id}`);
+          }
+        } catch (error) {
+          console.warn(`[AionUi] Failed to sync workspace skills from ${preset.id}:`, error);
         }
       }
     }

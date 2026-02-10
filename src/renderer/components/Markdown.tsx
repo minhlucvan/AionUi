@@ -45,7 +45,7 @@ const logicRender = <T, F>(condition: boolean, trueComponent: T, falseComponent?
 };
 
 function CodeBlock(props: any) {
-  const [fold, setFlow] = useState(false);
+  const [fold, setFlow] = useState(true);
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
   });
