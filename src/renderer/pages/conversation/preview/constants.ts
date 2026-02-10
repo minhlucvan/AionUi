@@ -67,4 +67,4 @@ export const FILE_TYPES_WITH_BUILTIN_OPEN = ['word', 'ppt', 'pdf', 'excel'] as c
  * 可编辑的内容类型
  * Editable content types
  */
-export const EDITABLE_CONTENT_TYPES = ['markdown', 'html', 'code'] as const;
+export const EDITABLE_CONTENT_TYPES = ['markdown', 'html', 'code', 'excalidraw'] as const;

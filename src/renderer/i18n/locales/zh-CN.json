@@ -201,6 +201,11 @@
       "inspectElement": "审核元素",
       "inspectElementEnable": "开启审核元素",
       "inspectElementDisable": "关闭审核元素"
+    },
+    "excalidraw": {
+      "loadFailed": "加载 Excalidraw 编辑器失败",
+      "zoomToFit": "缩放至适合",
+      "title": "Excalidraw 绘图"
     }
   },
   "conversation": {

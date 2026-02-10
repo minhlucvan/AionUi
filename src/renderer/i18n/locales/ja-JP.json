@@ -330,6 +330,11 @@
       "inspectElement": "要素を検証",
       "inspectElementEnable": "要素インスペクターを有効化",
       "inspectElementDisable": "要素インスペクターを無効化"
+    },
+    "excalidraw": {
+      "loadFailed": "Excalidraw エディターの読み込みに失敗しました",
+      "zoomToFit": "全体を表示",
+      "title": "Excalidraw 図面"
     }
   },
   "conversation": {

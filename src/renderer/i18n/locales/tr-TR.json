@@ -210,6 +210,11 @@
       "inspectElement": "Öğeyi İncele",
       "inspectElementEnable": "Öğe denetçisini etkinleştir",
       "inspectElementDisable": "Öğe denetçisini devre dışı bırak"
+    },
+    "excalidraw": {
+      "loadFailed": "Excalidraw düzenleyicisi yüklenemedi",
+      "zoomToFit": "Sığacak şekilde yakınlaştır",
+      "title": "Excalidraw Çizimi"
     }
   },
   "conversation": {

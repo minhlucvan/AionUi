@@ -112,6 +112,7 @@
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-markdown": "^6.5.0",
     "@codemirror/view": "^6.39.12",
+    "@excalidraw/excalidraw": "^0.18.0",
     "@floating-ui/react": "^0.27.16",
     "@google/genai": "^1.16.0",
     "@grammyjs/transformer-throttler": "^1.2.1",
