@@ -1,0 +1,17 @@
+{
+  "type": "utility",
+  "id": "docker",
+  "name": "Docker CLI",
+  "description": "Docker container platform for building, sharing, and running applications",
+  "cliCommand": "docker",
+  "installCommand": {
+    "darwin": "brew install --cask docker",
+    "linux": "curl -fsSL https://get.docker.com | sh",
+    "win32": "winget install --id Docker.DockerDesktop"
+  },
+  "versionCommand": "docker --version",
+  "loginCommand": "docker login",
+  "loginStatusCommand": "docker info --format '{{.ID}}'",
+  "installUrl": "https://docs.docker.com/get-docker/",
+  "skills": ["docker-cli"]
+}

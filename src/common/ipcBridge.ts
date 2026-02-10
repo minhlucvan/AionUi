@@ -8,7 +8,7 @@ import type { IConfirmation } from '@/common/chatLib';
 import { bridge } from '@office-ai/platform';
 import type { OpenDialogOptions } from 'electron';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
-import type { AcpBackend, AcpBackendAll, PresetAgentType } from '../types/acpTypes';
+import type { AcpBackend, AcpBackendAll, AcpBackendConfig, PresetAgentType } from '../types/acpTypes';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel } from './storage';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult } from './updateTypes';
@@ -257,6 +257,7 @@ export const mcpService = {
 };
 
 // Utility CLI tools management (non-agent tools like gh, docker, etc.)
+// Tool status is dynamically loaded from tools/<tool-dir>/tool.json manifests
 export const utilityTools = {
   getStatus: bridge.buildProvider<
     IBridgeResponse<
@@ -275,6 +276,8 @@ export const utilityTools = {
         installUrl?: string;
         hasSkill?: boolean;
         skillInstalled?: boolean;
+        /** Directory path where this tool's definition lives */
+        toolDir?: string;
       }>
     >,
     void
@@ -283,6 +286,13 @@ export const utilityTools = {
   update: bridge.buildProvider<IBridgeResponse<{ output: string }>, { toolId: string }>('utility-tools.update'),
   login: bridge.buildProvider<IBridgeResponse<{ output: string }>, { toolId: string }>('utility-tools.login'),
   installSkill: bridge.buildProvider<IBridgeResponse<{ skillName: string; installPath: string }>, { toolId: string }>('utility-tools.install-skill'),
+};
+
+// Tool registry: provides ACP backend configs to the renderer process
+// Backend data is loaded from tools/<tool-dir>/tool.json by ToolRegistry in main process
+export const toolRegistryBridge = {
+  /** Get all ACP backend configs (equivalent to the old ACP_BACKENDS_ALL) */
+  getAcpBackends: bridge.buildProvider<IBridgeResponse<Record<string, AcpBackendConfig>>, void>('tool-registry.get-acp-backends'),
 };
 
 // Codex 对话相关接口 - 复用统一的conversation接口

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { acpConversation } from '@/common/ipcBridge';
+import { acpConversation, toolRegistryBridge } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { iconColors } from '@/renderer/theme/colors';
-import { ACP_BACKENDS_ALL, type AcpBackend, type AcpBackendAll } from '@/types/acpTypes';
+import type { AcpBackend, AcpBackendAll } from '@/types/acpTypes';
 import { Divider, Switch, Tooltip } from '@arco-design/web-react';
 import { Help, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -48,8 +48,6 @@ const YOLO_NOT_SUPPORTED_BACKENDS: Record<string, string> = {
   iflow: 'settings.yoloNotSupportedIflow', // Not verified, may require manual confirmation
 };
 
-// ACP backend IDs to display (excluding gemini, custom, openclaw-gateway)
-const ACP_AGENT_IDS = (Object.keys(ACP_BACKENDS_ALL) as AcpBackendAll[]).filter((id) => !EXCLUDED_ACP_BACKENDS.includes(id));
 
 // ==================== Component ====================
 
@@ -70,14 +68,21 @@ const SecurityModalContent: React.FC = () => {
     try {
       setLoading(true);
 
-      // Load available ACP agents
-      const response = await acpConversation.getAvailableAgents.invoke();
+      // Load available ACP agents and backend configs in parallel
+      const [response, backendsResponse] = await Promise.all([
+        acpConversation.getAvailableAgents.invoke(),
+        toolRegistryBridge.getAcpBackends.invoke(),
+      ]);
+      const backends = backendsResponse.success ? backendsResponse.data : {};
       const availableIds = new Set(response.success && response.data ? response.data.map((a) => a.backend) : []);
+
+      // Build agent IDs from backend configs, excluding gemini and custom
+      const acpAgentIds = (Object.keys(backends) as AcpBackendAll[]).filter((id) => !EXCLUDED_ACP_BACKENDS.includes(id));
 
       // Build agent list with yolo support status
       const agentList: AgentItem[] = [
         ...BUILTIN_AGENTS,
-        ...ACP_AGENT_IDS.filter((id) => availableIds.has(id)).map((id) => {
+        ...acpAgentIds.filter((id) => availableIds.has(id)).map((id) => {
           let yoloSupport: YoloSupportStatus = 'not-supported';
           let yoloSupportReason: string | undefined;
 
@@ -97,7 +102,7 @@ const SecurityModalContent: React.FC = () => {
 
           return {
             id,
-            name: ACP_BACKENDS_ALL[id]?.name || id,
+            name: backends[id]?.name || id,
             type: 'acp' as const,
             installed: true,
             yoloSupport,

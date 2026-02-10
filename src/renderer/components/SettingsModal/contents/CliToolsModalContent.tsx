@@ -38,6 +38,8 @@ interface UtilityToolInfo {
   installUrl?: string;
   hasSkill?: boolean;
   skillInstalled?: boolean;
+  /** Directory path where this tool's definition lives */
+  toolDir?: string;
 }
 
 /**

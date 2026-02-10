@@ -5,7 +5,6 @@
  * Redesigned modal with CLI card selection, logo display, and collapsible advanced JSON config.
  */
 import type { AcpBackendConfig, AcpBackend } from '@/types/acpTypes';
-import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import { Alert, Input, Spin, Collapse } from '@arco-design/web-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +13,7 @@ import { json } from '@codemirror/lang-json';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 import AionModal from '@/renderer/components/base/AionModal';
 import { uuid } from '@/common/utils';
-import { acpConversation } from '@/common/ipcBridge';
+import { acpConversation, toolRegistryBridge } from '@/common/ipcBridge';
 import { CheckSmall } from '@icon-park/react';
 
 // CLI Logo 导入 / CLI Logo imports
@@ -78,13 +77,16 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
   const loadDetectedAgents = useCallback(async () => {
     setLoadingAgents(true);
     try {
-      const response = await acpConversation.getAvailableAgents.invoke();
-      if (response.success && response.data) {
-        // 只展示第三方独立 CLI（goose, auggie, kimi, opencode）
+      const [agentsResponse, backendsResponse] = await Promise.all([
+        acpConversation.getAvailableAgents.invoke(),
+        toolRegistryBridge.getAcpBackends.invoke(),
+      ]);
+      const backends = backendsResponse.success ? backendsResponse.data : {};
+      if (agentsResponse.success && agentsResponse.data) {
         // Only show third-party standalone CLIs (goose, auggie, kimi, opencode)
-        const filteredAgents = response.data.filter((a) => {
+        const filteredAgents = agentsResponse.data.filter((a) => {
           if (['gemini', 'custom', 'codex'].includes(a.backend)) return false;
-          const backendConfig = ACP_BACKENDS_ALL[a.backend];
+          const backendConfig = backends?.[a.backend];
           return backendConfig && !backendConfig.authRequired;
         });
         setDetectedAgents(filteredAgents);

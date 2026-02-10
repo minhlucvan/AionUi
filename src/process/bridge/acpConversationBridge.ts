@@ -11,26 +11,10 @@ const execAsync = promisify(exec);
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
-import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import type { AcpBackendAll } from '@/types/acpTypes';
+import { toolRegistry } from '../services/toolRegistry';
 import { ipcBridge } from '../../common';
 import * as os from 'os';
-
-/** Known install/setup commands for CLI tools */
-const CLI_INSTALL_INFO: Partial<Record<AcpBackendAll, { installCommand?: string; setupCommand?: string; installUrl?: string }>> = {
-  claude: { installCommand: 'npm install -g @anthropic-ai/claude-code', setupCommand: 'claude --version', installUrl: 'https://docs.anthropic.com/en/docs/claude-code' },
-  codex: { installCommand: 'npm install -g @openai/codex', setupCommand: 'codex --version', installUrl: 'https://github.com/openai/codex' },
-  qwen: { installCommand: 'npm install -g @qwen-code/qwen-code', setupCommand: 'qwen --version', installUrl: 'https://github.com/QwenLM/qwen-code' },
-  goose: { installCommand: 'brew install block/goose/goose', setupCommand: 'goose --version', installUrl: 'https://github.com/block/goose' },
-  copilot: { installUrl: 'https://github.com/github/copilot-cli' },
-  opencode: { installCommand: 'npm install -g opencode-ai', setupCommand: 'opencode --version', installUrl: 'https://github.com/nichochar/opencode' },
-  kimi: { installCommand: 'curl -LsSf https://code.kimi.com/install.sh | bash', setupCommand: 'kimi --version', installUrl: 'https://github.com/MoonshotAI/kimi-cli' },
-  auggie: { installUrl: 'https://www.augmentcode.com/' },
-  iflow: { installUrl: 'https://iflow.dev/' },
-  droid: { installUrl: 'https://www.factory.ai/' },
-  qoder: { installUrl: 'https://github.com/qoder-ai/qodercli' },
-  'openclaw-gateway': { installUrl: 'https://github.com/openclaw/openclaw' },
-};
 
 export function initAcpConversationBridge(): void {
   // Debug provider to check environment variables
@@ -206,7 +190,7 @@ export function initAcpConversationBridge(): void {
   ipcBridge.acpConversation.getCliVersions.provider(() => {
     const detectedAgents = acpDetector.getDetectedAgents();
 
-    const results = Object.entries(ACP_BACKENDS_ALL)
+    const results = Object.entries(toolRegistry.getAcpBackendsAll())
       .filter(([id, config]) => {
         // Exclude gemini (built-in) and custom (user-configured)
         if (id === 'gemini' || id === 'custom') return false;
@@ -216,7 +200,6 @@ export function initAcpConversationBridge(): void {
         const backendId = id as AcpBackendAll;
         const detected = detectedAgents.find((a) => a.backend === backendId);
         const installed = !!detected?.cliPath;
-        const installInfo = CLI_INSTALL_INFO[backendId];
 
         let version: string | undefined;
         if (installed && detected?.cliPath) {
@@ -241,8 +224,8 @@ export function initAcpConversationBridge(): void {
           installed,
           version,
           cliCommand: config.cliCommand,
-          installCommand: installInfo?.installCommand,
-          installUrl: installInfo?.installUrl,
+          installCommand: config.installCommand,
+          installUrl: config.installUrl,
         };
       });
 
@@ -252,19 +235,18 @@ export function initAcpConversationBridge(): void {
   // Install a CLI tool via its install command
   ipcBridge.acpConversation.installCli.provider(async ({ backend }) => {
     const backendId = backend as AcpBackendAll;
-    const installInfo = CLI_INSTALL_INFO[backendId];
-    const backendConfig = ACP_BACKENDS_ALL[backendId];
+    const backendConfig = toolRegistry.getAcpBackendsAll()[backendId];
 
-    if (!installInfo?.installCommand) {
+    if (!backendConfig?.installCommand) {
       return {
         success: false,
-        msg: `No install command available for ${backendConfig?.name || backend}. Please visit the documentation to install manually.`,
+        msg: `No install command available for ${backendConfig?.name || backend}. Please visit ${backendConfig?.installUrl || 'the documentation'} to install manually.`,
       };
     }
 
     try {
-      console.log(`[ACP] Installing CLI: ${installInfo.installCommand}`);
-      const { stdout, stderr } = await execAsync(installInfo.installCommand, {
+      console.log(`[ACP] Installing CLI: ${backendConfig.installCommand}`);
+      const { stdout, stderr } = await execAsync(backendConfig.installCommand, {
         timeout: 120000, // 2 minute timeout for install
         env: { ...process.env },
       });
@@ -293,10 +275,9 @@ export function initAcpConversationBridge(): void {
   // Setup/verify a CLI tool after installation
   ipcBridge.acpConversation.setupCli.provider(async ({ backend }) => {
     const backendId = backend as AcpBackendAll;
-    const installInfo = CLI_INSTALL_INFO[backendId];
-    const backendConfig = ACP_BACKENDS_ALL[backendId];
+    const backendConfig = toolRegistry.getAcpBackendsAll()[backendId];
 
-    if (!installInfo?.setupCommand) {
+    if (!backendConfig?.setupCommand) {
       return {
         success: false,
         msg: `No setup command available for ${backendConfig?.name || backend}.`,
@@ -304,8 +285,8 @@ export function initAcpConversationBridge(): void {
     }
 
     try {
-      console.log(`[ACP] Running setup for ${backend}: ${installInfo.setupCommand}`);
-      const { stdout, stderr } = await execAsync(installInfo.setupCommand, {
+      console.log(`[ACP] Running setup for ${backend}: ${backendConfig.setupCommand}`);
+      const { stdout, stderr } = await execAsync(backendConfig.setupCommand, {
         timeout: 30000,
         env: { ...process.env },
       });
