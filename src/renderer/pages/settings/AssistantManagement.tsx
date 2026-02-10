@@ -56,7 +56,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   const [editContext, setEditContext] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
   const [editAgent, setEditAgent] = useState<PresetAgentType>('gemini');
-  const [editSkills, setEditSkills] = useState('');
+  const [_editSkills, _setEditSkills] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('preview');
@@ -478,8 +478,8 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   const handleDeleteConfirm = async () => {
     if (!activeAssistant) return;
     try {
-      // 1. 删除规则和技能文件 / Delete rule and skill files
-      await Promise.all([ipcBridge.fs.deleteAssistantRule.invoke({ assistantId: activeAssistant.id }), ipcBridge.fs.deleteAssistantSkill.invoke({ assistantId: activeAssistant.id })]);
+      // 1. 删除整个助手文件夹 / Delete entire assistant folder
+      await ipcBridge.fs.deleteAssistantFolder.invoke({ assistantId: activeAssistant.id });
 
       // 2. 从配置中移除助手 / Remove assistant from config
       const agents = (await ConfigStorage.get('acp.customAgents')) || [];

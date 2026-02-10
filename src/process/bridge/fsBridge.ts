@@ -321,22 +321,33 @@ async function readBuiltinResource(resourceType: ResourceType, fileName: string)
 /**
  * Read assistant resource file with locale fallback
  * 读取助手资源文件，支持语言回退
+ *
+ * Files are now stored inside assistant subdirectories:
+ * assistants/{assistantId}/{assistantId}.{locale}.md
  */
 async function readAssistantResource(resourceType: ResourceType, assistantId: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<string> {
   const assistantsDir = getAssistantsDir();
+  const assistantSubDir = path.join(assistantsDir, assistantId);
   const locales = [locale, 'en-US', 'zh-CN'].filter((l, i, arr) => arr.indexOf(l) === i);
 
-  // 1. Try user data directory first
-  for (const loc of locales) {
-    const fileName = fileNamePattern(assistantId, loc);
-    try {
-      return await fs.readFile(path.join(assistantsDir, fileName), 'utf-8');
-    } catch {
-      // Try next locale
+  // 1. Try assistant subdirectory first
+  if (
+    await fs
+      .access(assistantSubDir)
+      .then(() => true)
+      .catch(() => false)
+  ) {
+    for (const loc of locales) {
+      const fileName = fileNamePattern(assistantId, loc);
+      try {
+        return await fs.readFile(path.join(assistantSubDir, fileName), 'utf-8');
+      } catch {
+        // Try next locale
+      }
     }
   }
 
-  // 2. Fallback to builtin directory
+  // 2. Fallback to builtin directory (legacy support)
   const builtinDir = await findBuiltinResourceDir(resourceType);
   for (const loc of locales) {
     const fileName = fileNamePattern(assistantId, loc);
@@ -355,14 +366,18 @@ async function readAssistantResource(resourceType: ResourceType, assistantId: st
 /**
  * Write assistant resource file to user directory
  * 写入助手资源文件到用户目录
+ *
+ * Files are now stored inside assistant subdirectories:
+ * assistants/{assistantId}/{assistantId}.{locale}.md
  */
 async function writeAssistantResource(resourceType: ResourceType, assistantId: string, content: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<boolean> {
   try {
     const assistantsDir = getAssistantsDir();
-    await fs.mkdir(assistantsDir, { recursive: true });
+    const assistantSubDir = path.join(assistantsDir, assistantId);
+    await fs.mkdir(assistantSubDir, { recursive: true });
     const fileName = fileNamePattern(assistantId, locale);
-    await fs.writeFile(path.join(assistantsDir, fileName), content, 'utf-8');
-    console.log(`[fsBridge] Wrote assistant ${resourceType}: ${fileName}`);
+    await fs.writeFile(path.join(assistantSubDir, fileName), content, 'utf-8');
+    console.log(`[fsBridge] Wrote assistant ${resourceType}: ${fileName} in ${assistantSubDir}`);
     return true;
   } catch (error) {
     console.error(`Failed to write assistant ${resourceType}:`, error);
@@ -373,15 +388,28 @@ async function writeAssistantResource(resourceType: ResourceType, assistantId: s
 /**
  * Delete assistant resource files (all locale versions)
  * 删除助手资源文件（所有语言版本）
+ *
+ * Files are now stored inside assistant subdirectories:
+ * assistants/{assistantId}/{assistantId}.{locale}.md
  */
-async function deleteAssistantResource(resourceType: ResourceType, filePattern: RegExp): Promise<boolean> {
+async function deleteAssistantResource(resourceType: ResourceType, assistantId: string, filePattern: RegExp): Promise<boolean> {
   try {
     const assistantsDir = getAssistantsDir();
-    const files = await fs.readdir(assistantsDir);
+    const assistantSubDir = path.join(assistantsDir, assistantId);
+
+    // Check if assistant subdirectory exists
+    try {
+      await fs.access(assistantSubDir);
+    } catch {
+      // Directory doesn't exist, nothing to delete
+      return true;
+    }
+
+    const files = await fs.readdir(assistantSubDir);
     for (const file of files) {
       if (filePattern.test(file)) {
-        await fs.unlink(path.join(assistantsDir, file));
-        console.log(`[fsBridge] Deleted assistant ${resourceType}: ${file}`);
+        await fs.unlink(path.join(assistantSubDir, file));
+        console.log(`[fsBridge] Deleted assistant ${resourceType}: ${file} from ${assistantId}/`);
       }
     }
     return true;
@@ -818,7 +846,7 @@ export function initFsBridge(): void {
 
   // 删除助手规则文件 / Delete assistant rule files
   ipcBridge.fs.deleteAssistantRule.provider(({ assistantId }) => {
-    return deleteAssistantResource('rules', new RegExp(`^${assistantId}\\..*\\.md$`));
+    return deleteAssistantResource('rules', assistantId, new RegExp(`^${assistantId}\\..*\\.md$`));
   });
 
   // 读取助手技能文件 / Read assistant skill file from user directory or builtin skills
@@ -838,7 +866,31 @@ export function initFsBridge(): void {
 
   // 删除助手技能文件 / Delete assistant skill files
   ipcBridge.fs.deleteAssistantSkill.provider(({ assistantId }) => {
-    return deleteAssistantResource('skills', new RegExp(`^${assistantId}-skills\\..*\\.md$`));
+    return deleteAssistantResource('skills', assistantId, new RegExp(`^${assistantId}-skills\\..*\\.md$`));
+  });
+
+  // 删除助手文件夹 / Delete assistant folder completely
+  ipcBridge.fs.deleteAssistantFolder.provider(async ({ assistantId }) => {
+    try {
+      const assistantsDir = getAssistantsDir();
+      const assistantSubDir = path.join(assistantsDir, assistantId);
+
+      // Check if assistant subdirectory exists
+      try {
+        await fs.access(assistantSubDir);
+      } catch {
+        // Directory doesn't exist, nothing to delete
+        return true;
+      }
+
+      // Remove the entire directory and all its contents
+      await fs.rm(assistantSubDir, { recursive: true, force: true });
+      console.log(`[fsBridge] Deleted assistant folder: ${assistantId}/`);
+      return true;
+    } catch (error) {
+      console.error(`Failed to delete assistant folder:`, error);
+      return false;
+    }
   });
 
   // 获取可用 skills 列表 / List available skills from both builtin and user directories
@@ -1755,27 +1807,21 @@ export function initFsBridge(): void {
   // 从 zip 文件导入助手 / Import assistant from zip file
   // Simply extract zip to assistants folder and load metadata
   ipcBridge.fs.importAssistantZip.provider(async ({ zipPath }) => {
+    const tmpDir = path.join(os.tmpdir(), `assistant-import-${Date.now()}`);
+
     try {
       const AdmZip = (await import('adm-zip')).default;
       const zip = new AdmZip(zipPath);
-
-      // Generate new assistant ID (timestamp only, without 'custom-' prefix in directory name)
-      const timestamp = Date.now();
-      const newId = `custom-${timestamp}`;
       const assistantsDir = getAssistantsDir();
       await fs.mkdir(assistantsDir, { recursive: true });
 
-      // Extract to assistants directory with timestamp-based ID
-      // Using timestamp as folder name for uniqueness
-      const extractDir = path.join(assistantsDir, `${timestamp}`);
-      await fs.mkdir(extractDir, { recursive: true });
-
-      // Extract all files
-      zip.extractAllTo(extractDir, true);
-      console.log(`[fsBridge] Extracted assistant to: ${extractDir}`);
+      // Extract to temp directory first to read config
+      await fs.mkdir(tmpDir, { recursive: true });
+      zip.extractAllTo(tmpDir, true);
+      console.log(`[fsBridge] Extracted to temp: ${tmpDir}`);
 
       // Find assistant.json or manifest.json (may be in subdirectory)
-      const findConfigFile = async (dir: string, depth = 0): Promise<{ path: string; config: any } | null> => {
+      const findConfigFile = async (dir: string, depth = 0): Promise<{ path: string; config: any; relativeDir: string } | null> => {
         if (depth > 2) return null; // Limit search depth
 
         // Try current directory
@@ -1784,7 +1830,8 @@ export function initFsBridge(): void {
           try {
             const configData = await fs.readFile(configPath, 'utf-8');
             const config = JSON.parse(configData);
-            return { path: configPath, config };
+            const relativeDir = path.relative(tmpDir, dir);
+            return { path: configPath, config, relativeDir };
           } catch {
             // Continue searching
           }
@@ -1806,45 +1853,73 @@ export function initFsBridge(): void {
         return null;
       };
 
-      const configResult = await findConfigFile(extractDir);
+      const configResult = await findConfigFile(tmpDir);
       if (!configResult) {
-        await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
         return { success: false, msg: 'No assistant.json or manifest.json found in zip' };
       }
 
       const assistantConfig = configResult.config;
-      const configDir = path.dirname(configResult.path);
 
       if (!assistantConfig.name || !assistantConfig.name.trim()) {
-        await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
         return { success: false, msg: 'Invalid config: "name" field is required' };
       }
 
-      // Build workspace path
-      const workspacePath = path.join(configDir, assistantConfig.workspacePath || 'workspace');
+      // Generate assistant ID from name with timestamp for uniqueness
+      // Format: {sanitized-name}-{timestamp} (e.g., video-generator-1770673611169)
+      const sanitizeName = (name: string) =>
+        name
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, '-')
+          .replace(/-+/g, '-');
+      const baseName = assistantConfig.id ? sanitizeName(assistantConfig.id) : sanitizeName(assistantConfig.name);
+      const timestamp = Date.now();
+      const newId = `${baseName}-${timestamp}`;
 
-      // Load README.md or CLAUDE.md as assistant rules
+      // Move from temp to final location
+      const finalDir = path.join(assistantsDir, newId);
+      const sourceDir = configResult.relativeDir ? path.join(tmpDir, configResult.relativeDir) : tmpDir;
+
+      await fs.rename(sourceDir, finalDir);
+      console.log(`[fsBridge] Moved assistant to: ${finalDir}`);
+
+      // Update assistant.json with correct ID
+      const finalConfigPath = path.join(finalDir, 'assistant.json');
+      assistantConfig.id = newId;
+      await fs.writeFile(finalConfigPath, JSON.stringify(assistantConfig, null, 2), 'utf-8');
+
+      // Build workspace path (workspace/ is inside the assistant directory now)
+      const workspacePath = path.join(finalDir, assistantConfig.workspacePath || 'workspace');
+
+      // Load README.md or CLAUDE.md as assistant rules (look in assistant subdirectory)
       let hasRules = false;
-      for (const ruleFile of ['CLAUDE.md', 'README.md']) {
-        try {
-          const rulePath = path.join(workspacePath, ruleFile);
-          const ruleContent = await fs.readFile(rulePath, 'utf-8');
+      for (const ruleFile of ['CLAUDE.md', 'README.md', `${newId}.md`]) {
+        const searchPaths = [
+          path.join(finalDir, ruleFile), // Root of assistant dir
+          path.join(workspacePath, ruleFile), // workspace/ subdirectory
+        ];
 
-          // Save to assistants directory
-          const ruleFileName = `${newId}.en-US.md`;
-          const targetRulePath = path.join(assistantsDir, ruleFileName);
-          await fs.writeFile(targetRulePath, ruleContent, 'utf-8');
+        for (const rulePath of searchPaths) {
+          try {
+            const ruleContent = await fs.readFile(rulePath, 'utf-8');
 
-          console.log(`[fsBridge] Imported rules from ${ruleFile} to ${ruleFileName}`);
-          hasRules = true;
-          break; // Use first found file
-        } catch {
-          // Try next file
+            // Save to assistant subdirectory with locale suffix
+            const ruleFileName = `${newId}.en-US.md`;
+            const targetRulePath = path.join(finalDir, ruleFileName);
+            await fs.writeFile(targetRulePath, ruleContent, 'utf-8');
+
+            console.log(`[fsBridge] Imported rules from ${path.basename(rulePath)} to ${ruleFileName}`);
+            hasRules = true;
+            break;
+          } catch {
+            // Try next path
+          }
         }
+        if (hasRules) break;
       }
 
       if (!hasRules) {
-        console.warn('[fsBridge] No CLAUDE.md or README.md found in workspace');
+        console.warn('[fsBridge] No CLAUDE.md or README.md found');
       }
 
       // Import skills from workspace/.claude/skills/
@@ -1901,13 +1976,13 @@ export function initFsBridge(): void {
         enabled: true,
         enabledSkills: importedSkills.length > 0 ? importedSkills : [],
         customSkillNames: importedSkills.length > 0 ? importedSkills : [],
-        assistantPath: configDir, // Path to assistant directory
-        // Note: workspacePath is not set here - workspace will be initialized via hooks
-        // Only set workspacePath if user explicitly provides a persistent workspace location
+        // Note: assistantPath and workspacePath are not set here
+        // The assistant directory is now the canonical location: assistants/{newId}/
+        // Workspace will be initialized via hooks from assistants/{newId}/workspace/
       };
 
       console.log(`[fsBridge] Successfully imported assistant "${newAssistant.name}" (${newId})`);
-      console.log(`[fsBridge] Assistant directory: ${configDir}`);
+      console.log(`[fsBridge] Assistant directory: ${finalDir}`);
       console.log(`[fsBridge] Imported ${importedSkills.length} skills: ${importedSkills.join(', ')}`);
 
       return {
@@ -1921,6 +1996,9 @@ export function initFsBridge(): void {
         success: false,
         msg: `Failed to import assistant: ${error instanceof Error ? error.message : String(error)}`,
       };
+    } finally {
+      // Clean up temp directory
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     }
   });
 }

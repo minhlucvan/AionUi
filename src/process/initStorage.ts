@@ -423,10 +423,15 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       for (const [locale, ruleFile] of Object.entries(preset.ruleFiles)) {
         try {
           const sourceRulesPath = path.join(presetRulesDir, ruleFile);
-          // 目标文件名格式：{assistantId}.{locale}.md
-          // Target file name format: {assistantId}.{locale}.md
+          // 目标文件名格式：{assistantId}/{assistantId}.{locale}.md
+          // Target file name format: {assistantId}/{assistantId}.{locale}.md
+          const assistantSubDir = path.join(assistantsDir, assistantId);
+          // 确保助手子目录存在 / Ensure assistant subdirectory exists
+          if (!existsSync(assistantSubDir)) {
+            mkdirSync(assistantSubDir);
+          }
           const targetFileName = `${assistantId}.${locale}.md`;
-          const targetPath = path.join(assistantsDir, targetFileName);
+          const targetPath = path.join(assistantSubDir, targetFileName);
 
           // 检查源文件是否存在 / Check if source file exists
           if (!existsSync(sourceRulesPath)) {
@@ -449,17 +454,20 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
     } else {
       // 如果助手没有 ruleFiles 配置，删除旧的 rules 缓存文件
       // If assistant has no ruleFiles config, delete old rules cache files
-      const rulesFilePattern = new RegExp(`^${assistantId}\\..*\\.md$`);
-      try {
-        const files = readdirSync(assistantsDir);
-        for (const file of files) {
-          if (rulesFilePattern.test(file)) {
-            const filePath = path.join(assistantsDir, file);
-            await fs.unlink(filePath);
+      const assistantSubDir = path.join(assistantsDir, assistantId);
+      if (existsSync(assistantSubDir)) {
+        const rulesFilePattern = new RegExp(`^${assistantId}\\..*\\.md$`);
+        try {
+          const files = readdirSync(assistantSubDir);
+          for (const file of files) {
+            if (rulesFilePattern.test(file)) {
+              const filePath = path.join(assistantSubDir, file);
+              await fs.unlink(filePath);
+            }
           }
+        } catch (error) {
+          // 忽略删除失败 / Ignore deletion failure
         }
-      } catch (error) {
-        // 忽略删除失败 / Ignore deletion failure
       }
     }
 
@@ -468,10 +476,15 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       for (const [locale, skillFile] of Object.entries(preset.skillFiles)) {
         try {
           const sourceSkillsPath = path.join(presetSkillsDir, skillFile);
-          // 目标文件名格式：{assistantId}-skills.{locale}.md
-          // Target file name format: {assistantId}-skills.{locale}.md
+          // 目标文件名格式：{assistantId}/{assistantId}-skills.{locale}.md
+          // Target file name format: {assistantId}/{assistantId}-skills.{locale}.md
+          const assistantSubDir = path.join(assistantsDir, assistantId);
+          // 确保助手子目录存在 / Ensure assistant subdirectory exists
+          if (!existsSync(assistantSubDir)) {
+            mkdirSync(assistantSubDir);
+          }
           const targetFileName = `${assistantId}-skills.${locale}.md`;
-          const targetPath = path.join(assistantsDir, targetFileName);
+          const targetPath = path.join(assistantSubDir, targetFileName);
 
           // 检查源文件是否存在 / Check if source file exists
           if (!existsSync(sourceSkillsPath)) {
@@ -496,17 +509,20 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       // If assistant has no skillFiles config, delete old skills cache files
       // 这样可以确保迁移到 SkillManager 后不会读取到旧的 presetSkills
       // This ensures old presetSkills won't be read after migrating to SkillManager
-      const skillsFilePattern = new RegExp(`^${assistantId}-skills\\..*\\.md$`);
-      try {
-        const files = readdirSync(assistantsDir);
-        for (const file of files) {
-          if (skillsFilePattern.test(file)) {
-            const filePath = path.join(assistantsDir, file);
-            await fs.unlink(filePath);
+      const assistantSubDir = path.join(assistantsDir, assistantId);
+      if (existsSync(assistantSubDir)) {
+        const skillsFilePattern = new RegExp(`^${assistantId}-skills\\..*\\.md$`);
+        try {
+          const files = readdirSync(assistantSubDir);
+          for (const file of files) {
+            if (skillsFilePattern.test(file)) {
+              const filePath = path.join(assistantSubDir, file);
+              await fs.unlink(filePath);
+            }
           }
+        } catch (error) {
+          // 忽略删除失败 / Ignore deletion failure
         }
-      } catch (error) {
-        // 忽略删除失败 / Ignore deletion failure
       }
     }
   }
@@ -516,32 +532,94 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
  * 获取内置助手配置（不包含 context，context 从文件读取）
  * Get built-in assistant configurations (without context, context is read from files)
  */
+/**
+ * Scan assistants directory and load all assistant configurations
+ * This unified function replaces preset-based initialization
+ * Works for both builtin and custom assistants
+ */
 const getBuiltinAssistants = (): AcpBackendConfig[] => {
   const assistants: AcpBackendConfig[] = [];
 
-  for (const preset of ASSISTANT_PRESETS) {
-    // 从预设配置中读取默认启用的技能列表（不包含 cron，因为它是内置 skill，自动注入）
-    // Read default enabled skills from preset config (excluding cron, which is builtin and auto-injected)
-    const defaultEnabledSkills = preset.defaultEnabledSkills;
-    const enabledByDefault = preset.id === 'cowork';
+  try {
+    // Use dynamic import to avoid circular dependency
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getAssistantsDir } = require('./migrations/assistantMigration');
+    const assistantsDir = getAssistantsDir();
 
-    assistants.push({
-      id: `builtin-${preset.id}`,
-      name: preset.nameI18n['en-US'],
-      nameI18n: preset.nameI18n,
-      description: preset.descriptionI18n['en-US'],
-      descriptionI18n: preset.descriptionI18n,
-      avatar: preset.avatar,
-      // context 不再存储在配置中，而是从文件读取
-      // context is no longer stored in config, read from files instead
-      // Cowork 默认启用 / Cowork enabled by default
-      enabled: enabledByDefault,
-      isPreset: true,
-      isBuiltin: true,
-      presetAgentType: preset.presetAgentType || 'gemini',
-      // Cowork 默认启用所有内置技能 / Cowork enables all builtin skills by default
-      enabledSkills: defaultEnabledSkills,
-    });
+    // Check if directory exists
+    if (!existsSync(assistantsDir)) {
+      console.warn(`[AionUi] Assistants directory not found: ${assistantsDir}`);
+      return assistants;
+    }
+
+    // Scan directory for all assistant folders
+    const entries = readdirSync(assistantsDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith('.')) continue; // Skip hidden directories
+
+      const assistantPath = path.join(assistantsDir, entry.name);
+      const configPath = path.join(assistantPath, 'assistant.json');
+
+      // Try to load from assistant.json if it exists
+      if (existsSync(configPath)) {
+        try {
+          const configContent = readFileSync(configPath, 'utf-8');
+          const config = JSON.parse(configContent);
+
+          assistants.push({
+            id: entry.name,
+            name: config.name || entry.name,
+            nameI18n: config.nameI18n,
+            description: config.description || '',
+            descriptionI18n: config.descriptionI18n,
+            avatar: config.avatar || '🤖',
+            enabled: config.enabled !== false,
+            isPreset: config.isPreset || false,
+            isBuiltin: config.isBuiltin || false,
+            presetAgentType: config.presetAgentType || 'gemini',
+            enabledSkills: config.enabledSkills || [],
+            customSkillNames: config.customSkillNames || [],
+            assistantPath,
+            workspacePath: config.workspacePath,
+          });
+          continue;
+        } catch (error) {
+          console.error(`[AionUi] Failed to load assistant.json for ${entry.name}:`, error);
+        }
+      }
+
+      // Fallback: Generate config from ASSISTANT_PRESETS if no assistant.json
+      // This supports assistants that only have markdown files (migrated from resources/assistant/)
+      const presetId = entry.name.startsWith('builtin-') ? entry.name.slice(8) : entry.name;
+      const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+
+      if (preset) {
+        const locale = 'en-US'; // Default locale
+        assistants.push({
+          id: entry.name,
+          name: preset.nameI18n[locale] || preset.nameI18n['en-US'] || presetId,
+          nameI18n: preset.nameI18n,
+          description: preset.descriptionI18n[locale] || preset.descriptionI18n['en-US'] || '',
+          descriptionI18n: preset.descriptionI18n,
+          avatar: preset.avatar || '🤖',
+          enabled: presetId === 'cowork', // Only Cowork enabled by default
+          isPreset: true,
+          isBuiltin: true,
+          presetAgentType: preset.presetAgentType || 'gemini',
+          enabledSkills: preset.defaultEnabledSkills || [],
+          customSkillNames: [],
+          assistantPath,
+        });
+      } else {
+        console.warn(`[AionUi] No assistant.json or preset found for: ${entry.name}`);
+      }
+    }
+
+    console.log(`[AionUi] Loaded ${assistants.length} assistants from filesystem`);
+  } catch (error) {
+    console.error('[AionUi] Failed to scan assistants directory:', error);
   }
 
   return assistants;

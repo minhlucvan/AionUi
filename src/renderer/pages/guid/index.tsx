@@ -659,11 +659,12 @@ const Guid: React.FC = () => {
         // skills 可能不存在，这是正常的 / skills may not exist, this is normal
       }
 
-      // 3. Fallback: 如果是内置助手且文件为空，从内置资源加载
-      // Fallback: If builtin assistant and files are empty, load from builtin resources
-      if (customAgentId.startsWith('builtin-')) {
-        const presetId = customAgentId.replace('builtin-', '');
-        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+      // 3. Fallback: Legacy fallback for ASSISTANT_PRESETS (backward compatibility)
+      // This is now mostly unnecessary as all assistants load from filesystem
+      // but kept for safety during transition
+      if (!rules || !skills) {
+        // Try to find preset by matching ID (no longer strip builtin- prefix)
+        const preset = ASSISTANT_PRESETS.find((p) => p.id === customAgentId || `builtin-${p.id}` === customAgentId);
         if (preset) {
           // Fallback for rules
           if (!rules && preset.ruleFiles) {
@@ -817,19 +818,7 @@ const Guid: React.FC = () => {
           throw new Error('Failed to create conversation - conversation object is null or missing id');
         }
 
-        // 更新 workspace 时间戳，确保分组会话能正确排序（仅自定义工作空间）
-        if (isCustomWorkspace) {
-          closeAllTabs();
-          updateWorkspaceTime(finalWorkspace);
-          // 将新会话添加到 tabs
-          openTab(conversation);
-        }
-
-        // 立即触发刷新，让左侧栏开始加载新会话（在导航前）
-        emitter.emit('chat.history.refresh');
-
-        // Store initial message to sessionStorage for GeminiSendBox to send after navigation
-        // This enables instant page transition without waiting for API response
+        // Store initial message to sessionStorage FIRST for fastest navigation
         const workspacePath = conversation.extra?.workspace || '';
         const displayMessage = buildDisplayMessage(input, files, workspacePath);
         const initialMessage = {
@@ -838,8 +827,25 @@ const Guid: React.FC = () => {
         };
         sessionStorage.setItem(`gemini_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
-        // Navigate immediately for instant page transition
+        // Navigate immediately for instant page transition (don't wait for background tasks)
         void navigate(`/conversation/${conversation.id}`);
+
+        // Run background tasks asynchronously without blocking navigation
+        Promise.resolve()
+          .then(() => {
+            // 更新 workspace 时间戳，确保分组会话能正确排序（仅自定义工作空间）
+            if (isCustomWorkspace) {
+              closeAllTabs();
+              updateWorkspaceTime(finalWorkspace);
+              // 将新会话添加到 tabs
+              openTab(conversation);
+            }
+            // 立即触发刷新，让左侧栏开始加载新会话
+            emitter.emit('chat.history.refresh');
+          })
+          .catch((error) => {
+            console.error('Background task error:', error);
+          });
       } catch (error: unknown) {
         console.error('Failed to create or send Gemini message:', error);
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -878,26 +884,32 @@ const Guid: React.FC = () => {
           return;
         }
 
-        // 更新 workspace 时间戳，确保分组会话能正确排序（仅自定义工作空间）
-        if (isCustomWorkspace) {
-          closeAllTabs();
-          updateWorkspaceTime(finalWorkspace);
-          // 将新会话添加到 tabs
-          openTab(conversation);
-        }
-
-        // 立即触发刷新，让左侧栏开始加载新会话（在导航前）
-        emitter.emit('chat.history.refresh');
-
-        // 交给对话页发送，避免事件丢失
+        // Store initial message to sessionStorage FIRST for fastest navigation
         const initialMessage = {
           input,
           files: files.length > 0 ? files : undefined,
         };
         sessionStorage.setItem(`codex_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
-        // 然后导航到会话页面
-        await navigate(`/conversation/${conversation.id}`);
+        // Navigate immediately (don't await - let it happen in background)
+        void navigate(`/conversation/${conversation.id}`);
+
+        // Run background tasks asynchronously without blocking navigation
+        Promise.resolve()
+          .then(() => {
+            // 更新 workspace 时间戳，确保分组会话能正确排序（仅自定义工作空间）
+            if (isCustomWorkspace) {
+              closeAllTabs();
+              updateWorkspaceTime(finalWorkspace);
+              // 将新会话添加到 tabs
+              openTab(conversation);
+            }
+            // 立即触发刷新，让左侧栏开始加载新会话
+            emitter.emit('chat.history.refresh');
+          })
+          .catch((error) => {
+            console.error('Background task error:', error);
+          });
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         alert(`Failed to create Codex conversation: ${errorMessage}`);
@@ -946,29 +958,32 @@ const Guid: React.FC = () => {
           return;
         }
 
-        // 更新 workspace 时间戳，确保分组会话能正确排序（仅自定义工作空间）
-        if (isCustomWorkspace) {
-          closeAllTabs();
-          updateWorkspaceTime(finalWorkspace);
-          // 将新会话添加到 tabs
-          openTab(conversation);
-        }
-
-        // 立即触发刷新，让左侧栏开始加载新会话（在导航前）
-        emitter.emit('chat.history.refresh');
-
-        // For ACP, we need to wait for the connection to be ready before sending the message
-        // Store the initial message and let the conversation page handle it when ready
+        // Store initial message to sessionStorage FIRST for fastest navigation
         const initialMessage = {
           input,
           files: files.length > 0 ? files : undefined,
         };
-
-        // Store initial message in sessionStorage to be picked up by the conversation page
         sessionStorage.setItem(`acp_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
-        // 然后导航到会话页面
-        await navigate(`/conversation/${conversation.id}`);
+        // Navigate immediately (don't await - let it happen in background)
+        void navigate(`/conversation/${conversation.id}`);
+
+        // Run background tasks asynchronously without blocking navigation
+        Promise.resolve()
+          .then(() => {
+            // 更新 workspace 时间戳，确保分组会话能正确排序（仅自定义工作空间）
+            if (isCustomWorkspace) {
+              closeAllTabs();
+              updateWorkspaceTime(finalWorkspace);
+              // 将新会话添加到 tabs
+              openTab(conversation);
+            }
+            // 立即触发刷新，让左侧栏开始加载新会话
+            emitter.emit('chat.history.refresh');
+          })
+          .catch((error) => {
+            console.error('Background task error:', error);
+          });
       } catch (error: unknown) {
         console.error('Failed to create ACP conversation:', error);
 
@@ -991,6 +1006,8 @@ const Guid: React.FC = () => {
     setLoading(true);
     handleSend()
       .then(() => {
+        // Clear loading state immediately before navigation
+        setLoading(false);
         // Clear all input states on successful send
         setInput('');
         setMentionOpen(false);
@@ -1002,10 +1019,8 @@ const Guid: React.FC = () => {
       })
       .catch((error) => {
         console.error('Failed to send message:', error);
-        // Keep the input content when there's an error
-      })
-      .finally(() => {
         setLoading(false);
+        // Keep the input content when there's an error
       });
   };
   const handleInputKeyDown = useCallback(
@@ -1225,7 +1240,7 @@ const Guid: React.FC = () => {
           )}
 
           <div
-            className={`${styles.guidInputCard} relative p-16px border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
+            className={`${styles.guidInputCard} relative p-16px border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''} ${loading ? 'opacity-60 pointer-events-none' : ''}`}
             style={{
               zIndex: 1,
               transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
@@ -1263,7 +1278,7 @@ const Guid: React.FC = () => {
                 </Dropdown>
               </div>
             )}
-            <Input.TextArea autoSize={{ minRows: 3, maxRows: 20 }} placeholder={typewriterPlaceholder || t('conversation.welcome.placeholder')} className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`} value={input} onChange={handleInputChange} onPaste={onPaste} onFocus={handleTextareaFocus} onBlur={handleTextareaBlur} {...compositionHandlers} onKeyDown={handleInputKeyDown}></Input.TextArea>
+            <Input.TextArea autoSize={{ minRows: 3, maxRows: 20 }} placeholder={typewriterPlaceholder || t('conversation.welcome.placeholder')} className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`} value={input} onChange={handleInputChange} onPaste={onPaste} onFocus={handleTextareaFocus} onBlur={handleTextareaBlur} disabled={loading} {...compositionHandlers} onKeyDown={handleInputKeyDown}></Input.TextArea>
             {mentionOpen && (
               <div className='absolute z-50' style={{ left: 16, top: 44 }}>
                 {mentionMenu}

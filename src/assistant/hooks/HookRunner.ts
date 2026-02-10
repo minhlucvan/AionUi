@@ -6,8 +6,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { createRequire } from 'module';
 import { copyDirectoryRecursively } from '@/process/utils';
 import type { HookContext, HookEvent, HookResult, HookUtils } from './types';
+
+// Create a native Node.js require function that works outside webpack
+const nodeRequire = createRequire(__filename);
 
 /**
  * Create utility functions for hooks
@@ -39,14 +43,14 @@ function createHookUtils(): HookUtils {
 }
 
 /**
- * Run hooks for a given event by executing JS files from the workspace hooks folder.
+ * Run hooks for a given event by executing JS files from the assistant hooks folder.
  *
- * Hook files are loaded from: {workspace}/hooks/{event}.js
- * Or from a directory: {workspace}/hooks/{event}/*.js
+ * Hook files are loaded from: {assistantPath}/hooks/{event}.js
+ * Or from a directory: {assistantPath}/hooks/{event}/*.js
  *
- * Hooks are defined at the assistant level (assistant/{id}/hooks/) and copied
- * into the workspace during template copy. This keeps hooks separate from
- * CLI-specific config (.claude/, etc.) and works across all agent types.
+ * Hooks are defined at the assistant level (assistant/{id}/hooks/) and executed
+ * directly from there. This keeps hooks as part of the assistant definition,
+ * not copied to each workspace.
  *
  * Each hook file should export a function:
  *   module.exports = function(context) { return { content: ... }; };
@@ -59,10 +63,21 @@ function createHookUtils(): HookUtils {
  */
 export async function runHooks(event: HookEvent, content: string, workspace?: string, context?: Partial<HookContext>): Promise<HookResult> {
   const defaultResult: HookResult = { content };
-  if (!workspace) return defaultResult;
 
-  const hooksDir = path.join(workspace, 'hooks');
-  if (!fs.existsSync(hooksDir)) return defaultResult;
+  // Determine where to look for hooks
+  // Priority: 1. assistantPath (assistant-level hooks)
+  //           2. workspace/hooks (legacy/workspace-specific hooks)
+  let hooksDir: string | undefined;
+
+  if (context?.assistantPath) {
+    // Look for hooks in assistant directory
+    hooksDir = path.join(context.assistantPath, 'hooks');
+  } else if (workspace) {
+    // Fallback: look for hooks in workspace (legacy behavior)
+    hooksDir = path.join(workspace, 'hooks');
+  }
+
+  if (!hooksDir || !fs.existsSync(hooksDir)) return defaultResult;
 
   // Collect hook files: single file or directory of files
   const hookFiles = resolveHookFiles(hooksDir, event);
@@ -75,10 +90,10 @@ export async function runHooks(event: HookEvent, content: string, workspace?: st
     if (result.blocked) break;
 
     try {
+      // Use native Node.js require to load external hook files
       // Clear require cache to support hot-reload
-      delete require.cache[require.resolve(hookFile)];
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-      const hookModule = require(hookFile);
+      delete nodeRequire.cache[hookFile];
+      const hookModule = nodeRequire(hookFile);
 
       const hookFn = typeof hookModule === 'function' ? hookModule : hookModule?.default;
       if (typeof hookFn !== 'function') {
