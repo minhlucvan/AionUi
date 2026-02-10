@@ -1,0 +1,11 @@
+{
+  "type": "agent",
+  "id": "auggie",
+  "name": "Augment Code",
+  "cliCommand": "auggie",
+  "authRequired": false,
+  "enabled": true,
+  "supportsStreaming": false,
+  "acpArgs": ["--acp"],
+  "installUrl": "https://www.augmentcode.com/"
+}

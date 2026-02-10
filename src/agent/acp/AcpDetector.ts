@@ -6,7 +6,7 @@
 
 import { execSync } from 'child_process';
 import type { AcpBackendAll, PresetAgentType } from '@/types/acpTypes';
-import { POTENTIAL_ACP_CLIS } from '@/types/acpTypes';
+import { toolRegistry } from '@/process/services/toolRegistry';
 import { ProcessConfig } from '@/process/initStorage';
 
 interface DetectedAgent {
@@ -67,7 +67,7 @@ class AcpDetector {
   }
 
   /**
-   * 启动时执行检测 - 使用 POTENTIAL_ACP_CLIS 列表检测已安装的 CLI
+   * 启动时执行检测 - 使用 toolRegistry.getPotentialAcpClis() 列表检测已安装的 CLI
    */
   async initialize(): Promise<void> {
     if (this.isDetected) return;
@@ -113,7 +113,7 @@ class AcpDetector {
     const detected: DetectedAgent[] = [];
 
     // 并行检测所有潜在的 ACP CLI
-    const detectionPromises = POTENTIAL_ACP_CLIS.map((cli) => {
+    const detectionPromises = toolRegistry.getPotentialAcpClis().map((cli) => {
       return Promise.resolve().then(() => {
         if (!isCliAvailable(cli.cmd)) {
           return null;

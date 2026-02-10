@@ -1,0 +1,11 @@
+{
+  "type": "agent",
+  "id": "qoder",
+  "name": "Qoder CLI",
+  "cliCommand": "qodercli",
+  "authRequired": false,
+  "enabled": true,
+  "supportsStreaming": false,
+  "acpArgs": ["--acp"],
+  "installUrl": "https://github.com/qoder-ai/qodercli"
+}

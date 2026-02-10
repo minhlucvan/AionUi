@@ -1,0 +1,11 @@
+{
+  "type": "agent",
+  "id": "droid",
+  "name": "Factory Droid",
+  "cliCommand": "droid",
+  "authRequired": false,
+  "enabled": true,
+  "supportsStreaming": false,
+  "acpArgs": ["exec", "--output-format", "acp"],
+  "installUrl": "https://www.factory.ai/"
+}

@@ -11,8 +11,8 @@ const execAsync = promisify(exec);
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
-import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import type { AcpBackendAll } from '@/types/acpTypes';
+import { toolRegistry } from '../services/toolRegistry';
 import { ipcBridge } from '../../common';
 import * as os from 'os';
 
@@ -190,7 +190,7 @@ export function initAcpConversationBridge(): void {
   ipcBridge.acpConversation.getCliVersions.provider(() => {
     const detectedAgents = acpDetector.getDetectedAgents();
 
-    const results = Object.entries(ACP_BACKENDS_ALL)
+    const results = Object.entries(toolRegistry.getAcpBackendsAll())
       .filter(([id, config]) => {
         // Exclude gemini (built-in) and custom (user-configured)
         if (id === 'gemini' || id === 'custom') return false;
@@ -235,7 +235,7 @@ export function initAcpConversationBridge(): void {
   // Install a CLI tool via its install command
   ipcBridge.acpConversation.installCli.provider(async ({ backend }) => {
     const backendId = backend as AcpBackendAll;
-    const backendConfig = ACP_BACKENDS_ALL[backendId];
+    const backendConfig = toolRegistry.getAcpBackendsAll()[backendId];
 
     if (!backendConfig?.installCommand) {
       return {
@@ -275,7 +275,7 @@ export function initAcpConversationBridge(): void {
   // Setup/verify a CLI tool after installation
   ipcBridge.acpConversation.setupCli.provider(async ({ backend }) => {
     const backendId = backend as AcpBackendAll;
-    const backendConfig = ACP_BACKENDS_ALL[backendId];
+    const backendConfig = toolRegistry.getAcpBackendsAll()[backendId];
 
     if (!backendConfig?.setupCommand) {
       return {

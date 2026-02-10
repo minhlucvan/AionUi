@@ -7,7 +7,7 @@ import { AIONUI_FILES_MARKER } from '@/common/constants';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { parseError, uuid } from '@/common/utils';
 import type { AcpBackend, AcpPermissionOption, AcpPermissionRequest } from '@/types/acpTypes';
-import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
+import { toolRegistry } from '../services/toolRegistry';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
@@ -95,13 +95,12 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         yoloMode = data.yoloMode ?? (config?.[data.backend] as any)?.yoloMode;
 
         // Get acpArgs from backend config (for goose, auggie, opencode, etc.)
-        const backendConfig = ACP_BACKENDS_ALL[data.backend];
+        const backendConfig = toolRegistry.getAcpBackendConfig(data.backend);
         if (backendConfig?.acpArgs) {
           customArgs = backendConfig.acpArgs;
         }
 
-        // 如果没有配置 cliPath，使用 ACP_BACKENDS_ALL 中的默认 cliCommand
-        // If cliPath is not configured, fallback to default cliCommand from ACP_BACKENDS_ALL
+        // If cliPath is not configured, fallback to default cliCommand from tool registry
         if (!cliPath && backendConfig?.cliCommand) {
           cliPath = backendConfig.cliCommand;
         }

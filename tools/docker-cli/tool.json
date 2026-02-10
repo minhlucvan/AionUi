@@ -1,4 +1,5 @@
 {
+  "type": "utility",
   "id": "docker",
   "name": "Docker CLI",
   "description": "Docker container platform for building, sharing, and running applications",

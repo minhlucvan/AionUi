@@ -1,0 +1,13 @@
+{
+  "type": "agent",
+  "id": "opencode",
+  "name": "OpenCode",
+  "cliCommand": "opencode",
+  "authRequired": false,
+  "enabled": true,
+  "supportsStreaming": false,
+  "acpArgs": ["acp"],
+  "installCommand": "npm install -g opencode-ai",
+  "setupCommand": "opencode --version",
+  "installUrl": "https://github.com/nichochar/opencode"
+}

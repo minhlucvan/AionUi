@@ -1,0 +1,13 @@
+{
+  "type": "agent",
+  "id": "goose",
+  "name": "Goose",
+  "cliCommand": "goose",
+  "authRequired": false,
+  "enabled": true,
+  "supportsStreaming": false,
+  "acpArgs": ["acp"],
+  "installCommand": "brew install block/goose/goose",
+  "setupCommand": "goose --version",
+  "installUrl": "https://github.com/block/goose"
+}

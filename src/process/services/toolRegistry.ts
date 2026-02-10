@@ -7,7 +7,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
-import type { ToolManifest } from '@/common/types/tool';
+import type { ToolManifest, UtilityToolManifest, AgentToolManifest } from '@/common/types/tool';
+import type { AcpBackendConfig, AcpBackendAll, PotentialAcpCli } from '@/types/acpTypes';
+
+/** Default ACP launch arguments when not specified */
+const DEFAULT_ACP_ARGS = ['--experimental-acp'];
 
 /**
  * Resolves the `tools/` directory for both dev and production builds.
@@ -44,8 +48,8 @@ function resolveToolsDir(): string {
 }
 
 /** A loaded tool with its resolved directory path */
-type LoadedTool = {
-  manifest: ToolManifest;
+export type LoadedTool<T extends ToolManifest = ToolManifest> = {
+  manifest: T;
   /** Absolute path to the tool directory (e.g. .../tools/github-cli) */
   toolDir: string;
 };
@@ -53,11 +57,19 @@ type LoadedTool = {
 /**
  * Registry that dynamically discovers and loads tool definitions
  * from `tools/<tool-dir>/tool.json` files.
+ *
+ * Supports both utility tools and agent backend tools.
  */
 class ToolRegistry {
   private tools: LoadedTool[] = [];
   private toolsDir = '';
   private initialized = false;
+
+  // ─── Cached derived data (built once on init) ───
+
+  private _acpBackendsAll: Record<string, AcpBackendConfig> = {};
+  private _acpEnabledBackends: Record<string, AcpBackendConfig> = {};
+  private _potentialAcpClis: PotentialAcpCli[] = [];
 
   /** Load all tools from the tools directory */
   initialize(): void {
@@ -68,6 +80,7 @@ class ToolRegistry {
 
     if (!fs.existsSync(this.toolsDir)) {
       console.warn(`[ToolRegistry] Tools directory not found: ${this.toolsDir}`);
+      this._buildAgentCaches();
       this.initialized = true;
       return;
     }
@@ -93,13 +106,16 @@ class ToolRegistry {
         }
 
         this.tools.push({ manifest, toolDir });
-        console.log(`[ToolRegistry] Loaded tool: ${manifest.name} (${manifest.id}) from ${entry.name}`);
       } catch (error) {
         console.error(`[ToolRegistry] Failed to parse tool.json in ${entry.name}:`, error);
       }
     }
 
-    console.log(`[ToolRegistry] ${this.tools.length} tool(s) loaded from ${this.toolsDir}`);
+    this._buildAgentCaches();
+
+    const utilCount = this.getUtilityTools().length;
+    const agentCount = this.getAgentTools().length;
+    console.log(`[ToolRegistry] Loaded ${this.tools.length} tool(s) from ${this.toolsDir} (${agentCount} agent, ${utilCount} utility)`);
     this.initialized = true;
   }
 
@@ -108,6 +124,8 @@ class ToolRegistry {
     this.initialized = false;
     this.initialize();
   }
+
+  // ─── Generic accessors ───
 
   /** Get all loaded tools */
   getAll(): LoadedTool[] {
@@ -120,6 +138,63 @@ class ToolRegistry {
     this.ensureInitialized();
     return this.tools.find((t) => t.manifest.id === id);
   }
+
+  // ─── Typed accessors by tool type ───
+
+  /** Get all utility tools */
+  getUtilityTools(): LoadedTool<UtilityToolManifest>[] {
+    this.ensureInitialized();
+    return this.tools.filter((t): t is LoadedTool<UtilityToolManifest> => t.manifest.type === 'utility');
+  }
+
+  /** Get all agent tools */
+  getAgentTools(): LoadedTool<AgentToolManifest>[] {
+    this.ensureInitialized();
+    return this.tools.filter((t): t is LoadedTool<AgentToolManifest> => t.manifest.type === 'agent');
+  }
+
+  // ─── ACP backend data (replaces static ACP_BACKENDS_ALL) ───
+
+  /**
+   * All ACP backend configs, built from agent tool.json files + the special "custom" entry.
+   * Equivalent to the old `ACP_BACKENDS_ALL` from acpTypes.ts.
+   */
+  getAcpBackendsAll(): Record<string, AcpBackendConfig> {
+    this.ensureInitialized();
+    return this._acpBackendsAll;
+  }
+
+  /** Only enabled ACP backends */
+  getAcpEnabledBackends(): Record<string, AcpBackendConfig> {
+    this.ensureInitialized();
+    return this._acpEnabledBackends;
+  }
+
+  /** Potential ACP CLI list for auto-detection */
+  getPotentialAcpClis(): PotentialAcpCli[] {
+    this.ensureInitialized();
+    return this._potentialAcpClis;
+  }
+
+  /** Get config for a specific ACP backend */
+  getAcpBackendConfig(backend: string): AcpBackendConfig | undefined {
+    this.ensureInitialized();
+    return this._acpBackendsAll[backend];
+  }
+
+  /** Check if an ACP backend is valid (exists and enabled) */
+  isValidAcpBackend(backend: string): boolean {
+    this.ensureInitialized();
+    return backend in this._acpEnabledBackends;
+  }
+
+  /** Check if an ACP backend is enabled */
+  isAcpBackendEnabled(backend: string): boolean {
+    this.ensureInitialized();
+    return this._acpBackendsAll[backend]?.enabled ?? false;
+  }
+
+  // ─── Skill helpers (utility tools) ───
 
   /**
    * Read skill content (SKILL.md) for a given tool and skill name.
@@ -140,10 +215,10 @@ class ToolRegistry {
     }
   }
 
-  /** Get the first skill name associated with a tool (for backward compat) */
+  /** Get the first skill name associated with a utility tool */
   getFirstSkillName(toolId: string): string | undefined {
     const tool = this.getById(toolId);
-    if (!tool) return undefined;
+    if (!tool || tool.manifest.type !== 'utility') return undefined;
     return tool.manifest.skills?.[0];
   }
 
@@ -159,6 +234,61 @@ class ToolRegistry {
   getToolsDir(): string {
     this.ensureInitialized();
     return this.toolsDir;
+  }
+
+  // ─── Internal ───
+
+  /** Build the ACP backend caches from agent tools */
+  private _buildAgentCaches(): void {
+    this._acpBackendsAll = {};
+    this._acpEnabledBackends = {};
+    this._potentialAcpClis = [];
+
+    // Build from agent tool manifests
+    for (const { manifest } of this.getAgentTools()) {
+      const config: AcpBackendConfig = {
+        id: manifest.id,
+        name: manifest.name,
+        description: manifest.description,
+        cliCommand: manifest.cliCommand,
+        defaultCliPath: manifest.defaultCliPath,
+        authRequired: manifest.authRequired,
+        enabled: manifest.enabled,
+        supportsStreaming: manifest.supportsStreaming,
+        acpArgs: manifest.acpArgs,
+        installCommand: manifest.installCommand,
+        setupCommand: manifest.setupCommand,
+        installUrl: manifest.installUrl,
+      };
+
+      this._acpBackendsAll[manifest.id] = config;
+
+      if (config.enabled) {
+        this._acpEnabledBackends[manifest.id] = config;
+      }
+
+      // Build potential CLI entry for detection (exclude gemini built-in and disabled)
+      if (config.cliCommand && config.enabled && manifest.id !== 'gemini') {
+        this._potentialAcpClis.push({
+          cmd: config.cliCommand,
+          args: config.acpArgs || DEFAULT_ACP_ARGS,
+          name: config.name,
+          backendId: manifest.id as AcpBackendAll,
+        });
+      }
+    }
+
+    // Always add the special "custom" entry (user-configured, not from tool.json)
+    const customConfig: AcpBackendConfig = {
+      id: 'custom',
+      name: 'Custom Agent',
+      cliCommand: undefined,
+      authRequired: false,
+      enabled: true,
+      supportsStreaming: false,
+    };
+    this._acpBackendsAll['custom'] = customConfig;
+    this._acpEnabledBackends['custom'] = customConfig;
   }
 
   private ensureInitialized(): void {

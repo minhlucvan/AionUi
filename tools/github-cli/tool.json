@@ -1,4 +1,5 @@
 {
+  "type": "utility",
   "id": "gh",
   "name": "GitHub CLI",
   "description": "GitHub official CLI for managing repos, issues, PRs, and more",

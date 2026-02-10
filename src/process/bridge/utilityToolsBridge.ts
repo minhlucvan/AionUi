@@ -96,9 +96,14 @@ export function initUtilityToolsBridge(): void {
   // Initialize the tool registry
   toolRegistry.initialize();
 
+  // Expose ACP backend configs to renderer via IPC
+  ipcBridge.toolRegistryBridge.getAcpBackends.provider(() => {
+    return Promise.resolve({ success: true, data: toolRegistry.getAcpBackendsAll() });
+  });
+
   // Get status of all utility tools
   ipcBridge.utilityTools.getStatus.provider(() => {
-    const loadedTools = toolRegistry.getAll();
+    const loadedTools = toolRegistry.getUtilityTools();
 
     const results = loadedTools.map(({ manifest, toolDir }) => {
       const cliPath = detectCli(manifest.cliCommand);

@@ -1,0 +1,12 @@
+{
+  "type": "agent",
+  "id": "claude",
+  "name": "Claude Code",
+  "cliCommand": "claude",
+  "authRequired": true,
+  "enabled": true,
+  "supportsStreaming": false,
+  "installCommand": "npm install -g @anthropic-ai/claude-code",
+  "setupCommand": "claude --version",
+  "installUrl": "https://docs.anthropic.com/en/docs/claude-code"
+}

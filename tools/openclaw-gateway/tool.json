@@ -1,0 +1,11 @@
+{
+  "type": "agent",
+  "id": "openclaw-gateway",
+  "name": "OpenClaw",
+  "cliCommand": "openclaw",
+  "authRequired": false,
+  "enabled": true,
+  "supportsStreaming": true,
+  "acpArgs": ["gateway"],
+  "installUrl": "https://github.com/openclaw/openclaw"
+}
