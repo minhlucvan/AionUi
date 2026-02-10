@@ -203,6 +203,11 @@
       "inspectElement": "요소 검사",
       "inspectElementEnable": "요소 검사기 활성화",
       "inspectElementDisable": "요소 검사기 비활성화"
+    },
+    "excalidraw": {
+      "loadFailed": "Excalidraw 편집기를 로드하지 못했습니다",
+      "zoomToFit": "화면에 맞추기",
+      "title": "Excalidraw 드로잉"
     }
   },
   "conversation": {

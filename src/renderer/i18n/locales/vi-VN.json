@@ -204,6 +204,11 @@
       "inspectElement": "Kiểm tra phần tử",
       "inspectElementEnable": "Bật trình kiểm tra phần tử",
       "inspectElementDisable": "Tắt trình kiểm tra phần tử"
+    },
+    "excalidraw": {
+      "loadFailed": "Không thể tải trình chỉnh sửa Excalidraw",
+      "zoomToFit": "Thu phóng vừa khung",
+      "title": "Bản vẽ Excalidraw"
     }
   },
   "conversation": {

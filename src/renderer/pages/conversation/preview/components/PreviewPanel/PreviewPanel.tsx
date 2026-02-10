@@ -23,6 +23,7 @@ import PPTPreview from '../viewers/PPTViewer';
 import TextEditor from '../editors/TextEditor';
 import WordPreview from '../viewers/WordViewer';
 import URLViewer from '../viewers/URLViewer';
+import ExcalidrawEditor from '../viewers/ExcalidrawEditor';
 import { PreviewTabs, PreviewToolbar, PreviewContextMenu, PreviewConfirmModals, PreviewHistoryDropdown, type ContextMenuState, type CloseTabConfirmState, type PreviewTab } from '.';
 import { DEFAULT_SPLIT_RATIO, FILE_TYPES_WITH_BUILTIN_OPEN, MAX_SPLIT_WIDTH, MIN_SPLIT_WIDTH } from '../../constants';
 import { usePreviewHistory, usePreviewKeyboardShortcuts, useScrollSync, useTabOverflow, useThemeDetection } from '../../hooks';
@@ -291,6 +292,7 @@ const PreviewPanel: React.FC = () => {
         let mimeType = 'text/plain;charset=utf-8';
         if (contentType === 'markdown') mimeType = 'text/markdown;charset=utf-8';
         else if (contentType === 'html') mimeType = 'text/html;charset=utf-8';
+        else if (contentType === 'excalidraw') mimeType = 'application/json;charset=utf-8';
         blob = new Blob([content], { type: mimeType });
 
         // 根据内容类型设置文件扩展名 / Set file extension based on content type
@@ -311,6 +313,8 @@ const PreviewPanel: React.FC = () => {
           else if (lang === 'json') ext = 'json';
         } else if (contentType === 'html') {
           ext = 'html';
+        } else if (contentType === 'excalidraw') {
+          ext = 'excalidraw';
         }
       }
 
@@ -523,6 +527,8 @@ const PreviewPanel: React.FC = () => {
       return <ExcelPreview filePath={metadata?.filePath} content={content} />;
     } else if (contentType === 'image') {
       return <ImagePreview filePath={metadata?.filePath} content={content} fileName={metadata?.fileName || metadata?.title} />;
+    } else if (contentType === 'excalidraw') {
+      return <ExcalidrawEditor content={content} onChange={handleContentChange} viewModeEnabled={viewMode === 'preview' && !isSplitScreenEnabled} filePath={metadata?.filePath} />;
     } else if (contentType === 'url') {
       // URL 预览模式 / URL preview mode
       return <URLViewer url={content} title={metadata?.title} />;
