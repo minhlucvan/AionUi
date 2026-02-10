@@ -708,10 +708,11 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
         }
       }
 
-      // Fallback: Generate config from ASSISTANT_PRESETS if no assistant.json
+      // Fallback: Generate config from all presets (static + auto-discovered) if no assistant.json
       // This supports assistants that only have markdown files (migrated from resources/assistant/)
       const presetId = entry.name.startsWith('builtin-') ? entry.name.slice(8) : entry.name;
-      const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+      const allPresets = _cachedAllPresets || ASSISTANT_PRESETS;
+      const preset = allPresets.find((p) => p.id === presetId);
 
       if (preset) {
         const locale = 'en-US'; // Default locale
@@ -880,6 +881,23 @@ const initStorage = async () => {
         updatedAgents.unshift(builtin);
         hasChanges = true;
       }
+    }
+
+    // Remove legacy non-prefixed duplicates of builtin assistants
+    // Old migrations may have created entries like "cowork" alongside "builtin-cowork"
+    const builtinIds = new Set(builtinAssistants.map((b) => b.id));
+    const lengthBefore = updatedAgents.length;
+    for (let i = updatedAgents.length - 1; i >= 0; i--) {
+      const agent = updatedAgents[i];
+      const prefixedId = `builtin-${agent.id}`;
+      if (!builtinIds.has(agent.id) && builtinIds.has(prefixedId)) {
+        // This is a legacy entry (e.g. "cowork") that has a builtin counterpart ("builtin-cowork")
+        updatedAgents.splice(i, 1);
+      }
+    }
+    if (updatedAgents.length !== lengthBefore) {
+      console.log(`[AionUi] Removed ${lengthBefore - updatedAgents.length} legacy duplicate assistant(s)`);
+      hasChanges = true;
     }
 
     if (hasChanges) {

@@ -1338,7 +1338,7 @@
   "cron.drawer.saveSuccess": "Lưu thành công",
   "titlebar": {
     "mode": {
-      "chat": "Trò chuyện",
+      "chat": "Chat",
       "bots": "Bot"
     }
   },
