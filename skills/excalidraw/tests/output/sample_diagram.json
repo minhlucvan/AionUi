@@ -1,0 +1,79 @@
+{
+  "elements": [
+    {
+      "id": "shape1",
+      "type": "rectangle",
+      "x": 100,
+      "y": 100,
+      "width": 200,
+      "height": 100,
+      "strokeColor": "#1e88e5",
+      "backgroundColor": "#1e88e5",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "id": "text1",
+      "type": "text",
+      "x": 160,
+      "y": 135,
+      "width": 80,
+      "height": 25,
+      "text": "Frontend",
+      "fontSize": 20,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "containerId": "shape1"
+    },
+    {
+      "id": "shape2",
+      "type": "rectangle",
+      "x": 100,
+      "y": 250,
+      "width": 200,
+      "height": 100,
+      "strokeColor": "#43a047",
+      "backgroundColor": "#43a047",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "id": "text2",
+      "type": "text",
+      "x": 160,
+      "y": 285,
+      "width": 80,
+      "height": 25,
+      "text": "Backend",
+      "fontSize": 20,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "containerId": "shape2"
+    },
+    {
+      "id": "arrow1",
+      "type": "arrow",
+      "x": 200,
+      "y": 200,
+      "width": 0,
+      "height": 50,
+      "startBinding": {
+        "elementId": "shape1",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "shape2",
+        "focus": 0,
+        "gap": 1
+      }
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff"
+  }
+}
