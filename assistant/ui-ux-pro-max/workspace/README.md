@@ -4,10 +4,10 @@ A ready-to-use workspace for AI agents to create high-quality UI/UX designs usin
 
 ## Quick Start
 
-1. Open `index.html` in your browser to see the starter template
-2. Edit the HTML file to customize the design
-3. Create new pages in the `pages/` directory
-4. Reference `components/` for pre-built component templates
+1. Open `index.html` in your browser to see the starter landing page
+2. Open `components/dashboard.html` for a dashboard starter
+3. Edit the HTML files to customize
+4. Create new pages in the `pages/` directory
 
 ## What's Included
 
@@ -15,39 +15,21 @@ A ready-to-use workspace for AI agents to create high-quality UI/UX designs usin
 
 | File | Description |
 |------|-------------|
-| `index.html` | Landing page template with hero, features, testimonials, pricing, FAQ, CTA |
-| `components/dashboard.html` | Dashboard template with sidebar, stats, table, activity feed |
+| `index.html` | Landing page — hero, features, testimonials, pricing, FAQ, CTA, footer |
+| `components/dashboard.html` | Dashboard — sidebar nav, stats cards, data table, activity feed |
 
-### Design Intelligence Database
+### Design Intelligence
 
-Search 57 UI styles, 95 color palettes, 56 font pairings, 24 chart types, and 98 UX guidelines:
+The parent `ui-ux-pro-max` system provides searchable design data:
 
 ```bash
-python3 ../scripts/search.py "saas" --domain product
-python3 ../scripts/search.py "glassmorphism" --domain style
-python3 ../scripts/search.py "healthcare" --domain color
-python3 ../scripts/search.py "elegant" --domain typography
+python3 ../scripts/search.py "saas" --domain product        # 57 styles
+python3 ../scripts/search.py "glassmorphism" --domain style  # Style details
+python3 ../scripts/search.py "healthcare" --domain color     # 95 color palettes
+python3 ../scripts/search.py "elegant" --domain typography   # 56 font pairings
+python3 ../scripts/search.py "animation" --domain ux         # 98 UX guidelines
 python3 ../scripts/search.py "responsive" --stack html-tailwind
 ```
-
-### Agent Personas
-
-| Agent | Role |
-|-------|------|
-| `uiux-designer` | Primary designer — handles all UI/UX creation tasks |
-| `interaction-designer` | Specialist in animations, transitions, micro-interactions |
-| `accessibility-expert` | WCAG compliance, keyboard navigation, screen reader support |
-
-### Skills
-
-| Skill | Purpose |
-|-------|---------|
-| `layout-patterns` | Common page layouts (landing, dashboard, bento grid) |
-| `component-library` | Pre-built Tailwind components (buttons, cards, forms, tables) |
-| `responsive-design` | Mobile-first responsive patterns and breakpoint strategy |
-| `animation-effects` | CSS animations, scroll effects, hover interactions |
-| `design-system` | Design tokens, color system, typography scale, dark mode |
-| `accessibility` | WCAG AA compliance, focus management, semantic HTML |
 
 ## Tech Stack
 
@@ -60,23 +42,12 @@ python3 ../scripts/search.py "responsive" --stack html-tailwind
 
 ```
 workspace/
-├── CLAUDE.md                  # Agent instructions
+├── CLAUDE.md                  # Workspace-specific instructions (HTML format, CDN setup)
 ├── README.md                  # This file
 ├── index.html                 # Landing page starter template
-├── components/                # Pre-built component templates
-│   └── dashboard.html         # Dashboard template
-├── pages/                     # Output directory for new pages
-└── .claude/
-    ├── config.json            # Workspace metadata
-    ├── agents/                # Agent persona definitions
-    │   ├── uiux-designer.md
-    │   ├── interaction-designer.md
-    │   └── accessibility-expert.md
-    └── skills/                # Design skill references
-        ├── layout-patterns.md
-        ├── component-library.md
-        ├── responsive-design.md
-        ├── animation-effects.md
-        ├── design-system.md
-        └── accessibility.md
+├── components/
+│   └── dashboard.html         # Dashboard starter template
+└── pages/                     # Output directory for new pages
 ```
+
+For the full design workflow, search commands, and professional UI rules, see `../ui-ux-pro-max.md`.
