@@ -1,0 +1,10 @@
+id,name,type,description,use_case,complexity,layout_pattern,spacing,prompt_keywords
+arch-3tier,3-Tier Architecture,architecture,Layered architecture with presentation/logic/data,System design with clear separation,medium,vertical-layers,150px-between-layers,"3-tier, layered, presentation logic data, MVC, web architecture"
+arch-microservices,Microservices Pattern,architecture,Central gateway with surrounding services,Distributed system with API gateway,high,radial-hub,80px-between-services,"microservices, API gateway, distributed, services, SOA"
+arch-clientserver,Client-Server,architecture,Basic client-server interaction model,Simple 2-tier system,low,horizontal-pair,120px-between-tiers,"client server, 2-tier, request response"
+flow-linear,Linear Process,flowchart,Sequential steps from start to end,Simple workflow or pipeline,low,vertical-flow,100px-between-steps,"process, workflow, sequential, pipeline, steps"
+flow-decision,Decision Branch,flowchart,Process with conditional branching,Business logic with if/else,medium,tree-branch,120px-horizontal,"decision, conditional, branching, if-else, logic"
+flow-parallel,Parallel Process,flowchart,Multiple concurrent paths,Concurrent workflow execution,medium,parallel-lanes,140px-between-lanes,"parallel, concurrent, fork join, swimlane"
+seq-request-response,Request-Response,sequence,Client-server interaction pattern,API communication flow,low,horizontal-timeline,240px-between-participants,"request response, API call, client server, HTTP"
+seq-async,Async Message,sequence,Asynchronous message passing,Event-driven communication,medium,horizontal-timeline,240px-between-participants,"async, message, event, queue, pub-sub"
+seq-auth,Authentication Flow,sequence,Login/auth sequence,User authentication process,medium,horizontal-timeline,240px-between-participants,"auth, login, authentication, JWT, OAuth"

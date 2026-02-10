@@ -109,7 +109,8 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
           // Execute on-conversation-init hook from assistant directory
           // Pass assistantPath so HookRunner can find hooks there
           const conversationId = uuid();
-          await runHooks('on-conversation-init', '', workspace, {
+          await runHooks('onConversationInit', {
+            workspace,
             assistantPath,
             conversationId,
           });
@@ -173,7 +174,7 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   // (when presetAssistantId is provided) to initialize the workspace template.
   // This legacy call is kept for backward compatibility with existing workspaces
   // that may have hooks already in place.
-  await runHooks('on-conversation-init', '', workspace);
+  await runHooks('onConversationInit', { workspace });
 
   return { workspace, customWorkspace, defaultAgent };
 };

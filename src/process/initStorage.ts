@@ -754,18 +754,29 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
           const configContent = readFileSync(configPath, 'utf-8');
           const config = JSON.parse(configContent);
 
+          // Auto-detect if this is a builtin assistant (from assistant/ directory)
+          const isBuiltinAssistant = entry.name.startsWith('builtin-');
+          // Check if this assistant is in the static presets or auto-discovered presets
+          const presetId = isBuiltinAssistant ? entry.name.slice(8) : entry.name;
+          const allPresets = _cachedAllPresets || ASSISTANT_PRESETS;
+          const isFromPreset = allPresets.some((p) => p.id === presetId);
+
           assistants.push({
             id: entry.name,
             name: config.name || entry.name,
+            version: config.version,
             nameI18n: config.nameI18n,
             description: config.description || '',
             descriptionI18n: config.descriptionI18n,
             avatar: config.avatar || '🤖',
             enabled: config.enabled !== false,
-            isPreset: config.isPreset || false,
-            isBuiltin: config.isBuiltin || false,
+            // Mark as preset if it's from a preset source (static or auto-discovered)
+            isPreset: config.isPreset !== undefined ? config.isPreset : isFromPreset,
+            // Mark as builtin if it starts with 'builtin-' prefix
+            isBuiltin: config.isBuiltin !== undefined ? config.isBuiltin : isBuiltinAssistant,
             presetAgentType: config.presetAgentType || 'gemini',
-            enabledSkills: config.enabledSkills || [],
+            // Use defaultEnabledSkills from config if available, otherwise fall back to enabledSkills
+            enabledSkills: config.defaultEnabledSkills || config.enabledSkills || [],
             customSkillNames: config.customSkillNames || [],
             assistantPath,
             workspacePath: config.workspacePath,
@@ -909,11 +920,15 @@ const initStorage = async () => {
         // 更新现有内置助手配置
         // Update existing built-in assistant config
         const existing = updatedAgents[index];
+
+        // 检查版本是否变化 / Check if version has changed
+        const versionChanged = existing.version !== builtin.version;
+
         // 只有当关键字段不同时才更新，避免不必要的写入
         // Update only if key fields are different to avoid unnecessary writes
         // 注意：enabled 和 presetAgentType 字段由用户控制，不参与 shouldUpdate 判断
         // Note: enabled and presetAgentType are user-controlled, not included in shouldUpdate check
-        const shouldUpdate = existing.name !== builtin.name || existing.description !== builtin.description || existing.avatar !== builtin.avatar || existing.isPreset !== builtin.isPreset || existing.isBuiltin !== builtin.isBuiltin;
+        const shouldUpdate = existing.name !== builtin.name || existing.description !== builtin.description || existing.avatar !== builtin.avatar || existing.isPreset !== builtin.isPreset || existing.isBuiltin !== builtin.isBuiltin || versionChanged;
         // 当 enabled 是 undefined 或需要迁移时，设置默认值（Cowork 启用，其他禁用）
         // When enabled is undefined or migration needed, set default value (Cowork enabled, others disabled)
         const needsEnabledFix = existing.enabled === undefined || needsMigration;
@@ -924,15 +939,22 @@ const initStorage = async () => {
         // presetAgentType is user-controlled, use builtin default if not set
         const resolvedPresetAgentType = existing.presetAgentType ?? builtin.presetAgentType;
 
-        // 为有 defaultEnabledSkills 配置的内置助手添加默认技能（仅在迁移时且用户未设置 enabledSkills 时）
-        // Add default enabled skills for builtin assistants with defaultEnabledSkills (only during migration and if user hasn't set enabledSkills)
+        // 为有 defaultEnabledSkills 配置的内置助手添加默认技能
+        // Add default enabled skills for builtin assistants with defaultEnabledSkills
+        // 情况1: 迁移时且用户未设置 enabledSkills / Case 1: During migration and user hasn't set enabledSkills
+        // 情况2: 版本变化时重新同步 enabledSkills / Case 2: Re-sync enabledSkills when version changes
         let resolvedEnabledSkills = existing.enabledSkills;
         const needsSkillsMigration = needsBuiltinSkillsMigration && builtin.enabledSkills && (!existing.enabledSkills || existing.enabledSkills.length === 0);
-        if (needsSkillsMigration) {
+        const needsSkillsResync = versionChanged && builtin.enabledSkills && builtin.enabledSkills.length > 0;
+
+        if (needsSkillsMigration || needsSkillsResync) {
           resolvedEnabledSkills = builtin.enabledSkills;
+          if (needsSkillsResync) {
+            console.log(`[AionUi] Version changed for ${builtin.id} (${existing.version} -> ${builtin.version}), re-syncing enabledSkills:`, builtin.enabledSkills);
+          }
         }
 
-        if (shouldUpdate || needsEnabledFix || (needsSkillsMigration && resolvedEnabledSkills !== existing.enabledSkills)) {
+        if (shouldUpdate || needsEnabledFix || (needsSkillsMigration && resolvedEnabledSkills !== existing.enabledSkills) || needsSkillsResync) {
           // 保留用户已设置的 enabled 和 presetAgentType / Preserve user-set enabled and presetAgentType
           updatedAgents[index] = {
             ...existing,

@@ -1,0 +1,9 @@
+palette,name,bg_color,stroke_color,semantic_meaning,use_for,avoid_for
+frontend,Frontend Blue,#a5d8ff,#1971c2,User-facing components,Web apps|Mobile apps|UI components,Backend services|Databases
+backend,Backend Green,#b2f2bb,#2f9e44,Processing and logic,APIs|Microservices|Business logic,User interfaces|Storage
+database,Database Red,#ffc9c9,#c92a2a,Persistent storage,SQL|NoSQL|Data warehouses,Processing logic|UI
+external,External Yellow,#ffe066,#f08c00,Third-party services,External APIs|SaaS|CDN,Internal components
+cache,Cache Purple,#d0bfff,#6741d9,Temporary storage,Redis|Memcached|In-memory,Persistent databases
+queue,Queue Orange,#ffd8a8,#e67700,Async processing,Message queues|Event bus|Pub/Sub,Synchronous APIs
+actor,Actor Gray,#e9ecef,#495057,External entities,Users|External systems,Internal components
+neutral,Neutral White,#ffffff,#000000,Default/containers,Frames|Backgrounds|Notes,Semantic components

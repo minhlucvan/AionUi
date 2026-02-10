@@ -16,5 +16,8 @@
   "emmet.includeLanguages": {
     "typescript": "html",
     "typescriptreact": "html"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
   }
 }

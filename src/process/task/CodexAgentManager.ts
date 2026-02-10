@@ -189,11 +189,15 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
       }
 
       // Run assistant hooks from workspace .claude/hooks/ folder
-      const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
+      const hookResult = await runHooks('onSendMessage', {
+        workspace: this.workspace,
+        content: contentToSend,
+        conversationId: this.conversation_id,
+      });
       if (hookResult.blocked) {
         return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
       }
-      contentToSend = hookResult.content;
+      contentToSend = hookResult.content ?? contentToSend;
 
       // 处理文件引用 - 参考 ACP 的文件引用处理
       let processedContent = this.agent.getFileOperationHandler().processFileReferences(contentToSend, data.files);

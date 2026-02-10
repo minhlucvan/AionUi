@@ -5,59 +5,105 @@
  */
 
 /**
- * Assistant Hooks - Simple JS file-based hooks
+ * Module-Based Hooks System
  *
- * Hooks are JS files defined at the assistant level (assistant/{id}/hooks/)
- * and copied into the workspace at runtime:
- *   hooks/on-send-message.js
- *
- * Each JS file exports a function that receives a context and returns a result:
- *   module.exports = function(context) {
- *     return { content: context.content };
+ * Each hook module exports an object with event handlers:
+ *   module.exports = {
+ *     onWorkspaceInit: { handler: async (ctx) => {...}, priority: 10 },
+ *     onSendMessage: (ctx) => {...}  // Shorthand
  *   };
  */
 
-/** Supported hook events */
-export type HookEvent = 'on-conversation-init' | 'on-send-message';
+/**
+ * Hook priority constants
+ */
+export const HOOK_PRIORITY = {
+  CRITICAL: 1, // Security (runs first)
+  HIGH: 10, // Core features
+  NORMAL: 50, // Default
+  LOW: 90, // Logging/analytics
+  FINAL: 100, // Cleanup (runs last)
+} as const;
 
-/** Utility functions provided to hooks */
-export type HookUtils = {
-  /** Copy a directory recursively */
-  copyDirectory: (source: string, target: string, options?: { overwrite?: boolean }) => Promise<void>;
-  /** Read a file */
-  readFile: (filePath: string, encoding?: BufferEncoding) => Promise<string>;
-  /** Write a file */
-  writeFile: (filePath: string, content: string, encoding?: BufferEncoding) => Promise<void>;
-  /** Check if path exists */
-  exists: (filePath: string) => Promise<boolean>;
-  /** Ensure directory exists */
-  ensureDir: (dirPath: string) => Promise<void>;
-  /** Join paths */
-  join: (...paths: string[]) => string;
-};
+/**
+ * Hook events (extensible)
+ */
+export type HookEvent = 'onWorkspaceInit' | 'onConversationInit' | 'onSendMessage' | 'onError';
 
-/** Context passed to hook JS files */
+/**
+ * Hook context (same for all hooks)
+ */
 export type HookContext = {
-  /** The hook event name */
   event: HookEvent;
-  /** The message content (for on-send-message) */
-  content: string;
-  /** The workspace directory path */
+  content?: string;
   workspace: string;
-  /** The assistant directory path (for on-conversation-init) */
+  backend?: string;
   assistantPath?: string;
-  /** The conversation ID (for on-conversation-init) */
   conversationId?: string;
-  /** Utility functions */
-  utils?: HookUtils;
+  enabledSkills?: string[];
+  skillsSourceDir?: string;
+  utils: HookUtils;
 };
 
-/** Result returned by hook JS files */
+/**
+ * Hook result
+ */
 export type HookResult = {
-  /** The (possibly transformed) content */
-  content: string;
-  /** Whether the message should be blocked */
+  content?: string;
   blocked?: boolean;
-  /** Reason for blocking */
   blockReason?: string;
+};
+
+/**
+ * Hook handler function
+ */
+export type HookHandler = (context: HookContext) => HookResult | Promise<HookResult>;
+
+/**
+ * Hook configuration (full format)
+ */
+export type HookConfig = {
+  handler: HookHandler;
+  priority?: number;
+  enabled?: boolean;
+};
+
+/**
+ * Hook module (object-based exports)
+ */
+export type HookModule = {
+  onWorkspaceInit?: HookConfig | HookHandler;
+  onConversationInit?: HookConfig | HookHandler;
+  onSendMessage?: HookConfig | HookHandler;
+  onError?: HookConfig | HookHandler;
+  [key: string]: HookConfig | HookHandler | undefined;
+};
+
+/**
+ * Utility functions available to hooks
+ */
+export type HookUtils = {
+  // File operations
+  copyDirectory: (source: string, target: string, options?: { overwrite?: boolean }) => Promise<void>;
+  readFile: (filePath: string, encoding?: BufferEncoding) => Promise<string>;
+  writeFile: (filePath: string, content: string, encoding?: BufferEncoding) => Promise<void>;
+  exists: (filePath: string) => Promise<boolean>;
+  ensureDir: (dirPath: string) => Promise<void>;
+  join: (...paths: string[]) => string;
+
+  // Skill operations
+  symlinkSkill: (skillName: string, targetDir: string) => Promise<void>;
+  readSkillContent: (skillName: string) => Promise<string>;
+  getSkillMetadata: (skillName: string) => Promise<{ name: string; description: string }>;
+};
+
+/**
+ * Internal: Normalized hook (after parsing)
+ */
+export type NormalizedHook = {
+  event: HookEvent;
+  handler: HookHandler;
+  priority: number;
+  enabled: boolean;
+  moduleName: string;
 };

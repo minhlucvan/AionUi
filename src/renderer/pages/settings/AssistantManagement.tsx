@@ -160,18 +160,26 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   // 根据 ASSISTANT_PRESETS 顺序排序助手的辅助函数
   const sortAssistants = useCallback((agents: AcpBackendConfig[]) => {
     const presetOrder = ASSISTANT_PRESETS.map((preset) => `builtin-${preset.id}`);
-    return agents
-      .filter((agent) => agent.isPreset)
-      .sort((a, b) => {
-        const indexA = presetOrder.indexOf(a.id);
-        const indexB = presetOrder.indexOf(b.id);
-        if (indexA !== -1 || indexB !== -1) {
-          if (indexA === -1) return 1;
-          if (indexB === -1) return -1;
-          return indexA - indexB;
-        }
-        return 0;
-      });
+    // Show all assistants, not just presets
+    // Sort: preset assistants by ASSISTANT_PRESETS order, then builtin assistants, then custom assistants
+    return agents.sort((a, b) => {
+      const indexA = presetOrder.indexOf(a.id);
+      const indexB = presetOrder.indexOf(b.id);
+
+      // Both in preset order
+      if (indexA !== -1 && indexB !== -1) {
+        return indexA - indexB;
+      }
+      // Only A in preset order
+      if (indexA !== -1) return -1;
+      // Only B in preset order
+      if (indexB !== -1) return 1;
+
+      // Neither in preset order - sort by builtin status, then by name
+      if (a.isBuiltin && !b.isBuiltin) return -1;
+      if (!a.isBuiltin && b.isBuiltin) return 1;
+      return (a.name || a.id).localeCompare(b.name || b.id);
+    });
   }, []);
 
   const loadAssistants = useCallback(async () => {

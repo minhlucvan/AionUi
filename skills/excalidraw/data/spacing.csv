@@ -1,0 +1,11 @@
+context,min_px,max_px,recommended_px,reason,example_use
+component-horizontal,80,150,100,Clear separation with room for arrows,Services in same layer
+component-vertical,100,200,150,Emphasize hierarchy,Between architectural layers
+frame-padding,30,70,50,Visual breathing room,Space inside frames
+arrow-gap,5,15,10,Prevent shape overlap,Arrow endpoints
+text-margin,10,30,20,Readability in containers,Text inside shapes
+grid-unit,25,100,50,Alignment consistency,Snap all coordinates
+sequence-participant-gap,200,300,240,Timeline readability,Between actors in sequence diagram
+sequence-message-gap,60,100,80,Message flow clarity,Between messages vertically
+layer-separation,120,200,150,Clear tier distinction,Between architecture layers
+service-cluster,60,100,80,Group related services,Services within same domain

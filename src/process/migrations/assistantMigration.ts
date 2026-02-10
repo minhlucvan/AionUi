@@ -488,6 +488,108 @@ async function runAssistantIdFixMigration(): Promise<boolean> {
 }
 
 /**
+ * Check if assistant flags fix migration is needed (v4 - fix isPreset/isBuiltin flags)
+ */
+async function needsAssistantFlagsFixMigration(): Promise<boolean> {
+  const MIGRATION_KEY = 'migration.assistantsFlagsFix_v1' as any;
+  const migrationDone = await ProcessConfig.get(MIGRATION_KEY).catch(() => false);
+  return !migrationDone;
+}
+
+/**
+ * Mark assistant flags fix migration as completed
+ */
+async function markFlagsFixMigrationComplete(): Promise<void> {
+  const MIGRATION_KEY = 'migration.assistantsFlagsFix_v1' as any;
+  await ProcessConfig.set(MIGRATION_KEY, true);
+}
+
+/**
+ * Run assistant flags fix migration (v4)
+ *
+ * This migration ensures all assistants have correct isPreset and isBuiltin flags.
+ * - Auto-discovered assistants from assistant/ directory should have isPreset: true
+ * - Assistants with builtin- prefix should have isBuiltin: true
+ *
+ * @returns true if migration succeeded or was not needed
+ */
+async function runAssistantFlagsFixMigration(): Promise<boolean> {
+  try {
+    // Check if migration needed
+    const needed = await needsAssistantFlagsFixMigration();
+    if (!needed) {
+      console.log('[Migration] Assistant flags fix migration already completed, skipping');
+      return true;
+    }
+
+    console.log('[Migration] Starting assistant flags fix migration...');
+
+    const assistantsDir = getAssistantsDir();
+    if (!fs.existsSync(assistantsDir)) {
+      console.warn('[Migration] Assistants directory does not exist, skipping');
+      await markFlagsFixMigrationComplete();
+      return true;
+    }
+
+    const entries = fs.readdirSync(assistantsDir, { withFileTypes: true });
+    const directories = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'));
+
+    let fixed = 0;
+
+    for (const dir of directories) {
+      const dirName = dir.name;
+      const configPath = path.join(assistantsDir, dirName, 'assistant.json');
+
+      if (!fs.existsSync(configPath)) {
+        continue;
+      }
+
+      try {
+        const configContent = fs.readFileSync(configPath, 'utf-8');
+        const config = JSON.parse(configContent);
+        let modified = false;
+
+        // Check if this is a builtin assistant
+        const isBuiltinAssistant = dirName.startsWith('builtin-');
+
+        // Fix isBuiltin flag
+        if (isBuiltinAssistant && !config.isBuiltin) {
+          console.log(`[Migration]   Adding isBuiltin: true to ${dirName}`);
+          config.isBuiltin = true;
+          modified = true;
+        }
+
+        // Fix isPreset flag for builtin assistants (they should all be presets)
+        if (isBuiltinAssistant && !config.isPreset) {
+          console.log(`[Migration]   Adding isPreset: true to ${dirName}`);
+          config.isPreset = true;
+          modified = true;
+        }
+
+        // Write updated config
+        if (modified) {
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+          fixed++;
+        }
+      } catch (error) {
+        console.error(`[Migration]   Error fixing flags for ${dirName}:`, error);
+      }
+    }
+
+    console.log(`[Migration] Fixed ${fixed} assistant flag configurations`);
+
+    // Mark migration as complete
+    await markFlagsFixMigrationComplete();
+    console.log('[Migration] Assistant flags fix migration completed');
+
+    return true;
+  } catch (error) {
+    console.error('[Migration] Assistant flags fix migration failed:', error);
+    return false;
+  }
+}
+
+/**
  * Run all assistant migrations in sequence
  *
  * This is the main entry point called from src/process/index.ts
@@ -496,6 +598,7 @@ async function runAssistantIdFixMigration(): Promise<boolean> {
  * 1. v1: Copy built-in assistants from resources/ to Application Support
  * 2. v2: Restructure to nested file structure
  * 3. v3: Fix assistant.json IDs to match directory names
+ * 4. v4: Fix isPreset and isBuiltin flags
  *
  * @returns true if all migrations succeeded
  */
@@ -519,6 +622,13 @@ export async function runAssistantMigration(): Promise<boolean> {
     const v3Success = await runAssistantIdFixMigration();
     if (!v3Success) {
       console.error('[Migration] Assistant ID fix migration (v3) failed');
+      return false;
+    }
+
+    // Run v4 migration: Fix isPreset and isBuiltin flags
+    const v4Success = await runAssistantFlagsFixMigration();
+    if (!v4Success) {
+      console.error('[Migration] Assistant flags fix migration (v4) failed');
       return false;
     }
 

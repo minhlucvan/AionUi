@@ -1,0 +1,11 @@
+rule_id,category,rule,reason,good_example,bad_example,priority
+color-semantic,Color,Use color to indicate function not decoration,Makes diagrams self-documenting,All frontend=blue all backend=green,Random colors per component,high
+spacing-consistent,Layout,Maintain consistent spacing throughout,Professional appearance predictable flow,100px between all components,Random gaps 50px 120px 80px,high
+arrows-minimal,Connections,Avoid crossing arrows when possible,Improves clarity reduces confusion,Rearrange layout to minimize crossings,Arrows crossing everywhere,high
+text-size,Typography,Minimum 12px font size for readability,Ensures legibility at 100% zoom,Component names at 18px,Component names at 8px,medium
+hierarchy-size,Visual,Larger shapes for more important elements,Guides viewer attention,API Gateway 240x120 cache 140x80,All components same size,medium
+labels-concise,Text,Keep labels to 2-3 words maximum,Improves scannability,API Gateway,The Central API Gateway Service,medium
+arrows-labeled,Connections,Label all arrows with protocol/action,Clarifies relationship type,HTTP|SQL|Events|Queries,Unlabeled arrows,high
+flow-direction,Layout,Follow reading flow left-to-right or top-to-bottom,Natural eye movement,Start top-left end bottom-right,Random placement,high
+containers-grouped,Organization,Use frames to group related components,Visual hierarchy and context,Services in same domain framed together,No grouping structure,medium
+alignment-grid,Layout,Align elements to 50px grid,Clean professional appearance,All x/y coordinates divisible by 50,Arbitrary positioning,low

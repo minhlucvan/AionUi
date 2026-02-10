@@ -10,7 +10,7 @@ import type { IMessageToolGroup, TMessage } from '@/common/chatLib';
 import { transformMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import type { IMcpServer, TProviderWithModel } from '@/common/storage';
-import { ProcessConfig, getSkillsDir } from '@/process/initStorage';
+import { ProcessConfig, getSkillsDir, getAssistantsDir } from '@/process/initStorage';
 import { runHooks } from '@/assistant/hooks';
 import { buildSystemInstructions } from './agentUtils';
 import { uuid } from '@/common/utils';
@@ -25,6 +25,8 @@ import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { stripThinkTags } from './ThinkTagDetector';
+import { getDatabase } from '@process/database';
+import * as path from 'path';
 
 // gemini agent管理器类
 type UiMcpServerConfig = {
@@ -205,7 +207,21 @@ export class GeminiAgentManager extends BaseAgentManager<
 
   async sendMessage(data: { input: string; msg_id: string; files?: string[] }) {
     // Run assistant hooks from workspace .claude/hooks/ folder
-    const hookResult = await runHooks('on-send-message', data.input, this.workspace);
+    // Get assistant path from conversation extra data
+    const db = getDatabase();
+    const conversationResult = db.getConversation(this.conversation_id);
+    let assistantPath: string | undefined;
+    if (conversationResult.success && conversationResult.data?.extra?.presetAssistantId) {
+      assistantPath = path.join(getAssistantsDir(), conversationResult.data.extra.presetAssistantId);
+    }
+
+    const hookResult = await runHooks('onSendMessage', {
+      workspace: this.workspace,
+      assistantPath,
+      conversationId: this.conversation_id,
+      content: data.input,
+      enabledSkills: this.enabledSkills || [],
+    });
     if (hookResult.blocked) {
       return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
     }

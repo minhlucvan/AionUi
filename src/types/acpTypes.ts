@@ -145,6 +145,9 @@ export interface AcpBackendConfig {
   /** UI 显示名称 / Display name shown in the UI (e.g., 'Goose', 'Claude Code') */
   name: string;
 
+  /** 助手版本号（用于检测配置更新）/ Assistant version (used to detect configuration updates) */
+  version?: string;
+
   /** 本地化名称 / Localized names (e.g., { 'zh-CN': '...', 'en-US': '...' }) */
   nameI18n?: Record<string, string>;
 

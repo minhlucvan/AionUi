@@ -1,0 +1,27 @@
+{
+  "id": "excalidraw",
+  "name": "Diagram Creation Assistant",
+  "version": "1.0.0",
+  "description": "Create professional architecture diagrams, flowcharts, and system designs with visual feedback and export capabilities",
+  "author": "AionUi",
+  "tags": ["diagram", "architecture", "visualization", "excalidraw"],
+  "presetAgentType": "claude",
+  "avatar": "📊",
+  "nameI18n": {
+    "en-US": "Diagram Creator",
+    "zh-CN": "图表创建助手"
+  },
+  "descriptionI18n": {
+    "en-US": "Create professional architecture diagrams, flowcharts, and system designs with visual feedback and export capabilities",
+    "zh-CN": "创建专业的架构图、流程图和系统设计，具有可视化反馈和导出功能"
+  },
+  "ruleFiles": {
+    "en-US": "excalidraw.md",
+    "zh-CN": "excalidraw.zh-CN.md"
+  },
+  "promptsI18n": {
+    "en-US": ["Create a 3-tier web architecture diagram", "Design a microservices architecture diagram", "Build a flowchart for user authentication process"],
+    "zh-CN": ["创建一个三层 Web 架构图", "设计一个微服务架构图", "构建用户身份验证流程的流程图"]
+  },
+  "defaultEnabledSkills": ["excalidraw"]
+}

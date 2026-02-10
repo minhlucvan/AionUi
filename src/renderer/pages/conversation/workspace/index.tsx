@@ -671,10 +671,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               <div className='text-13px mb-6px font-medium' style={{ color: 'var(--color-text-3)' }}>
                 {t('conversation.workspace.workspaceModal.currentPath')}
               </div>
-              <div
-                className='flex items-center gap-8px px-12px py-10px rounded-8px'
-                style={{ backgroundColor: 'var(--color-fill-1)', border: '1px solid var(--color-border-2)' }}
-              >
+              <div className='flex items-center gap-8px px-12px py-10px rounded-8px' style={{ backgroundColor: 'var(--color-fill-1)', border: '1px solid var(--color-border-2)' }}>
                 <FolderOpen theme='outline' size='16' fill='var(--color-text-2)' className='flex-shrink-0' />
                 <span className='text-13px font-mono break-all flex-1' style={{ color: 'var(--color-text-1)' }}>
                   {workspace}

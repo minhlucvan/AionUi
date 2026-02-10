@@ -1,0 +1,18 @@
+id,name,type,color_palette,width,height,use_case,semantic_meaning
+frontend-web,Web Application,rectangle,frontend,180,100,User-facing web interface,Blue = User interaction point
+frontend-mobile,Mobile App,rectangle,frontend,160,100,Mobile client application,Blue = User interaction point
+frontend-desktop,Desktop App,rectangle,frontend,180,100,Desktop client application,Blue = User interaction point
+backend-api,API Gateway,rectangle,backend,180,100,Central API coordinator,Green = Processing logic
+backend-service,Microservice,rectangle,backend,150,80,Individual service component,Green = Processing logic
+backend-server,Application Server,rectangle,backend,180,100,Monolithic backend server,Green = Processing logic
+database-sql,SQL Database,cylinder,database,180,100,Relational data storage,Red = Persistent storage
+database-nosql,NoSQL Database,cylinder,database,180,100,Document/key-value store,Red = Persistent storage
+database-warehouse,Data Warehouse,cylinder,database,200,100,Analytics data storage,Red = Persistent storage
+cache-memory,In-Memory Cache,rectangle,cache,140,80,Fast temporary storage,Purple = Speed optimization
+cache-cdn,CDN,rectangle,cache,140,80,Content delivery network,Purple = Speed optimization
+queue-message,Message Queue,rectangle,queue,160,90,Async message broker,Orange = Decoupled communication
+queue-event,Event Bus,rectangle,queue,160,90,Event-driven messaging,Orange = Decoupled communication
+external-api,External API,rectangle,external,140,80,Third-party service,Yellow = External dependency
+external-saas,SaaS Service,rectangle,external,140,80,External SaaS platform,Yellow = External dependency
+user-actor,User,ellipse,actor,80,80,Human user actor,Gray = External actor
+system-actor,System,ellipse,actor,80,80,External system actor,Gray = External actor

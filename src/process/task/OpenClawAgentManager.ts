@@ -163,11 +163,15 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
 
       // Run assistant hooks from workspace .claude/hooks/ folder
       let contentToSend = data.content;
-      const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
+      const hookResult = await runHooks('onSendMessage', {
+        workspace: this.workspace,
+        content: contentToSend,
+        conversationId: this.conversation_id,
+      });
       if (hookResult.blocked) {
         return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
       }
-      contentToSend = hookResult.content;
+      contentToSend = hookResult.content ?? contentToSend;
 
       // Send message to agent
       const result = await this.agent.sendMessage({

@@ -6,28 +6,27 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { createRequire } from 'module';
 import { copyDirectoryRecursively } from '@/process/utils';
-import type { HookContext, HookEvent, HookResult, HookUtils } from './types';
-
-// Create a native Node.js require function that works outside webpack
-const nodeRequire = createRequire(__filename);
+import { getSkillsDir } from '@/process/initStorage';
+import { loadHookModules } from './ModuleLoader';
+import { executeHooks } from './HookExecutor';
+import type { HookEvent, HookContext, HookResult, HookUtils } from './types';
 
 /**
  * Create utility functions for hooks
  */
-function createHookUtils(): HookUtils {
-  return {
-    copyDirectory: async (source: string, target: string, options?: { overwrite?: boolean }) => {
+export function createHookUtils(): HookUtils {
+  const utils: HookUtils = {
+    copyDirectory: async (source, target, options) => {
       await copyDirectoryRecursively(source, target, options);
     },
-    readFile: async (filePath: string, encoding: BufferEncoding = 'utf-8') => {
+    readFile: async (filePath, encoding = 'utf-8') => {
       return await fs.promises.readFile(filePath, encoding);
     },
-    writeFile: async (filePath: string, content: string, encoding: BufferEncoding = 'utf-8') => {
+    writeFile: async (filePath, content, encoding = 'utf-8') => {
       await fs.promises.writeFile(filePath, content, encoding);
     },
-    exists: async (filePath: string) => {
+    exists: async (filePath) => {
       try {
         await fs.promises.access(filePath);
         return true;
@@ -35,123 +34,96 @@ function createHookUtils(): HookUtils {
         return false;
       }
     },
-    ensureDir: async (dirPath: string) => {
+    ensureDir: async (dirPath) => {
       await fs.promises.mkdir(dirPath, { recursive: true });
     },
-    join: (...paths: string[]) => path.join(...paths),
+    join: (...paths) => path.join(...paths),
+    symlinkSkill: async (skillName, targetDir) => {
+      const skillsSourceDir = getSkillsDir();
+      const sourcePath = path.join(skillsSourceDir, skillName);
+      const targetPath = path.join(targetDir, skillName);
+
+      if (!fs.existsSync(sourcePath)) {
+        throw new Error(`Skill ${skillName} not found in ${skillsSourceDir}`);
+      }
+
+      if (fs.existsSync(targetPath)) {
+        fs.rmSync(targetPath, { recursive: true, force: true });
+      }
+
+      try {
+        if (process.platform === 'win32') {
+          fs.symlinkSync(sourcePath, targetPath, 'junction');
+        } else {
+          fs.symlinkSync(sourcePath, targetPath);
+        }
+      } catch (error) {
+        throw new Error(`Failed to symlink skill ${skillName}: ${error.message}`);
+      }
+    },
+    readSkillContent: async (skillName) => {
+      const skillsSourceDir = getSkillsDir();
+      const skillPath = path.join(skillsSourceDir, skillName, 'SKILL.md');
+      if (!fs.existsSync(skillPath)) {
+        throw new Error(`Skill file not found: ${skillPath}`);
+      }
+      return fs.readFileSync(skillPath, 'utf-8');
+    },
+    getSkillMetadata: async (skillName) => {
+      const content = await utils.readSkillContent(skillName);
+      const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+      if (!frontmatterMatch) {
+        return { name: skillName, description: '' };
+      }
+      const frontmatter = frontmatterMatch[1];
+      const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
+      const descMatch = frontmatter.match(/^description:\s*(.+)$/m);
+      return {
+        name: nameMatch ? nameMatch[1].trim() : skillName,
+        description: descMatch ? descMatch[1].trim() : '',
+      };
+    },
   };
+  return utils;
 }
 
 /**
- * Run hooks for a given event by executing JS files from the assistant hooks folder.
+ * Run hooks for assistant-level customization
  *
- * Hook files are loaded from: {assistantPath}/hooks/{event}.js
- * Or from a directory: {assistantPath}/hooks/{event}/*.js
+ * Hook modules are loaded from:
+ * - {assistantPath}/hooks/*.js (assistant-level)
+ * - {workspace}/hooks/*.js (workspace-level fallback)
  *
- * Hooks are defined at the assistant level (assistant/{id}/hooks/) and executed
- * directly from there. This keeps hooks as part of the assistant definition,
- * not copied to each workspace.
+ * Each module exports an object with event handlers:
+ *   module.exports = {
+ *     onSendMessage: { handler: (ctx) => {...}, priority: 10 },
+ *     onWorkspaceInit: (ctx) => {...}  // Shorthand
+ *   };
  *
- * Each hook file should export a function:
- *   module.exports = function(context) { return { content: ... }; };
- *
- * @param event - The hook event name (e.g., 'on-send-message')
- * @param content - The message content to process
- * @param workspace - The workspace directory path
- * @param context - Additional context (assistantPath, conversationId, etc.)
+ * @param event - The hook event (e.g., 'onSendMessage')
+ * @param context - Hook context object
  * @returns HookResult with transformed content
  */
-export async function runHooks(event: HookEvent, content: string, workspace?: string, context?: Partial<HookContext>): Promise<HookResult> {
-  const defaultResult: HookResult = { content };
+export async function runHooks(event: HookEvent, context: Partial<HookContext>): Promise<HookResult> {
+  const hooksDir = context.assistantPath ? path.join(context.assistantPath, 'hooks') : context.workspace ? path.join(context.workspace, 'hooks') : undefined;
 
-  // Determine where to look for hooks
-  // Priority: 1. assistantPath (assistant-level hooks)
-  //           2. workspace/hooks (legacy/workspace-specific hooks)
-  let hooksDir: string | undefined;
-
-  if (context?.assistantPath) {
-    // Look for hooks in assistant directory
-    hooksDir = path.join(context.assistantPath, 'hooks');
-  } else if (workspace) {
-    // Fallback: look for hooks in workspace (legacy behavior)
-    hooksDir = path.join(workspace, 'hooks');
+  if (!hooksDir || !fs.existsSync(hooksDir)) {
+    return { content: context.content };
   }
 
-  if (!hooksDir || !fs.existsSync(hooksDir)) return defaultResult;
-
-  // Collect hook files: single file or directory of files
-  const hookFiles = resolveHookFiles(hooksDir, event);
-  if (hookFiles.length === 0) return defaultResult;
-
-  let result: HookResult = { content };
-  const utils = createHookUtils();
-
-  for (const hookFile of hookFiles) {
-    if (result.blocked) break;
-
-    try {
-      // Use native Node.js require to load external hook files
-      // Clear require cache to support hot-reload
-      delete nodeRequire.cache[hookFile];
-      const hookModule = nodeRequire(hookFile);
-
-      const hookFn = typeof hookModule === 'function' ? hookModule : hookModule?.default;
-      if (typeof hookFn !== 'function') {
-        console.warn(`[AssistantHooks] Hook file does not export a function: ${hookFile}`);
-        continue;
-      }
-
-      const ctx: HookContext = {
-        event,
-        content: result.content,
-        workspace,
-        utils,
-        ...context,
-      };
-      const output = hookFn(ctx);
-
-      // Support both sync and async hooks
-      const resolved: HookResult = output instanceof Promise ? await output : output;
-
-      if (resolved && typeof resolved === 'object') {
-        result = {
-          content: typeof resolved.content === 'string' ? resolved.content : result.content,
-          blocked: resolved.blocked,
-          blockReason: resolved.blockReason,
-        };
-      }
-    } catch (error) {
-      console.warn(`[AssistantHooks] Error running hook ${hookFile}:`, error);
-    }
+  const hookModules = loadHookModules(hooksDir);
+  if (hookModules.length === 0) {
+    return { content: context.content };
   }
 
-  return result;
-}
+  const fullContext: HookContext = {
+    event,
+    workspace: context.workspace!,
+    utils: createHookUtils(),
+    enabledSkills: [],
+    skillsSourceDir: getSkillsDir(),
+    ...context,
+  };
 
-/**
- * Resolve hook files for an event.
- * Supports: single file ({event}.js) or directory ({event}/*.js)
- */
-function resolveHookFiles(hooksDir: string, event: string): string[] {
-  const files: string[] = [];
-
-  // Check for single file: on-send-message.js
-  const singleFile = path.join(hooksDir, `${event}.js`);
-  if (fs.existsSync(singleFile) && fs.statSync(singleFile).isFile()) {
-    files.push(singleFile);
-    return files;
-  }
-
-  // Check for directory: on-send-message/*.js
-  const eventDir = path.join(hooksDir, event);
-  if (fs.existsSync(eventDir) && fs.statSync(eventDir).isDirectory()) {
-    const entries = fs.readdirSync(eventDir).sort();
-    for (const entry of entries) {
-      if (entry.endsWith('.js')) {
-        files.push(path.join(eventDir, entry));
-      }
-    }
-  }
-
-  return files;
+  return await executeHooks(event, fullContext, hookModules);
 }

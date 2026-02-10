@@ -1,4 +1,5 @@
 import { AcpAgent } from '@/agent/acp';
+import { runAgentHooks, runHooks } from '@/assistant/hooks';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chatLib';
@@ -9,16 +10,16 @@ import { parseError, uuid } from '@/common/utils';
 import type { AcpBackend, AcpPermissionOption, AcpPermissionRequest } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
-import { ProcessConfig } from '../initStorage';
+import { ProcessConfig, getAssistantsDir } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
-import { runHooks } from '@/assistant/hooks';
 import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { stripThinkTags } from './ThinkTagDetector';
+import * as path from 'path';
 
 interface AcpAgentManagerData {
   workspace?: string;
@@ -134,7 +135,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           // 保存 ACP session ID 到数据库以支持会话恢复
           this.saveAcpSessionId(sessionId);
         },
-        onStreamEvent: (message) => {
+        onStreamEvent: async (message) => {
           // Handle preview_open event (chrome-devtools navigation interception)
           // 处理 preview_open 事件（chrome-devtools 导航拦截）
           if (handlePreviewOpenEvent(message)) {
@@ -234,7 +235,16 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           channelEventBus.emitAgentMessage(this.conversation_id, v);
         },
       });
-      return this.agent.start().then(() => this.agent);
+      return this.agent.start().then(async () => {
+        // Run agent-level workspace initialization hooks
+        await runAgentHooks('onWorkspaceInit', {
+          workspace: data.workspace,
+          backend: data.backend,
+          enabledSkills: data.enabledSkills || [],
+          conversationId: data.conversation_id,
+        });
+        return this.agent;
+      });
     })();
     return this.bootstrap;
   }
@@ -255,12 +265,38 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           contentToSend = contentToSend.split(AIONUI_FILES_MARKER)[0].trimEnd();
         }
 
-        // Run assistant hooks from workspace .claude/hooks/ folder
-        const hookResult = await runHooks('on-send-message', contentToSend, this.workspace);
-        if (hookResult.blocked) {
-          return { success: false, msg: hookResult.blockReason || 'Message blocked by assistant hook' };
+        // Run assistant hooks from workspace .claude/hooks/ folder (if assistant has custom hooks)
+        const db = getDatabase();
+        const conversationResult = db.getConversation(this.conversation_id);
+        let assistantPath: string | undefined;
+        if (conversationResult.success && conversationResult.data?.extra?.presetAssistantId) {
+          assistantPath = path.join(getAssistantsDir(), conversationResult.data.extra.presetAssistantId);
         }
-        contentToSend = hookResult.content;
+
+        const assistantHookResult = await runHooks('onSendMessage', {
+          workspace: this.workspace,
+          assistantPath,
+          conversationId: this.conversation_id,
+          content: contentToSend,
+          enabledSkills: this.options.enabledSkills || [],
+        });
+        if (assistantHookResult.blocked) {
+          return { success: false, msg: assistantHookResult.blockReason || 'Message blocked by assistant hook' };
+        }
+        contentToSend = assistantHookResult.content ?? contentToSend;
+
+        // Run agent-level hooks (backend-specific hooks like Claude skill injection)
+        const agentHookResult = await runAgentHooks('onSendMessage', {
+          workspace: this.workspace,
+          backend: this.options.backend,
+          content: contentToSend,
+          enabledSkills: this.options.enabledSkills || [],
+          conversationId: this.conversation_id,
+        });
+        if (agentHookResult.blocked) {
+          return { success: false, msg: agentHookResult.blockReason || 'Message blocked by agent hook' };
+        }
+        contentToSend = agentHookResult.content ?? contentToSend;
 
         // 首条消息时注入预设规则和 skills 索引（来自智能助手配置）
         // Inject preset context and skills INDEX on first message (from smart assistant config)
