@@ -358,6 +358,15 @@
       "refresh": "重新整理",
       "temporarySpace": "臨時空間",
       "changeWorkspace": "更換工作空間",
+      "workspaceModal": {
+        "title": "工作空間",
+        "currentPath": "當前路徑",
+        "revealInExplorer": "在檔案管理器中開啟",
+        "changeFolder": "更改資料夾",
+        "changeFolderSuccess": "工作空間資料夾已更新",
+        "changeFolderError": "更改工作空間資料夾失敗",
+        "selectFolder": "選擇資料夾"
+      },
       "migration": {
         "title": "更換工作空間",
         "currentWorkspaceLabel": "當前臨時工作空間：",
