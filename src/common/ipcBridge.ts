@@ -257,6 +257,7 @@ export const mcpService = {
 };
 
 // Utility CLI tools management (non-agent tools like gh, docker, etc.)
+// Tool status is dynamically loaded from tools/<tool-dir>/tool.json manifests
 export const utilityTools = {
   getStatus: bridge.buildProvider<
     IBridgeResponse<
@@ -275,6 +276,8 @@ export const utilityTools = {
         installUrl?: string;
         hasSkill?: boolean;
         skillInstalled?: boolean;
+        /** Directory path where this tool's definition lives */
+        toolDir?: string;
       }>
     >,
     void
