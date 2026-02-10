@@ -10,7 +10,8 @@ import path from 'path';
 import { app } from 'electron';
 import { application } from '../common/ipcBridge';
 import type { TMessage } from '@/common/chatLib';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { ASSISTANT_PRESETS, type AssistantPreset } from '@/common/presets/assistantPresets';
+import type { AssistantMetadata } from '@/assistant/types';
 import type { IChatConversationRefer, IConfigStorageRefer, IEnvStorageRefer, IMcpServer, TChatConversation, TProviderWithModel } from '../common/storage';
 import { ChatMessageStorage, ChatStorage, ConfigStorage, EnvStorage } from '../common/storage';
 import { copyDirectoryRecursively, getConfigPath, getDataPath, getTempPath, verifyDirectoryFiles } from './utils';
@@ -350,6 +351,120 @@ const getBuiltinSkillsDir = () => {
 };
 
 /**
+ * Scan assistant/ source directory for directories containing assistant.json.
+ * Builds AssistantPreset entries using metadata from assistant.json and
+ * convention-based file detection (e.g. {id}.md, {id}.zh-CN.md, {id}-skills.md).
+ *
+ * @param resolveDir - function to resolve a relative path to an absolute source path
+ * @returns auto-discovered presets (excludes IDs already in ASSISTANT_PRESETS)
+ */
+const scanAssistantSourcePresets = (resolveDir: (dirPath: string) => string): AssistantPreset[] => {
+  const scanned: AssistantPreset[] = [];
+  const staticIds = new Set(ASSISTANT_PRESETS.map((p) => p.id));
+
+  const assistantSourceDir = resolveDir('assistant');
+  if (!existsSync(assistantSourceDir)) {
+    return scanned;
+  }
+
+  const entries = readdirSync(assistantSourceDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+
+    const dirName = entry.name;
+    // Skip if already in static ASSISTANT_PRESETS
+    if (staticIds.has(dirName)) continue;
+
+    const dirPath = path.join(assistantSourceDir, dirName);
+    const configPath = path.join(dirPath, 'assistant.json');
+
+    if (!existsSync(configPath)) continue;
+
+    try {
+      const configContent = readFileSync(configPath, 'utf-8');
+      const meta: AssistantMetadata = JSON.parse(configContent);
+
+      // Auto-detect rule files by convention: {id}.md, {id}.{locale}.md
+      let ruleFiles: Record<string, string> = {};
+      if (meta.ruleFiles) {
+        ruleFiles = meta.ruleFiles;
+      } else {
+        const files = readdirSync(dirPath);
+        const defaultRule = `${dirName}.md`;
+        if (files.includes(defaultRule)) {
+          ruleFiles['en-US'] = defaultRule;
+          // Also use as zh-CN fallback
+          ruleFiles['zh-CN'] = defaultRule;
+        }
+        // Check for locale-specific overrides
+        for (const file of files) {
+          const localeMatch = file.match(new RegExp(`^${dirName}\\.([a-z]{2}-[A-Z]{2})\\.md$`));
+          if (localeMatch) {
+            ruleFiles[localeMatch[1]] = file;
+          }
+        }
+      }
+
+      // Auto-detect skill files by convention: {id}-skills.md, {id}-skills.{locale}.md
+      let skillFiles: Record<string, string> | undefined;
+      if (meta.skillFiles) {
+        skillFiles = meta.skillFiles;
+      } else {
+        const files = readdirSync(dirPath);
+        const detected: Record<string, string> = {};
+        const defaultSkill = `${dirName}-skills.md`;
+        if (files.includes(defaultSkill)) {
+          detected['en-US'] = defaultSkill;
+          detected['zh-CN'] = defaultSkill;
+        }
+        for (const file of files) {
+          const localeMatch = file.match(new RegExp(`^${dirName}-skills\\.([a-z]{2}-[A-Z]{2})\\.md$`));
+          if (localeMatch) {
+            detected[localeMatch[1]] = file;
+          }
+        }
+        if (Object.keys(detected).length > 0) {
+          skillFiles = detected;
+        }
+      }
+
+      const preset: AssistantPreset = {
+        id: dirName,
+        avatar: meta.avatar || '🤖',
+        presetAgentType: meta.presetAgentType || 'gemini',
+        resourceDir: `assistant/${dirName}`,
+        ruleFiles,
+        skillFiles,
+        defaultEnabledSkills: meta.defaultEnabledSkills,
+        nameI18n: meta.nameI18n || { 'en-US': meta.name || dirName },
+        descriptionI18n: meta.descriptionI18n || { 'en-US': meta.description || '' },
+        promptsI18n: meta.promptsI18n,
+      };
+
+      scanned.push(preset);
+      console.log(`[AionUi] Auto-discovered assistant preset: ${dirName}`);
+    } catch (error) {
+      console.warn(`[AionUi] Failed to read assistant.json for ${dirName}:`, error);
+    }
+  }
+
+  return scanned;
+};
+
+/**
+ * Get all assistant presets: static ASSISTANT_PRESETS merged with auto-scanned ones.
+ * Static entries take precedence (by ID) over auto-scanned entries.
+ */
+let _cachedAllPresets: AssistantPreset[] | null = null;
+const getAllAssistantPresets = (resolveDir: (dirPath: string) => string): AssistantPreset[] => {
+  if (_cachedAllPresets) return _cachedAllPresets;
+  const scanned = scanAssistantSourcePresets(resolveDir);
+  _cachedAllPresets = [...ASSISTANT_PRESETS, ...scanned];
+  return _cachedAllPresets;
+};
+
+/**
  * 初始化内置助手的规则和技能文件到用户目录
  * Initialize builtin assistant rule and skill files to user directory
  */
@@ -409,7 +524,10 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
     mkdirSync(assistantsDir);
   }
 
-  for (const preset of ASSISTANT_PRESETS) {
+  // Use merged presets: static ASSISTANT_PRESETS + auto-discovered from assistant/ directory
+  const allPresets = getAllAssistantPresets(resolveBuiltinDir);
+
+  for (const preset of allPresets) {
     const assistantId = `builtin-${preset.id}`;
 
     // 如果设置了 resourceDir，使用该目录；否则使用默认的 rules/ 目录
