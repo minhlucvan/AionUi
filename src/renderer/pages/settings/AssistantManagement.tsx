@@ -56,7 +56,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   const [editContext, setEditContext] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
   const [editAgent, setEditAgent] = useState<PresetAgentType>('gemini');
-  const [_editSkills, _setEditSkills] = useState('');
+  const [editSkills, setEditSkills] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('preview');
