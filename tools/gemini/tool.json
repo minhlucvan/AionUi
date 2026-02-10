@@ -1,5 +1,5 @@
 {
-  "type": "agent",
+  "type": "backend",
   "id": "gemini",
   "name": "Google CLI",
   "cliCommand": "gemini",

@@ -1,5 +1,5 @@
 {
-  "type": "agent",
+  "type": "backend",
   "id": "droid",
   "name": "Factory Droid",
   "cliCommand": "droid",

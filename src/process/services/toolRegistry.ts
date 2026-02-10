@@ -7,7 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
-import type { ToolManifest, UtilityToolManifest, AgentToolManifest } from '@/common/types/tool';
+import type { ToolManifest, UtilityToolManifest, BackendToolManifest } from '@/common/types/tool';
 import type { AcpBackendConfig, AcpBackendAll, PotentialAcpCli } from '@/types/acpTypes';
 
 /** Default ACP launch arguments when not specified */
@@ -58,7 +58,7 @@ export type LoadedTool<T extends ToolManifest = ToolManifest> = {
  * Registry that dynamically discovers and loads tool definitions
  * from `tools/<tool-dir>/tool.json` files.
  *
- * Supports both utility tools and agent backend tools.
+ * Supports both utility tools and backend tools.
  */
 class ToolRegistry {
   private tools: LoadedTool[] = [];
@@ -80,7 +80,7 @@ class ToolRegistry {
 
     if (!fs.existsSync(this.toolsDir)) {
       console.warn(`[ToolRegistry] Tools directory not found: ${this.toolsDir}`);
-      this._buildAgentCaches();
+      this._buildBackendCaches();
       this.initialized = true;
       return;
     }
@@ -111,11 +111,11 @@ class ToolRegistry {
       }
     }
 
-    this._buildAgentCaches();
+    this._buildBackendCaches();
 
     const utilCount = this.getUtilityTools().length;
-    const agentCount = this.getAgentTools().length;
-    console.log(`[ToolRegistry] Loaded ${this.tools.length} tool(s) from ${this.toolsDir} (${agentCount} agent, ${utilCount} utility)`);
+    const backendCount = this.getBackendTools().length;
+    console.log(`[ToolRegistry] Loaded ${this.tools.length} tool(s) from ${this.toolsDir} (${backendCount} backend, ${utilCount} utility)`);
     this.initialized = true;
   }
 
@@ -147,17 +147,16 @@ class ToolRegistry {
     return this.tools.filter((t): t is LoadedTool<UtilityToolManifest> => t.manifest.type === 'utility');
   }
 
-  /** Get all agent tools */
-  getAgentTools(): LoadedTool<AgentToolManifest>[] {
+  /** Get all backend tools */
+  getBackendTools(): LoadedTool<BackendToolManifest>[] {
     this.ensureInitialized();
-    return this.tools.filter((t): t is LoadedTool<AgentToolManifest> => t.manifest.type === 'agent');
+    return this.tools.filter((t): t is LoadedTool<BackendToolManifest> => t.manifest.type === 'backend');
   }
 
   // ─── ACP backend data (replaces static ACP_BACKENDS_ALL) ───
 
   /**
-   * All ACP backend configs, built from agent tool.json files + the special "custom" entry.
-   * Equivalent to the old `ACP_BACKENDS_ALL` from acpTypes.ts.
+   * All ACP backend configs, built from backend tool.json files + the special "custom" entry.
    */
   getAcpBackendsAll(): Record<string, AcpBackendConfig> {
     this.ensureInitialized();
@@ -238,14 +237,14 @@ class ToolRegistry {
 
   // ─── Internal ───
 
-  /** Build the ACP backend caches from agent tools */
-  private _buildAgentCaches(): void {
+  /** Build the ACP backend caches from backend tools */
+  private _buildBackendCaches(): void {
     this._acpBackendsAll = {};
     this._acpEnabledBackends = {};
     this._potentialAcpClis = [];
 
-    // Build from agent tool manifests
-    for (const { manifest } of this.getAgentTools()) {
+    // Build from backend tool manifests
+    for (const { manifest } of this.getBackendTools()) {
       const config: AcpBackendConfig = {
         id: manifest.id,
         name: manifest.name,

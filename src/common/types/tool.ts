@@ -7,9 +7,9 @@
 /**
  * Tool type discriminator.
  * - "utility": Non-agent CLI tools (gh, docker, etc.)
- * - "agent":   ACP backend agent CLIs (claude, codex, qwen, etc.)
+ * - "backend": ACP backend agent CLIs (claude, codex, qwen, etc.)
  */
-export type ToolType = 'utility' | 'agent';
+export type ToolType = 'utility' | 'backend';
 
 /**
  * Base fields shared by all tool.json manifests.
@@ -48,11 +48,11 @@ export type UtilityToolManifest = ToolManifestBase & {
 };
 
 /**
- * Agent tool manifest (type: "agent").
+ * Backend tool manifest (type: "backend").
  * ACP backend agent CLIs like Claude Code, Codex, Qwen, etc.
  */
-export type AgentToolManifest = ToolManifestBase & {
-  type: 'agent';
+export type BackendToolManifest = ToolManifestBase & {
+  type: 'backend';
   /** Full CLI path with optional arguments for spawning */
   defaultCliPath?: string;
   /** Whether this backend requires authentication before use */
@@ -72,7 +72,7 @@ export type AgentToolManifest = ToolManifestBase & {
 /**
  * Discriminated union of all tool.json manifest shapes.
  */
-export type ToolManifest = UtilityToolManifest | AgentToolManifest;
+export type ToolManifest = UtilityToolManifest | BackendToolManifest;
 
 /** Runtime status information for a loaded utility tool */
 export type ToolStatus = {

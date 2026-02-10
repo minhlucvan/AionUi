@@ -1,5 +1,5 @@
 {
-  "type": "agent",
+  "type": "backend",
   "id": "opencode",
   "name": "OpenCode",
   "cliCommand": "opencode",

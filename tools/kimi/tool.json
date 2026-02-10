@@ -1,5 +1,5 @@
 {
-  "type": "agent",
+  "type": "backend",
   "id": "kimi",
   "name": "Kimi CLI",
   "cliCommand": "kimi",

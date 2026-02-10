@@ -1,5 +1,5 @@
 {
-  "type": "agent",
+  "type": "backend",
   "id": "qwen",
   "name": "Qwen Code",
   "cliCommand": "qwen",

@@ -1,5 +1,5 @@
 {
-  "type": "agent",
+  "type": "backend",
   "id": "goose",
   "name": "Goose",
   "cliCommand": "goose",
