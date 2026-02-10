@@ -26,7 +26,7 @@ export interface AssistantMetadata {
   /** Assistant author */
   author?: string;
   /** Path to workspace directory relative to assistant root */
-  workspacePath: string;
+  workspacePath?: string;
   /** Assistant tags for categorization */
   tags?: string[];
   /** Preset agent type (claude, gemini, codex) */
@@ -35,4 +35,22 @@ export interface AssistantMetadata {
   defaultAgent?: string;
   /** Additional metadata */
   metadata?: Record<string, unknown>;
+
+  // --- Optional preset fields for auto-discovery ---
+  // When present in assistant.json, these override convention-based defaults
+
+  /** Avatar emoji or svg filename */
+  avatar?: string;
+  /** Rule files per locale (e.g. { "en-US": "my-assistant.md" }) */
+  ruleFiles?: Record<string, string>;
+  /** Skill files per locale */
+  skillFiles?: Record<string, string>;
+  /** Default enabled skill names */
+  defaultEnabledSkills?: string[];
+  /** Localized display names */
+  nameI18n?: Record<string, string>;
+  /** Localized descriptions */
+  descriptionI18n?: Record<string, string>;
+  /** Localized prompt suggestions */
+  promptsI18n?: Record<string, string[]>;
 }
