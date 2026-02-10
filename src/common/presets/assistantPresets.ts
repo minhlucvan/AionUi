@@ -237,6 +237,33 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
   },
   {
+    id: 'interface-design',
+    avatar: '📐',
+    presetAgentType: 'claude',
+    resourceDir: 'assistant/interface-design',
+    ruleFiles: {
+      'en-US': 'interface-design.md',
+      'zh-CN': 'interface-design.md',
+    },
+    nameI18n: {
+      'en-US': 'Interface Design',
+      'zh-CN': '界面设计助手',
+    },
+    descriptionI18n: {
+      'en-US':
+        'Design engineering assistant for crafting consistent UI interfaces with design memory and enforcement.',
+      'zh-CN':
+        '设计工程助手，用于构建一致的 UI 界面，支持设计记忆与规范执行。',
+    },
+    promptsI18n: {
+      'en-US': [
+        'Initialize a design system for my project',
+        'Audit my components for design consistency',
+      ],
+      'zh-CN': ['为我的项目初始化设计系统', '审查组件的设计一致性'],
+    },
+  },
+  {
     id: 'beautiful-mermaid',
     avatar: '📈',
     presetAgentType: 'gemini',
