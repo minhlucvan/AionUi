@@ -216,6 +216,24 @@ export interface AcpBackendConfig {
    */
   acpArgs?: string[];
 
+  /**
+   * Command to install the CLI tool.
+   * Example: 'npm install -g @anthropic-ai/claude-code'
+   */
+  installCommand?: string;
+
+  /**
+   * Command to verify the CLI tool after installation.
+   * Example: 'claude --version'
+   */
+  setupCommand?: string;
+
+  /**
+   * URL for manual installation guide / documentation.
+   * Example: 'https://docs.anthropic.com/en/docs/claude-code'
+   */
+  installUrl?: string;
+
   /** 是否为基于提示词的预设（无需 CLI 二进制文件）/ Whether this is a prompt-based preset (no CLI binary required) */
   isPreset?: boolean;
 
@@ -318,6 +336,9 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     authRequired: true,
     enabled: true,
     supportsStreaming: false,
+    installCommand: 'npm install -g @anthropic-ai/claude-code',
+    setupCommand: 'claude --version',
+    installUrl: 'https://docs.anthropic.com/en/docs/claude-code',
   },
   gemini: {
     id: 'gemini',
@@ -336,6 +357,9 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: true, // ✅ 已验证支持：Qwen CLI v0.0.10+ 支持 --acp
     supportsStreaming: true,
     acpArgs: ['--acp'], // Use --acp instead of deprecated --experimental-acp
+    installCommand: 'npm install -g @qwen-code/qwen-code',
+    setupCommand: 'qwen --version',
+    installUrl: 'https://github.com/QwenLM/qwen-code',
   },
   iflow: {
     id: 'iflow',
@@ -344,6 +368,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     authRequired: true,
     enabled: true,
     supportsStreaming: false,
+    installUrl: 'https://iflow.dev/',
   },
   codex: {
     id: 'codex',
@@ -352,6 +377,9 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     authRequired: false,
     enabled: true, // ✅ 已验证支持：Codex CLI v0.4.0+ 支持 acp 模式
     supportsStreaming: false,
+    installCommand: 'npm install -g @openai/codex',
+    setupCommand: 'codex --version',
+    installUrl: 'https://github.com/openai/codex',
   },
   goose: {
     id: 'goose',
@@ -361,6 +389,9 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: true, // ✅ Block's Goose CLI，使用 `goose acp` 启动
     supportsStreaming: false,
     acpArgs: ['acp'], // goose 使用子命令而非 flag
+    installCommand: 'brew install block/goose/goose',
+    setupCommand: 'goose --version',
+    installUrl: 'https://github.com/block/goose',
   },
   auggie: {
     id: 'auggie',
@@ -370,6 +401,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: true, // ✅ Augment Code CLI，使用 `auggie --acp` 启动
     supportsStreaming: false,
     acpArgs: ['--acp'], // auggie 使用 --acp flag
+    installUrl: 'https://www.augmentcode.com/',
   },
   kimi: {
     id: 'kimi',
@@ -379,6 +411,9 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: true, // ✅ Kimi CLI (Moonshot)，使用 `kimi acp` 启动
     supportsStreaming: false,
     acpArgs: ['acp'], // kimi 使用 acp 子命令
+    installCommand: 'curl -LsSf https://code.kimi.com/install.sh | bash',
+    setupCommand: 'kimi --version',
+    installUrl: 'https://github.com/MoonshotAI/kimi-cli',
   },
   opencode: {
     id: 'opencode',
@@ -388,6 +423,9 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: true, // ✅ OpenCode CLI，使用 `opencode acp` 启动
     supportsStreaming: false,
     acpArgs: ['acp'], // opencode 使用 acp 子命令
+    installCommand: 'npm install -g opencode-ai',
+    setupCommand: 'opencode --version',
+    installUrl: 'https://github.com/nichochar/opencode',
   },
   droid: {
     id: 'droid',
@@ -398,6 +436,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: true, // ✅ Factory docs: `droid exec --output-format acp` (JetBrains/Zed ACP integration)
     supportsStreaming: false,
     acpArgs: ['exec', '--output-format', 'acp'],
+    installUrl: 'https://www.factory.ai/',
   },
   copilot: {
     id: 'copilot',
@@ -407,6 +446,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: true, // ✅ GitHub Copilot CLI，使用 `copilot --acp --stdio` 启动
     supportsStreaming: true,
     acpArgs: ['--acp', '--stdio'], // copilot 使用 --acp --stdio 启动 ACP mode
+    installUrl: 'https://github.com/github/copilot-cli',
   },
   qoder: {
     id: 'qoder',
@@ -416,6 +456,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: true, // ✅ Qoder CLI，使用 `qodercli --acp` 启动
     supportsStreaming: false,
     acpArgs: ['--acp'], // qoder 使用 --acp flag
+    installUrl: 'https://github.com/qoder-ai/qodercli',
   },
   'openclaw-gateway': {
     id: 'openclaw-gateway',
@@ -425,6 +466,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: true, // ✅ OpenClaw Gateway WebSocket mode
     supportsStreaming: true,
     acpArgs: ['gateway'], // openclaw gateway command (for detection)
+    installUrl: 'https://github.com/openclaw/openclaw',
   },
   custom: {
     id: 'custom',
