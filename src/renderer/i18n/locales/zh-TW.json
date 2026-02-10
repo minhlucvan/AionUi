@@ -301,6 +301,11 @@
       "inspectElement": "檢查元素",
       "inspectElementEnable": "啟用元素檢查",
       "inspectElementDisable": "停用元素檢查"
+    },
+    "excalidraw": {
+      "loadFailed": "載入 Excalidraw 編輯器失敗",
+      "zoomToFit": "縮放至適合",
+      "title": "Excalidraw 繪圖"
     }
   },
   "conversation": {

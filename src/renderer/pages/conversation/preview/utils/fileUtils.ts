@@ -18,6 +18,7 @@ export const FILE_EXTENSION_MAP: Record<PreviewContentType, readonly string[]> =
   ppt: ['ppt', 'pptx'],
   excel: ['xls', 'xlsx'],
   image: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'],
+  excalidraw: ['excalidraw'], // .excalidraw files (compound extensions handled separately)
   code: [], // code 作为默认类型，不需要显式映射 / code is the default type, no explicit mapping needed
   diff: [], // diff 类型通常通过其他方式判断 / diff type is usually determined by other means
   url: [], // url 类型用于网页预览，无扩展名映射 / url type for web preview, no extension mapping
@@ -67,7 +68,32 @@ export const getFileExtension = (filePath: string): string => {
  * getContentTypeByExtension('image.png') // => 'image'
  * ```
  */
+/**
+ * 检查文件是否为 Excalidraw 文件（支持复合扩展名）
+ * Check if file is an Excalidraw file (supports compound extensions)
+ *
+ * @param filePath - 文件路径 / File path
+ * @returns 是否为 Excalidraw 文件 / Whether it's an Excalidraw file
+ *
+ * @example
+ * ```ts
+ * isExcalidrawFile('drawing.excalidraw') // => true
+ * isExcalidrawFile('drawing.excalidraw.json') // => true
+ * isExcalidrawFile('drawing.excalidraw.svg') // => true
+ * isExcalidrawFile('drawing.excalidraw.png') // => true
+ * isExcalidrawFile('drawing.json') // => false
+ * ```
+ */
+export const isExcalidrawFile = (filePath: string): boolean => {
+  if (!filePath) return false;
+  const lower = filePath.toLowerCase();
+  return lower.endsWith('.excalidraw') || lower.endsWith('.excalidraw.json') || lower.endsWith('.excalidraw.svg') || lower.endsWith('.excalidraw.png');
+};
+
 export const getContentTypeByExtension = (filePath: string): PreviewContentType => {
+  // 优先检查复合扩展名 / Check compound extensions first
+  if (isExcalidrawFile(filePath)) return 'excalidraw';
+
   const ext = getFileExtension(filePath);
   if (!ext) return 'code'; // 没有扩展名，默认为 code / No extension, default to code
 

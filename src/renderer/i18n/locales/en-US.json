@@ -204,6 +204,11 @@
       "inspectElement": "Inspect element",
       "inspectElementEnable": "Enable element inspector",
       "inspectElementDisable": "Disable element inspector"
+    },
+    "excalidraw": {
+      "loadFailed": "Failed to load Excalidraw editor",
+      "zoomToFit": "Zoom to fit",
+      "title": "Excalidraw Drawing"
     }
   },
   "conversation": {
