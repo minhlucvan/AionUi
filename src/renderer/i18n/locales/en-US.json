@@ -121,6 +121,8 @@
     "downloadFile": "Download file",
     "closePreview": "Close preview",
     "collapsePanel": "Collapse panel",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen",
     "source": "Source",
     "code": "Code",
     "preview": "Preview",

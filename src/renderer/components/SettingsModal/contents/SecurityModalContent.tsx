@@ -48,7 +48,6 @@ const YOLO_NOT_SUPPORTED_BACKENDS: Record<string, string> = {
   iflow: 'settings.yoloNotSupportedIflow', // Not verified, may require manual confirmation
 };
 
-
 // ==================== Component ====================
 
 /**
@@ -69,10 +68,7 @@ const SecurityModalContent: React.FC = () => {
       setLoading(true);
 
       // Load available ACP agents and backend configs in parallel
-      const [response, backendsResponse] = await Promise.all([
-        acpConversation.getAvailableAgents.invoke(),
-        toolRegistryBridge.getAcpBackends.invoke(),
-      ]);
+      const [response, backendsResponse] = await Promise.all([acpConversation.getAvailableAgents.invoke(), toolRegistryBridge.getAcpBackends.invoke()]);
       const backends = backendsResponse.success ? backendsResponse.data : {};
       const availableIds = new Set(response.success && response.data ? response.data.map((a) => a.backend) : []);
 
@@ -82,33 +78,35 @@ const SecurityModalContent: React.FC = () => {
       // Build agent list with yolo support status
       const agentList: AgentItem[] = [
         ...BUILTIN_AGENTS,
-        ...acpAgentIds.filter((id) => availableIds.has(id)).map((id) => {
-          let yoloSupport: YoloSupportStatus = 'not-supported';
-          let yoloSupportReason: string | undefined;
+        ...acpAgentIds
+          .filter((id) => availableIds.has(id))
+          .map((id) => {
+            let yoloSupport: YoloSupportStatus = 'not-supported';
+            let yoloSupportReason: string | undefined;
 
-          if (YOLO_SUPPORTED_BACKENDS.includes(id)) {
-            yoloSupport = 'supported';
-          } else if (YOLO_NOT_NEEDED_BACKENDS.includes(id)) {
-            yoloSupport = 'not-needed';
-            yoloSupportReason = 'settings.yoloNotNeeded';
-          } else if (id in YOLO_NOT_SUPPORTED_BACKENDS) {
-            yoloSupport = 'not-supported';
-            yoloSupportReason = YOLO_NOT_SUPPORTED_BACKENDS[id];
-          } else {
-            // Fallback for unclassified agents
-            yoloSupport = 'not-supported';
-            yoloSupportReason = 'settings.yoloNotSupportedUnknown';
-          }
+            if (YOLO_SUPPORTED_BACKENDS.includes(id)) {
+              yoloSupport = 'supported';
+            } else if (YOLO_NOT_NEEDED_BACKENDS.includes(id)) {
+              yoloSupport = 'not-needed';
+              yoloSupportReason = 'settings.yoloNotNeeded';
+            } else if (id in YOLO_NOT_SUPPORTED_BACKENDS) {
+              yoloSupport = 'not-supported';
+              yoloSupportReason = YOLO_NOT_SUPPORTED_BACKENDS[id];
+            } else {
+              // Fallback for unclassified agents
+              yoloSupport = 'not-supported';
+              yoloSupportReason = 'settings.yoloNotSupportedUnknown';
+            }
 
-          return {
-            id,
-            name: backends[id]?.name || id,
-            type: 'acp' as const,
-            installed: true,
-            yoloSupport,
-            yoloSupportReason,
-          };
-        }),
+            return {
+              id,
+              name: backends[id]?.name || id,
+              type: 'acp' as const,
+              installed: true,
+              yoloSupport,
+              yoloSupportReason,
+            };
+          }),
       ];
       setAgents(agentList);
 
@@ -123,7 +121,7 @@ const SecurityModalContent: React.FC = () => {
       };
 
       // Load ACP backend yoloModes
-      for (const id of ACP_AGENT_IDS) {
+      for (const id of acpAgentIds) {
         const backendConfig = (acpConfig as Record<string, { yoloMode?: boolean }> | undefined)?.[id];
         modes[id] = backendConfig?.yoloMode ?? false;
       }

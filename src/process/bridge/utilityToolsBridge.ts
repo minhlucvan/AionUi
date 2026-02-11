@@ -40,7 +40,7 @@ function getCliVersion(cliPath: string, versionCommand?: string): string | undef
       stdio: 'pipe',
       timeout: 5000,
     }).trim();
-    const versionMatch = output.match(/v?(\d+\.\d+[\.\d]*[-\w]*)/);
+    const versionMatch = output.match(/v?(\d+\.\d+[.\d]*[-\w]*)/);
     return versionMatch ? versionMatch[0] : output.split('\n')[0].trim();
   } catch {
     return undefined;
@@ -89,7 +89,10 @@ function installSkillLocally(skillName: string, content: string): string {
 
 /** Get platform-specific install command from a tool manifest */
 function getInstallCommand(manifest: ToolManifest): string | undefined {
-  return manifest.installCommand[process.platform] || manifest.installCommand['linux'];
+  if (manifest.type !== 'utility') return undefined;
+  const installCmd = manifest.installCommand;
+  if (typeof installCmd === 'string') return installCmd;
+  return installCmd[process.platform] || installCmd['linux'];
 }
 
 export function initUtilityToolsBridge(): void {
@@ -176,7 +179,7 @@ export function initUtilityToolsBridge(): void {
       console.log(`[UtilityTools] Install completed for ${manifest.name}:`, output.slice(0, 200));
 
       // Auto-install skills if defined
-      if (manifest.skills) {
+      if (manifest.type === 'utility' && manifest.skills) {
         for (const skillName of manifest.skills) {
           try {
             const skillContent = toolRegistry.getSkillContent(toolId, skillName);
@@ -210,7 +213,7 @@ export function initUtilityToolsBridge(): void {
     }
 
     const { manifest } = loaded;
-    if (!manifest.updateCommand) {
+    if (manifest.type !== 'utility' || !manifest.updateCommand) {
       return { success: false, msg: `No update command available for ${manifest.name}.` };
     }
 
@@ -241,7 +244,7 @@ export function initUtilityToolsBridge(): void {
     }
 
     const { manifest } = loaded;
-    if (!manifest.loginCommand) {
+    if (manifest.type !== 'utility' || !manifest.loginCommand) {
       return { success: false, msg: `No login command available for ${manifest.name}.` };
     }
 
@@ -272,6 +275,9 @@ export function initUtilityToolsBridge(): void {
     }
 
     const { manifest } = loaded;
+    if (manifest.type !== 'utility') {
+      return { success: false, msg: `No skill available for ${manifest.name}.` };
+    }
     const firstSkill = manifest.skills?.[0];
     if (!firstSkill) {
       return { success: false, msg: `No skill available for ${manifest.name}.` };

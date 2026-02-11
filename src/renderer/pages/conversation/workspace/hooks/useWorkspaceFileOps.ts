@@ -13,6 +13,7 @@ import { useCallback } from 'react';
 import type { MessageApi, RenameModalState, DeleteModalState } from '../types';
 import type { FileOrFolderItem } from '@/renderer/types/files';
 import { getPathSeparator, replacePathInList, updateTreeForRename } from '../utils/treeHelpers';
+import { getContentTypeByExtension } from '../../preview/utils/fileUtils';
 
 interface UseWorkspaceFileOpsOptions {
   workspace: string;
@@ -41,7 +42,7 @@ interface UseWorkspaceFileOpsOptions {
   setDeleteModal: React.Dispatch<React.SetStateAction<DeleteModalState>>;
 
   // Dependencies from preview context
-  openPreview: (content: string, type: PreviewContentType, metadata?: any) => void;
+  openPreview: (content: string, type: PreviewContentType, metadata?: PreviewMetadata) => void;
 }
 
 /**
@@ -256,38 +257,13 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       try {
         closeContextMenu();
 
-        // 根据文件扩展名确定内容类型 / Determine content type based on file extension
+        // 使用工具函数确定内容类型 / Use utility function to determine content type
+        const contentType = getContentTypeByExtension(nodeData.fullPath);
+
+        // 提取文件扩展名用于语言提示 / Extract file extension for language hint
         const ext = nodeData.name.toLowerCase().split('.').pop() || '';
 
-        // 支持的图片格式列表 / List of supported image formats
-        const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif'];
-
-        let contentType: PreviewContentType = 'code';
         let content = '';
-
-        // 根据扩展名判断文件类型 / Determine file type based on extension
-        if (ext === 'md' || ext === 'markdown') {
-          contentType = 'markdown';
-        } else if (ext === 'diff' || ext === 'patch') {
-          contentType = 'diff';
-        } else if (ext === 'pdf') {
-          contentType = 'pdf';
-        } else if (['ppt', 'pptx', 'odp'].includes(ext)) {
-          contentType = 'ppt';
-        } else if (['doc', 'docx', 'odt'].includes(ext)) {
-          contentType = 'word';
-        } else if (['xls', 'xlsx', 'ods', 'csv'].includes(ext)) {
-          contentType = 'excel';
-        } else if (['html', 'htm'].includes(ext)) {
-          contentType = 'html';
-        } else if (imageExtensions.includes(ext)) {
-          contentType = 'image';
-        } else if (['js', 'ts', 'tsx', 'jsx', 'py', 'java', 'go', 'rs', 'c', 'cpp', 'h', 'hpp', 'css', 'scss', 'json', 'xml', 'yaml', 'yml', 'txt', 'log', 'sh', 'bash', 'zsh', 'fish', 'sql', 'rb', 'php', 'swift', 'kt', 'scala', 'r', 'lua', 'vim', 'toml', 'ini', 'cfg', 'conf', 'env', 'gitignore', 'dockerignore', 'editorconfig'].includes(ext)) {
-          contentType = 'code';
-        } else {
-          // 未知扩展名也默认为 code 类型，尝试作为文本读取 / Unknown extensions also default to code type, try to read as text
-          contentType = 'code';
-        }
 
         // 根据文件类型读取内容 / Read content based on file type
         if (contentType === 'pdf' || contentType === 'word' || contentType === 'excel' || contentType === 'ppt') {

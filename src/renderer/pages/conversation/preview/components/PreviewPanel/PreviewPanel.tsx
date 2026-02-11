@@ -38,7 +38,7 @@ import { useTranslation } from 'react-i18next';
  */
 const PreviewPanel: React.FC = () => {
   const { t } = useTranslation();
-  const { isOpen, tabs, activeTabId, activeTab, closeTab, switchTab, closePreview, updateContent, saveContent, addDomSnippet } = usePreviewContext();
+  const { isOpen, tabs, activeTabId, activeTab, closeTab, switchTab, closePreview, updateContent, saveContent, addDomSnippet, isMaximized, toggleMaximize } = usePreviewContext();
   const layout = useLayoutContext();
 
   // 视图状态 / View states
@@ -254,7 +254,7 @@ const PreviewPanel: React.FC = () => {
   // 检查文件类型是否已有内置的打开按钮（Word、PPT、PDF、Excel 组件内部已提供）
   // Check if file type already has built-in open button
   // (Word, PPT, PDF, Excel components provide their own)
-  const hasBuiltInOpenButton = (FILE_TYPES_WITH_BUILTIN_OPEN as readonly string[]).includes(contentType);
+  const _hasBuiltInOpenButton = (FILE_TYPES_WITH_BUILTIN_OPEN as readonly string[]).includes(contentType);
 
   // 对所有有 filePath 的文件显示"在系统中打开"按钮（统一在工具栏显示）
   // Show "Open in System" button for all files with filePath (unified in toolbar)
@@ -528,7 +528,9 @@ const PreviewPanel: React.FC = () => {
     } else if (contentType === 'image') {
       return <ImagePreview filePath={metadata?.filePath} content={content} fileName={metadata?.fileName || metadata?.title} />;
     } else if (contentType === 'excalidraw') {
-      return <ExcalidrawEditor content={content} onChange={handleContentChange} viewModeEnabled={viewMode === 'preview' && !isSplitScreenEnabled} filePath={metadata?.filePath} />;
+      // Excalidraw is always editable when the file is editable (no need for Edit button)
+      // viewModeEnabled=false means edit mode is enabled
+      return <ExcalidrawEditor content={content} onChange={handleContentChange} viewModeEnabled={!isEditable} filePath={metadata?.filePath} />;
     } else if (contentType === 'url') {
       // URL 预览模式 / URL preview mode
       return <URLViewer url={content} title={metadata?.title} />;
@@ -555,7 +557,7 @@ const PreviewPanel: React.FC = () => {
 
         {/* Tab 栏 / Tab bar */}
         {/* eslint-disable-next-line max-len */}
-        <PreviewTabs tabs={previewTabs} activeTabId={activeTabId} tabFadeState={tabFadeState} tabsContainerRef={tabsContainerRef} onSwitchTab={switchTab} onCloseTab={handleCloseTab} onContextMenu={handleTabContextMenu} onClosePanel={closePreview} />
+        <PreviewTabs tabs={previewTabs} activeTabId={activeTabId} tabFadeState={tabFadeState} tabsContainerRef={tabsContainerRef} onSwitchTab={switchTab} onCloseTab={handleCloseTab} onContextMenu={handleTabContextMenu} onClosePanel={closePreview} isMaximized={isMaximized} onToggleMaximize={toggleMaximize} />
 
         {/* 工具栏（URL 类型不显示工具栏，因为不需要下载/编辑等功能）/ Toolbar (hidden for URL type as it doesn't need download/edit features) */}
         {contentType !== 'url' && (

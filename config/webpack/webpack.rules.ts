@@ -58,7 +58,23 @@ export const rules: Required<ModuleOptions>['rules'] = [
       },
       'postcss-loader',
     ],
-    include: [/src/, /node_modules/], // 新增 node_modules 包含
+    include: [/src/, /node_modules/],
+    exclude: /@excalidraw/, // Exclude Excalidraw to avoid issues with inline SVG data URLs
+  },
+  // Excalidraw CSS with inline SVG data URLs - bypass postcss-loader and disable URL processing
+  {
+    test: /\.css$/,
+    include: /@excalidraw/,
+    use: [
+      MiniCssExtractPlugin.loader,
+      {
+        loader: 'css-loader',
+        options: {
+          importLoaders: 0,
+          url: false, // Disable URL processing to prevent data URL extraction
+        },
+      },
+    ],
   },
   // UnoCSS 虚拟 CSS 文件处理
   {

@@ -45,7 +45,13 @@ export const plugins: WebpackPluginInstance[] = [
       if (compiler.options.name?.startsWith('HtmlWebpackPlugin')) {
         return;
       }
-      UnoCSS(unoConfig).apply(compiler);
+      // Configure UnoCSS to exclude Excalidraw CSS files
+      const unoPlugin = UnoCSS({
+        ...unoConfig,
+        // Exclude Excalidraw CSS from UnoCSS webpack loader processing
+        exclude: [/@excalidraw\/.*\.css$/],
+      });
+      unoPlugin.apply(compiler);
     },
   },
   // 忽略 tree-sitter 的 ?binary wasm 导入，让 aioncli-core 的 loadWasmBinary fallback 机制从磁盘读取

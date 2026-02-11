@@ -458,6 +458,8 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       // HTML formats
       'html',
       'htm',
+      // Excalidraw format
+      'excalidraw',
       // Code formats
       'js',
       'ts',

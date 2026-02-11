@@ -23,18 +23,9 @@ function resolveToolsDir(): string {
 
   if (app.isPackaged) {
     const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
-    candidates = [
-      path.join(unpackedPath, 'tools'),
-      path.join(appPath, 'tools'),
-    ];
+    candidates = [path.join(unpackedPath, 'tools'), path.join(appPath, 'tools')];
   } else {
-    candidates = [
-      path.join(appPath, 'tools'),
-      path.join(appPath, '..', 'tools'),
-      path.join(appPath, '..', '..', 'tools'),
-      path.join(appPath, '..', '..', '..', 'tools'),
-      path.join(process.cwd(), 'tools'),
-    ];
+    candidates = [path.join(appPath, 'tools'), path.join(appPath, '..', 'tools'), path.join(appPath, '..', '..', 'tools'), path.join(appPath, '..', '..', '..', 'tools'), path.join(process.cwd(), 'tools')];
   }
 
   for (const candidate of candidates) {
@@ -111,12 +102,14 @@ class ToolRegistry {
       }
     }
 
+    // Set initialized flag BEFORE calling _buildBackendCaches to prevent infinite recursion
+    this.initialized = true;
+
     this._buildBackendCaches();
 
     const utilCount = this.getUtilityTools().length;
     const backendCount = this.getBackendTools().length;
     console.log(`[ToolRegistry] Loaded ${this.tools.length} tool(s) from ${this.toolsDir} (${backendCount} backend, ${utilCount} utility)`);
-    this.initialized = true;
   }
 
   /** Reload all tool definitions (e.g. after adding new tools) */

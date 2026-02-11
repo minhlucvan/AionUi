@@ -44,6 +44,7 @@ export interface PreviewContextValue {
   isOpen: boolean;
   tabs: PreviewTab[]; // 所有打开的 tabs
   activeTabId: string | null; // 当前激活的 tab ID
+  isMaximized: boolean; // 是否全屏模式 / Whether preview is in fullscreen mode
 
   // 获取当前激活的 tab / Get active tab
   activeTab: PreviewTab | null;
@@ -57,6 +58,7 @@ export interface PreviewContextValue {
   saveContent: (tabId?: string) => Promise<boolean>; // 保存内容 / Save content
   findPreviewTab: (type: PreviewContentType, content?: string, metadata?: PreviewMetadata) => PreviewTab | null; // 查找匹配的 tab
   closePreviewByIdentity: (type: PreviewContentType, content?: string, metadata?: PreviewMetadata) => void; // 根据内容关闭指定 tab
+  toggleMaximize: () => void; // 切换全屏模式 / Toggle fullscreen state
 
   // 发送框集成 / Sendbox integration
   addToSendBox: (text: string) => void;
@@ -103,6 +105,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isOpen, setIsOpen] = useState(persistedState.isOpen);
   const [tabs, setTabs] = useState<PreviewTab[]>(persistedState.tabs);
   const [activeTabId, setActiveTabId] = useState<string | null>(persistedState.activeTabId);
+  const [isMaximized, setIsMaximized] = useState(false); // 全屏状态不持久化 / Fullscreen state is not persisted
   // const [sendBoxHandler, setSendBoxHandlerState] = useState<((text: string) => void) | null>(null);
   const sendBoxHandler = useRef<((text: string) => void) | null>(null);
   const [domSnippets, setDomSnippets] = useState<DomSnippet[]>([]);
@@ -270,6 +273,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsOpen(false);
     setTabs([]);
     setActiveTabId(null);
+    setIsMaximized(false); // 关闭预览时退出全屏 / Exit fullscreen when closing preview
   }, []);
 
   const closeTab = useCallback(
@@ -413,6 +417,11 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setDomSnippets([]);
   }, []);
 
+  // 切换全屏模式 / Toggle fullscreen mode
+  const toggleMaximize = useCallback(() => {
+    setIsMaximized((prev) => !prev);
+  }, []);
+
   // 流式内容订阅：订阅 agent 写入文件时的流式更新（替代文件监听）
   // Streaming content subscription: Subscribe to streaming updates when agent writes files (replaces file watching)
   // 使用防抖优化：等待 agent 完成写入后再更新预览，避免打字动画被频繁中断
@@ -512,8 +521,29 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [openPreview]);
 
   const previewContextValue = useMemo(() => {
-    return { isOpen, tabs, activeTabId, activeTab, openPreview, closePreview, closeTab, switchTab: setActiveTabId, updateContent, saveContent, findPreviewTab, closePreviewByIdentity, addToSendBox, setSendBoxHandler, domSnippets, addDomSnippet, removeDomSnippet, clearDomSnippets };
-  }, [isOpen, tabs, activeTabId, activeTab, openPreview, closePreview, closeTab, setActiveTabId, updateContent, saveContent, findPreviewTab, closePreviewByIdentity, addToSendBox, setSendBoxHandler, domSnippets, addDomSnippet, removeDomSnippet, clearDomSnippets]);
+    return {
+      isOpen,
+      tabs,
+      activeTabId,
+      activeTab,
+      isMaximized,
+      openPreview,
+      closePreview,
+      closeTab,
+      switchTab: setActiveTabId,
+      updateContent,
+      saveContent,
+      findPreviewTab,
+      closePreviewByIdentity,
+      toggleMaximize,
+      addToSendBox,
+      setSendBoxHandler,
+      domSnippets,
+      addDomSnippet,
+      removeDomSnippet,
+      clearDomSnippets,
+    };
+  }, [isOpen, tabs, activeTabId, activeTab, isMaximized, openPreview, closePreview, closeTab, setActiveTabId, updateContent, saveContent, findPreviewTab, closePreviewByIdentity, toggleMaximize, addToSendBox, setSendBoxHandler, domSnippets, addDomSnippet, removeDomSnippet, clearDomSnippets]);
 
   return <PreviewContext.Provider value={previewContextValue}>{children}</PreviewContext.Provider>;
 };

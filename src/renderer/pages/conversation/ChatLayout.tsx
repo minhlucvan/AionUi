@@ -129,7 +129,7 @@ const ChatLayout: React.FC<{
   const previousPreviewOpenRef = useRef(false);
 
   // 预览面板状态 / Preview panel state
-  const { isOpen: isPreviewOpen } = usePreviewContext();
+  const { isOpen: isPreviewOpen, isMaximized: isPreviewMaximized } = usePreviewContext();
 
   // Fetch custom agents config as fallback when agentName is not provided
   const { data: customAgents } = useSWR(backend === 'custom' && !agentName ? 'acp.customAgents' : null, () => ConfigStorage.get('acp.customAgents'));
@@ -386,9 +386,9 @@ const ChatLayout: React.FC<{
             // 使用 flexBasis 设置宽度，避免 width 和 flexBasis 冲突
             flexGrow: isPreviewOpen && isDesktop ? 0 : chatFlex,
             flexShrink: 0,
-            flexBasis: isPreviewOpen && isDesktop ? `${chatFlex}%` : 0,
-            display: isPreviewOpen && layout?.isMobile ? 'none' : 'flex',
-            minWidth: isDesktop ? '240px' : '100%',
+            flexBasis: isPreviewOpen && isDesktop ? (isPreviewMaximized ? '0px' : `${chatFlex}%`) : 0,
+            display: isPreviewOpen && (layout?.isMobile || isPreviewMaximized) ? 'none' : 'flex',
+            minWidth: isDesktop && !isPreviewMaximized ? '240px' : '100%',
           }}
         >
           <ArcoLayout.Content
@@ -446,6 +446,13 @@ const ChatLayout: React.FC<{
               flexBasis: layout?.isMobile ? '100%' : 0,
               border: '1px solid var(--bg-3)',
               minWidth: layout?.isMobile ? '100%' : '260px',
+              // 全屏模式时调整边距 / Adjust margins when maximized
+              ...(isPreviewMaximized && !layout?.isMobile
+                ? {
+                    marginLeft: '12px',
+                    marginRight: '12px',
+                  }
+                : {}),
             }}
           >
             <PreviewPanel />
@@ -460,10 +467,11 @@ const ChatLayout: React.FC<{
               // 使用 flexBasis 设置宽度，避免 width 和 flexBasis 冲突
               flexGrow: isPreviewOpen ? 0 : workspaceFlex,
               flexShrink: 0,
-              flexBasis: rightSiderCollapsed ? '0px' : isPreviewOpen ? `${workspaceFlex}%` : 0,
-              minWidth: rightSiderCollapsed ? '0px' : '220px',
+              flexBasis: rightSiderCollapsed || isPreviewMaximized ? '0px' : isPreviewOpen ? `${workspaceFlex}%` : 0,
+              minWidth: rightSiderCollapsed || isPreviewMaximized ? '0px' : '220px',
               overflow: 'hidden',
-              borderLeft: rightSiderCollapsed ? 'none' : '1px solid var(--bg-3)',
+              borderLeft: rightSiderCollapsed || isPreviewMaximized ? 'none' : '1px solid var(--bg-3)',
+              display: isPreviewMaximized ? 'none' : 'block',
             }}
           >
             {isDesktop &&

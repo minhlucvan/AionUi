@@ -6,7 +6,7 @@
 
 import { iconColors } from '@/renderer/theme/colors';
 import { Close } from '@icon-park/react';
-import { IconShrink } from '@arco-design/web-react/icon';
+import { IconExpand, IconShrink } from '@arco-design/web-react/icon';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TabFadeState } from '../../hooks/useTabOverflow';
@@ -86,6 +86,18 @@ interface PreviewTabsProps {
    * Close preview panel callback
    */
   onClosePanel?: () => void;
+
+  /**
+   * 是否全屏模式
+   * Whether preview is maximized
+   */
+  isMaximized?: boolean;
+
+  /**
+   * 切换全屏回调
+   * Toggle maximize callback
+   */
+  onToggleMaximize?: () => void;
 }
 
 /**
@@ -98,7 +110,7 @@ interface PreviewTabsProps {
  * 包含左右渐变指示器，提示用户可以滚动查看更多 Tab
  * Includes left/right gradient indicators to prompt users that more tabs can be scrolled
  */
-const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeState, tabsContainerRef, onSwitchTab, onCloseTab, onContextMenu, onClosePanel }) => {
+const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeState, tabsContainerRef, onSwitchTab, onCloseTab, onContextMenu, onClosePanel, isMaximized, onToggleMaximize }) => {
   const { t } = useTranslation();
   const { left: showLeftFade, right: showRightFade } = tabFadeState;
 
@@ -132,14 +144,22 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeSta
           )}
         </div>
 
-        {/* 收起面板按钮 / Collapse panel button */}
-        {onClosePanel && (
-          <div className='flex items-center h-full px-12px flex-shrink-0 rounded-tr-[16px]'>
+        {/* 右侧按钮组 / Right button group */}
+        <div className='flex items-center gap-8px h-full px-12px flex-shrink-0 rounded-tr-[16px]'>
+          {/* 全屏按钮 / Fullscreen button */}
+          {onToggleMaximize && (
+            <div className='flex items-center justify-center w-24px h-24px rd-4px cursor-pointer hover:bg-bg-3 transition-colors' onClick={onToggleMaximize} title={isMaximized ? t('preview.exitFullscreen') : t('preview.fullscreen')}>
+              {isMaximized ? <IconShrink style={{ fontSize: 16, color: iconColors.secondary }} /> : <IconExpand style={{ fontSize: 16, color: iconColors.secondary }} />}
+            </div>
+          )}
+
+          {/* 收起面板按钮 / Collapse panel button */}
+          {onClosePanel && (
             <div className='flex items-center justify-center w-24px h-24px rd-4px cursor-pointer hover:bg-bg-3 transition-colors' onClick={onClosePanel} title={t('preview.collapsePanel')}>
               <IconShrink style={{ fontSize: 16, color: iconColors.secondary }} />
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* 左侧渐变指示器 / Left gradient indicator */}

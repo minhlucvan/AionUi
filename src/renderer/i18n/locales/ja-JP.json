@@ -248,6 +248,8 @@
     "downloadFile": "ファイルをダウンロード",
     "closePreview": "プレビューを閉じる",
     "collapsePanel": "パネルを閉じる",
+    "fullscreen": "フルスクリーン",
+    "exitFullscreen": "フルスクリーン終了",
     "source": "ソース",
     "preview": "プレビュー",
     "editor": "エディタ",
