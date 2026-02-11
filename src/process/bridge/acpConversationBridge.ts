@@ -186,6 +186,49 @@ export function initAcpConversationBridge(): void {
     }
   });
 
+  // Get CLI tools list from registry (fast, no CLI execution)
+  ipcBridge.acpConversation.getCliToolsList.provider(() => {
+    const results = Object.entries(toolRegistry.getAcpBackendsAll())
+      .filter(([id, config]) => {
+        if (id === 'gemini' || id === 'custom') return false;
+        return config.enabled && config.cliCommand;
+      })
+      .map(([id, config]) => ({
+        backend: id as AcpBackendAll,
+        name: config.name,
+        cliCommand: config.cliCommand,
+        installCommand: config.installCommand,
+        installUrl: config.installUrl,
+      }));
+
+    return Promise.resolve({ success: true, data: results });
+  });
+
+  // Check a single CLI tool's installed status and version
+  ipcBridge.acpConversation.checkCliToolStatus.provider(({ backend }) => {
+    const backendId = backend as AcpBackendAll;
+    const detectedAgents = acpDetector.getDetectedAgents();
+    const detected = detectedAgents.find((a) => a.backend === backendId);
+    const installed = !!detected?.cliPath;
+
+    let version: string | undefined;
+    if (installed && detected?.cliPath) {
+      try {
+        const output = execSync(`${detected.cliPath} --version`, {
+          encoding: 'utf-8',
+          stdio: 'pipe',
+          timeout: 5000,
+        }).trim();
+        const versionMatch = output.match(/v?(\d+\.\d+[\.\d]*[-\w]*)/);
+        version = versionMatch ? versionMatch[0] : output.split('\n')[0].trim();
+      } catch {
+        version = undefined;
+      }
+    }
+
+    return Promise.resolve({ success: true, data: { backend: backendId, installed, version } });
+  });
+
   // Get CLI version info for all known backends
   ipcBridge.acpConversation.getCliVersions.provider(() => {
     const detectedAgents = acpDetector.getDetectedAgents();
