@@ -1,6 +1,6 @@
 ---
 name: excalidraw
-description: Create professional architecture diagrams, flowcharts, and system designs directly in AionUi's preview panel. Use when creating system architecture diagrams, flowcharts, sequence diagrams, or any technical diagram. Supports quality analysis, semantic colors, real-time preview updates, and exports to .excalidraw and PNG formats. Works seamlessly within AionUi conversations.
+description: Create professional architecture diagrams, flowcharts, and system designs as .excalidraw JSON files on disk. Use when creating system architecture diagrams, flowcharts, sequence diagrams, or any technical diagram. Supports quality analysis, semantic colors, and exports to .excalidraw format. Every command requires --file to specify the target file.
 allowed-tools: Bash(node:*)
 ---
 
@@ -10,65 +10,65 @@ allowed-tools: Bash(node:*)
 
 Every diagram follows this pattern:
 
-1. **Initialize**: `node scripts/excalidraw.js init` (opens preview panel in edit mode)
-2. **Create**: Add shapes, text, arrows with semantic colors (see changes in real-time)
+1. **Initialize**: `node scripts/excalidraw.js init --file diagram.excalidraw` (creates file on disk)
+2. **Create**: Add shapes, text, arrows with semantic colors
 3. **Link**: Connect text to shapes, bind arrows to elements
-4. **Analyze**: `node scripts/excalidraw.js analyze` (get quality score)
-5. **Export**: Save as .excalidraw and PNG to conversation workspace
+4. **Analyze**: `node scripts/excalidraw.js analyze --file diagram.excalidraw` (get quality score)
+5. **Export**: Save as .excalidraw to a different path if needed
 
 ```bash
 cd skills/excalidraw
 
-node scripts/excalidraw.js init
-node scripts/excalidraw.js add-shape --type rectangle --id "api" --x 100 --y 100 --width 200 --height 100 --palette backend
-node scripts/excalidraw.js add-text --text "API Gateway" --x 160 --y 135 --container-id "api"
-node scripts/excalidraw.js link-text api api-text
-node scripts/excalidraw.js analyze
+node scripts/excalidraw.js init --file diagram.excalidraw
+node scripts/excalidraw.js add-shape --file diagram.excalidraw --type rectangle --id "api" --x 100 --y 100 --width 200 --height 100 --palette backend
+node scripts/excalidraw.js add-text --file diagram.excalidraw --text "API Gateway" --x 160 --y 135 --container-id "api"
+node scripts/excalidraw.js link-text --file diagram.excalidraw api api-text
+node scripts/excalidraw.js analyze --file diagram.excalidraw
 # Output: Score: 95/100 (Grade: A)
 
-node scripts/excalidraw.js export-excalidraw -o diagram.excalidraw
-node scripts/excalidraw.js export-png -o diagram.png
+node scripts/excalidraw.js export-excalidraw --file diagram.excalidraw -o output.excalidraw
 ```
 
 ## Essential Commands
 
+Every command requires `--file <path>` to specify the .excalidraw file.
+
 ```bash
 # Session
-node scripts/excalidraw.js init            # Open preview panel in edit mode
-node scripts/excalidraw.js clear           # Clear canvas
-node scripts/excalidraw.js get             # Get all elements as JSON
+node scripts/excalidraw.js init --file diagram.excalidraw            # Create new diagram file
+node scripts/excalidraw.js clear --file diagram.excalidraw           # Clear canvas
+node scripts/excalidraw.js get --file diagram.excalidraw             # Get all elements as JSON
 
 # Create shapes
-node scripts/excalidraw.js add-shape --type rectangle --id "box1" --x 100 --y 100 --width 200 --height 100 --palette backend
-node scripts/excalidraw.js add-shape --type ellipse --id "circle" --x 400 --y 100 --width 150 --height 150 --palette frontend
-node scripts/excalidraw.js add-shape --type diamond --id "decision" --x 700 --y 100 --width 180 --height 120 --palette external
+node scripts/excalidraw.js add-shape --file diagram.excalidraw --type rectangle --id "box1" --x 100 --y 100 --width 200 --height 100 --palette backend
+node scripts/excalidraw.js add-shape --file diagram.excalidraw --type ellipse --id "circle" --x 400 --y 100 --width 150 --height 150 --palette frontend
+node scripts/excalidraw.js add-shape --file diagram.excalidraw --type diamond --id "decision" --x 700 --y 100 --width 180 --height 120 --palette external
 
 # Create text
-node scripts/excalidraw.js add-text --text "API Service" --x 160 --y 135 --container-id "box1"
-node scripts/excalidraw.js add-text --text "Database" --x 450 --y 160 --size 18
+node scripts/excalidraw.js add-text --file diagram.excalidraw --text "API Service" --x 160 --y 135 --container-id "box1"
+node scripts/excalidraw.js add-text --file diagram.excalidraw --text "Database" --x 450 --y 160 --size 18
 
 # Create arrows
-node scripts/excalidraw.js add-arrow --id "flow" --x 300 --y 150 --points "[[0,0],[100,0]]"
+node scripts/excalidraw.js add-arrow --file diagram.excalidraw --id "flow" --x 300 --y 150 --points "[[0,0],[100,0]]"
 
 # Create frames (containers)
-node scripts/excalidraw.js add-frame --name "Backend Services" --x 50 --y 50 --width 700 --height 300
+node scripts/excalidraw.js add-frame --file diagram.excalidraw --name "Backend Services" --x 50 --y 50 --width 700 --height 300
 
 # Link elements (establishes relationships)
-node scripts/excalidraw.js link-text box1 box1-text      # Link text to shape
-node scripts/excalidraw.js bind-arrow flow box1 circle   # Bind arrow to shapes
+node scripts/excalidraw.js link-text --file diagram.excalidraw box1 box1-text      # Link text to shape
+node scripts/excalidraw.js bind-arrow --file diagram.excalidraw flow box1 circle   # Bind arrow to shapes
 
 # Visual feedback
-node scripts/excalidraw.js analyze              # Quality analysis (0-100 score)
-node scripts/excalidraw.js snapshot             # Capture PNG + metadata
-node scripts/excalidraw.js get-state            # Get metadata (fast)
+node scripts/excalidraw.js analyze --file diagram.excalidraw              # Quality analysis (0-100 score)
+node scripts/excalidraw.js snapshot --file diagram.excalidraw             # Capture metadata
+node scripts/excalidraw.js get-state --file diagram.excalidraw            # Get metadata (fast)
 
 # Export
-node scripts/excalidraw.js export-excalidraw -o diagram.excalidraw  # Editable format
-node scripts/excalidraw.js export-png -o diagram.png                # Image format
+node scripts/excalidraw.js export-excalidraw --file diagram.excalidraw -o output.excalidraw  # Editable format
 
 # Utilities
-node scripts/excalidraw.js delete box1          # Delete element by ID
-node scripts/excalidraw.js help                 # Show all commands
+node scripts/excalidraw.js delete --file diagram.excalidraw box1          # Delete element by ID
+node scripts/excalidraw.js help                                           # Show all commands
 ```
 
 ## Common Patterns
@@ -77,36 +77,35 @@ node scripts/excalidraw.js help                 # Show all commands
 
 ```bash
 cd skills/excalidraw
-node scripts/excalidraw.js init
+node scripts/excalidraw.js init --file architecture.excalidraw
 
 # Presentation Layer
-node scripts/excalidraw.js add-frame --name "Presentation" --x 50 --y 50 --width 700 --height 180
-node scripts/excalidraw.js add-shape --type rectangle --id "web" --x 120 --y 110 --width 180 --height 100 --palette frontend
-node scripts/excalidraw.js add-text --text "Web App" --x 170 --y 145 --container-id "web"
-node scripts/excalidraw.js link-text web web-text
+node scripts/excalidraw.js add-frame --file architecture.excalidraw --name "Presentation" --x 50 --y 50 --width 700 --height 180
+node scripts/excalidraw.js add-shape --file architecture.excalidraw --type rectangle --id "web" --x 120 --y 110 --width 180 --height 100 --palette frontend
+node scripts/excalidraw.js add-text --file architecture.excalidraw --text "Web App" --x 170 --y 145 --container-id "web"
+node scripts/excalidraw.js link-text --file architecture.excalidraw web web-text
 
 # Business Layer
-node scripts/excalidraw.js add-frame --name "Business Logic" --x 50 --y 280 --width 700 --height 180
-node scripts/excalidraw.js add-shape --type rectangle --id "api" --x 120 --y 340 --width 180 --height 100 --palette backend
-node scripts/excalidraw.js add-text --text "API Gateway" --x 160 --y 375 --container-id "api"
-node scripts/excalidraw.js link-text api api-text
+node scripts/excalidraw.js add-frame --file architecture.excalidraw --name "Business Logic" --x 50 --y 280 --width 700 --height 180
+node scripts/excalidraw.js add-shape --file architecture.excalidraw --type rectangle --id "api" --x 120 --y 340 --width 180 --height 100 --palette backend
+node scripts/excalidraw.js add-text --file architecture.excalidraw --text "API Gateway" --x 160 --y 375 --container-id "api"
+node scripts/excalidraw.js link-text --file architecture.excalidraw api api-text
 
 # Data Layer
-node scripts/excalidraw.js add-frame --name "Data" --x 50 --y 510 --width 700 --height 180
-node scripts/excalidraw.js add-shape --type rectangle --id "db" --x 120 --y 570 --width 180 --height 100 --palette database
-node scripts/excalidraw.js add-text --text "PostgreSQL" --x 165 --y 605 --container-id "db"
-node scripts/excalidraw.js link-text db db-text
+node scripts/excalidraw.js add-frame --file architecture.excalidraw --name "Data" --x 50 --y 510 --width 700 --height 180
+node scripts/excalidraw.js add-shape --file architecture.excalidraw --type rectangle --id "db" --x 120 --y 570 --width 180 --height 100 --palette database
+node scripts/excalidraw.js add-text --file architecture.excalidraw --text "PostgreSQL" --x 165 --y 605 --container-id "db"
+node scripts/excalidraw.js link-text --file architecture.excalidraw db db-text
 
 # Connect layers
-node scripts/excalidraw.js add-arrow --id "arrow1" --x 210 --y 210 --points "[[0,0],[0,130]]"
-node scripts/excalidraw.js bind-arrow arrow1 web api
-node scripts/excalidraw.js add-arrow --id "arrow2" --x 210 --y 440 --points "[[0,0],[0,130]]"
-node scripts/excalidraw.js bind-arrow arrow2 api db
+node scripts/excalidraw.js add-arrow --file architecture.excalidraw --id "arrow1" --x 210 --y 210 --points "[[0,0],[0,130]]"
+node scripts/excalidraw.js bind-arrow --file architecture.excalidraw arrow1 web api
+node scripts/excalidraw.js add-arrow --file architecture.excalidraw --id "arrow2" --x 210 --y 440 --points "[[0,0],[0,130]]"
+node scripts/excalidraw.js bind-arrow --file architecture.excalidraw arrow2 api db
 
 # Analyze and export
-node scripts/excalidraw.js analyze
-node scripts/excalidraw.js export-excalidraw -o architecture.excalidraw
-node scripts/excalidraw.js export-png -o architecture.png
+node scripts/excalidraw.js analyze --file architecture.excalidraw
+node scripts/excalidraw.js export-excalidraw --file architecture.excalidraw -o architecture-final.excalidraw
 ```
 
 ### Data-Driven Approach (BM25 Search)
@@ -122,13 +121,9 @@ python3 scripts/search.py "microservices architecture"
 python3 scripts/search.py "API gateway component"
 # Output: width=180, height=100, palette=backend, semantic_meaning="Processing logic"
 
-# Search for spacing rules
-python3 scripts/search.py "spacing between services"
-# Output: min_px=80, recommended_px=100, max_px=150
-
 # Use search results to create diagram
-node scripts/excalidraw.js init
-node scripts/excalidraw.js add-shape --type rectangle --id "gateway" --x 400 --y 300 --width 180 --height 100 --palette backend
+node scripts/excalidraw.js init --file microservices.excalidraw
+node scripts/excalidraw.js add-shape --file microservices.excalidraw --type rectangle --id "gateway" --x 400 --y 300 --width 180 --height 100 --palette backend
 # ... use spacing=100px for other services
 ```
 
@@ -136,30 +131,27 @@ node scripts/excalidraw.js add-shape --type rectangle --id "gateway" --x 400 --y
 
 ```bash
 cd skills/excalidraw
-node scripts/excalidraw.js init
+node scripts/excalidraw.js init --file quality-demo.excalidraw
 
 # Create initial diagram
-node scripts/excalidraw.js add-shape --type rectangle --id "service1" --x 100 --y 100 --width 150 --height 80 --palette backend
-node scripts/excalidraw.js add-shape --type rectangle --id "service2" --x 350 --y 120 --width 150 --height 80 --palette backend
+node scripts/excalidraw.js add-shape --file quality-demo.excalidraw --type rectangle --id "service1" --x 100 --y 100 --width 150 --height 80 --palette backend
+node scripts/excalidraw.js add-shape --file quality-demo.excalidraw --type rectangle --id "service2" --x 350 --y 120 --width 150 --height 80 --palette backend
 
 # Analyze quality
-node scripts/excalidraw.js analyze
+node scripts/excalidraw.js analyze --file quality-demo.excalidraw
 # Output: Score: 72/100 (Grade: C)
-# Issues: Inconsistent spacing, small text, no alignment
-# Suggestions: Use consistent spacing (100px), increase font size to 18px, align shapes
 
 # Fix issues based on feedback
-node scripts/excalidraw.js delete service2
-node scripts/excalidraw.js add-shape --type rectangle --id "service2" --x 300 --y 100 --width 150 --height 80 --palette backend
-node scripts/excalidraw.js add-text --text "Service A" --x 145 --y 130 --size 18 --container-id "service1"
+node scripts/excalidraw.js delete --file quality-demo.excalidraw service2
+node scripts/excalidraw.js add-shape --file quality-demo.excalidraw --type rectangle --id "service2" --x 300 --y 100 --width 150 --height 80 --palette backend
+node scripts/excalidraw.js add-text --file quality-demo.excalidraw --text "Service A" --x 145 --y 130 --size 18 --container-id "service1"
 
 # Re-analyze
-node scripts/excalidraw.js analyze
+node scripts/excalidraw.js analyze --file quality-demo.excalidraw
 # Output: Score: 88/100 (Grade: B) - Good quality!
 
 # Export when score >= 85
-node scripts/excalidraw.js export-excalidraw -o final.excalidraw
-node scripts/excalidraw.js export-png -o final.png
+node scripts/excalidraw.js export-excalidraw --file quality-demo.excalidraw -o final.excalidraw
 ```
 
 ### Using Templates
@@ -197,19 +189,19 @@ IDs are required for linking and binding. Always assign IDs when elements will b
 
 ```bash
 # Create shape with ID
-node scripts/excalidraw.js add-shape --type rectangle --id "api" --x 100 --y 100 --width 200 --height 100
+node scripts/excalidraw.js add-shape --file diagram.excalidraw --type rectangle --id "api" --x 100 --y 100 --width 200 --height 100
 
 # Create text with container-id
-node scripts/excalidraw.js add-text --text "API" --x 160 --y 135 --container-id "api"
+node scripts/excalidraw.js add-text --file diagram.excalidraw --text "API" --x 160 --y 135 --container-id "api"
 
 # Link text to shape (bidirectional relationship)
-node scripts/excalidraw.js link-text api api-text
+node scripts/excalidraw.js link-text --file diagram.excalidraw api api-text
 
 # Create arrow with ID
-node scripts/excalidraw.js add-arrow --id "flow" --x 300 --y 150 --points "[[0,0],[100,0]]"
+node scripts/excalidraw.js add-arrow --file diagram.excalidraw --id "flow" --x 300 --y 150 --points "[[0,0],[100,0]]"
 
 # Bind arrow to shapes (bidirectional relationships)
-node scripts/excalidraw.js bind-arrow flow api database
+node scripts/excalidraw.js bind-arrow --file diagram.excalidraw flow api database
 ```
 
 **Without IDs**: Elements are created but cannot be linked or bound.
@@ -221,9 +213,9 @@ node scripts/excalidraw.js bind-arrow flow api database
 
 **Standard Sizes**:
 
-- Small component: 140×80
-- Medium component: 180×100 (recommended)
-- Large component: 240×120
+- Small component: 140x80
+- Medium component: 180x100 (recommended)
+- Large component: 240x120
 
 **Standard Spacing**:
 
@@ -237,7 +229,7 @@ node scripts/excalidraw.js bind-arrow flow api database
 | Reference                      | When to Use                                       |
 | ------------------------------ | ------------------------------------------------- |
 | [excalidraw.md](excalidraw.md) | Complete guide with patterns and best practices   |
-| [CHANGELOG.md](CHANGELOG.md)   | Version history and feature additions (1.0 → 2.1) |
+| [CHANGELOG.md](CHANGELOG.md)   | Version history and feature additions (1.0 → 5.0) |
 | [STRUCTURE.md](STRUCTURE.md)   | Directory structure and organization              |
 
 ## Ready-to-Use Templates
@@ -311,62 +303,33 @@ python3 tests/test_export.py
 2. **Use semantic palettes**: `--palette backend` not raw colors
 3. **Always link**: Use `link-text` and `bind-arrow` for relationships
 4. **Analyze often**: Check quality during creation (aim for 85+ score)
-5. **Export both formats**: .excalidraw (editable) + PNG (shareable)
+5. **Export**: .excalidraw (editable) for sharing
 6. **Use consistent spacing**: Stick to 100px or 150px grid
 7. **Assign IDs strategically**: ID elements you'll reference later
 
 ## Common Issues
 
-**"CONVERSATION_ID environment variable not set"**
-→ This skill must be run within an AionUi conversation context (agent automatically sets this)
+**"--file <path> is required"**
+→ Every command requires `--file` to specify the target .excalidraw file
 
-**"No diagram loaded. Run 'init' first."**
-→ Run `init` command first to initialize diagram and open preview panel
+**"File not found"**
+→ Run `init --file <path>` first to create a new diagram file
 
 **Text not appearing in shape**
-→ Use `link-text <shape-id> <text-id>` after creating both elements
+→ Use `link-text --file <path> <shape-id> <text-id>` after creating both elements
 
 **Arrow not connected to shapes**
-→ Use `bind-arrow <arrow-id> <from-id> <to-id>` after creating arrow and shapes
+→ Use `bind-arrow --file <path> <arrow-id> <from-id> <to-id>` after creating arrow and shapes
 
 **Low quality score (<85)**
-→ Run `analyze` to see specific issues, follow suggestions, re-analyze
+→ Run `analyze --file <path>` to see specific issues, follow suggestions, re-analyze
 
-**Export files not created**
-→ Files are saved to conversation workspace automatically; check conversation workspace path
+## How It Works
 
-**Preview panel not updating**
-→ Each command automatically updates the preview panel in real-time (~50ms delay)
+The CLI reads and writes `.excalidraw` JSON files directly on disk using Node.js `fs`. Each command:
 
-## Export Output Locations
+1. Reads the file from disk
+2. Modifies the in-memory diagram
+3. Writes the updated JSON back to disk
 
-All export commands require `-o` flag with output path. Files are saved to the conversation workspace:
-
-```bash
-# Export to workspace (automatically determined by conversation ID)
-node scripts/excalidraw.js export-excalidraw -o diagram.excalidraw
-node scripts/excalidraw.js export-png -o diagram.png
-
-# Export with descriptive names
-node scripts/excalidraw.js export-excalidraw -o architecture-diagram.excalidraw
-node scripts/excalidraw.js export-png -o architecture-diagram.png
-
-# Export with timestamps (in workspace)
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-node scripts/excalidraw.js export-excalidraw -o "backup_${TIMESTAMP}.excalidraw"
-node scripts/excalidraw.js export-png -o "backup_${TIMESTAMP}.png"
-```
-
-Files are automatically saved to the current conversation's workspace. Check command output for confirmation and file path.
-
-## Integration with AionUi
-
-This skill is tightly integrated with AionUi's preview panel system:
-
-- **Real-time Preview**: Every command updates the preview panel immediately
-- **Workspace Integration**: Diagrams are saved to conversation workspace automatically
-- **Editable Mode**: Preview panel opens in edit mode, allowing manual adjustments
-- **No Browser Required**: Works entirely within AionUi (no external browser needed)
-- **Conversation Context**: Diagrams are associated with the current conversation
-
-The skill creates diagrams programmatically while showing live feedback in the preview panel.
+This means the file is always up-to-date after each command. You can open the `.excalidraw` file in any Excalidraw-compatible viewer (including AionUi's preview panel) to see the result.

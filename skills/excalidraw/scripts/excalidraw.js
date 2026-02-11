@@ -6,10 +6,10 @@
  *
  * Excalidraw CLI (Node.js version)
  *
- * Programmatic diagram creation tool that communicates directly with
- * AionUi's preview panel via IPC bridge.
+ * Programmatic diagram creation tool that reads/writes .excalidraw
+ * JSON files directly on disk via Node.js fs.
  *
- * Version: 4.0.0 (Node.js + Direct IPC)
+ * Version: 5.0.0 (Direct JSON File I/O)
  */
 
 const { DiagramManager } = require('./diagram-manager');
@@ -17,37 +17,39 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs').promises;
 
-const VERSION = '4.0.0';
-
-// Global diagram manager instance
-let manager = null;
+const VERSION = '5.0.0';
 
 /**
- * Ensure diagram manager is initialized
+ * Create a DiagramManager from --file flag, load diagram from disk
+ * @param {object} options - parsed CLI options (must contain `file`)
+ * @param {boolean} initNew - if true, run init() to create file if missing
+ * @returns {Promise<DiagramManager>}
  */
-function ensureManager() {
-  const conversationId = process.env.CONVERSATION_ID;
-  if (!conversationId) {
-    console.error('Error: CONVERSATION_ID environment variable not set');
-    console.error('This skill must be run within an AionUi conversation context');
+async function ensureManager(options, initNew = false) {
+  const filePath = options.file || options.f;
+  if (!filePath) {
+    console.error('Error: --file <path> is required');
+    console.error('Example: node excalidraw.js init --file diagram.excalidraw');
     process.exit(1);
   }
 
-  if (!manager) {
-    manager = new DiagramManager(conversationId);
+  const mgr = new DiagramManager(filePath);
+
+  if (initNew) {
+    await mgr.init();
+  } else {
+    // Load existing file (must exist)
+    try {
+      await fs.access(path.resolve(filePath));
+    } catch {
+      console.error(`Error: File not found: ${path.resolve(filePath)}`);
+      console.error("Run 'init --file <path>' first to create a new diagram.");
+      process.exit(1);
+    }
+    await mgr.init();
   }
 
-  return manager;
-}
-
-/**
- * Check if diagram is loaded
- */
-function ensureDiagramLoaded() {
-  if (!manager || !manager.currentDiagram) {
-    console.error("Error: No diagram loaded. Run 'init' first.");
-    process.exit(1);
-  }
+  return mgr;
 }
 
 /**
@@ -95,34 +97,31 @@ function parseArgs(args) {
  */
 
 async function cmdInit(options) {
-  const mgr = ensureManager();
-  const filePath = await mgr.init(options.file || options.f);
+  const mgr = await ensureManager(options, true);
   console.log(`✓ Initialized diagram`);
-  console.log(`  File: ${filePath}`);
-  console.log(`  Workspace: ${mgr.workspace}`);
-  console.log(`  Preview panel opened in edit mode`);
+  console.log(`  File: ${mgr.filePath}`);
 }
 
-async function cmdClear() {
-  ensureDiagramLoaded();
-  await manager.clear();
+async function cmdClear(options) {
+  const mgr = await ensureManager(options);
+  await mgr.clear();
   console.log('✓ Cleared canvas');
 }
 
-async function cmdGet() {
-  ensureDiagramLoaded();
-  console.log(manager.getContent());
+async function cmdGet(options) {
+  const mgr = await ensureManager(options);
+  console.log(mgr.getContent());
 }
 
 async function cmdAddShape(options) {
-  ensureDiagramLoaded();
+  const mgr = await ensureManager(options);
 
   if (!options.type || !options.x || !options.y || !options.width || !options.height) {
     console.error('Error: add-shape requires --type, --x, --y, --width, --height');
     process.exit(1);
   }
 
-  const elementId = await manager.addShape({
+  const elementId = await mgr.addShape({
     id: options.id,
     type: options.type,
     x: options.x,
@@ -138,14 +137,14 @@ async function cmdAddShape(options) {
 }
 
 async function cmdAddText(options) {
-  ensureDiagramLoaded();
+  const mgr = await ensureManager(options);
 
   if (!options.text || options.x === undefined || options.y === undefined) {
     console.error('Error: add-text requires --text, --x, --y');
     process.exit(1);
   }
 
-  const elementId = await manager.addText({
+  const elementId = await mgr.addText({
     id: options.id,
     text: options.text,
     x: options.x,
@@ -158,7 +157,7 @@ async function cmdAddText(options) {
 }
 
 async function cmdAddArrow(options) {
-  ensureDiagramLoaded();
+  const mgr = await ensureManager(options);
 
   if (options.x === undefined || options.y === undefined) {
     console.error('Error: add-arrow requires --x, --y');
@@ -179,7 +178,7 @@ async function cmdAddArrow(options) {
     }
   }
 
-  const elementId = await manager.addArrow({
+  const elementId = await mgr.addArrow({
     id: options.id,
     x: options.x,
     y: options.y,
@@ -193,14 +192,14 @@ async function cmdAddArrow(options) {
 }
 
 async function cmdAddFrame(options) {
-  ensureDiagramLoaded();
+  const mgr = await ensureManager(options);
 
   if (!options.x || !options.y || !options.width || !options.height) {
     console.error('Error: add-frame requires --x, --y, --width, --height');
     process.exit(1);
   }
 
-  const elementId = await manager.addFrame({
+  const elementId = await mgr.addFrame({
     id: options.id,
     name: options.name || 'Frame',
     x: options.x,
@@ -212,8 +211,8 @@ async function cmdAddFrame(options) {
   console.log(`✓ Added frame with ID: ${elementId}`);
 }
 
-async function cmdLinkText(shapeId, textId) {
-  ensureDiagramLoaded();
+async function cmdLinkText(options, shapeId, textId) {
+  const mgr = await ensureManager(options);
 
   if (!shapeId || !textId) {
     console.error('Error: link-text requires <shape-id> <text-id>');
@@ -221,7 +220,7 @@ async function cmdLinkText(shapeId, textId) {
   }
 
   try {
-    await manager.linkText(shapeId, textId);
+    await mgr.linkText(shapeId, textId);
     console.log(`✓ Linked text '${textId}' to shape '${shapeId}'`);
   } catch (err) {
     console.error(`Error: ${err.message}`);
@@ -229,8 +228,8 @@ async function cmdLinkText(shapeId, textId) {
   }
 }
 
-async function cmdBindArrow(arrowId, fromId, toId) {
-  ensureDiagramLoaded();
+async function cmdBindArrow(options, arrowId, fromId, toId) {
+  const mgr = await ensureManager(options);
 
   if (!arrowId || !fromId || !toId) {
     console.error('Error: bind-arrow requires <arrow-id> <from-id> <to-id>');
@@ -238,7 +237,7 @@ async function cmdBindArrow(arrowId, fromId, toId) {
   }
 
   try {
-    await manager.bindArrow(arrowId, fromId, toId);
+    await mgr.bindArrow(arrowId, fromId, toId);
     console.log(`✓ Bound arrow '${arrowId}' from '${fromId}' to '${toId}'`);
   } catch (err) {
     console.error(`Error: ${err.message}`);
@@ -246,8 +245,8 @@ async function cmdBindArrow(arrowId, fromId, toId) {
   }
 }
 
-async function cmdDelete(elementId) {
-  ensureDiagramLoaded();
+async function cmdDelete(options, elementId) {
+  const mgr = await ensureManager(options);
 
   if (!elementId) {
     console.error('Error: delete requires <element-id>');
@@ -255,7 +254,7 @@ async function cmdDelete(elementId) {
   }
 
   try {
-    await manager.deleteElement(elementId);
+    await mgr.deleteElement(elementId);
     console.log(`✓ Deleted element '${elementId}'`);
   } catch (err) {
     console.error(`Warning: ${err.message}`);
@@ -263,13 +262,13 @@ async function cmdDelete(elementId) {
 }
 
 async function cmdSnapshot(options) {
-  ensureDiagramLoaded();
+  const mgr = await ensureManager(options);
   console.log('Capturing snapshot...');
 
-  const metadata = manager.getMetadata();
+  const metadata = mgr.getMetadata();
   const snapshot = {
     timestamp: Date.now(),
-    elements: manager.currentDiagram.elements,
+    elements: mgr.currentDiagram.elements,
     dimensions: { width: 0, height: 0 },
     viewport: { zoom: 1, scrollX: 0, scrollY: 0 },
     metadata,
@@ -286,10 +285,10 @@ async function cmdSnapshot(options) {
 }
 
 async function cmdGetState(options) {
-  ensureDiagramLoaded();
+  const mgr = await ensureManager(options);
   console.log('Getting scene metadata...');
 
-  const metadata = manager.getMetadata();
+  const metadata = mgr.getMetadata();
 
   console.log('\nScene Metadata:');
   console.log(`  Total elements: ${metadata.elementCount}`);
@@ -309,13 +308,13 @@ async function cmdGetState(options) {
 }
 
 async function cmdAnalyze(options) {
-  ensureDiagramLoaded();
+  const mgr = await ensureManager(options);
   console.log('Analyzing diagram quality...');
 
   // Call Python analyzer as subprocess
   const analyzerPath = path.join(__dirname, 'analyzer.py');
   const diagramJson = JSON.stringify({
-    elements: manager.currentDiagram.elements,
+    elements: mgr.currentDiagram.elements,
   });
 
   return new Promise((resolve, reject) => {
@@ -394,7 +393,7 @@ async function cmdAnalyze(options) {
 }
 
 async function cmdExportExcalidraw(options) {
-  ensureDiagramLoaded();
+  const mgr = await ensureManager(options);
 
   const outputFile = options.output || options.o;
   if (!outputFile) {
@@ -402,17 +401,17 @@ async function cmdExportExcalidraw(options) {
     process.exit(1);
   }
 
-  const savePath = await manager.save(outputFile);
-  const elementCount = manager.currentDiagram.elements.length;
-  const content = manager.getContent();
+  const savePath = await mgr.save(outputFile);
+  const elementCount = mgr.currentDiagram.elements.length;
+  const content = mgr.getContent();
 
   console.log(`✓ Exported ${elementCount} elements to ${savePath}`);
-  console.log(`  Format: Excalidraw JSON v${manager.currentDiagram.version}`);
+  console.log(`  Format: Excalidraw JSON v${mgr.currentDiagram.version}`);
   console.log(`  File size: ${content.length} bytes`);
 }
 
 async function cmdExportPng(options) {
-  ensureDiagramLoaded();
+  await ensureManager(options);
 
   const outputFile = options.output || options.o;
   if (!outputFile) {
@@ -426,7 +425,7 @@ async function cmdExportPng(options) {
 }
 
 function cmdVersion() {
-  console.log(`excalidraw CLI v${VERSION} (Node.js + Direct IPC)`);
+  console.log(`excalidraw CLI v${VERSION} (Direct JSON File I/O)`);
 }
 
 function cmdHelp() {
@@ -434,16 +433,18 @@ function cmdHelp() {
 Excalidraw CLI - Programmatic diagram creation tool (Node.js version)
 
 USAGE:
-  node excalidraw.js <command> [options]
+  node excalidraw.js <command> --file <path> [options]
+
+  Every command requires --file <path> to specify the .excalidraw file.
 
 COMMANDS:
   Session Management:
-    init [--file <path>]      Initialize Excalidraw session (opens preview panel)
-    clear                     Clear the canvas
-    get                       Get all elements as JSON
+    init --file <path>        Create new or load existing .excalidraw file
+    clear --file <path>       Clear the canvas
+    get --file <path>         Get all elements as JSON
 
   Element Creation:
-    add-shape [options]       Create a shape (rectangle/ellipse/diamond)
+    add-shape --file <path> [options]
       --type <type>           Shape type (required)
       --x <x>                 X position (required)
       --y <y>                 Y position (required)
@@ -454,7 +455,7 @@ COMMANDS:
       --bg <color>            Background color (hex)
       --stroke <color>        Stroke color (hex)
 
-    add-text [options]        Create a text element
+    add-text --file <path> [options]
       --text <text>           Text content (required)
       --x <x>                 X position (required)
       --y <y>                 Y position (required)
@@ -462,7 +463,7 @@ COMMANDS:
       --size <size>           Font size (default: 20)
       --container-id <id>     Container element ID
 
-    add-arrow [options]       Create an arrow/line
+    add-arrow --file <path> [options]
       --x <x>                 X position (required)
       --y <y>                 Y position (required)
       --id <id>               Element ID (optional)
@@ -471,7 +472,7 @@ COMMANDS:
       --start-binding <id>    Start binding element ID
       --end-binding <id>      End binding element ID
 
-    add-frame [options]       Create a frame container
+    add-frame --file <path> [options]
       --x <x>                 X position (required)
       --y <y>                 Y position (required)
       --width <w>             Width (required)
@@ -480,49 +481,72 @@ COMMANDS:
       --name <name>           Frame name (default: "Frame")
 
   Relationships:
-    link-text <shape> <text>  Link text to shape (bidirectional)
-    bind-arrow <arrow> <from> <to>
+    link-text --file <path> <shape> <text>
+                              Link text to shape (bidirectional)
+    bind-arrow --file <path> <arrow> <from> <to>
                               Bind arrow to shapes (bidirectional)
 
   Visual Feedback:
-    snapshot [-o <file>]      Capture full canvas snapshot (image + metadata)
-    get-state [-o <file>]     Get scene metadata (fast, no image)
-    analyze [-o <file>]       Analyze diagram quality and get scored report
+    snapshot --file <path> [-o <file>]
+                              Capture full canvas snapshot (metadata)
+    get-state --file <path> [-o <file>]
+                              Get scene metadata
+    analyze --file <path> [-o <file>]
+                              Analyze diagram quality and get scored report
 
   Export:
-    export-excalidraw -o <file>
+    export-excalidraw --file <path> -o <file>
                               Export scene as .excalidraw file (JSON format)
-    export-png -o <file>      Export scene as PNG image (not yet implemented)
+    export-png --file <path> -o <file>
+                              Export scene as PNG image (not yet implemented)
 
   Utilities:
-    delete <element-id>       Delete an element
+    delete --file <path> <element-id>
+                              Delete an element
 
   Info:
     version                   Show version
     help                      Show this help
 
 EXAMPLES:
-  # Initialize session (opens preview panel in AionUi)
-  node excalidraw.js init
+  # Create a new diagram
+  node excalidraw.js init --file diagram.excalidraw
 
-  # Create shape with text
-  node excalidraw.js add-shape --type rectangle --id "api" --x 100 --y 100 --width 200 --height 100 --palette backend
-  node excalidraw.js add-text --id "api-label" --text "API Service" --x 160 --y 135 --container-id "api"
-  node excalidraw.js link-text api api-label
+  # Add shape with text
+  node excalidraw.js add-shape --file diagram.excalidraw --type rectangle --id "api" --x 100 --y 100 --width 200 --height 100 --palette backend
+  node excalidraw.js add-text --file diagram.excalidraw --text "API Service" --x 160 --y 135 --container-id "api"
+  node excalidraw.js link-text --file diagram.excalidraw api api-text
 
   # Connect shapes with arrow
-  node excalidraw.js add-arrow --id "flow" --x 280 --y 150 --points "[[0,0],[120,0]]"
-  node excalidraw.js bind-arrow flow api database
+  node excalidraw.js add-arrow --file diagram.excalidraw --id "flow" --x 280 --y 150 --points "[[0,0],[120,0]]"
+  node excalidraw.js bind-arrow --file diagram.excalidraw flow api database
 
   # Analyze quality
-  node excalidraw.js analyze
+  node excalidraw.js analyze --file diagram.excalidraw
 
   # Export
-  node excalidraw.js export-excalidraw -o diagram.excalidraw
+  node excalidraw.js export-excalidraw --file diagram.excalidraw -o output.excalidraw
 
 For more information, see the documentation in skills/excalidraw/
 `;
   console.log(help);
+}
+
+/**
+ * Extract positional args (non-flag args after the command)
+ */
+function extractPositionalArgs(args) {
+  const positional = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i].startsWith('--')) {
+      i++; // skip value
+    } else if (args[i].startsWith('-') && args[i].length === 2) {
+      i++; // skip value
+    } else {
+      positional.push(args[i]);
+    }
+  }
+  return positional;
 }
 
 /**
@@ -539,53 +563,54 @@ async function main() {
 
     const command = args[0];
     const cmdArgs = args.slice(1);
+    const options = parseArgs(cmdArgs);
+    const positional = extractPositionalArgs(cmdArgs);
 
-    // Simple commands
     switch (command) {
       case 'init':
-        await cmdInit(parseArgs(cmdArgs));
+        await cmdInit(options);
         break;
       case 'clear':
-        await cmdClear();
+        await cmdClear(options);
         break;
       case 'get':
-        await cmdGet();
+        await cmdGet(options);
         break;
       case 'add-shape':
-        await cmdAddShape(parseArgs(cmdArgs));
+        await cmdAddShape(options);
         break;
       case 'add-text':
-        await cmdAddText(parseArgs(cmdArgs));
+        await cmdAddText(options);
         break;
       case 'add-arrow':
-        await cmdAddArrow(parseArgs(cmdArgs));
+        await cmdAddArrow(options);
         break;
       case 'add-frame':
-        await cmdAddFrame(parseArgs(cmdArgs));
+        await cmdAddFrame(options);
         break;
       case 'link-text':
-        await cmdLinkText(cmdArgs[0], cmdArgs[1]);
+        await cmdLinkText(options, positional[0], positional[1]);
         break;
       case 'bind-arrow':
-        await cmdBindArrow(cmdArgs[0], cmdArgs[1], cmdArgs[2]);
+        await cmdBindArrow(options, positional[0], positional[1], positional[2]);
         break;
       case 'delete':
-        await cmdDelete(cmdArgs[0]);
+        await cmdDelete(options, positional[0]);
         break;
       case 'snapshot':
-        await cmdSnapshot(parseArgs(cmdArgs));
+        await cmdSnapshot(options);
         break;
       case 'get-state':
-        await cmdGetState(parseArgs(cmdArgs));
+        await cmdGetState(options);
         break;
       case 'analyze':
-        await cmdAnalyze(parseArgs(cmdArgs));
+        await cmdAnalyze(options);
         break;
       case 'export-excalidraw':
-        await cmdExportExcalidraw(parseArgs(cmdArgs));
+        await cmdExportExcalidraw(options);
         break;
       case 'export-png':
-        await cmdExportPng(parseArgs(cmdArgs));
+        await cmdExportPng(options);
         break;
       case 'version':
       case '--version':

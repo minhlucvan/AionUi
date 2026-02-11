@@ -542,8 +542,8 @@
       "setupSuccess": "{{name}} hoạt động bình thường",
       "setupFailed": "Xác minh cài đặt thất bại"
     },
-    "security": "Tự động phê duyệt",
-    "autoApprove": "Tự động phê duyệt",
+    "security": "Phê duyệt",
+    "autoApprove": "Phê duyệt",
     "autoApproveDesc": "Khi bật, tác nhân sẽ bỏ qua hộp thoại xác nhận quyền cho lệnh và thao tác tệp. Sử dụng cẩn thận.",
     "installed": "Đã cài đặt",
     "builtin": "Tích hợp",

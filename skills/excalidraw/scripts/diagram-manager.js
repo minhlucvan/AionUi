@@ -7,11 +7,11 @@
  * Diagram Manager
  *
  * Core diagram state management for Excalidraw skill.
- * Handles in-memory diagram state, IPC communication, and file operations.
+ * Handles in-memory diagram state and direct JSON file I/O.
  */
 
 const path = require('path');
-const { ipcBridge } = require('./ipc-bridge-loader');
+const fs = require('fs').promises;
 
 // Color palettes (semantic)
 const PALETTES = {
@@ -26,11 +26,9 @@ const PALETTES = {
 };
 
 class DiagramManager {
-  constructor(conversationId) {
-    this.conversationId = conversationId;
+  constructor(filePath) {
+    this.filePath = path.resolve(filePath);
     this.currentDiagram = null;
-    this.filePath = null;
-    this.workspace = null;
   }
 
   /**
@@ -50,51 +48,34 @@ class DiagramManager {
   }
 
   /**
-   * Initialize new or load existing diagram
-   * @param {string|null} existingFilePath - Path to existing .excalidraw file
+   * Initialize: load existing file or create new diagram
    * @returns {Promise<string>} File path
    */
-  async init(existingFilePath = null) {
-    if (existingFilePath) {
-      // Load existing diagram
-      const content = await ipcBridge.fs.readFile.invoke({ path: existingFilePath });
-      this.currentDiagram = JSON.parse(content);
-      this.filePath = existingFilePath;
-      this.workspace = path.dirname(existingFilePath);
-    } else {
-      // Get conversation workspace
-      const conversation = await ipcBridge.conversation.get.invoke({
-        id: this.conversationId,
-      });
-      this.workspace = conversation.workspace;
-
-      // Create new diagram
-      const timestamp = Date.now();
-      const fileName = `diagram-${timestamp}.excalidraw`;
-      this.filePath = path.join(this.workspace, fileName);
-      this.currentDiagram = this.createEmptyDiagram();
+  async init() {
+    let fileExists = false;
+    try {
+      await fs.access(this.filePath);
+      fileExists = true;
+    } catch {
+      // file does not exist
     }
 
-    // Open in preview panel
-    await this.openPreview();
+    if (fileExists) {
+      const content = await fs.readFile(this.filePath, 'utf-8');
+      this.currentDiagram = JSON.parse(content);
+    } else {
+      this.currentDiagram = this.createEmptyDiagram();
+      await this.saveToDisk();
+    }
+
     return this.filePath;
   }
 
   /**
-   * Open/update preview panel via IPC
+   * Save current diagram JSON to disk
    */
-  async openPreview() {
-    await ipcBridge.preview.open.emit({
-      content: JSON.stringify(this.currentDiagram),
-      contentType: 'excalidraw',
-      metadata: {
-        title: path.basename(this.filePath, '.excalidraw'),
-        fileName: path.basename(this.filePath),
-        filePath: this.filePath,
-        workspace: this.workspace,
-        editable: true,
-      },
-    });
+  async saveToDisk() {
+    await fs.writeFile(this.filePath, JSON.stringify(this.currentDiagram, null, 2), 'utf-8');
   }
 
   /**
@@ -102,7 +83,7 @@ class DiagramManager {
    */
   async clear() {
     this.currentDiagram.elements = [];
-    await this.openPreview();
+    await this.saveToDisk();
   }
 
   /**
@@ -152,7 +133,7 @@ class DiagramManager {
     };
 
     this.currentDiagram.elements.push(element);
-    await this.openPreview();
+    await this.saveToDisk();
 
     return element.id;
   }
@@ -204,7 +185,7 @@ class DiagramManager {
     };
 
     this.currentDiagram.elements.push(element);
-    await this.openPreview();
+    await this.saveToDisk();
 
     return element.id;
   }
@@ -264,7 +245,7 @@ class DiagramManager {
     };
 
     this.currentDiagram.elements.push(element);
-    await this.openPreview();
+    await this.saveToDisk();
 
     return element.id;
   }
@@ -305,7 +286,7 @@ class DiagramManager {
     };
 
     this.currentDiagram.elements.push(element);
-    await this.openPreview();
+    await this.saveToDisk();
 
     return element.id;
   }
@@ -333,7 +314,7 @@ class DiagramManager {
     // Update text to reference shape
     text.containerId = shapeId;
 
-    await this.openPreview();
+    await this.saveToDisk();
   }
 
   /**
@@ -370,7 +351,7 @@ class DiagramManager {
     }
     toElem.boundElements.push({ type: 'arrow', id: arrowId });
 
-    await this.openPreview();
+    await this.saveToDisk();
   }
 
   /**
@@ -384,18 +365,15 @@ class DiagramManager {
       throw new Error(`Element '${elementId}' not found`);
     }
 
-    await this.openPreview();
+    await this.saveToDisk();
   }
 
   /**
-   * Save diagram to workspace
+   * Save diagram to a different path (copy/export)
    */
-  async save(outputPath = null) {
+  async save(outputPath) {
     const savePath = outputPath || this.filePath;
-    await ipcBridge.fs.writeFile.invoke({
-      path: savePath,
-      data: JSON.stringify(this.currentDiagram, null, 2),
-    });
+    await fs.writeFile(savePath, JSON.stringify(this.currentDiagram, null, 2), 'utf-8');
     return savePath;
   }
 
@@ -415,7 +393,6 @@ class DiagramManager {
       elementCount: elements.length,
       elementsByType,
       filePath: this.filePath,
-      workspace: this.workspace,
     };
   }
 }

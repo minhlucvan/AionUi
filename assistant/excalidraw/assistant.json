@@ -1,10 +1,10 @@
 {
   "id": "excalidraw",
   "name": "Diagram Creation Assistant",
-  "version": "1.0.0",
-  "description": "Create professional architecture diagrams, flowcharts, and system designs with visual feedback and export capabilities",
+  "version": "2.0.0",
+  "description": "Professional diagram creation assistant with design database search, semantic color palettes, quality analysis, and file-based workflow",
   "author": "AionUi",
-  "tags": ["diagram", "architecture", "visualization", "excalidraw"],
+  "tags": ["diagram", "architecture", "visualization", "excalidraw", "design"],
   "presetAgentType": "claude",
   "avatar": "📊",
   "nameI18n": {
@@ -12,16 +12,16 @@
     "zh-CN": "图表创建助手"
   },
   "descriptionI18n": {
-    "en-US": "Create professional architecture diagrams, flowcharts, and system designs with visual feedback and export capabilities",
-    "zh-CN": "创建专业的架构图、流程图和系统设计，具有可视化反馈和导出功能"
+    "en-US": "Professional diagram creation assistant with design database search, semantic color palettes, quality analysis, and file-based workflow",
+    "zh-CN": "专业图表创建助手，集成设计数据库搜索、语义化调色板、质量分析和基于文件的工作流"
   },
   "ruleFiles": {
     "en-US": "excalidraw.md",
     "zh-CN": "excalidraw.zh-CN.md"
   },
   "promptsI18n": {
-    "en-US": ["Create a 3-tier web architecture diagram", "Design a microservices architecture diagram", "Build a flowchart for user authentication process"],
-    "zh-CN": ["创建一个三层 Web 架构图", "设计一个微服务架构图", "构建用户身份验证流程的流程图"]
+    "en-US": ["Create a 3-tier web architecture diagram", "Design a microservices architecture diagram", "Build a flowchart for user authentication process", "Create a data pipeline architecture diagram", "Design a deployment diagram with CI/CD pipeline", "Create a diagram with custom server and database icons"],
+    "zh-CN": ["创建一个三层 Web 架构图", "设计一个微服务架构图", "构建用户身份验证流程的流程图", "创建一个数据管道架构图", "设计一个包含 CI/CD 流水线的部署图", "创建一个带有自定义服务器和数据库图标的架构图"]
   },
-  "defaultEnabledSkills": ["excalidraw"]
+  "defaultEnabledSkills": ["excalidraw", "svg-generator"]
 }

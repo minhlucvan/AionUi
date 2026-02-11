@@ -11,24 +11,26 @@ Create professional diagrams using the `excalidraw` CLI tool:
 
 ## Prerequisites
 
-Python 3.8+ is required for both the CLI tool and search functionality:
+Python 3.8+ is required for search and analysis functionality:
 
 ```bash
 python3 --version  # Should show 3.8+
 pip install rank-bm25  # Install search dependency
 ```
 
+Node.js is required for the CLI tool (no special dependencies).
+
 ## Design Workflow
 
 ### Basic Workflow
 
 1. **Identify diagram type** - Use pattern search: `python3 scripts/search.py "3-tier architecture"`
-2. **Initialize Excalidraw** - Run: `python3 scripts/excalidraw.py init`
+2. **Initialize file** - Run: `node scripts/excalidraw.js init --file diagram.excalidraw`
 3. **Choose color palette** - Query: `python3 scripts/search.py "frontend color"`
 4. **Select components** - Query: `python3 scripts/search.py "API component"`
 5. **Apply spacing rules** - Query: `python3 scripts/search.py "spacing between layers"`
-6. **Create elements** - Use CLI: `python3 scripts/excalidraw.py add-shape --palette backend ...`
-7. **Link relationships** - Use: `python3 scripts/excalidraw.py link-text shape-id text-id`
+6. **Create elements** - Use CLI: `node scripts/excalidraw.js add-shape --file diagram.excalidraw --palette backend ...`
+7. **Link relationships** - Use: `node scripts/excalidraw.js link-text --file diagram.excalidraw shape-id text-id`
 8. **Verify quality** - Check against checklist below
 
 ### Visual Feedback Workflow (Recommended)
@@ -36,16 +38,15 @@ pip install rank-bm25  # Install search dependency
 For higher quality diagrams, use the visual feedback loop:
 
 1. **Create initial diagram** - Follow basic workflow steps 1-7
-2. **Analyze quality** - Run: `python3 scripts/excalidraw.py analyze`
+2. **Analyze quality** - Run: `node scripts/excalidraw.js analyze --file diagram.excalidraw`
    - Get scored report (0-100)
    - Review issues and warnings
    - Read suggestions
 3. **Iterate and improve** - Fix issues based on feedback
-4. **Re-analyze** - Run analyze again until score ≥ 85
-5. **Export final diagram** - Save in multiple formats:
+4. **Re-analyze** - Run analyze again until score >= 85
+5. **Export final diagram** - Save to a different path:
    ```bash
-   python3 scripts/excalidraw.py export-excalidraw -o diagram.excalidraw
-   python3 scripts/excalidraw.py export-png -o diagram.png
+   node scripts/excalidraw.js export-excalidraw --file diagram.excalidraw -o final.excalidraw
    ```
 
 **Benefits**:
@@ -54,7 +55,6 @@ For higher quality diagrams, use the visual feedback loop:
 - Automatic issue detection (overlaps, alignment, spacing)
 - Actionable suggestions
 - Consistent professional results
-- Multiple export formats (editable + image)
 
 ## Available Search Domains
 
@@ -72,14 +72,14 @@ Auto-detection available - just search without specifying domain.
 
 **Before finalizing, verify these are followed:**
 
-✓ Colors indicate function (blue=frontend, green=backend, red=database)
-✓ Consistent spacing throughout (use 50px grid)
-✓ No crossing arrows (rearrange layout if needed)
-✓ Text size ≥ 12px (18-20px for component names)
-✓ Larger shapes for more important elements
-✓ Labels are concise (2-3 words max)
-✓ Arrows are labeled (HTTP, SQL, etc.)
-✓ Layout follows reading flow (left-to-right or top-to-bottom)
+- Colors indicate function (blue=frontend, green=backend, red=database)
+- Consistent spacing throughout (use 50px grid)
+- No crossing arrows (rearrange layout if needed)
+- Text size >= 12px (18-20px for component names)
+- Larger shapes for more important elements
+- Labels are concise (2-3 words max)
+- Arrows are labeled (HTTP, SQL, etc.)
+- Layout follows reading flow (left-to-right or top-to-bottom)
 
 ## Pre-Delivery Checklist
 
@@ -113,28 +113,28 @@ python3 scripts/search.py "3-tier architecture"
 # Output: name=3-Tier Architecture, layout=vertical-layers, spacing=150px
 
 # 2. Initialize
-python3 scripts/excalidraw.py init
+node scripts/excalidraw.js init --file arch.excalidraw
 
 # 3. Query components and colors
 python3 scripts/search.py "frontend component"
 # Output: palette=frontend, width=180, height=100
 
 # 4. Create layers
-python3 scripts/excalidraw.py add-frame --name "Presentation" --x 50 --y 50 --width 700 --height 180
-python3 scripts/excalidraw.py add-frame --name "Business Logic" --x 50 --y 380 --width 700 --height 180
-python3 scripts/excalidraw.py add-frame --name "Data" --x 50 --y 710 --width 700 --height 180
+node scripts/excalidraw.js add-frame --file arch.excalidraw --name "Presentation" --x 50 --y 50 --width 700 --height 180
+node scripts/excalidraw.js add-frame --file arch.excalidraw --name "Business Logic" --x 50 --y 380 --width 700 --height 180
+node scripts/excalidraw.js add-frame --file arch.excalidraw --name "Data" --x 50 --y 710 --width 700 --height 180
 
 # 5. Add components (using queried data)
-python3 scripts/excalidraw.py add-shape --type rectangle --palette frontend --x 120 --y 110 --width 180 --height 100 --id "web"
-python3 scripts/excalidraw.py add-text --text "Web App" --x 170 --y 145 --container-id "web"
-python3 scripts/excalidraw.py link-text web web-text
+node scripts/excalidraw.js add-shape --file arch.excalidraw --type rectangle --palette frontend --x 120 --y 110 --width 180 --height 100 --id "web"
+node scripts/excalidraw.js add-text --file arch.excalidraw --text "Web App" --x 170 --y 145 --container-id "web"
+node scripts/excalidraw.js link-text --file arch.excalidraw web web-text
 
 # 6. Connect layers (150px spacing from pattern)
-python3 scripts/excalidraw.py add-arrow --id arrow1 --x 210 --y 210 --points "[[0,0],[0,230]]"
-python3 scripts/excalidraw.py bind-arrow arrow1 web api-gateway
+node scripts/excalidraw.js add-arrow --file arch.excalidraw --id arrow1 --x 210 --y 210 --points "[[0,0],[0,230]]"
+node scripts/excalidraw.js bind-arrow --file arch.excalidraw arrow1 web api-gateway
 
 # 7. Analyze quality
-python3 scripts/excalidraw.py analyze
+node scripts/excalidraw.js analyze --file arch.excalidraw
 ```
 
 ## Tips for Better Results
@@ -148,28 +148,29 @@ python3 scripts/excalidraw.py analyze
 
 ## CLI Quick Reference
 
+Every command requires `--file <path>`.
+
 ```bash
 # Session
-python3 scripts/excalidraw.py init                  # Initialize session
-python3 scripts/excalidraw.py clear                 # Clear canvas
+node scripts/excalidraw.js init --file diagram.excalidraw          # Create new diagram
+node scripts/excalidraw.js clear --file diagram.excalidraw         # Clear canvas
 
 # Elements
-python3 scripts/excalidraw.py add-shape --palette <name> --x <n> --y <n> --width <n> --height <n>
-python3 scripts/excalidraw.py add-text --text "<text>" --x <n> --y <n> --container-id <id>
-python3 scripts/excalidraw.py add-arrow --x <n> --y <n> --points "[[0,0],[100,0]]"
+node scripts/excalidraw.js add-shape --file diagram.excalidraw --palette <name> --x <n> --y <n> --width <n> --height <n>
+node scripts/excalidraw.js add-text --file diagram.excalidraw --text "<text>" --x <n> --y <n> --container-id <id>
+node scripts/excalidraw.js add-arrow --file diagram.excalidraw --x <n> --y <n> --points "[[0,0],[100,0]]"
 
 # Relationships
-python3 scripts/excalidraw.py link-text <shape-id> <text-id>
-python3 scripts/excalidraw.py bind-arrow <arrow-id> <from-id> <to-id>
+node scripts/excalidraw.js link-text --file diagram.excalidraw <shape-id> <text-id>
+node scripts/excalidraw.js bind-arrow --file diagram.excalidraw <arrow-id> <from-id> <to-id>
 
 # Visual Feedback
-python3 scripts/excalidraw.py snapshot              # Capture snapshot (PNG + metadata)
-python3 scripts/excalidraw.py get-state             # Get metadata (fast, no image)
-python3 scripts/excalidraw.py analyze               # Analyze quality (0-100 score)
+node scripts/excalidraw.js snapshot --file diagram.excalidraw      # Capture snapshot (metadata)
+node scripts/excalidraw.js get-state --file diagram.excalidraw     # Get metadata (fast)
+node scripts/excalidraw.js analyze --file diagram.excalidraw       # Analyze quality (0-100 score)
 
 # Export
-python3 scripts/excalidraw.py export-excalidraw -o <file>  # Export as .excalidraw (editable)
-python3 scripts/excalidraw.py export-png -o <file>         # Export as PNG image
+node scripts/excalidraw.js export-excalidraw --file diagram.excalidraw -o <file>  # Export as .excalidraw (editable)
 
 # Search
 python3 scripts/search.py "<query>" [domain]
@@ -206,7 +207,7 @@ The color palettes have specific meanings:
 
 - **Layout**: Vertical layers
 - **Spacing**: 150px between layers
-- **Components**: Frontend (top) → Backend (middle) → Database (bottom)
+- **Components**: Frontend (top) -> Backend (middle) -> Database (bottom)
 - **Use**: Traditional web applications
 
 ### Microservices
@@ -220,7 +221,7 @@ The color palettes have specific meanings:
 
 - **Layout**: Vertical flow
 - **Spacing**: 100px between steps
-- **Components**: Start → Process → Process → End
+- **Components**: Start -> Process -> Process -> End
 - **Use**: Simple workflows
 
 ### Sequence Diagram
@@ -231,6 +232,14 @@ The color palettes have specific meanings:
 - **Use**: API calls, auth flows
 
 ## Troubleshooting
+
+**"--file <path> is required"**:
+
+- Every command requires `--file` to specify the target .excalidraw file
+
+**"File not found"**:
+
+- Run `init --file <path>` first to create a new diagram file
 
 **Search returns no results**:
 
@@ -278,11 +287,11 @@ Copy and modify for custom diagram types.
 
 Add rows to CSV files to expand pattern library:
 
-- New diagram patterns → `patterns.csv`
-- Custom components → `components.csv`
-- Brand colors → `colors.csv` (keep semantic meaning)
-- Project spacing → `spacing.csv`
-- Team rules → `best-practices.csv`
+- New diagram patterns -> `patterns.csv`
+- Custom components -> `components.csv`
+- Brand colors -> `colors.csv` (keep semantic meaning)
+- Project spacing -> `spacing.csv`
+- Team rules -> `best-practices.csv`
 
 Search will automatically include new entries.
 
@@ -309,11 +318,11 @@ bash templates/architecture-diagram.sh
 
 ```bash
 # Traditional approach (manual values)
-python3 scripts/excalidraw.py add-shape --bg "#a5d8ff" --stroke "#1971c2" --width 180 --height 100
+node scripts/excalidraw.js add-shape --file diagram.excalidraw --bg "#a5d8ff" --stroke "#1971c2" --width 180 --height 100 --x 100 --y 100
 
 # Data-driven approach (query first)
 python3 scripts/search.py "frontend component"
-# → Use returned values for --palette, --width, --height
+# -> Use returned values for --palette, --width, --height
 ```
 
 ### JSON Output Mode
@@ -337,15 +346,6 @@ python3 scripts/search.py "microservices" pattern --json
 # }
 ```
 
-## Localization
-
-This guide is available in multiple languages:
-
-- English: `excalidraw.md`
-- Chinese: `excalidraw.zh-CN.md` (if available)
-
-CSV data files are language-neutral (technical terms).
-
 ## Support
 
 For issues or questions:
@@ -353,7 +353,7 @@ For issues or questions:
 1. Check Prerequisites section (Python, rank-bm25 installed)
 2. Verify CSV files exist in `data/` directory
 3. Test search: `python3 scripts/search.py "test"`
-4. Check CLI tool: `excalidraw --version`
+4. Check CLI tool: `node scripts/excalidraw.js version`
 
 ## Credits
 
