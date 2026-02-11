@@ -1250,5 +1250,10 @@
   "workspace.noWorkspaces": "ワークスペースはまだありません",
   "workspace.selectFolder": "フォルダを選択",
   "workspace.pin": "ワークスペースをピン留め",
-  "workspace.unpin": "ピン留めを解除"
+  "workspace.unpin": "ピン留めを解除",
+  "workspace.default": "デフォルトワークスペース",
+  "workspace.defaultDescription": "特定のワークスペースが選択されていない場合に使用されるワークスペース",
+  "workspace.setAsDefault": "デフォルトに設定",
+  "workspace.defaultAgent": "デフォルトエージェント",
+  "workspace.defaultModel": "デフォルトモデル"
 }

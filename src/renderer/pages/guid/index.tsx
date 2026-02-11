@@ -198,7 +198,7 @@ const Guid: React.FC = () => {
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const localeKey = resolveLocaleKey(i18n.language);
   const botContext = useBotContext();
-  const { activeWorkspace } = useWorkspaceContext();
+  const { effectiveWorkspace, updateWorkspace: updateWs } = useWorkspaceContext();
 
   // 打开外部链接 / Open external link
   const openLink = useCallback(async (url: string) => {
@@ -265,13 +265,24 @@ const Guid: React.FC = () => {
 
   // 封装 setSelectedAgentKey 以同时保存到 storage
   // Wrap setSelectedAgentKey to also save to storage
-  const setSelectedAgentKey = useCallback((key: string) => {
-    _setSelectedAgentKey(key);
-    // 保存选择到 storage / Save selection to storage
-    ConfigStorage.set('guid.lastSelectedAgent', key).catch((error) => {
-      console.error('Failed to save selected agent:', error);
-    });
-  }, []);
+  const setSelectedAgentKey = useCallback(
+    (key: string) => {
+      _setSelectedAgentKey(key);
+      // Dual-write: save to global storage AND active workspace config
+      ConfigStorage.set('guid.lastSelectedAgent', key).catch((error) => {
+        console.error('Failed to save selected agent:', error);
+      });
+      if (effectiveWorkspace) {
+        updateWs({
+          id: effectiveWorkspace.id,
+          updates: { config: { ...effectiveWorkspace.config, defaultAgent: key } },
+        }).catch((error) => {
+          console.error('Failed to save workspace agent:', error);
+        });
+      }
+    },
+    [effectiveWorkspace, updateWs]
+  );
   const [availableAgents, setAvailableAgents] = useState<
     Array<{
       backend: AcpBackend;
@@ -360,9 +371,19 @@ const Guid: React.FC = () => {
   const setCurrentModel = async (modelInfo: TProviderWithModel) => {
     // 记录最新的选中 key，避免列表刷新后被错误重置
     selectedModelKeyRef.current = buildModelKey(modelInfo.id, modelInfo.useModel);
-    await ConfigStorage.set('gemini.defaultModel', { id: modelInfo.id, useModel: modelInfo.useModel }).catch((error) => {
+    const modelSelection = { id: modelInfo.id, useModel: modelInfo.useModel };
+    // Dual-write: save to global storage AND active workspace config
+    await ConfigStorage.set('gemini.defaultModel', modelSelection).catch((error) => {
       console.error('Failed to save default model:', error);
     });
+    if (effectiveWorkspace) {
+      updateWs({
+        id: effectiveWorkspace.id,
+        updates: { config: { ...effectiveWorkspace.config, defaultModel: modelSelection } },
+      }).catch((error) => {
+        console.error('Failed to save workspace model:', error);
+      });
+    }
     _setCurrentModel(modelInfo);
   };
   const navigate = useNavigate();
@@ -534,7 +555,7 @@ const Guid: React.FC = () => {
     }
   }, [availableAgentsData]);
 
-  // 加载上次选择的 agent / Load last selected agent
+  // Load agent selection: workspace config first, then global storage
   useEffect(() => {
     if (!availableAgents || availableAgents.length === 0) return;
 
@@ -542,7 +563,9 @@ const Guid: React.FC = () => {
 
     const loadLastSelectedAgent = async () => {
       try {
-        const savedAgentKey = await ConfigStorage.get('guid.lastSelectedAgent');
+        // Check workspace config first, then fall back to global storage
+        const wsAgent = effectiveWorkspace?.config?.defaultAgent;
+        const savedAgentKey = wsAgent || (await ConfigStorage.get('guid.lastSelectedAgent'));
         if (cancelled || !savedAgentKey) return;
 
         // 1. Check availableAgents first
@@ -576,7 +599,9 @@ const Guid: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [availableAgents]);
+    // Re-run when effective workspace changes (different agent per workspace)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableAgents, effectiveWorkspace?.id]);
 
   // When in bot mode, auto-select the bot's assistant
   useEffect(() => {
@@ -774,12 +799,12 @@ const Guid: React.FC = () => {
   );
 
   const handleSend = async () => {
-    // When an active workspace is set, auto-use its path as the workspace directory
-    const effectiveDir = dir || (activeWorkspace?.path ?? '');
-    // User explicitly chose a directory OR active workspace provides one -> customWorkspace = true
+    // When an effective workspace is set, auto-use its path as the workspace directory
+    const effectiveDir = dir || (effectiveWorkspace?.path ?? '');
+    // User explicitly chose a directory OR effective workspace provides one -> customWorkspace = true
     const isCustomWorkspace = !!effectiveDir;
-    const finalWorkspace = effectiveDir; // 不指定时传空，让后端创建临时目录
-    const activeWorkspaceId = activeWorkspace?.id;
+    const finalWorkspace = effectiveDir;
+    const currentWorkspaceId = effectiveWorkspace?.id;
 
     const agentInfo = selectedAgentInfo;
     const isPreset = isPresetAgent;
@@ -800,7 +825,7 @@ const Guid: React.FC = () => {
           type: 'gemini',
           name: input,
           model: currentModel,
-          workspaceId: activeWorkspaceId,
+          workspaceId: currentWorkspaceId,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -868,7 +893,7 @@ const Guid: React.FC = () => {
           type: 'codex',
           name: input,
           model: currentModel!, // not used by codex, but required by type
-          workspaceId: activeWorkspaceId,
+          workspaceId: currentWorkspaceId,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -939,7 +964,7 @@ const Guid: React.FC = () => {
           type: 'acp',
           name: input,
           model: currentModel!, // ACP needs a model too
-          workspaceId: activeWorkspaceId,
+          workspaceId: currentWorkspaceId,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -1094,17 +1119,11 @@ const Guid: React.FC = () => {
     if (!modelList || modelList.length === 0) {
       return;
     }
-    const currentKey = selectedModelKeyRef.current || buildModelKey(currentModel?.id, currentModel?.useModel);
-    // 当前选择仍然可用则不重置 / Keep current selection when still available
-    if (isModelKeyAvailable(currentKey, modelList)) {
-      if (!selectedModelKeyRef.current && currentKey) {
-        selectedModelKeyRef.current = currentKey;
-      }
-      return;
-    }
+    // Check workspace config first, then fall back to global storage
+    const wsModel = effectiveWorkspace?.config?.defaultModel;
     // 读取默认配置，或回落到新的第一个模型
     // Read default config, or fallback to first model
-    const savedModel = await ConfigStorage.get('gemini.defaultModel');
+    const savedModel = wsModel || (await ConfigStorage.get('gemini.defaultModel'));
 
     // Handle backward compatibility: old format is string, new format is { id, useModel }
     const isNewFormat = savedModel && typeof savedModel === 'object' && 'id' in savedModel;
@@ -1142,10 +1161,14 @@ const Guid: React.FC = () => {
     });
   };
   useEffect(() => {
+    // Reset selectedModelKeyRef so workspace model is applied
+    selectedModelKeyRef.current = undefined;
     setDefaultModel().catch((error) => {
       console.error('Failed to set default model:', error);
     });
-  }, [modelList]);
+    // Re-run when effective workspace changes (different model per workspace)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelList, effectiveWorkspace?.id]);
 
   // 打字机效果 / Typewriter effect
   useEffect(() => {

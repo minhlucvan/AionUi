@@ -1238,5 +1238,10 @@
   "workspace.noWorkspaces": "暫無工作空間",
   "workspace.selectFolder": "選擇資料夾",
   "workspace.pin": "置頂工作空間",
-  "workspace.unpin": "取消置頂"
+  "workspace.unpin": "取消置頂",
+  "workspace.default": "預設工作空間",
+  "workspace.defaultDescription": "未選擇特定工作空間時使用的工作空間",
+  "workspace.setAsDefault": "設為預設",
+  "workspace.defaultAgent": "預設代理",
+  "workspace.defaultModel": "預設模型"
 }

@@ -1457,5 +1457,10 @@
   "workspace.noWorkspaces": "No workspaces yet",
   "workspace.selectFolder": "Select Folder",
   "workspace.pin": "Pin Workspace",
-  "workspace.unpin": "Unpin Workspace"
+  "workspace.unpin": "Unpin Workspace",
+  "workspace.default": "Default Workspace",
+  "workspace.defaultDescription": "The workspace used when no specific workspace is selected",
+  "workspace.setAsDefault": "Set as Default",
+  "workspace.defaultAgent": "Default Agent",
+  "workspace.defaultModel": "Default Model"
 }

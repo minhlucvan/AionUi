@@ -1457,5 +1457,10 @@
   "workspace.noWorkspaces": "暂无工作空间",
   "workspace.selectFolder": "选择文件夹",
   "workspace.pin": "置顶工作空间",
-  "workspace.unpin": "取消置顶"
+  "workspace.unpin": "取消置顶",
+  "workspace.default": "默认工作空间",
+  "workspace.defaultDescription": "未选择特定工作空间时使用的工作空间",
+  "workspace.setAsDefault": "设为默认",
+  "workspace.defaultAgent": "默认代理",
+  "workspace.defaultModel": "默认模型"
 }

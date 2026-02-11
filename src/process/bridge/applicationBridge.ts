@@ -5,6 +5,7 @@
  */
 
 import { app } from 'electron';
+import os from 'os';
 import { ipcBridge } from '../../common';
 import { getSystemDir, ProcessEnv } from '../initStorage';
 import { copyDirectoryRecursively } from '../utils';
@@ -47,5 +48,9 @@ export function initApplicationBridge(): void {
 
   ipcBridge.application.setZoomFactor.provider(({ factor }) => {
     return Promise.resolve(setZoomFactor(factor));
+  });
+
+  ipcBridge.application.getHomePath.provider(() => {
+    return Promise.resolve(os.homedir());
   });
 }

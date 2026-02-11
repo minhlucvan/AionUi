@@ -29,6 +29,8 @@ export type IWorkspaceConfig = {
   defaultAgent?: string;
   /** Default model selection */
   defaultModel?: { id: string; useModel: string };
+  /** Whether this workspace is the default (home) workspace */
+  isDefault?: boolean;
 };
 
 /**

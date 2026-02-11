@@ -67,6 +67,7 @@ export const application = {
   updateSystemInfo: bridge.buildProvider<IBridgeResponse, { cacheDir: string; workDir: string }>('system.update-info'), // 更新系统信息
   getZoomFactor: bridge.buildProvider<number, void>('app.get-zoom-factor'),
   setZoomFactor: bridge.buildProvider<number, { factor: number }>('app.set-zoom-factor'),
+  getHomePath: bridge.buildProvider<string, void>('app.get-home-path'),
 };
 
 // Manual (opt-in) updates via GitHub Releases

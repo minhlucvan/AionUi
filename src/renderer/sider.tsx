@@ -22,7 +22,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { closePreview } = usePreviewContext();
-  const { activeWorkspace } = useWorkspaceContext();
+  const { effectiveWorkspace } = useWorkspaceContext();
   const isSettings = pathname.startsWith('/settings');
   const isBotPage = pathname.match(/^\/bots\/([^/]+)/);
   const lastNonSettingsPathRef = useRef('/guid');
@@ -78,7 +78,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 <span className='collapsed-hidden font-bold text-t-primary'>{t('conversation.welcome.newConversation')}</span>
               </div>
             </Tooltip>
-            <WorkspaceGroupedHistory collapsed={collapsed} onSessionClick={onSessionClick} workspaceId={activeWorkspace?.id} />
+            <WorkspaceGroupedHistory collapsed={collapsed} onSessionClick={onSessionClick} workspaceId={effectiveWorkspace?.id} />
           </div>
         )}
       </div>
