@@ -24,7 +24,7 @@ import TextEditor from '../editors/TextEditor';
 import WordPreview from '../viewers/WordViewer';
 import URLViewer from '../viewers/URLViewer';
 import AppViewer from '../viewers/AppViewer';
-import ExcalidrawEditor from '../viewers/ExcalidrawEditor';
+import ExcalidrawAppViewer from '../viewers/ExcalidrawAppViewer';
 import { PreviewTabs, PreviewToolbar, PreviewContextMenu, PreviewConfirmModals, PreviewHistoryDropdown, type ContextMenuState, type CloseTabConfirmState, type PreviewTab } from '.';
 import { DEFAULT_SPLIT_RATIO, FILE_TYPES_WITH_BUILTIN_OPEN, MAX_SPLIT_WIDTH, MIN_SPLIT_WIDTH } from '../../constants';
 import { usePreviewHistory, usePreviewKeyboardShortcuts, useScrollSync, useTabOverflow, useThemeDetection } from '../../hooks';
@@ -529,9 +529,8 @@ const PreviewPanel: React.FC = () => {
     } else if (contentType === 'image') {
       return <ImagePreview filePath={metadata?.filePath} content={content} fileName={metadata?.fileName || metadata?.title} />;
     } else if (contentType === 'excalidraw') {
-      // Excalidraw is always editable when the file is editable (no need for Edit button)
-      // viewModeEnabled=false means edit mode is enabled
-      return <ExcalidrawEditor content={content} onChange={handleContentChange} viewModeEnabled={!isEditable} filePath={metadata?.filePath} />;
+      // Excalidraw runs as an external preview app (iframe-based)
+      return <ExcalidrawAppViewer content={content} onChange={handleContentChange} viewModeEnabled={!isEditable} filePath={metadata?.filePath} workspace={metadata?.workspace} />;
     } else if (contentType === 'url') {
       // URL 预览模式 / URL preview mode
       return <URLViewer url={content} title={metadata?.title} />;
@@ -565,7 +564,7 @@ const PreviewPanel: React.FC = () => {
         <PreviewTabs tabs={previewTabs} activeTabId={activeTabId} tabFadeState={tabFadeState} tabsContainerRef={tabsContainerRef} onSwitchTab={switchTab} onCloseTab={handleCloseTab} onContextMenu={handleTabContextMenu} onClosePanel={closePreview} isMaximized={isMaximized} onToggleMaximize={toggleMaximize} />
 
         {/* 工具栏（URL/App 类型不显示工具栏）/ Toolbar (hidden for URL/App type as they manage their own UI) */}
-        {contentType !== 'url' && contentType !== 'app' && (
+        {contentType !== 'url' && contentType !== 'app' && contentType !== 'excalidraw' && (
           <PreviewToolbar
             contentType={contentType}
             isMarkdown={isMarkdown}

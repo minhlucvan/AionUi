@@ -23,3 +23,4 @@ export { default as WordViewer } from './WordViewer';
 export { default as PPTViewer } from './PPTViewer';
 export { default as ImageViewer } from './ImageViewer';
 export { default as ExcalidrawEditor } from './ExcalidrawEditor';
+export { default as ExcalidrawAppViewer } from './ExcalidrawAppViewer';

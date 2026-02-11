@@ -1,0 +1,57 @@
+{
+  "id": "excalidraw",
+  "name": "Excalidraw",
+  "description": "Excalidraw diagram editor with agent capabilities",
+  "version": "1.0.0",
+  "fileExtensions": [".excalidraw", ".excalidraw.json", ".excalidraw.svg", ".excalidraw.png"],
+  "contentTypes": ["excalidraw"],
+  "editable": true,
+  "capabilities": [
+    {
+      "name": "getContent",
+      "description": "Get the current diagram as JSON",
+      "paramsSchema": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "setContent",
+      "description": "Replace the entire diagram content",
+      "paramsSchema": {
+        "type": "object",
+        "properties": {
+          "content": { "type": "string", "description": "Excalidraw JSON content" }
+        },
+        "required": ["content"]
+      }
+    },
+    {
+      "name": "addElements",
+      "description": "Add elements to the current diagram",
+      "paramsSchema": {
+        "type": "object",
+        "properties": {
+          "elements": { "type": "string", "description": "JSON array of excalidraw elements to add" }
+        },
+        "required": ["elements"]
+      }
+    },
+    {
+      "name": "zoomToFit",
+      "description": "Zoom the view to fit all elements",
+      "paramsSchema": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "getSelectedElements",
+      "description": "Get the currently selected elements",
+      "paramsSchema": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "clearCanvas",
+      "description": "Clear all elements from the canvas",
+      "paramsSchema": { "type": "object", "properties": {} }
+    }
+  ],
+  "entry": {
+    "kind": "builtin",
+    "source": "excalidraw"
+  }
+}
