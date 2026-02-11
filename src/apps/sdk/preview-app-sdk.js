@@ -100,12 +100,24 @@
   }
 
   /**
-   * Auto-detect the WebSocket URL from the current page URL
+   * Auto-detect the WebSocket URL for the SDK protocol.
+   *
+   * Static apps:  WS connects to the same host at /__ws
+   * Process apps: wsPort query param tells us the AppServer port
+   *               (since iframe points directly to the app's own server)
    */
   PreviewApp.prototype._detectWsUrl = function () {
     var loc = window.location;
     var protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-    return protocol + '//' + loc.host;
+    var params = new URLSearchParams(loc.search);
+    var wsPort = params.get('wsPort');
+
+    if (wsPort) {
+      // Process app: connect to AppServer on the given port
+      return protocol + '//127.0.0.1:' + wsPort + '/__ws';
+    }
+    // Static app: same host, /__ws path
+    return protocol + '//' + loc.host + '/__ws';
   };
 
   /**

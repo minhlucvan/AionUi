@@ -5,22 +5,29 @@
  */
 
 /**
- * AppServer - Single server that serves all preview apps.
+ * AppServer - Single server that serves all apps.
  *
- * Architecture:
- * - One Express + WebSocket server on a single port
- * - Apps served at /:appName/ (static files from apps/<appName>/)
- * - SDK served at /__sdk/
- * - WebSocket sessions track per-resource connections
- * - Simple matcher: contentType → appName
+ * Two modes per app:
+ *   Static  (no `command` in app.json): serves files from apps/<name>/
+ *   Process (has `command`): spawns the app's own server, iframe points directly to it
+ *
+ * Static apps URL:  http://127.0.0.1:PORT/<appName>/?sid=<sessionId>
+ * Process apps URL: http://127.0.0.1:APP_PORT/?sid=<sessionId>&wsPort=PORT
+ *
+ * SDK protocol WebSocket always lives at ws://127.0.0.1:PORT/__ws
+ * (process apps pass wsPort query param so SDK knows where to connect)
  */
 
+import type { ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
 import crypto from 'crypto';
 import { app as electronApp } from 'electron';
 import express from 'express';
 import fs from 'fs';
-import type { Server } from 'http';
+import type { IncomingMessage, Server } from 'http';
 import { createServer } from 'http';
+import type { Duplex } from 'stream';
+import net from 'net';
 import path from 'path';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { AppCapability, AppConfig, AppInfo, AppResource, AppSession } from '@/common/types/app';
@@ -31,6 +38,13 @@ type SessionState = {
   resource?: AppResource;
   ws: WebSocket | null;
   capabilities: AppCapability[];
+};
+
+type AppProcess = {
+  appName: string;
+  process: ChildProcess;
+  port: number;
+  ready: boolean;
 };
 
 type MessageListener = (sessionId: string, type: string, payload: Record<string, unknown>) => void;
@@ -56,6 +70,19 @@ function resolveAppsDir(): string {
   return candidates[0];
 }
 
+/** Find a free port */
+function findFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address();
+      const port = addr && typeof addr === 'object' ? addr.port : 0;
+      server.close(() => resolve(port));
+    });
+    server.on('error', reject);
+  });
+}
+
 class AppServer {
   private expressApp = express();
   private server: Server;
@@ -65,6 +92,8 @@ class AppServer {
 
   /** appName → config */
   private apps = new Map<string, AppConfig>();
+  /** appName → spawned process (for process-based apps) */
+  private processes = new Map<string, AppProcess>();
   /** sessionId → state */
   private sessions = new Map<string, SessionState>();
   /** ws → sessionId */
@@ -77,7 +106,8 @@ class AppServer {
   constructor() {
     this.appsDir = resolveAppsDir();
     this.server = createServer(this.expressApp);
-    this.wss = new WebSocketServer({ server: this.server });
+    // SDK protocol WebSocket on /__ws path only
+    this.wss = new WebSocketServer({ noServer: true });
     this.loadApps();
     this.setupRoutes();
     this.setupWebSocket();
@@ -102,7 +132,8 @@ class AppServer {
       try {
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as AppConfig;
         this.apps.set(entry.name, config);
-        console.log(`[AppServer] Loaded app: ${entry.name} (${config.name})`);
+        const mode = config.command ? 'process' : 'static';
+        console.log(`[AppServer] Loaded app: ${entry.name} (${config.name}) [${mode}]`);
       } catch (err) {
         console.error(`[AppServer] Failed to load ${configPath}:`, err);
       }
@@ -148,11 +179,13 @@ class AppServer {
       res.json({ status: 'running', port: this.port, apps: Array.from(this.apps.keys()) });
     });
 
-    // Mount each app's static files at /:appName/
-    for (const [appName] of this.apps) {
+    // Only static apps are served by this server.
+    // Process apps run their own server; iframe points directly to them.
+    for (const [appName, config] of this.apps) {
+      if (config.command) continue; // process apps don't need routes here
+
       const appDir = path.join(this.appsDir, appName);
       this.expressApp.use(`/${appName}`, express.static(appDir));
-      // SPA fallback
       this.expressApp.get(`/${appName}/*`, (_req, res) => {
         res.sendFile(path.join(appDir, 'index.html'), (err) => {
           if (err) res.status(404).send('Not Found');
@@ -164,6 +197,20 @@ class AppServer {
   // ==================== WebSocket ====================
 
   private setupWebSocket(): void {
+    // SDK protocol WebSocket at /__ws
+    this.server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+      const url = req.url || '';
+
+      if (url.startsWith('/__ws')) {
+        this.wss.handleUpgrade(req, socket, head, (ws) => {
+          this.wss.emit('connection', ws, req);
+        });
+      } else {
+        socket.destroy();
+      }
+    });
+
+    // Handle SDK protocol connections
     this.wss.on('connection', (ws: WebSocket) => {
       ws.on('message', (data: Buffer) => {
         try {
@@ -201,7 +248,6 @@ class AppServer {
         session.ws = ws;
         this.wsToSession.set(ws, sid);
 
-        // Register capabilities from the app
         if (Array.isArray(payload.capabilities)) {
           session.capabilities = payload.capabilities as AppCapability[];
         }
@@ -224,16 +270,14 @@ class AppServer {
     // Resolve session from WS
     const sessionId = this.wsToSession.get(ws);
     if (!sessionId) return;
-    const session = this.sessions.get(sessionId);
-    if (!session) return;
 
     // Handle file operations internally
     if (type === 'app:file-read' && payload) {
-      this.handleFileRead(sessionId, id || '', payload as { filePath: string }, ws);
+      this.handleFileRead(id || '', payload as { filePath: string }, ws);
       return;
     }
     if ((type === 'app:file-write' || type === 'app:save') && payload) {
-      this.handleFileWrite(sessionId, id || '', payload as { filePath: string; content: string }, ws);
+      this.handleFileWrite(id || '', payload as { filePath: string; content: string }, ws);
       return;
     }
 
@@ -243,15 +287,118 @@ class AppServer {
     }
   }
 
+  // ==================== Process Management ====================
+
+  /** Spawn an app's own server (React dev server, Streamlit, etc.) */
+  private async spawnApp(appName: string): Promise<AppProcess> {
+    const config = this.apps.get(appName);
+    if (!config?.command) throw new Error(`App '${appName}' has no command`);
+
+    // Check if already running
+    const existing = this.processes.get(appName);
+    if (existing && existing.ready) return existing;
+
+    const port = config.port || await findFreePort();
+    const command = config.command.replace(/\{port\}/g, String(port));
+    const appDir = path.join(this.appsDir, appName);
+
+    console.log(`[AppServer] Spawning ${appName}: ${command} (port ${port})`);
+
+    const [cmd, ...args] = command.split(/\s+/);
+    const child = spawn(cmd, args, {
+      cwd: appDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true,
+      env: { ...process.env, PORT: String(port) },
+    });
+
+    const appProcess: AppProcess = {
+      appName,
+      process: child,
+      port,
+      ready: false,
+    };
+
+    this.processes.set(appName, appProcess);
+
+    child.stdout?.on('data', (data: Buffer) => {
+      console.log(`[${appName}] ${data.toString().trim()}`);
+    });
+    child.stderr?.on('data', (data: Buffer) => {
+      console.error(`[${appName}] ${data.toString().trim()}`);
+    });
+    child.on('exit', (code) => {
+      console.log(`[AppServer] ${appName} process exited with code ${code}`);
+      this.processes.delete(appName);
+    });
+
+    // Wait for the app server to be ready (poll the port)
+    await this.waitForPort(port, 30000);
+    appProcess.ready = true;
+    console.log(`[AppServer] ${appName} ready on port ${port}`);
+
+    return appProcess;
+  }
+
+  /** Wait until a port is accepting connections */
+  private waitForPort(port: number, timeoutMs: number): Promise<void> {
+    const start = Date.now();
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        if (Date.now() - start > timeoutMs) {
+          return reject(new Error(`Timeout waiting for port ${port}`));
+        }
+        const sock = net.createConnection({ port, host: '127.0.0.1' });
+        sock.on('connect', () => {
+          sock.destroy();
+          resolve();
+        });
+        sock.on('error', () => {
+          sock.destroy();
+          setTimeout(check, 500);
+        });
+      };
+      check();
+    });
+  }
+
+  /** Stop a spawned app process */
+  private stopProcess(appName: string): void {
+    const proc = this.processes.get(appName);
+    if (!proc) return;
+
+    proc.process.kill('SIGTERM');
+    this.processes.delete(appName);
+
+    // Force kill after 5s
+    setTimeout(() => {
+      try { proc.process.kill('SIGKILL'); } catch { /* already dead */ }
+    }, 5000);
+  }
+
   // ==================== Session Management ====================
 
   /** Open a resource in an app → creates a session, returns URL */
-  open(appName: string, resource?: AppResource): AppSession {
+  async open(appName: string, resource?: AppResource): Promise<AppSession> {
     const config = this.apps.get(appName);
     if (!config) throw new Error(`App '${appName}' not found`);
 
+    // Spawn process app if needed
+    if (config.command && !this.processes.get(appName)?.ready) {
+      await this.spawnApp(appName);
+    }
+
     const sessionId = crypto.randomUUID();
-    const url = `http://127.0.0.1:${this.port}/${appName}/?sid=${sessionId}`;
+    let url: string;
+
+    if (config.command) {
+      // Process app: iframe points directly to the app's own server
+      const proc = this.processes.get(appName);
+      url = `http://127.0.0.1:${proc!.port}/?sid=${sessionId}&wsPort=${this.port}`;
+    } else {
+      // Static app: served by our AppServer
+      url = `http://127.0.0.1:${this.port}/${appName}/?sid=${sessionId}`;
+    }
 
     this.sessions.set(sessionId, {
       sessionId,
@@ -375,6 +522,11 @@ class AppServer {
     this.sessions.clear();
     this.wsToSession.clear();
 
+    // Stop all spawned processes
+    for (const appName of this.processes.keys()) {
+      this.stopProcess(appName);
+    }
+
     this.wss.close();
     return new Promise((resolve) => {
       this.server.close(() => {
@@ -402,42 +554,34 @@ class AppServer {
     }
   }
 
-  private handleFileRead(sessionId: string, requestId: string, payload: { filePath: string }, ws: WebSocket): void {
+  private handleFileRead(requestId: string, payload: { filePath: string }, ws: WebSocket): void {
     try {
       const content = fs.readFileSync(payload.filePath, 'utf-8');
       ws.send(JSON.stringify({
-        id: crypto.randomUUID(),
-        ts: Date.now(),
-        type: 'backend:response',
+        id: crypto.randomUUID(), ts: Date.now(), type: 'backend:response',
         payload: { requestId, success: true, data: content },
       }));
     } catch (err) {
       ws.send(JSON.stringify({
-        id: crypto.randomUUID(),
-        ts: Date.now(),
-        type: 'backend:response',
+        id: crypto.randomUUID(), ts: Date.now(), type: 'backend:response',
         payload: { requestId, success: false, error: err instanceof Error ? err.message : 'Read failed' },
       }));
     }
   }
 
-  private handleFileWrite(_sessionId: string, requestId: string, payload: { filePath: string; content: string }, ws: WebSocket): void {
+  private handleFileWrite(requestId: string, payload: { filePath: string; content: string }, ws: WebSocket): void {
     try {
       const dir = path.dirname(payload.filePath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(payload.filePath, payload.content, 'utf-8');
 
       ws.send(JSON.stringify({
-        id: crypto.randomUUID(),
-        ts: Date.now(),
-        type: 'backend:response',
+        id: crypto.randomUUID(), ts: Date.now(), type: 'backend:response',
         payload: { requestId, success: true },
       }));
     } catch (err) {
       ws.send(JSON.stringify({
-        id: crypto.randomUUID(),
-        ts: Date.now(),
-        type: 'backend:response',
+        id: crypto.randomUUID(), ts: Date.now(), type: 'backend:response',
         payload: { requestId, success: false, error: err instanceof Error ? err.message : 'Write failed' },
       }));
     }

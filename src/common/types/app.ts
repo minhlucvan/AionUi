@@ -23,6 +23,18 @@ export type AppConfig = {
   editable?: boolean;
   /** Agent-callable capabilities */
   capabilities?: AppCapability[];
+  /**
+   * Command to start the app's own server (React dev server, Streamlit, etc.).
+   * If set, the iframe points directly to the app's server instead of static files.
+   * Use {port} placeholder for auto-assigned port.
+   * Examples:
+   *   "npm run dev -- --port {port}"
+   *   "streamlit run app.py --server.port {port}"
+   *   "python -m http.server {port}"
+   */
+  command?: string;
+  /** Fixed port for the app server (0 or omitted = auto-assign) */
+  port?: number;
 };
 
 export type AppCapability = {
