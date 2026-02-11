@@ -11,8 +11,7 @@ import { transformMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import type { IMcpServer, TProviderWithModel } from '@/common/storage';
 import { ProcessConfig, getSkillsDir, getAssistantsDir } from '@/process/initStorage';
-import { runHooks } from '@/assistant/hooks';
-import { buildSystemInstructions } from './agentUtils';
+import { runHooks, runAgentHooks } from '@/assistant/hooks';
 import { uuid } from '@/common/utils';
 import { getProviderAuthType } from '@/common/utils/platformAuthType';
 import { AuthType, getOauthInfoWithCache } from '@office-ai/aioncli-core';
@@ -126,15 +125,15 @@ export class GeminiAgentManager extends BaseAgentManager<
           }
         }
 
-        // Build system instructions using unified agentUtils
-        // 使用统一的 agentUtils 构建系统指令
-        // Always include 'cron' as a built-in skill
-        // 始终将 'cron' 作为内置 skill 包含
-        const allEnabledSkills = ['cron', ...(this.enabledSkills || [])];
-        const finalPresetRules = await buildSystemInstructions({
+        // Build system instructions via agent hooks
+        // 通过 agent hooks 构建系统指令
+        const hookResult = await runAgentHooks('onBuildSystemInstructions', {
+          agentType: 'gemini',
+          workspace: this.workspace,
           presetContext: this.presetRules,
-          enabledSkills: allEnabledSkills,
+          enabledSkills: this.enabledSkills || [],
         });
+        const finalPresetRules = hookResult.content;
 
         // Determine yoloMode: forceYoloMode (cron jobs) takes priority over config setting
         // 确定 yoloMode：forceYoloMode（定时任务）优先于配置设置

@@ -12,7 +12,7 @@
  * 2. Auto-inject /skill commands into user prompts
  */
 
-import path from 'path';
+const path = require('path');
 
 module.exports = {
   /**
@@ -62,5 +62,21 @@ module.exports = {
       }
     },
     priority: 10, // High priority for workspace setup
+  },
+
+  /**
+   * First message hook for Claude backend
+   * Injects preset rules (assistant persona/workflow) into first message only.
+   * Skills are NOT injected here — Claude loads them natively via .claude/skills/ symlinks.
+   */
+  onFirstMessage: {
+    handler: async (context) => {
+      if (context.backend !== 'claude') return {};
+      if (!context.presetContext) return {};
+
+      const content = `[Assistant Rules - You MUST follow these instructions]\n${context.presetContext}\n\n[User Request]\n${context.content}`;
+      return { content };
+    },
+    priority: 10,
   },
 };

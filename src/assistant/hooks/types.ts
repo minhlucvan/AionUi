@@ -28,7 +28,7 @@ export const HOOK_PRIORITY = {
 /**
  * Hook events (extensible)
  */
-export type HookEvent = 'onWorkspaceInit' | 'onConversationInit' | 'onSendMessage' | 'onError';
+export type HookEvent = 'onWorkspaceInit' | 'onConversationInit' | 'onSendMessage' | 'onFirstMessage' | 'onBuildSystemInstructions' | 'onError';
 
 /**
  * Hook context (same for all hooks)
@@ -42,6 +42,7 @@ export type HookContext = {
   conversationId?: string;
   enabledSkills?: string[];
   skillsSourceDir?: string;
+  presetContext?: string;
   utils: HookUtils;
 };
 
@@ -75,6 +76,8 @@ export type HookModule = {
   onWorkspaceInit?: HookConfig | HookHandler;
   onConversationInit?: HookConfig | HookHandler;
   onSendMessage?: HookConfig | HookHandler;
+  onFirstMessage?: HookConfig | HookHandler;
+  onBuildSystemInstructions?: HookConfig | HookHandler;
   onError?: HookConfig | HookHandler;
   [key: string]: HookConfig | HookHandler | undefined;
 };

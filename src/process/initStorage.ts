@@ -512,8 +512,9 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       if (!existsSync(userSkillsDir)) {
         mkdirSync(userSkillsDir);
       }
-      // 复制内置技能到用户目录（不覆盖已存在的文件）
-      await copyDirectoryRecursively(builtinSkillsDir, userSkillsDir, { overwrite: false });
+      // 复制内置技能到用户目录（始终覆盖以确保更新）
+      // Copy builtin skills to user directory (always overwrite to ensure updates)
+      await copyDirectoryRecursively(builtinSkillsDir, userSkillsDir, { overwrite: true });
     } catch (error) {
       console.warn(`[AionUi] Failed to copy skills directory:`, error);
     }

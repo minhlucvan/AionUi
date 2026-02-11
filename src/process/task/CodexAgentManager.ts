@@ -23,8 +23,7 @@ import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { ProcessConfig } from '@process/initStorage';
 import BaseAgentManager from '@process/task/BaseAgentManager';
-import { runHooks } from '@/assistant/hooks';
-import { prepareFirstMessageWithSkillsIndex } from '@process/task/agentUtils';
+import { runHooks, runAgentHooks } from '@/assistant/hooks';
 import { handlePreviewOpenEvent } from '@process/utils/previewUtils';
 import i18n from '@process/i18n';
 import { getConfiguredAppClientName, getConfiguredAppClientVersion, getConfiguredCodexMcpProtocolVersion, setAppConfig } from '../../common/utils/appConfig';
@@ -209,12 +208,19 @@ class CodexAgentManager extends BaseAgentManager<CodexAgentManagerData> implemen
       if (this.isFirstMessage) {
         this.isFirstMessage = false;
 
-        // 注入智能助手的预设规则和 skills 索引（如果有）
-        // Inject preset context and skills INDEX from smart assistant (if available)
-        processedContent = await prepareFirstMessageWithSkillsIndex(processedContent, {
+        // Run first-message hooks (preset rules + skills index injection)
+        const firstMsgResult = await runAgentHooks('onFirstMessage', {
+          agentType: 'codex',
+          workspace: this.workspace,
+          content: processedContent,
+          enabledSkills: this.options.enabledSkills || [],
+          conversationId: this.conversation_id,
           presetContext: this.options.presetContext,
-          enabledSkills: this.options.enabledSkills,
         });
+        if (firstMsgResult.blocked) {
+          return { success: false, msg: firstMsgResult.blockReason || 'Message blocked by first-message hook' };
+        }
+        processedContent = firstMsgResult.content ?? processedContent;
 
         const result = await this.agent.newSession(this.workspace, processedContent);
 

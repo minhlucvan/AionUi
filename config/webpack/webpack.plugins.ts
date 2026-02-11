@@ -24,6 +24,11 @@ export const plugins: WebpackPluginInstance[] = [
       // tools 目录：包含工具定义 (tool.json) 和关联的技能文件
       // tools directory: contains tool manifests (tool.json) and associated skill files
       { from: path.resolve(__dirname, '../../tools'), to: 'tools', noErrorOnMissing: true },
+      // agent hooks 目录：包含各 agent 类型的钩子脚本
+      // agent hooks directories: contains hook scripts for each agent type
+      { from: path.resolve(__dirname, '../../src/agent/acp/hooks'), to: 'agent/acp/hooks', noErrorOnMissing: true },
+      { from: path.resolve(__dirname, '../../src/agent/codex/hooks'), to: 'agent/codex/hooks', noErrorOnMissing: true },
+      { from: path.resolve(__dirname, '../../src/agent/gemini/hooks'), to: 'agent/gemini/hooks', noErrorOnMissing: true },
       // logos 目录：包含应用 logo 等图片资源，使用 CopyPlugin 确保二进制文件不被错误编码
       // logos directory: contains app logo images, use CopyPlugin to ensure binary files are not incorrectly encoded
       // force: true 强制覆盖 webpack asset/resource 输出的损坏文件

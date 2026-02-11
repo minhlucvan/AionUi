@@ -13,7 +13,6 @@
  */
 
 const { DiagramManager } = require('./diagram-manager');
-const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -311,85 +310,45 @@ async function cmdAnalyze(options) {
   const mgr = await ensureManager(options);
   console.log('Analyzing diagram quality...');
 
-  // Call Python analyzer as subprocess
-  const analyzerPath = path.join(__dirname, 'analyzer.py');
-  const diagramJson = JSON.stringify({
-    elements: mgr.currentDiagram.elements,
-  });
+  const { analyze } = require('./analyzer');
+  const report = analyze({ elements: mgr.currentDiagram.elements });
 
-  return new Promise((resolve, reject) => {
-    const proc = spawn('python3', [analyzerPath, '--stdin'], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+  // Display report
+  console.log('\n' + '='.repeat(60));
+  console.log('DIAGRAM QUALITY REPORT');
+  console.log('='.repeat(60));
+  console.log(`\nOverall Score: ${report.score}/100 (Grade: ${report.grade})`);
+  console.log(`Quality Level: ${report.quality_level}`);
+  console.log(`Elements Analyzed: ${report.element_count}`);
 
-    let stdout = '';
-    let stderr = '';
+  if (report.issues && report.issues.length > 0) {
+    console.log(`\n❌ Issues (${report.issues.length}):`);
+    for (const issue of report.issues) {
+      console.log(`  • ${issue}`);
+    }
+  }
 
-    proc.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
+  if (report.warnings && report.warnings.length > 0) {
+    console.log(`\n⚠️  Warnings (${report.warnings.length}):`);
+    for (const warning of report.warnings) {
+      console.log(`  • ${warning}`);
+    }
+  }
 
-    proc.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
+  if (report.suggestions && report.suggestions.length > 0) {
+    console.log('\n💡 Suggestions:');
+    for (const suggestion of report.suggestions) {
+      console.log(`  • ${suggestion}`);
+    }
+  }
 
-    proc.on('close', async (code) => {
-      if (code !== 0) {
-        console.error(`Analyzer failed: ${stderr}`);
-        process.exit(1);
-      }
+  console.log('\n' + '='.repeat(60) + '\n');
 
-      try {
-        const report = JSON.parse(stdout);
-
-        // Display report
-        console.log('\n' + '='.repeat(60));
-        console.log('DIAGRAM QUALITY REPORT');
-        console.log('='.repeat(60));
-        console.log(`\nOverall Score: ${report.score}/100 (Grade: ${report.grade})`);
-        console.log(`Quality Level: ${report.quality_level}`);
-        console.log(`Elements Analyzed: ${report.element_count}`);
-
-        if (report.issues && report.issues.length > 0) {
-          console.log(`\n❌ Issues (${report.issues.length}):`);
-          for (const issue of report.issues) {
-            console.log(`  • ${issue}`);
-          }
-        }
-
-        if (report.warnings && report.warnings.length > 0) {
-          console.log(`\n⚠️  Warnings (${report.warnings.length}):`);
-          for (const warning of report.warnings) {
-            console.log(`  • ${warning}`);
-          }
-        }
-
-        if (report.suggestions && report.suggestions.length > 0) {
-          console.log('\n💡 Suggestions:');
-          for (const suggestion of report.suggestions) {
-            console.log(`  • ${suggestion}`);
-          }
-        }
-
-        console.log('\n' + '='.repeat(60) + '\n');
-
-        if (options.output || options.o) {
-          const outputFile = options.output || options.o;
-          await fs.writeFile(outputFile, JSON.stringify(report, null, 2));
-          console.log(`Report saved to ${outputFile}`);
-        }
-
-        resolve();
-      } catch (err) {
-        console.error(`Failed to parse analyzer output: ${err.message}`);
-        process.exit(1);
-      }
-    });
-
-    // Send diagram JSON to analyzer stdin
-    proc.stdin.write(diagramJson);
-    proc.stdin.end();
-  });
+  if (options.output || options.o) {
+    const outputFile = options.output || options.o;
+    await fs.writeFile(outputFile, JSON.stringify(report, null, 2));
+    console.log(`Report saved to ${outputFile}`);
+  }
 }
 
 async function cmdExportExcalidraw(options) {

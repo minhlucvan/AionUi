@@ -14,7 +14,6 @@ import { ProcessConfig, getAssistantsDir } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
-import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
@@ -242,16 +241,15 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           channelEventBus.emitAgentMessage(this.conversation_id, v);
         },
       });
-      return this.agent.start().then(async () => {
-        // Run agent-level workspace initialization hooks
-        await runAgentHooks('onWorkspaceInit', {
-          workspace: data.workspace,
-          backend: data.backend,
-          enabledSkills: data.enabledSkills || [],
-          conversationId: data.conversation_id,
-        });
-        return this.agent;
+      // Run workspace init hooks BEFORE starting agent
+      // (Claude Code reads .claude/skills/ at startup, symlinks must exist first)
+      await runAgentHooks('onWorkspaceInit', {
+        workspace: data.workspace,
+        backend: data.backend,
+        enabledSkills: data.enabledSkills || [],
+        conversationId: data.conversation_id,
       });
+      return this.agent.start().then(() => this.agent);
     })();
     return this.bootstrap;
   }
@@ -307,13 +305,20 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         }
         contentToSend = agentHookResult.content ?? contentToSend;
 
-        // 首条消息时注入预设规则和 skills 索引（来自智能助手配置）
-        // Inject preset context and skills INDEX on first message (from smart assistant config)
+        // Run first-message hooks (preset rules + skills injection)
         if (this.isFirstMessage) {
-          contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
+          const firstMsgResult = await runAgentHooks('onFirstMessage', {
+            workspace: this.workspace,
+            backend: this.options.backend,
+            content: contentToSend,
+            enabledSkills: this.options.enabledSkills || [],
+            conversationId: this.conversation_id,
             presetContext: this.options.presetContext,
-            enabledSkills: this.options.enabledSkills,
           });
+          if (firstMsgResult.blocked) {
+            return { success: false, msg: firstMsgResult.blockReason || 'Message blocked by first-message hook' };
+          }
+          contentToSend = firstMsgResult.content ?? contentToSend;
         }
 
         const userMessage: TMessage = {
