@@ -7,6 +7,7 @@
 // 复用现有的业务类型定义
 import type { TChatConversation, IConfigStorageRefer } from '@/common/storage';
 import type { TMessage } from '@/common/chatLib';
+import type { IWorkspace, IWorkspaceConfig } from '@/common/types/workspace';
 
 /**
  * ======================
@@ -75,6 +76,7 @@ export interface IConversationRow {
   model?: string; // JSON string of TProviderWithModel (gemini type has this)
   status?: 'pending' | 'running' | 'finished';
   source?: 'aionui' | 'telegram' | 'lark'; // 会话来源 / Conversation source
+  workspace_id?: string | null; // FK to workspaces table
   created_at: number;
   updated_at: number;
 }
@@ -91,6 +93,23 @@ export interface IMessageRow {
   position?: 'left' | 'right' | 'center' | 'pop';
   status?: 'finish' | 'pending' | 'error' | 'work';
   created_at: number;
+}
+
+/**
+ * Workspace stored in database
+ */
+export interface IWorkspaceRow {
+  id: string;
+  user_id: string;
+  name: string;
+  path: string;
+  description: string | null;
+  icon: string | null;
+  config: string; // JSON string of IWorkspaceConfig
+  pinned: number; // 0 or 1
+  last_active_conversation_id: string | null;
+  created_at: number;
+  updated_at: number;
 }
 
 /**
@@ -215,6 +234,49 @@ export function rowToMessage(row: IMessageRow): TMessage {
 
 /**
  * ======================
+ * Workspace conversion functions
+ * ======================
+ */
+
+/**
+ * Convert IWorkspace to database row
+ */
+export function workspaceToRow(workspace: IWorkspace, userId: string): IWorkspaceRow {
+  return {
+    id: workspace.id,
+    user_id: userId,
+    name: workspace.name,
+    path: workspace.path,
+    description: workspace.description ?? null,
+    icon: workspace.icon ?? null,
+    config: JSON.stringify(workspace.config),
+    pinned: workspace.pinned ? 1 : 0,
+    last_active_conversation_id: workspace.lastActiveConversationId ?? null,
+    created_at: workspace.createdAt,
+    updated_at: workspace.updatedAt,
+  };
+}
+
+/**
+ * Convert database row to IWorkspace
+ */
+export function rowToWorkspace(row: IWorkspaceRow): IWorkspace {
+  return {
+    id: row.id,
+    name: row.name,
+    path: row.path,
+    description: row.description ?? undefined,
+    icon: row.icon ?? undefined,
+    config: JSON.parse(row.config) as IWorkspaceConfig,
+    pinned: row.pinned === 1,
+    lastActiveConversationId: row.last_active_conversation_id ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * ======================
  * 导出类型别名，方便使用
  * ======================
  */
@@ -224,4 +286,6 @@ export type {
   TChatConversation,
   TMessage,
   IConfigStorageRefer,
+  IWorkspace,
+  IWorkspaceConfig,
 };

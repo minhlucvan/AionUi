@@ -715,13 +715,146 @@ const migration_v14: IMigration = {
 };
 
 /**
+ * Migration v14 -> v15: Add workspaces table and workspace_id to conversations
+ * Introduces a first-class workspace entity and links conversations to workspaces.
+ * Existing conversations with customWorkspace are auto-migrated into workspace records.
+ */
+const migration_v15: IMigration = {
+  version: 15,
+  name: 'Add workspaces table and workspace_id to conversations',
+  up: (db) => {
+    // 1. Create workspaces table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS workspaces (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        path TEXT NOT NULL,
+        description TEXT,
+        icon TEXT,
+        config TEXT NOT NULL DEFAULT '{}',
+        pinned INTEGER NOT NULL DEFAULT 0,
+        last_active_conversation_id TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_user_path ON workspaces(user_id, path);
+      CREATE INDEX IF NOT EXISTS idx_workspaces_user_updated ON workspaces(user_id, updated_at DESC);
+    `);
+
+    // 2. Add workspace_id column to conversations
+    db.exec(`
+      ALTER TABLE conversations ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_conversations_workspace_id ON conversations(workspace_id);
+    `);
+
+    // 3. Auto-migrate existing customWorkspace conversations into workspace records
+    const rows = db.prepare(`SELECT id, user_id, extra, updated_at FROM conversations`).all() as Array<{
+      id: string;
+      user_id: string;
+      extra: string;
+      updated_at: number;
+    }>;
+
+    // Group by unique (user_id, workspace path)
+    const workspaceMap = new Map<string, { userId: string; path: string; latestUpdate: number; conversationIds: string[] }>();
+
+    for (const row of rows) {
+      try {
+        const extra = JSON.parse(row.extra);
+        if (extra.customWorkspace && extra.workspace) {
+          const key = `${row.user_id}::${extra.workspace}`;
+          const existing = workspaceMap.get(key);
+          if (existing) {
+            existing.conversationIds.push(row.id);
+            if (row.updated_at > existing.latestUpdate) {
+              existing.latestUpdate = row.updated_at;
+            }
+          } else {
+            workspaceMap.set(key, {
+              userId: row.user_id,
+              path: extra.workspace,
+              latestUpdate: row.updated_at,
+              conversationIds: [row.id],
+            });
+          }
+        }
+      } catch {
+        // Skip rows with invalid JSON
+      }
+    }
+
+    // Insert workspace records and update conversations
+    const insertWorkspace = db.prepare(`
+      INSERT INTO workspaces (id, user_id, name, path, config, pinned, created_at, updated_at)
+      VALUES (?, ?, ?, ?, '{}', 0, ?, ?)
+    `);
+    const updateConversation = db.prepare(`UPDATE conversations SET workspace_id = ? WHERE id = ?`);
+
+    let migratedCount = 0;
+    for (const [, group] of workspaceMap) {
+      // Generate workspace ID
+      const wsId = `ws_${Date.now()}_${migratedCount}`;
+      // Use last directory name as display name
+      const parts = group.path.replace(/[\\/]+$/, '').split(/[\\/]/);
+      const displayName = parts[parts.length - 1] || group.path;
+
+      insertWorkspace.run(wsId, group.userId, displayName, group.path, group.latestUpdate, group.latestUpdate);
+
+      for (const convId of group.conversationIds) {
+        updateConversation.run(wsId, convId);
+      }
+      migratedCount++;
+    }
+
+    console.log(`[Migration v15] Created workspaces table, added workspace_id to conversations. Migrated ${migratedCount} workspace groups.`);
+  },
+  down: (db) => {
+    // Remove workspace_id from conversations by recreating table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS conversations_rollback (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('gemini', 'acp', 'codex', 'openclaw-gateway')),
+        extra TEXT NOT NULL,
+        model TEXT,
+        status TEXT CHECK(status IN ('pending', 'running', 'finished')),
+        source TEXT CHECK(source IS NULL OR source IN ('aionui', 'telegram', 'lark')),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO conversations_rollback (id, user_id, name, type, extra, model, status, source, created_at, updated_at)
+      SELECT id, user_id, name, type, extra, model, status, source, created_at, updated_at FROM conversations;
+
+      DROP TABLE conversations;
+      ALTER TABLE conversations_rollback RENAME TO conversations;
+
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_conversations_type ON conversations(type);
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
+
+      DROP TABLE IF EXISTS workspaces;
+    `);
+    console.log('[Migration v15] Rolled back: Removed workspaces table and workspace_id column');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14,
+  migration_v13, migration_v14, migration_v15,
 ];
 
 /**

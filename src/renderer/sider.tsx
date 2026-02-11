@@ -3,10 +3,12 @@ import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import WorkspaceGroupedHistory from './pages/conversation/WorkspaceGroupedHistory';
+import WorkspaceSelector from './components/WorkspaceSelector';
 import SettingsSider from './pages/settings/SettingsSider';
 import { iconColors } from './theme/colors';
 import { Tooltip } from '@arco-design/web-react';
 import { usePreviewContext } from './pages/conversation/preview';
+import { useWorkspaceContext } from './context/WorkspaceContext';
 
 interface SiderProps {
   onSessionClick?: () => void;
@@ -20,6 +22,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { closePreview } = usePreviewContext();
+  const { activeWorkspace } = useWorkspaceContext();
   const isSettings = pathname.startsWith('/settings');
   const isBotPage = pathname.match(/^\/bots\/([^/]+)/);
   const lastNonSettingsPathRef = useRef('/guid');
@@ -53,6 +56,9 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
           <SettingsSider collapsed={collapsed}></SettingsSider>
         ) : (
           <div className='size-full flex flex-col'>
+            {/* Workspace selector */}
+            <WorkspaceSelector collapsed={collapsed} />
+
             <Tooltip disabled={!collapsed} content={t('conversation.welcome.newConversation')} position='right'>
               <div
                 className='flex items-center justify-start gap-10px px-12px py-8px hover:bg-hover rd-0.5rem mb-8px cursor-pointer group shrink-0'
@@ -62,7 +68,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   Promise.resolve(navigate(target)).catch((error) => {
                     console.error('Navigation failed:', error);
                   });
-                  // 点击new chat后自动隐藏sidebar / Hide sidebar after starting new chat on mobile
+                  // Hide sidebar after starting new chat on mobile
                   if (onSessionClick) {
                     onSessionClick();
                   }
@@ -72,7 +78,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 <span className='collapsed-hidden font-bold text-t-primary'>{t('conversation.welcome.newConversation')}</span>
               </div>
             </Tooltip>
-            <WorkspaceGroupedHistory collapsed={collapsed} onSessionClick={onSessionClick}></WorkspaceGroupedHistory>
+            <WorkspaceGroupedHistory collapsed={collapsed} onSessionClick={onSessionClick} workspaceId={activeWorkspace?.id} />
           </div>
         )}
       </div>

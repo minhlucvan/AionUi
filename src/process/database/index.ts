@@ -11,8 +11,9 @@ import fs from 'fs';
 import path from 'path';
 import { runMigrations as executeMigrations } from './migrations';
 import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
-import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
-import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
+import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, IWorkspaceRow, TChatConversation, TMessage } from './types';
+import type { IWorkspace } from './types';
+import { conversationToRow, messageToRow, rowToConversation, rowToMessage, rowToWorkspace, workspaceToRow } from './types';
 import type { IChannelPluginConfig, IChannelUser, IChannelSession, IChannelPairingRequest, IChannelUserRow, IChannelSessionRow, IChannelPairingCodeRow, PluginType, PluginStatus } from '@/channels/types';
 import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
 import { encryptCredentials, decryptCredentials } from '@/channels/utils/credentialCrypto';
@@ -760,6 +761,126 @@ export class AionUIDatabase {
         success: false,
         error: error.message,
       };
+    }
+  }
+
+  /**
+   * ==================
+   * Workspace operations
+   * ==================
+   */
+
+  createWorkspace(workspace: IWorkspace, userId?: string): IQueryResult<IWorkspace> {
+    try {
+      const row = workspaceToRow(workspace, userId || this.defaultUserId);
+      const stmt = this.db.prepare(`
+        INSERT INTO workspaces (id, user_id, name, path, description, icon, config, pinned, last_active_conversation_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(row.id, row.user_id, row.name, row.path, row.description, row.icon, row.config, row.pinned, row.last_active_conversation_id, row.created_at, row.updated_at);
+      return { success: true, data: workspace };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getWorkspace(workspaceId: string): IQueryResult<IWorkspace> {
+    try {
+      const row = this.db.prepare('SELECT * FROM workspaces WHERE id = ?').get(workspaceId) as IWorkspaceRow | undefined;
+      if (!row) {
+        return { success: false, error: 'Workspace not found' };
+      }
+      return { success: true, data: rowToWorkspace(row) };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getWorkspaceByPath(workspacePath: string, userId?: string): IQueryResult<IWorkspace | null> {
+    try {
+      const finalUserId = userId || this.defaultUserId;
+      const row = this.db.prepare('SELECT * FROM workspaces WHERE user_id = ? AND path = ?').get(finalUserId, workspacePath) as IWorkspaceRow | undefined;
+      return { success: true, data: row ? rowToWorkspace(row) : null };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getUserWorkspaces(userId?: string, page = 0, pageSize = 100): IPaginatedResult<IWorkspace> {
+    try {
+      const finalUserId = userId || this.defaultUserId;
+      const countResult = this.db.prepare('SELECT COUNT(*) as count FROM workspaces WHERE user_id = ?').get(finalUserId) as { count: number };
+      const rows = this.db
+        .prepare(`SELECT * FROM workspaces WHERE user_id = ? ORDER BY pinned DESC, updated_at DESC LIMIT ? OFFSET ?`)
+        .all(finalUserId, pageSize, page * pageSize) as IWorkspaceRow[];
+      return {
+        data: rows.map(rowToWorkspace),
+        total: countResult.count,
+        page,
+        pageSize,
+        hasMore: (page + 1) * pageSize < countResult.count,
+      };
+    } catch (error: any) {
+      console.error('[Database] Get workspaces error:', error);
+      return { data: [], total: 0, page, pageSize, hasMore: false };
+    }
+  }
+
+  updateWorkspace(workspaceId: string, updates: Partial<IWorkspace>): IQueryResult<boolean> {
+    try {
+      const existing = this.getWorkspace(workspaceId);
+      if (!existing.success || !existing.data) {
+        return { success: false, error: 'Workspace not found' };
+      }
+      const now = Date.now();
+      const updated = { ...existing.data, ...updates, updatedAt: now };
+      const row = workspaceToRow(updated, this.defaultUserId);
+
+      this.db
+        .prepare(`UPDATE workspaces SET name = ?, path = ?, description = ?, icon = ?, config = ?, pinned = ?, last_active_conversation_id = ?, updated_at = ? WHERE id = ?`)
+        .run(row.name, row.path, row.description, row.icon, row.config, row.pinned, row.last_active_conversation_id, row.updated_at, workspaceId);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteWorkspace(workspaceId: string): IQueryResult<boolean> {
+    try {
+      // workspace_id ON DELETE SET NULL will nullify conversation references
+      const result = this.db.prepare('DELETE FROM workspaces WHERE id = ?').run(workspaceId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getWorkspaceConversations(workspaceId: string, page = 0, pageSize = 100): IPaginatedResult<TChatConversation> {
+    try {
+      const countResult = this.db.prepare('SELECT COUNT(*) as count FROM conversations WHERE workspace_id = ?').get(workspaceId) as { count: number };
+      const rows = this.db
+        .prepare(`SELECT * FROM conversations WHERE workspace_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?`)
+        .all(workspaceId, pageSize, page * pageSize) as IConversationRow[];
+      return {
+        data: rows.map(rowToConversation),
+        total: countResult.count,
+        page,
+        pageSize,
+        hasMore: (page + 1) * pageSize < countResult.count,
+      };
+    } catch (error: any) {
+      console.error('[Database] Get workspace conversations error:', error);
+      return { data: [], total: 0, page, pageSize, hasMore: false };
+    }
+  }
+
+  setConversationWorkspace(conversationId: string, workspaceId: string | null): IQueryResult<boolean> {
+    try {
+      const now = Date.now();
+      this.db.prepare('UPDATE conversations SET workspace_id = ?, updated_at = ? WHERE id = ?').run(workspaceId, now, conversationId);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   }
 

@@ -1445,5 +1445,17 @@
       "configureFirst": "请先在设置中配置一个 Agent。",
       "switching": "正在切换 Agent..."
     }
-  }
+  },
+  "workspace.create": "创建工作空间",
+  "workspace.delete": "删除工作空间",
+  "workspace.deleteConfirm": "确定要删除此工作空间吗？会话将保留但取消关联。",
+  "workspace.name": "工作空间名称",
+  "workspace.folder": "文件夹",
+  "workspace.description": "描述",
+  "workspace.allConversations": "所有会话",
+  "workspace.settings": "工作空间设置",
+  "workspace.noWorkspaces": "暂无工作空间",
+  "workspace.selectFolder": "选择文件夹",
+  "workspace.pin": "置顶工作空间",
+  "workspace.unpin": "取消置顶"
 }

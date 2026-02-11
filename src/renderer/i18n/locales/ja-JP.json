@@ -1238,5 +1238,17 @@
       "configureFirst": "まず設定でエージェントを設定してください。",
       "switching": "エージェントを切り替え中..."
     }
-  }
+  },
+  "workspace.create": "ワークスペースを作成",
+  "workspace.delete": "ワークスペースを削除",
+  "workspace.deleteConfirm": "このワークスペースを削除しますか？会話は保持されますが、リンクは解除されます。",
+  "workspace.name": "ワークスペース名",
+  "workspace.folder": "フォルダ",
+  "workspace.description": "説明",
+  "workspace.allConversations": "すべての会話",
+  "workspace.settings": "ワークスペース設定",
+  "workspace.noWorkspaces": "ワークスペースはまだありません",
+  "workspace.selectFolder": "フォルダを選択",
+  "workspace.pin": "ワークスペースをピン留め",
+  "workspace.unpin": "ピン留めを解除"
 }

@@ -38,6 +38,7 @@ import { emitter } from '@/renderer/utils/emitter';
 import { buildDisplayMessage } from '@/renderer/utils/messageFiles';
 import { hasSpecificModelCapability } from '@/renderer/utils/modelCapabilities';
 import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
+import { useWorkspaceContext } from '@/renderer/context/WorkspaceContext';
 import { isAcpRoutedPresetType, type AcpBackend, type AcpBackendConfig, type PresetAgentType } from '@/types/acpTypes';
 import { Button, ConfigProvider, Dropdown, Input, Menu, Tooltip } from '@arco-design/web-react';
 import { IconClose } from '@arco-design/web-react/icon';
@@ -197,6 +198,7 @@ const Guid: React.FC = () => {
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const localeKey = resolveLocaleKey(i18n.language);
   const botContext = useBotContext();
+  const { activeWorkspace } = useWorkspaceContext();
 
   // 打开外部链接 / Open external link
   const openLink = useCallback(async (url: string) => {
@@ -772,10 +774,12 @@ const Guid: React.FC = () => {
   );
 
   const handleSend = async () => {
-    // 用户明确选择的目录 -> customWorkspace = true, 使用用户选择的目录
-    // 未选择时 -> customWorkspace = false, 传空让后端创建临时目录 (gemini-temp-xxx)
-    const isCustomWorkspace = !!dir;
-    const finalWorkspace = dir || ''; // 不指定时传空，让后端创建临时目录
+    // When an active workspace is set, auto-use its path as the workspace directory
+    const effectiveDir = dir || (activeWorkspace?.path ?? '');
+    // User explicitly chose a directory OR active workspace provides one -> customWorkspace = true
+    const isCustomWorkspace = !!effectiveDir;
+    const finalWorkspace = effectiveDir; // 不指定时传空，让后端创建临时目录
+    const activeWorkspaceId = activeWorkspace?.id;
 
     const agentInfo = selectedAgentInfo;
     const isPreset = isPresetAgent;
@@ -796,6 +800,7 @@ const Guid: React.FC = () => {
           type: 'gemini',
           name: input,
           model: currentModel,
+          workspaceId: activeWorkspaceId,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -863,6 +868,7 @@ const Guid: React.FC = () => {
           type: 'codex',
           name: input,
           model: currentModel!, // not used by codex, but required by type
+          workspaceId: activeWorkspaceId,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -933,6 +939,7 @@ const Guid: React.FC = () => {
           type: 'acp',
           name: input,
           model: currentModel!, // ACP needs a model too
+          workspaceId: activeWorkspaceId,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
