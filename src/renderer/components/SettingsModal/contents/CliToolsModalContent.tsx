@@ -9,18 +9,19 @@ import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { iconColors } from '@/renderer/theme/colors';
 import { Button, Message, Modal, Spin, Tag, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, DownloadOne, LinkCloud, Log, Refresh, UpdateRotation } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
 
 interface CliToolInfo {
   backend: string;
   name: string;
-  installed: boolean;
+  installed?: boolean;
   version?: string;
   cliCommand?: string;
   installCommand?: string;
   installUrl?: string;
+  statusChecked?: boolean;
 }
 
 interface UtilityToolInfo {
@@ -28,7 +29,7 @@ interface UtilityToolInfo {
   name: string;
   description: string;
   cliCommand: string;
-  installed: boolean;
+  installed?: boolean;
   version?: string;
   loggedIn?: boolean;
   loginUser?: string;
@@ -40,39 +41,92 @@ interface UtilityToolInfo {
   skillInstalled?: boolean;
   /** Directory path where this tool's definition lives */
   toolDir?: string;
+  statusChecked?: boolean;
 }
 
 /**
  * CLI Tools section component for embedding within the Tools settings page.
  * Shows installation status and version info for all supported CLI agent tools.
  * Provides install commands, one-click install, and links for tools that are not yet installed.
+ *
+ * Uses progressive loading: the tool list renders immediately from registry data,
+ * then each tool's CLI status (installed/version) is checked independently.
  */
 export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode }) => {
   const { t } = useTranslation();
   const [cliTools, setCliTools] = useState<CliToolInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [listLoading, setListLoading] = useState(true);
+  const [checkingBackends, setCheckingBackends] = useState<Set<string>>(new Set());
   const [installingBackend, setInstallingBackend] = useState<string | null>(null);
   const [settingUpBackend, setSettingUpBackend] = useState<string | null>(null);
   const [message, messageContext] = Message.useMessage({ maxCount: 5 });
   const [modal, modalContext] = Modal.useModal();
+  const mountedRef = useRef(true);
 
-  const fetchCliVersions = useCallback(async () => {
-    setLoading(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const checkSingleToolStatus = useCallback(async (backend: string) => {
+    setCheckingBackends((prev) => new Set(prev).add(backend));
     try {
-      const result = await ipcBridge.acpConversation.getCliVersions.invoke();
+      const result = await ipcBridge.acpConversation.checkCliToolStatus.invoke({ backend: backend as any });
+      if (!mountedRef.current) return;
       if (result.success && result.data) {
-        setCliTools(result.data);
+        setCliTools((prev) =>
+          prev.map((tool) => (tool.backend === backend ? { ...tool, installed: result.data!.installed, version: result.data!.version, statusChecked: true } : tool))
+        );
+      } else {
+        setCliTools((prev) => prev.map((tool) => (tool.backend === backend ? { ...tool, statusChecked: true } : tool)));
       }
-    } catch (error) {
-      console.error('Failed to fetch CLI versions:', error);
+    } catch {
+      if (!mountedRef.current) return;
+      setCliTools((prev) => prev.map((tool) => (tool.backend === backend ? { ...tool, statusChecked: true } : tool)));
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setCheckingBackends((prev) => {
+          const next = new Set(prev);
+          next.delete(backend);
+          return next;
+        });
+      }
     }
   }, []);
 
+  const fetchToolsAndCheckStatus = useCallback(async () => {
+    setListLoading(true);
+    try {
+      const result = await ipcBridge.acpConversation.getCliToolsList.invoke();
+      if (!mountedRef.current) return;
+      if (result.success && result.data) {
+        const tools: CliToolInfo[] = result.data.map((tool) => ({
+          ...tool,
+          installed: undefined,
+          version: undefined,
+          statusChecked: false,
+        }));
+        setCliTools(tools);
+        setListLoading(false);
+
+        // Fire off individual status checks - each resolves independently
+        for (const tool of tools) {
+          void checkSingleToolStatus(tool.backend);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch CLI tools list:', error);
+    } finally {
+      if (mountedRef.current) {
+        setListLoading(false);
+      }
+    }
+  }, [checkSingleToolStatus]);
+
   useEffect(() => {
-    void fetchCliVersions();
-  }, [fetchCliVersions]);
+    void fetchToolsAndCheckStatus();
+  }, [fetchToolsAndCheckStatus]);
 
   const handleCopyCommand = useCallback(
     (command: string) => {
@@ -107,7 +161,8 @@ export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode
             const result = await ipcBridge.acpConversation.installCli.invoke({ backend: tool.backend as any });
             if (result.success) {
               message.success(t('settings.cliTools.installSuccess', { defaultValue: '{{name}} installed successfully!', name: tool.name }));
-              await fetchCliVersions();
+              // Re-check just this tool's status after install
+              await checkSingleToolStatus(tool.backend);
             } else {
               message.error(result.msg || t('settings.cliTools.installFailed', { defaultValue: 'Installation failed' }));
             }
@@ -119,7 +174,7 @@ export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode
         },
       });
     },
-    [modal, message, t, fetchCliVersions]
+    [modal, message, t, checkSingleToolStatus]
   );
 
   const handleSetup = useCallback(
@@ -147,8 +202,11 @@ export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode
     [message, t]
   );
 
-  const installedTools = cliTools.filter((tool) => tool.installed);
-  const notInstalledTools = cliTools.filter((tool) => !tool.installed);
+  const isRefreshing = checkingBackends.size > 0;
+  const checkedTools = cliTools.filter((tool) => tool.statusChecked);
+  const installedTools = checkedTools.filter((tool) => tool.installed === true);
+  const notInstalledTools = checkedTools.filter((tool) => tool.installed === false);
+  const pendingTools = cliTools.filter((tool) => !tool.statusChecked);
 
   return (
     <div className='flex flex-col gap-16px min-h-0'>
@@ -159,13 +217,13 @@ export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode
       <div className='flex gap-8px items-center justify-between'>
         <div className='text-14px text-t-primary'>{t('settings.cliTools.title', { defaultValue: 'CLI Tools' })}</div>
         <Tooltip content={t('settings.cliTools.refresh', { defaultValue: 'Refresh' })}>
-          <Button type='text' size='small' icon={<Refresh theme='outline' size='16' fill={iconColors.secondary} />} loading={loading} onClick={() => void fetchCliVersions()} />
+          <Button type='text' size='small' icon={<Refresh theme='outline' size='16' fill={iconColors.secondary} />} loading={isRefreshing} onClick={() => void fetchToolsAndCheckStatus()} />
         </Tooltip>
       </div>
 
       <div className='text-12px text-t-secondary'>{t('settings.cliTools.description', { defaultValue: 'Manage CLI agent tools installed on your system. These tools power the AI agents available in AionUi.' })}</div>
 
-      {loading && cliTools.length === 0 ? (
+      {listLoading ? (
         <div className='py-24px flex justify-center'>
           <Spin size={24} />
         </div>
@@ -249,14 +307,38 @@ export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode
             </div>
           )}
 
+          {/* Tools still being checked */}
+          {pendingTools.length > 0 && (
+            <div className='w-full flex flex-col divide-y divide-border-2'>
+              {pendingTools.map((tool) => (
+                <div key={tool.backend} className='flex items-center justify-between py-12px gap-16px'>
+                  <div className='flex items-center gap-12px min-w-0 flex-1'>
+                    <Spin size={18} className='flex-shrink-0' />
+                    <div className='min-w-0'>
+                      <div className='text-14px text-t-primary font-medium'>{tool.name}</div>
+                      {tool.cliCommand && <div className='text-12px text-t-secondary font-mono'>{tool.cliCommand}</div>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Summary */}
           {cliTools.length > 0 && (
             <div className='text-12px text-t-secondary'>
-              {t('settings.cliTools.summary', {
-                defaultValue: '{{installed}} of {{total}} CLI tools installed',
-                installed: installedTools.length,
-                total: cliTools.length,
-              })}
+              {pendingTools.length > 0
+                ? t('settings.cliTools.summaryChecking', {
+                    defaultValue: '{{installed}} of {{checked}} checked tools installed, {{pending}} checking...',
+                    installed: installedTools.length,
+                    checked: checkedTools.length,
+                    pending: pendingTools.length,
+                  })
+                : t('settings.cliTools.summary', {
+                    defaultValue: '{{installed}} of {{total}} CLI tools installed',
+                    installed: installedTools.length,
+                    total: cliTools.length,
+                  })}
             </div>
           )}
         </div>
@@ -269,32 +351,99 @@ export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode
  * Utility CLI Tools section component.
  * Shows installation status, version, login status for utility CLI tools like gh.
  * Provides install, update, login, and skill installation actions.
+ *
+ * Uses progressive loading: the tool list renders immediately from registry data,
+ * then each tool's CLI status is checked independently.
  */
 export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode: _isPageMode }) => {
   const { t } = useTranslation();
   const [tools, setTools] = useState<UtilityToolInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [listLoading, setListLoading] = useState(true);
+  const [checkingTools, setCheckingTools] = useState<Set<string>>(new Set());
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [message, messageContext] = Message.useMessage({ maxCount: 5 });
   const [modal, modalContext] = Modal.useModal();
+  const mountedRef = useRef(true);
 
-  const fetchStatus = useCallback(async () => {
-    setLoading(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const checkSingleToolStatus = useCallback(async (toolId: string) => {
+    setCheckingTools((prev) => new Set(prev).add(toolId));
     try {
-      const result = await ipcBridge.utilityTools.getStatus.invoke();
+      const result = await ipcBridge.utilityTools.checkToolStatus.invoke({ toolId });
+      if (!mountedRef.current) return;
       if (result.success && result.data) {
-        setTools(result.data);
+        setTools((prev) =>
+          prev.map((tool) =>
+            tool.id === toolId
+              ? {
+                  ...tool,
+                  installed: result.data!.installed,
+                  version: result.data!.version,
+                  loggedIn: result.data!.loggedIn,
+                  loginUser: result.data!.loginUser,
+                  skillInstalled: result.data!.skillInstalled,
+                  statusChecked: true,
+                }
+              : tool
+          )
+        );
+      } else {
+        setTools((prev) => prev.map((tool) => (tool.id === toolId ? { ...tool, statusChecked: true } : tool)));
       }
-    } catch (error) {
-      console.error('Failed to fetch utility tools status:', error);
+    } catch {
+      if (!mountedRef.current) return;
+      setTools((prev) => prev.map((tool) => (tool.id === toolId ? { ...tool, statusChecked: true } : tool)));
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setCheckingTools((prev) => {
+          const next = new Set(prev);
+          next.delete(toolId);
+          return next;
+        });
+      }
     }
   }, []);
 
+  const fetchToolsAndCheckStatus = useCallback(async () => {
+    setListLoading(true);
+    try {
+      const result = await ipcBridge.utilityTools.getToolsList.invoke();
+      if (!mountedRef.current) return;
+      if (result.success && result.data) {
+        const toolsList: UtilityToolInfo[] = result.data.map((tool) => ({
+          ...tool,
+          installed: undefined,
+          version: undefined,
+          loggedIn: undefined,
+          loginUser: undefined,
+          skillInstalled: undefined,
+          statusChecked: false,
+        }));
+        setTools(toolsList);
+        setListLoading(false);
+
+        // Fire off individual status checks - each resolves independently
+        for (const tool of toolsList) {
+          void checkSingleToolStatus(tool.id);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch utility tools list:', error);
+    } finally {
+      if (mountedRef.current) {
+        setListLoading(false);
+      }
+    }
+  }, [checkSingleToolStatus]);
+
   useEffect(() => {
-    void fetchStatus();
-  }, [fetchStatus]);
+    void fetchToolsAndCheckStatus();
+  }, [fetchToolsAndCheckStatus]);
 
   const handleInstall = useCallback(
     (tool: UtilityToolInfo) => {
@@ -317,7 +466,7 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
             const result = await ipcBridge.utilityTools.install.invoke({ toolId: tool.id });
             if (result.success) {
               message.success(t('settings.utilityTools.installSuccess', { defaultValue: '{{name}} installed successfully!', name: tool.name }));
-              await fetchStatus();
+              await checkSingleToolStatus(tool.id);
             } else {
               message.error(result.msg || t('settings.cliTools.installFailed', { defaultValue: 'Installation failed' }));
             }
@@ -329,7 +478,7 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
         },
       });
     },
-    [modal, message, t, fetchStatus]
+    [modal, message, t, checkSingleToolStatus]
   );
 
   const handleUpdate = useCallback(
@@ -339,7 +488,7 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
         const result = await ipcBridge.utilityTools.update.invoke({ toolId: tool.id });
         if (result.success) {
           message.success(t('settings.utilityTools.updateSuccess', { defaultValue: '{{name}} updated successfully!', name: tool.name }));
-          await fetchStatus();
+          await checkSingleToolStatus(tool.id);
         } else {
           message.error(result.msg || t('settings.utilityTools.updateFailed', { defaultValue: 'Update failed' }));
         }
@@ -349,7 +498,7 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
         setActionInProgress(null);
       }
     },
-    [message, t, fetchStatus]
+    [message, t, checkSingleToolStatus]
   );
 
   const handleLogin = useCallback(
@@ -359,7 +508,7 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
         const result = await ipcBridge.utilityTools.login.invoke({ toolId: tool.id });
         if (result.success) {
           message.success(t('settings.utilityTools.loginSuccess', { defaultValue: 'Logged in to {{name}} successfully!', name: tool.name }));
-          await fetchStatus();
+          await checkSingleToolStatus(tool.id);
         } else {
           message.error(result.msg || t('settings.utilityTools.loginFailed', { defaultValue: 'Login failed' }));
         }
@@ -369,7 +518,7 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
         setActionInProgress(null);
       }
     },
-    [message, t, fetchStatus]
+    [message, t, checkSingleToolStatus]
   );
 
   const handleInstallSkill = useCallback(
@@ -384,7 +533,7 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
               skillName: result.data?.skillName,
             })
           );
-          await fetchStatus();
+          await checkSingleToolStatus(tool.id);
         } else {
           message.error(result.msg || t('settings.utilityTools.skillInstallFailed', { defaultValue: 'Skill installation failed' }));
         }
@@ -394,7 +543,7 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
         setActionInProgress(null);
       }
     },
-    [message, t, fetchStatus]
+    [message, t, checkSingleToolStatus]
   );
 
   const handleCopyCommand = useCallback(
@@ -410,6 +559,8 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
     void ipcBridge.shell.openExternal.invoke(url);
   }, []);
 
+  const isRefreshing = checkingTools.size > 0;
+
   return (
     <div className='flex flex-col gap-16px min-h-0'>
       {messageContext}
@@ -419,113 +570,126 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
       <div className='flex gap-8px items-center justify-between'>
         <div className='text-14px text-t-primary'>{t('settings.utilityTools.title', { defaultValue: 'Utility CLI Tools' })}</div>
         <Tooltip content={t('settings.cliTools.refresh', { defaultValue: 'Refresh' })}>
-          <Button type='text' size='small' icon={<Refresh theme='outline' size='16' fill={iconColors.secondary} />} loading={loading} onClick={() => void fetchStatus()} />
+          <Button type='text' size='small' icon={<Refresh theme='outline' size='16' fill={iconColors.secondary} />} loading={isRefreshing} onClick={() => void fetchToolsAndCheckStatus()} />
         </Tooltip>
       </div>
 
       <div className='text-12px text-t-secondary'>{t('settings.utilityTools.description', { defaultValue: 'Manage utility CLI tools that AI agents can use for development tasks.' })}</div>
 
-      {loading && tools.length === 0 ? (
+      {listLoading ? (
         <div className='py-24px flex justify-center'>
           <Spin size={24} />
         </div>
       ) : (
         <div className='space-y-12px'>
-          {tools.map((tool) => (
-            <div key={tool.id} className='flex flex-col gap-8px py-12px border-b border-border-2 last:border-b-0'>
-              {/* Tool header row */}
-              <div className='flex items-center justify-between gap-16px'>
-                <div className='flex items-center gap-12px min-w-0 flex-1'>
-                  {tool.installed ? <CheckOne theme='filled' size='18' fill='rgb(var(--green-6))' className='flex-shrink-0' /> : <CloseOne theme='filled' size='18' fill='rgb(var(--gray-5))' className='flex-shrink-0' />}
-                  <div className='min-w-0'>
-                    <div className='text-14px text-t-primary font-medium'>{tool.name}</div>
-                    <div className='text-12px text-t-secondary font-mono'>{tool.cliCommand}</div>
+          {tools.map((tool) => {
+            const isChecking = checkingTools.has(tool.id);
+            const statusKnown = tool.statusChecked;
+
+            return (
+              <div key={tool.id} className='flex flex-col gap-8px py-12px border-b border-border-2 last:border-b-0'>
+                {/* Tool header row */}
+                <div className='flex items-center justify-between gap-16px'>
+                  <div className='flex items-center gap-12px min-w-0 flex-1'>
+                    {isChecking ? (
+                      <Spin size={18} className='flex-shrink-0' />
+                    ) : tool.installed ? (
+                      <CheckOne theme='filled' size='18' fill='rgb(var(--green-6))' className='flex-shrink-0' />
+                    ) : (
+                      <CloseOne theme='filled' size='18' fill='rgb(var(--gray-5))' className='flex-shrink-0' />
+                    )}
+                    <div className='min-w-0'>
+                      <div className='text-14px text-t-primary font-medium'>{tool.name}</div>
+                      <div className='text-12px text-t-secondary font-mono'>{tool.cliCommand}</div>
+                    </div>
                   </div>
-                </div>
-                <div className='flex items-center gap-8px flex-shrink-0'>
-                  {tool.version && (
-                    <Tag size='small' color='arcoblue'>
-                      {tool.version}
-                    </Tag>
-                  )}
-                  {tool.installed && tool.loggedIn !== undefined && (
-                    <Tag size='small' color={tool.loggedIn ? 'green' : 'orangered'}>
-                      {tool.loggedIn ? t('settings.utilityTools.loggedInAs', { defaultValue: 'Logged in{{user}}', user: tool.loginUser ? `: ${tool.loginUser}` : '' }) : t('settings.utilityTools.notLoggedIn', { defaultValue: 'Not logged in' })}
-                    </Tag>
-                  )}
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className='text-12px text-t-secondary pl-30px'>{tool.description}</div>
-
-              {/* Actions row */}
-              <div className='flex items-center gap-8px pl-30px flex-wrap'>
-                {!tool.installed ? (
-                  <>
-                    {tool.installCommand && (
-                      <>
-                        <Button type='primary' size='mini' loading={actionInProgress === `install-${tool.id}`} icon={<DownloadOne theme='outline' size='14' />} onClick={() => handleInstall(tool)}>
-                          {t('settings.cliTools.installBtn', { defaultValue: 'Install' })}
-                        </Button>
-                        <Tooltip content={tool.installCommand}>
-                          <Button type='text' size='mini' icon={<Copy theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleCopyCommand(tool.installCommand!)} />
-                        </Tooltip>
-                      </>
-                    )}
-                    {tool.installUrl && (
-                      <Tooltip content={t('settings.cliTools.installGuide', { defaultValue: 'Installation guide' })}>
-                        <Button type='text' size='mini' icon={<LinkCloud theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
-                      </Tooltip>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {/* Update button */}
-                    {tool.updateCommand && (
-                      <Tooltip content={t('settings.utilityTools.updateTooltip', { defaultValue: 'Update {{name}}', name: tool.name })}>
-                        <Button type='outline' size='mini' loading={actionInProgress === `update-${tool.id}`} icon={<UpdateRotation theme='outline' size='14' />} onClick={() => void handleUpdate(tool)}>
-                          {t('settings.utilityTools.updateBtn', { defaultValue: 'Update' })}
-                        </Button>
-                      </Tooltip>
-                    )}
-
-                    {/* Login button */}
-                    {tool.loginCommand && (
-                      <Tooltip content={tool.loggedIn ? t('settings.utilityTools.reloginTooltip', { defaultValue: 'Re-login to {{name}}', name: tool.name }) : t('settings.utilityTools.loginTooltip', { defaultValue: 'Login to {{name}}', name: tool.name })}>
-                        <Button type={tool.loggedIn ? 'outline' : 'primary'} size='mini' loading={actionInProgress === `login-${tool.id}`} icon={<Log theme='outline' size='14' />} onClick={() => void handleLogin(tool)}>
-                          {tool.loggedIn ? t('settings.utilityTools.reloginBtn', { defaultValue: 'Re-login' }) : t('settings.utilityTools.loginBtn', { defaultValue: 'Login' })}
-                        </Button>
-                      </Tooltip>
-                    )}
-
-                    {/* Install skill button */}
-                    {tool.hasSkill && !tool.skillInstalled && (
-                      <Tooltip content={t('settings.utilityTools.installSkillTooltip', { defaultValue: 'Install skill to help AI agents use {{name}}', name: tool.name })}>
-                        <Button type='outline' size='mini' loading={actionInProgress === `skill-${tool.id}`} icon={<DownloadOne theme='outline' size='14' />} onClick={() => void handleInstallSkill(tool)}>
-                          {t('settings.utilityTools.installSkillBtn', { defaultValue: 'Install Skill' })}
-                        </Button>
-                      </Tooltip>
-                    )}
-
-                    {/* Skill installed indicator */}
-                    {tool.hasSkill && tool.skillInstalled && (
-                      <Tag size='small' color='green'>
-                        {t('settings.utilityTools.skillInstalled', { defaultValue: 'Skill installed' })}
+                  <div className='flex items-center gap-8px flex-shrink-0'>
+                    {tool.version && (
+                      <Tag size='small' color='arcoblue'>
+                        {tool.version}
                       </Tag>
                     )}
-
-                    {/* Docs link */}
-                    {tool.installUrl && (
-                      <Tooltip content={t('settings.cliTools.viewDocs', { defaultValue: 'View documentation' })}>
-                        <Button type='text' size='mini' icon={<LinkCloud theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
-                      </Tooltip>
+                    {statusKnown && tool.installed && tool.loggedIn !== undefined && (
+                      <Tag size='small' color={tool.loggedIn ? 'green' : 'orangered'}>
+                        {tool.loggedIn ? t('settings.utilityTools.loggedInAs', { defaultValue: 'Logged in{{user}}', user: tool.loginUser ? `: ${tool.loginUser}` : '' }) : t('settings.utilityTools.notLoggedIn', { defaultValue: 'Not logged in' })}
+                      </Tag>
                     )}
-                  </>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className='text-12px text-t-secondary pl-30px'>{tool.description}</div>
+
+                {/* Actions row - only show when status is known */}
+                {statusKnown && (
+                  <div className='flex items-center gap-8px pl-30px flex-wrap'>
+                    {!tool.installed ? (
+                      <>
+                        {tool.installCommand && (
+                          <>
+                            <Button type='primary' size='mini' loading={actionInProgress === `install-${tool.id}`} icon={<DownloadOne theme='outline' size='14' />} onClick={() => handleInstall(tool)}>
+                              {t('settings.cliTools.installBtn', { defaultValue: 'Install' })}
+                            </Button>
+                            <Tooltip content={tool.installCommand}>
+                              <Button type='text' size='mini' icon={<Copy theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleCopyCommand(tool.installCommand!)} />
+                            </Tooltip>
+                          </>
+                        )}
+                        {tool.installUrl && (
+                          <Tooltip content={t('settings.cliTools.installGuide', { defaultValue: 'Installation guide' })}>
+                            <Button type='text' size='mini' icon={<LinkCloud theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
+                          </Tooltip>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {/* Update button */}
+                        {tool.updateCommand && (
+                          <Tooltip content={t('settings.utilityTools.updateTooltip', { defaultValue: 'Update {{name}}', name: tool.name })}>
+                            <Button type='outline' size='mini' loading={actionInProgress === `update-${tool.id}`} icon={<UpdateRotation theme='outline' size='14' />} onClick={() => void handleUpdate(tool)}>
+                              {t('settings.utilityTools.updateBtn', { defaultValue: 'Update' })}
+                            </Button>
+                          </Tooltip>
+                        )}
+
+                        {/* Login button */}
+                        {tool.loginCommand && (
+                          <Tooltip content={tool.loggedIn ? t('settings.utilityTools.reloginTooltip', { defaultValue: 'Re-login to {{name}}', name: tool.name }) : t('settings.utilityTools.loginTooltip', { defaultValue: 'Login to {{name}}', name: tool.name })}>
+                            <Button type={tool.loggedIn ? 'outline' : 'primary'} size='mini' loading={actionInProgress === `login-${tool.id}`} icon={<Log theme='outline' size='14' />} onClick={() => void handleLogin(tool)}>
+                              {tool.loggedIn ? t('settings.utilityTools.reloginBtn', { defaultValue: 'Re-login' }) : t('settings.utilityTools.loginBtn', { defaultValue: 'Login' })}
+                            </Button>
+                          </Tooltip>
+                        )}
+
+                        {/* Install skill button */}
+                        {tool.hasSkill && !tool.skillInstalled && (
+                          <Tooltip content={t('settings.utilityTools.installSkillTooltip', { defaultValue: 'Install skill to help AI agents use {{name}}', name: tool.name })}>
+                            <Button type='outline' size='mini' loading={actionInProgress === `skill-${tool.id}`} icon={<DownloadOne theme='outline' size='14' />} onClick={() => void handleInstallSkill(tool)}>
+                              {t('settings.utilityTools.installSkillBtn', { defaultValue: 'Install Skill' })}
+                            </Button>
+                          </Tooltip>
+                        )}
+
+                        {/* Skill installed indicator */}
+                        {tool.hasSkill && tool.skillInstalled && (
+                          <Tag size='small' color='green'>
+                            {t('settings.utilityTools.skillInstalled', { defaultValue: 'Skill installed' })}
+                          </Tag>
+                        )}
+
+                        {/* Docs link */}
+                        {tool.installUrl && (
+                          <Tooltip content={t('settings.cliTools.viewDocs', { defaultValue: 'View documentation' })}>
+                            <Button type='text' size='mini' icon={<LinkCloud theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
+                          </Tooltip>
+                        )}
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

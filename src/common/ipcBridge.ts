@@ -239,6 +239,28 @@ export const acpConversation = {
     >,
     void
   >('acp.get-cli-versions'),
+  /** Get CLI tools list from registry (fast, no CLI execution) */
+  getCliToolsList: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        backend: AcpBackendAll;
+        name: string;
+        cliCommand?: string;
+        installCommand?: string;
+        installUrl?: string;
+      }>
+    >,
+    void
+  >('acp.get-cli-tools-list'),
+  /** Check a single CLI tool's installed status and version */
+  checkCliToolStatus: bridge.buildProvider<
+    IBridgeResponse<{
+      backend: AcpBackendAll;
+      installed: boolean;
+      version?: string;
+    }>,
+    { backend: AcpBackendAll }
+  >('acp.check-cli-tool-status'),
   installCli: bridge.buildProvider<IBridgeResponse<{ output: string }>, { backend: AcpBackendAll }>('acp.install-cli'),
   setupCli: bridge.buildProvider<IBridgeResponse<{ output: string }>, { backend: AcpBackendAll }>('acp.setup-cli'),
 };
@@ -282,6 +304,36 @@ export const utilityTools = {
     >,
     void
   >('utility-tools.get-status'),
+  /** Get utility tools list from registry (fast, no CLI execution) */
+  getToolsList: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        id: string;
+        name: string;
+        description: string;
+        cliCommand: string;
+        installCommand?: string;
+        updateCommand?: string;
+        loginCommand?: string;
+        installUrl?: string;
+        hasSkill?: boolean;
+        toolDir?: string;
+      }>
+    >,
+    void
+  >('utility-tools.get-tools-list'),
+  /** Check a single utility tool's installed status, version, and login */
+  checkToolStatus: bridge.buildProvider<
+    IBridgeResponse<{
+      id: string;
+      installed: boolean;
+      version?: string;
+      loggedIn?: boolean;
+      loginUser?: string;
+      skillInstalled?: boolean;
+    }>,
+    { toolId: string }
+  >('utility-tools.check-tool-status'),
   install: bridge.buildProvider<IBridgeResponse<{ output: string }>, { toolId: string }>('utility-tools.install'),
   update: bridge.buildProvider<IBridgeResponse<{ output: string }>, { toolId: string }>('utility-tools.update'),
   login: bridge.buildProvider<IBridgeResponse<{ output: string }>, { toolId: string }>('utility-tools.login'),
