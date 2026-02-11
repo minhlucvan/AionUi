@@ -12,6 +12,7 @@
  * Read-only preview components for displaying various file types
  */
 
+export { default as AppViewer } from './AppViewer';
 export { default as CodeViewer } from './CodeViewer';
 export { default as DiffViewer } from './DiffViewer';
 export { default as MarkdownViewer } from './MarkdownViewer';
@@ -22,3 +23,4 @@ export { default as WordViewer } from './WordViewer';
 export { default as PPTViewer } from './PPTViewer';
 export { default as ImageViewer } from './ImageViewer';
 export { default as ExcalidrawEditor } from './ExcalidrawEditor';
+export { default as ExcalidrawAppViewer } from './ExcalidrawAppViewer';

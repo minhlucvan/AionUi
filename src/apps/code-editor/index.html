@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Code Editor - AionUi Preview App</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-color, #ffffff);
+      color: var(--text-color, #1e1e1e);
+      transition: background-color 0.2s, color 0.2s;
+    }
+    body.dark {
+      --bg-color: #1e1e1e;
+      --text-color: #d4d4d4;
+    }
+    #editor-container { width: 100%; height: 100%; }
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #888;
+      z-index: 100;
+    }
+    #loading.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div id="loading">Loading editor...</div>
+  <div id="editor-container"></div>
+
+  <!-- Monaco Editor from CDN (could be bundled for production) -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+
+  <!-- AionUi Preview App SDK -->
+  <script src="/__sdk/preview-app-sdk.js"></script>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var editor = null;
+      var currentFilePath = null;
+      var originalContent = '';
+
+      // --- Monaco Loader ---
+      require.config({
+        paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' }
+      });
+
+      require(['vs/editor/editor.main'], function () {
+        initEditor();
+      });
+
+      function initEditor() {
+        var container = document.getElementById('editor-container');
+        var loadingEl = document.getElementById('loading');
+
+        editor = monaco.editor.create(container, {
+          value: '',
+          language: 'plaintext',
+          theme: document.body.classList.contains('dark') ? 'vs-dark' : 'vs',
+          automaticLayout: true,
+          minimap: { enabled: true },
+          fontSize: 13,
+          lineNumbers: 'on',
+          wordWrap: 'on',
+          scrollBeyondLastLine: false,
+          renderWhitespace: 'selection',
+          bracketPairColorization: { enabled: true },
+          tabSize: 2,
+          insertSpaces: true,
+        });
+
+        loadingEl.classList.add('hidden');
+
+        // Track content changes
+        editor.onDidChangeModelContent(function () {
+          var content = editor.getValue();
+          var isDirty = content !== originalContent;
+          app.notifyContentChanged({
+            filePath: currentFilePath,
+            content: content,
+            isDirty: isDirty,
+          });
+        });
+
+        // Keyboard shortcut: Ctrl/Cmd+S to save
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function () {
+          if (currentFilePath) {
+            app.saveFile(currentFilePath, editor.getValue()).then(function () {
+              originalContent = editor.getValue();
+              app.notifyContentChanged({
+                filePath: currentFilePath,
+                content: originalContent,
+                isDirty: false,
+              });
+            }).catch(function (err) {
+              console.error('[CodeEditor] Save failed:', err);
+            });
+          }
+        });
+
+        // If we connected before the editor was ready, replay the pending open
+        if (pendingOpen) {
+          handleOpen(pendingOpen);
+          pendingOpen = null;
+        }
+      }
+
+      // --- Preview App SDK ---
+      var pendingOpen = null;
+      var app = new PreviewApp({ appId: 'code-editor' });
+
+      // Handle open file
+      app.on('open', function (payload) {
+        if (!editor) {
+          pendingOpen = payload;
+          return;
+        }
+        handleOpen(payload);
+      });
+
+      function handleOpen(payload) {
+        currentFilePath = payload.filePath || null;
+        originalContent = payload.content || '';
+
+        // Detect language
+        var language = payload.language || detectLanguage(currentFilePath) || 'plaintext';
+
+        // Set content and language
+        var model = editor.getModel();
+        if (model) {
+          monaco.editor.setModelLanguage(model, language);
+          model.setValue(originalContent);
+        }
+      }
+
+      // Handle content update from backend (e.g., agent wrote the file)
+      app.on('content-update', function (payload) {
+        if (!editor) return;
+        if (payload.filePath === currentFilePath) {
+          // Preserve cursor position
+          var position = editor.getPosition();
+          var model = editor.getModel();
+          if (model) {
+            model.setValue(payload.content);
+            originalContent = payload.content;
+            if (position) {
+              editor.setPosition(position);
+            }
+          }
+        }
+      });
+
+      // Handle theme changes
+      app.on('theme', function (payload) {
+        if (payload.theme === 'dark') {
+          document.body.classList.add('dark');
+          if (editor) monaco.editor.setTheme('vs-dark');
+        } else {
+          document.body.classList.remove('dark');
+          if (editor) monaco.editor.setTheme('vs');
+        }
+      });
+
+      // --- Register Capabilities ---
+
+      app.registerCapability('gotoLine', {
+        description: 'Navigate to a specific line number',
+      }, function (params) {
+        if (!editor) return { success: false, error: 'Editor not initialized' };
+        var line = params.line || 1;
+        var column = params.column || 1;
+        editor.revealLineInCenter(line);
+        editor.setPosition({ lineNumber: line, column: column });
+        editor.focus();
+        return { line: line, column: column };
+      });
+
+      app.registerCapability('insertText', {
+        description: 'Insert text at the current cursor position or a specific line',
+      }, function (params) {
+        if (!editor) return { success: false, error: 'Editor not initialized' };
+        var position;
+        if (params.line) {
+          position = { lineNumber: params.line, column: params.column || 1 };
+        } else {
+          position = editor.getPosition();
+        }
+        editor.executeEdits('preview-app', [{
+          range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+          text: params.text,
+        }]);
+        return { inserted: true };
+      });
+
+      app.registerCapability('replaceText', {
+        description: 'Find and replace text in the editor',
+      }, function (params) {
+        if (!editor) return { success: false, error: 'Editor not initialized' };
+        var model = editor.getModel();
+        if (!model) return { success: false, error: 'No model' };
+
+        var matches = model.findMatches(params.search, true, false, true, null, true);
+        if (matches.length === 0) return { replaced: 0 };
+
+        var edits;
+        if (params.all) {
+          edits = matches.map(function (m) {
+            return { range: m.range, text: params.replace };
+          });
+        } else {
+          edits = [{ range: matches[0].range, text: params.replace }];
+        }
+
+        editor.executeEdits('preview-app', edits);
+        return { replaced: edits.length };
+      });
+
+      app.registerCapability('getContent', {
+        description: 'Get the current editor content',
+      }, function () {
+        if (!editor) return { success: false, error: 'Editor not initialized' };
+        return { content: editor.getValue() };
+      });
+
+      app.registerCapability('setContent', {
+        description: 'Replace the entire editor content',
+      }, function (params) {
+        if (!editor) return { success: false, error: 'Editor not initialized' };
+        var model = editor.getModel();
+        if (!model) return { success: false, error: 'No model' };
+
+        if (params.language) {
+          monaco.editor.setModelLanguage(model, params.language);
+        }
+        model.setValue(params.content);
+        originalContent = params.content;
+        return { success: true };
+      });
+
+      app.registerCapability('getSelection', {
+        description: 'Get the currently selected text',
+      }, function () {
+        if (!editor) return { success: false, error: 'Editor not initialized' };
+        var selection = editor.getSelection();
+        if (!selection) return { text: '', isEmpty: true };
+        var model = editor.getModel();
+        var text = model ? model.getValueInRange(selection) : '';
+        return {
+          text: text,
+          isEmpty: selection.isEmpty(),
+          startLine: selection.startLineNumber,
+          startColumn: selection.startColumn,
+          endLine: selection.endLineNumber,
+          endColumn: selection.endColumn,
+        };
+      });
+
+      app.registerCapability('formatDocument', {
+        description: 'Format the entire document',
+      }, function () {
+        if (!editor) return { success: false, error: 'Editor not initialized' };
+        return new Promise(function (resolve) {
+          editor.getAction('editor.action.formatDocument').run().then(function () {
+            resolve({ formatted: true });
+          }).catch(function () {
+            resolve({ formatted: false, error: 'Format action not available' });
+          });
+        });
+      });
+
+      // --- Language Detection ---
+      function detectLanguage(filePath) {
+        if (!filePath) return null;
+        var ext = filePath.split('.').pop().toLowerCase();
+        var map = {
+          ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+          py: 'python', java: 'java', go: 'go', rs: 'rust', c: 'c', cpp: 'cpp',
+          h: 'c', hpp: 'cpp', cs: 'csharp', rb: 'ruby', php: 'php',
+          swift: 'swift', kt: 'kotlin', scala: 'scala', lua: 'lua',
+          sh: 'shell', bash: 'shell', zsh: 'shell', ps1: 'powershell',
+          json: 'json', yaml: 'yaml', yml: 'yaml', toml: 'ini', xml: 'xml',
+          css: 'css', scss: 'scss', less: 'less', html: 'html', htm: 'html',
+          vue: 'html', svelte: 'html', sql: 'sql', graphql: 'graphql',
+          md: 'markdown', markdown: 'markdown', txt: 'plaintext',
+          dockerfile: 'dockerfile', makefile: 'makefile',
+        };
+        return map[ext] || null;
+      }
+    })();
+  </script>
+</body>
+</html>

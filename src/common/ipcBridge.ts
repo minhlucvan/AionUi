@@ -388,6 +388,20 @@ export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
 };
 
+// App System - extensible apps running in isolated iframes (served at /:appName/)
+export const app = {
+  /** List available apps */
+  list: bridge.buildProvider<import('./types/app').AppInfo[], void>('app.list'),
+  /** Open a resource in an app → returns session with URL */
+  open: bridge.buildProvider<import('./types/app').AppSession, { appName: string; resource?: import('./types/app').AppResource }>('app.open'),
+  /** Close an app session */
+  close: bridge.buildProvider<void, { sessionId: string }>('app.close'),
+  /** Execute a capability on a session */
+  execute: bridge.buildProvider<unknown, { sessionId: string; capability: string; params: Record<string, unknown> }>('app.execute'),
+  /** Event: app content changed */
+  contentChanged: bridge.buildEmitter<{ sessionId: string; content: string; isDirty: boolean }>('app.content-changed'),
+};
+
 // 窗口控制相关接口 / Window controls API
 export const windowControls = {
   minimize: bridge.buildProvider<void, void>('window-controls:minimize'),

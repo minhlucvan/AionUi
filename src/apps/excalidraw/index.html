@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excalidraw - AionUi Preview App</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #888;
+      z-index: 100;
+      background: inherit;
+    }
+    #loading.hidden { display: none; }
+    .excalidraw .App-menu_top .buttonList { gap: 4px; }
+  </style>
+</head>
+<body>
+  <div id="loading">Loading Excalidraw...</div>
+  <div id="root"></div>
+
+  <!-- React 19 from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/react@19/umd/react.production.min.js" crossorigin></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@19/umd/react-dom.production.min.js" crossorigin></script>
+
+  <!-- Excalidraw from CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@excalidraw/excalidraw@0.18/dist/styles.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@excalidraw/excalidraw@0.18/dist/excalidraw.production.min.js" crossorigin></script>
+
+  <!-- AionUi Preview App SDK -->
+  <script src="/__sdk/preview-app-sdk.js"></script>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var loadingEl = document.getElementById('loading');
+      var rootEl = document.getElementById('root');
+
+      // State
+      var currentFilePath = null;
+      var originalContent = '';
+      var excalidrawAPI = null;
+      var currentTheme = 'light';
+
+      // --- Preview App SDK ---
+      var app = new PreviewApp({ appId: 'excalidraw', autoConnect: true });
+
+      // --- Helpers ---
+      function parseContent(content) {
+        if (!content || !content.trim()) return null;
+        try {
+          var parsed = JSON.parse(content);
+          if (parsed.type === 'excalidraw' || Array.isArray(parsed.elements)) {
+            return {
+              elements: parsed.elements || [],
+              appState: parsed.appState || {},
+              files: parsed.files || {},
+            };
+          }
+          if (Array.isArray(parsed)) {
+            return { elements: parsed, appState: {}, files: {} };
+          }
+          return null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function serializeData(elements, appState, files) {
+        var persistKeys = ['gridSize', 'gridStep', 'gridModeEnabled', 'viewBackgroundColor', 'zenModeEnabled', 'objectsSnapModeEnabled'];
+        var persistedAppState = {};
+        for (var i = 0; i < persistKeys.length; i++) {
+          var key = persistKeys[i];
+          if (appState && key in appState) {
+            persistedAppState[key] = appState[key];
+          }
+        }
+        return JSON.stringify({
+          type: 'excalidraw',
+          version: 2,
+          source: 'aionui',
+          elements: elements,
+          appState: persistedAppState,
+          files: files || {},
+        }, null, 2);
+      }
+
+      // --- Wait for Excalidraw to load ---
+      function waitForExcalidraw(callback) {
+        if (window.ExcalidrawLib && window.ExcalidrawLib.Excalidraw) {
+          callback();
+        } else {
+          setTimeout(function () { waitForExcalidraw(callback); }, 100);
+        }
+      }
+
+      waitForExcalidraw(function () {
+        loadingEl.classList.add('hidden');
+        renderExcalidraw(null);
+      });
+
+      // --- Render the Excalidraw component ---
+      function renderExcalidraw(initialData) {
+        var h = React.createElement;
+        var ExcalidrawComponent = window.ExcalidrawLib.Excalidraw;
+
+        var isInternalChange = { current: false };
+        var lastSerialized = { current: originalContent };
+
+        function ExcalidrawWrapper() {
+          var ref = React.useCallback(function (api) {
+            if (api) {
+              excalidrawAPI = api;
+            }
+          }, []);
+
+          var handleChange = React.useCallback(function (elements, appState, files) {
+            if (!excalidrawAPI) return;
+            var serialized = serializeData(elements, appState, files);
+            if (serialized === lastSerialized.current) return;
+            lastSerialized.current = serialized;
+            isInternalChange.current = true;
+            var isDirty = serialized !== originalContent;
+            app.notifyContentChanged({
+              filePath: currentFilePath,
+              content: serialized,
+              isDirty: isDirty,
+            });
+          }, []);
+
+          var initData = React.useMemo(function () {
+            if (initialData) return initialData;
+            return {
+              elements: [],
+              appState: {
+                viewBackgroundColor: currentTheme === 'dark' ? '#1e1e1e' : '#ffffff',
+                theme: currentTheme,
+              },
+              files: {},
+            };
+          }, []);
+
+          return h(ExcalidrawComponent, {
+            initialData: initData,
+            theme: currentTheme,
+            onChange: handleChange,
+            excalidrawAPI: ref,
+            langCode: 'en',
+            UIOptions: {
+              canvasActions: {
+                loadScene: false,
+                export: false,
+                saveToActiveFile: false,
+              },
+            },
+          });
+        }
+
+        var root = ReactDOM.createRoot(rootEl);
+        root.render(h(ExcalidrawWrapper));
+      }
+
+      // --- Handle open event ---
+      app.on('open', function (payload) {
+        currentFilePath = payload.filePath || null;
+        originalContent = payload.content || '';
+        currentTheme = (payload.metadata && payload.metadata.theme) || currentTheme;
+
+        var parsed = parseContent(originalContent);
+        if (parsed) {
+          parsed.appState = Object.assign({}, parsed.appState, { theme: currentTheme });
+        }
+
+        if (excalidrawAPI && parsed) {
+          excalidrawAPI.updateScene({ elements: parsed.elements });
+        } else {
+          // Re-render with initial data
+          renderExcalidraw(parsed);
+        }
+      });
+
+      // --- Handle content updates from backend ---
+      app.on('content-update', function (payload) {
+        if (!excalidrawAPI) return;
+        if (payload.filePath !== currentFilePath) return;
+
+        var parsed = parseContent(payload.content);
+        if (parsed) {
+          originalContent = payload.content;
+          excalidrawAPI.updateScene({ elements: parsed.elements });
+        }
+      });
+
+      // --- Handle theme changes ---
+      app.on('theme', function (payload) {
+        currentTheme = payload.theme || 'light';
+        // Re-render to apply theme (Excalidraw theme is set via props)
+        var parsed = parseContent(originalContent);
+        if (parsed) {
+          parsed.appState = Object.assign({}, parsed.appState, { theme: currentTheme });
+        }
+        renderExcalidraw(parsed);
+      });
+
+      // --- Register Capabilities ---
+
+      app.registerCapability('getContent', {
+        description: 'Get the current diagram as JSON',
+      }, function () {
+        if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
+        var elements = excalidrawAPI.getSceneElements();
+        var appState = excalidrawAPI.getAppState();
+        var files = excalidrawAPI.getFiles();
+        return { content: serializeData(elements, appState, files) };
+      });
+
+      app.registerCapability('setContent', {
+        description: 'Replace the entire diagram content',
+      }, function (params) {
+        if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
+        var parsed = parseContent(params.content);
+        if (!parsed) return { success: false, error: 'Invalid excalidraw content' };
+        originalContent = params.content;
+        excalidrawAPI.updateScene({ elements: parsed.elements });
+        return { success: true };
+      });
+
+      app.registerCapability('addElements', {
+        description: 'Add elements to the current diagram',
+      }, function (params) {
+        if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
+        try {
+          var newElements = typeof params.elements === 'string'
+            ? JSON.parse(params.elements)
+            : params.elements;
+          if (!Array.isArray(newElements)) return { success: false, error: 'elements must be an array' };
+          var existing = Array.from(excalidrawAPI.getSceneElements());
+          excalidrawAPI.updateScene({ elements: existing.concat(newElements) });
+          return { added: newElements.length };
+        } catch (e) {
+          return { success: false, error: e.message };
+        }
+      });
+
+      app.registerCapability('zoomToFit', {
+        description: 'Zoom the view to fit all elements',
+      }, function () {
+        if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
+        var elements = excalidrawAPI.getSceneElements();
+        if (elements.length > 0) {
+          excalidrawAPI.scrollToContent(elements);
+        }
+        return { success: true };
+      });
+
+      app.registerCapability('getSelectedElements', {
+        description: 'Get the currently selected elements',
+      }, function () {
+        if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
+        var appState = excalidrawAPI.getAppState();
+        var selected = appState.selectedElementIds || {};
+        var allElements = excalidrawAPI.getSceneElements();
+        var selectedElements = allElements.filter(function (el) {
+          return selected[el.id];
+        });
+        return { elements: selectedElements, count: selectedElements.length };
+      });
+
+      app.registerCapability('clearCanvas', {
+        description: 'Clear all elements from the canvas',
+      }, function () {
+        if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
+        excalidrawAPI.resetScene();
+        return { success: true };
+      });
+
+      // --- Keyboard shortcut: Ctrl/Cmd+S to save ---
+      document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          if (currentFilePath && excalidrawAPI) {
+            var elements = excalidrawAPI.getSceneElements();
+            var appState = excalidrawAPI.getAppState();
+            var files = excalidrawAPI.getFiles();
+            var content = serializeData(elements, appState, files);
+            app.saveFile(currentFilePath, content).then(function () {
+              originalContent = content;
+              app.notifyContentChanged({
+                filePath: currentFilePath,
+                content: content,
+                isDirty: false,
+              });
+            }).catch(function (err) {
+              console.error('[Excalidraw] Save failed:', err);
+            });
+          }
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

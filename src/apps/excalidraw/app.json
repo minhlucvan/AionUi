@@ -1,0 +1,15 @@
+{
+  "name": "Excalidraw",
+  "description": "Excalidraw diagram editor",
+  "contentTypes": ["excalidraw"],
+  "fileExtensions": [".excalidraw", ".excalidraw.json"],
+  "editable": true,
+  "capabilities": [
+    { "name": "getContent", "description": "Get the current diagram as JSON" },
+    { "name": "setContent", "description": "Replace the entire diagram content" },
+    { "name": "addElements", "description": "Add elements to the diagram" },
+    { "name": "zoomToFit", "description": "Zoom to fit all elements" },
+    { "name": "getSelectedElements", "description": "Get selected elements" },
+    { "name": "clearCanvas", "description": "Clear all elements" }
+  ]
+}
