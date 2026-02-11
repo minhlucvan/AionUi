@@ -23,6 +23,7 @@ import PPTPreview from '../viewers/PPTViewer';
 import TextEditor from '../editors/TextEditor';
 import WordPreview from '../viewers/WordViewer';
 import URLViewer from '../viewers/URLViewer';
+import AppViewer from '../viewers/AppViewer';
 import ExcalidrawEditor from '../viewers/ExcalidrawEditor';
 import { PreviewTabs, PreviewToolbar, PreviewContextMenu, PreviewConfirmModals, PreviewHistoryDropdown, type ContextMenuState, type CloseTabConfirmState, type PreviewTab } from '.';
 import { DEFAULT_SPLIT_RATIO, FILE_TYPES_WITH_BUILTIN_OPEN, MAX_SPLIT_WIDTH, MIN_SPLIT_WIDTH } from '../../constants';
@@ -534,6 +535,10 @@ const PreviewPanel: React.FC = () => {
     } else if (contentType === 'url') {
       // URL 预览模式 / URL preview mode
       return <URLViewer url={content} title={metadata?.title} />;
+    } else if (contentType === 'app') {
+      // Preview App (iframe-based, independent server)
+      const appUrl = metadata?.appUrl || content;
+      return <AppViewer url={appUrl} instanceId={metadata?.appInstanceId || ''} appName={metadata?.appName || metadata?.title} onContentChanged={(_content, isDirty) => isDirty && updateContent(_content)} />;
     }
 
     return null;
@@ -559,8 +564,8 @@ const PreviewPanel: React.FC = () => {
         {/* eslint-disable-next-line max-len */}
         <PreviewTabs tabs={previewTabs} activeTabId={activeTabId} tabFadeState={tabFadeState} tabsContainerRef={tabsContainerRef} onSwitchTab={switchTab} onCloseTab={handleCloseTab} onContextMenu={handleTabContextMenu} onClosePanel={closePreview} isMaximized={isMaximized} onToggleMaximize={toggleMaximize} />
 
-        {/* 工具栏（URL 类型不显示工具栏，因为不需要下载/编辑等功能）/ Toolbar (hidden for URL type as it doesn't need download/edit features) */}
-        {contentType !== 'url' && (
+        {/* 工具栏（URL/App 类型不显示工具栏）/ Toolbar (hidden for URL/App type as they manage their own UI) */}
+        {contentType !== 'url' && contentType !== 'app' && (
           <PreviewToolbar
             contentType={contentType}
             isMarkdown={isMarkdown}
