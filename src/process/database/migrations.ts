@@ -503,80 +503,104 @@ const migration_v11: IMigration = {
 };
 
 /**
- * Migration v11 -> v12: Add 'mezon' to assistant_plugins type constraint
- * 为 assistant_plugins 表的 type 约束添加 'mezon' 类型
+ * Migration v11 -> v12: Add 'lark' to conversations source CHECK constraint
  */
 const migration_v12: IMigration = {
   version: 12,
-  name: 'Add mezon to assistant_plugins type constraint',
+  name: 'Add lark to conversations source constraint',
   up: (db) => {
-    // SQLite doesn't support ALTER TABLE to modify CHECK constraints
-    // We need to recreate the table with the new constraint
+    // SQLite doesn't support ALTER TABLE to modify CHECK constraints.
+    // We recreate the table with the updated constraint that includes 'lark'.
+    // NOTE: The migration runner disables foreign_keys before the transaction,
+    // so DROP TABLE will NOT trigger ON DELETE CASCADE on the messages table.
+
+    // Clean up any invalid source values before copying
     db.exec(`
-      -- Create new table with updated constraint
-      CREATE TABLE IF NOT EXISTS assistant_plugins_new (
+      UPDATE conversations SET source = NULL WHERE source IS NOT NULL AND source NOT IN ('aionui', 'telegram', 'lark');
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS conversations_new (
         id TEXT PRIMARY KEY,
-        type TEXT NOT NULL CHECK(type IN ('telegram', 'slack', 'discord', 'lark', 'mezon')),
+        user_id TEXT NOT NULL,
         name TEXT NOT NULL,
-        enabled INTEGER NOT NULL DEFAULT 0,
-        config TEXT NOT NULL,
-        status TEXT CHECK(status IN ('created', 'initializing', 'ready', 'starting', 'running', 'stopping', 'stopped', 'error')),
-        last_connected INTEGER,
+        type TEXT NOT NULL CHECK(type IN ('gemini', 'acp', 'codex', 'openclaw-gateway')),
+        extra TEXT NOT NULL,
+        model TEXT,
+        status TEXT CHECK(status IN ('pending', 'running', 'finished')),
+        source TEXT CHECK(source IS NULL OR source IN ('aionui', 'telegram', 'lark')),
         created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
 
-      -- Copy data from old table (if exists)
-      INSERT OR IGNORE INTO assistant_plugins_new SELECT * FROM assistant_plugins;
+      -- Use explicit columns (ALTER TABLE ADD COLUMN appends at the end,
+      -- so column order in the old table may differ from the new table)
+      INSERT INTO conversations_new (id, user_id, name, type, extra, model, status, source, created_at, updated_at)
+      SELECT id, user_id, name, type, extra, model, status, source, created_at, updated_at FROM conversations;
 
-      -- Drop old table
-      DROP TABLE IF EXISTS assistant_plugins;
-
-      -- Rename new table
-      ALTER TABLE assistant_plugins_new RENAME TO assistant_plugins;
+      DROP TABLE conversations;
+      ALTER TABLE conversations_new RENAME TO conversations;
 
       -- Recreate indexes
-      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_type ON assistant_plugins(type);
-      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_enabled ON assistant_plugins(enabled);
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_conversations_type ON conversations(type);
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
     `);
 
-    console.log('[Migration v12] Added mezon to assistant_plugins type constraint');
+    console.log('[Migration v12] Added lark to conversations source constraint');
   },
   down: (db) => {
-    // Rollback: recreate table without mezon type (data with mezon type will be lost)
+    // Rollback: recreate table without 'lark' in source constraint
+    // NOTE: foreign_keys is disabled by the migration runner before the transaction.
+
+    // Clean up lark source values before copying to table with stricter constraint
     db.exec(`
-      CREATE TABLE IF NOT EXISTS assistant_plugins_old (
+      UPDATE conversations SET source = NULL WHERE source = 'lark';
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS conversations_rollback (
         id TEXT PRIMARY KEY,
-        type TEXT NOT NULL CHECK(type IN ('telegram', 'slack', 'discord', 'lark')),
+        user_id TEXT NOT NULL,
         name TEXT NOT NULL,
-        enabled INTEGER NOT NULL DEFAULT 0,
-        config TEXT NOT NULL,
-        status TEXT CHECK(status IN ('created', 'initializing', 'ready', 'starting', 'running', 'stopping', 'stopped', 'error')),
-        last_connected INTEGER,
+        type TEXT NOT NULL CHECK(type IN ('gemini', 'acp', 'codex', 'openclaw-gateway')),
+        extra TEXT NOT NULL,
+        model TEXT,
+        status TEXT CHECK(status IN ('pending', 'running', 'finished')),
+        source TEXT CHECK(source IS NULL OR source IN ('aionui', 'telegram')),
         created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
 
-      INSERT OR IGNORE INTO assistant_plugins_old SELECT * FROM assistant_plugins WHERE type != 'mezon';
+      INSERT INTO conversations_rollback (id, user_id, name, type, extra, model, status, source, created_at, updated_at)
+      SELECT id, user_id, name, type, extra, model, status, source, created_at, updated_at FROM conversations;
 
-      DROP TABLE IF EXISTS assistant_plugins;
+      DROP TABLE conversations;
+      ALTER TABLE conversations_rollback RENAME TO conversations;
 
-      ALTER TABLE assistant_plugins_old RENAME TO assistant_plugins;
-
-      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_type ON assistant_plugins(type);
-      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_enabled ON assistant_plugins(enabled);
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_conversations_type ON conversations(type);
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
     `);
-    console.log('[Migration v12] Rolled back: Removed mezon from assistant_plugins type constraint');
+
+    console.log('[Migration v12] Rolled back: Removed lark from conversations source constraint');
   },
 };
 
 /**
- * Migration v12 -> v13: Ensure 'mezon' is in assistant_plugins type constraint
- * Re-applies the mezon constraint for databases where v12 was skipped
+ * Migration v12 -> v13: Add 'mezon' to assistant_plugins type constraint
  */
 const migration_v13: IMigration = {
   version: 13,
-  name: 'Ensure mezon in assistant_plugins type constraint',
+  name: 'Add mezon to assistant_plugins type constraint',
   up: (db) => {
     db.exec(`
       CREATE TABLE IF NOT EXISTS assistant_plugins_new (
@@ -601,7 +625,7 @@ const migration_v13: IMigration = {
       CREATE INDEX IF NOT EXISTS idx_assistant_plugins_enabled ON assistant_plugins(enabled);
     `);
 
-    console.log('[Migration v13] Ensured mezon in assistant_plugins type constraint');
+    console.log('[Migration v13] Added mezon to assistant_plugins type constraint');
   },
   down: (db) => {
     db.exec(`
@@ -631,10 +655,74 @@ const migration_v13: IMigration = {
 };
 
 /**
+ * Migration v13 -> v14: Ensure 'mezon' is in assistant_plugins type constraint
+ * Re-applies the mezon constraint for databases where v13 was skipped
+ */
+const migration_v14: IMigration = {
+  version: 14,
+  name: 'Ensure mezon in assistant_plugins type constraint',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS assistant_plugins_new (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL CHECK(type IN ('telegram', 'slack', 'discord', 'lark', 'mezon')),
+        name TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        config TEXT NOT NULL,
+        status TEXT CHECK(status IN ('created', 'initializing', 'ready', 'starting', 'running', 'stopping', 'stopped', 'error')),
+        last_connected INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      INSERT OR IGNORE INTO assistant_plugins_new SELECT * FROM assistant_plugins;
+
+      DROP TABLE IF EXISTS assistant_plugins;
+
+      ALTER TABLE assistant_plugins_new RENAME TO assistant_plugins;
+
+      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_type ON assistant_plugins(type);
+      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_enabled ON assistant_plugins(enabled);
+    `);
+
+    console.log('[Migration v14] Ensured mezon in assistant_plugins type constraint');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS assistant_plugins_old (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL CHECK(type IN ('telegram', 'slack', 'discord', 'lark')),
+        name TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        config TEXT NOT NULL,
+        status TEXT CHECK(status IN ('created', 'initializing', 'ready', 'starting', 'running', 'stopping', 'stopped', 'error')),
+        last_connected INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      INSERT OR IGNORE INTO assistant_plugins_old SELECT * FROM assistant_plugins WHERE type != 'mezon';
+
+      DROP TABLE IF EXISTS assistant_plugins;
+
+      ALTER TABLE assistant_plugins_old RENAME TO assistant_plugins;
+
+      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_type ON assistant_plugins(type);
+      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_enabled ON assistant_plugins(enabled);
+    `);
+    console.log('[Migration v14] Rolled back: Removed mezon from assistant_plugins type constraint');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
-export const ALL_MIGRATIONS: IMigration[] = [migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6, migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12, migration_v13];
+export const ALL_MIGRATIONS: IMigration[] = [
+  migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
+  migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
+  migration_v13, migration_v14,
+];
 
 /**
  * Get migrations needed to upgrade from one version to another

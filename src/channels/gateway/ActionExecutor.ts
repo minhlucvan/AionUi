@@ -11,7 +11,8 @@ import { ProcessConfig, getSystemDir } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
-import { getTelegramDefaultModel, systemActions } from '../actions/SystemActions';
+import { getChannelDefaultModel, systemActions } from '../actions/SystemActions';
+import { getChannelConversationName, isChannelPlatform } from '../types';
 import type { IActionContext, IRegisteredAction } from '../actions/types';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
 import type { SessionManager } from '../core/SessionManager';
@@ -395,7 +396,7 @@ export class ActionExecutor {
         const conversationName = await this.getConversationNameForPlugin(platform, message.pluginId);
 
         // Bot routing: If message has chatId (externalChannelId), use bot-specific routing
-        // Otherwise fall back to legacy Telegram routing
+        // Otherwise fall back to channel routing
         let result;
         if (message.chatId) {
           // Extract botId from pluginId (format: "mezon_{botId}" or "telegram_{botId}")
@@ -425,10 +426,12 @@ export class ActionExecutor {
             },
           });
         } else {
-          // Legacy routing for Telegram (backward compatibility)
-          result = await ConversationService.getOrCreateTelegramConversation({
+          // Channel routing (uses upstream's unified channel conversation API)
+          const channelPlatform = isChannelPlatform(platform) ? platform : 'telegram';
+          result = await ConversationService.getOrCreateChannelConversation({
             model,
             name: conversationName,
+            source: channelPlatform,
           });
         }
 
