@@ -1,0 +1,16 @@
+{
+  "name": "Code Editor",
+  "description": "Monaco-based code editor",
+  "contentTypes": ["code"],
+  "fileExtensions": [".ts", ".tsx", ".js", ".jsx", ".py", ".java", ".go", ".rs", ".c", ".cpp", ".json", ".yaml", ".yml", ".toml", ".xml", ".css", ".scss", ".html", ".sql", ".sh", ".md", ".txt"],
+  "editable": true,
+  "capabilities": [
+    { "name": "gotoLine", "description": "Navigate to a line number" },
+    { "name": "insertText", "description": "Insert text at cursor position" },
+    { "name": "replaceText", "description": "Find and replace text" },
+    { "name": "getContent", "description": "Get editor content" },
+    { "name": "setContent", "description": "Set editor content" },
+    { "name": "getSelection", "description": "Get selected text" },
+    { "name": "formatDocument", "description": "Format the document" }
+  ]
+}

@@ -17,75 +17,61 @@ type ExcalidrawAppViewerProps = {
 };
 
 /**
- * Wrapper that launches the Excalidraw preview app (external server + iframe)
- * and renders it via AppViewer. Handles lifecycle: launch on mount, stop on unmount.
+ * Wrapper that opens excalidraw via the app server and renders it in an iframe.
+ * Handles lifecycle: open session on mount, close on unmount.
  */
 const ExcalidrawAppViewer: React.FC<ExcalidrawAppViewerProps> = ({ content, onChange, filePath, workspace }) => {
   const [appUrl, setAppUrl] = useState<string | null>(null);
-  const [instanceId, setInstanceId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const instanceIdRef = useRef<string | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const launchedRef = useRef(false);
 
-  // Launch the excalidraw preview app on mount
+  // Open the excalidraw app on mount
   useEffect(() => {
     if (launchedRef.current) return;
     launchedRef.current = true;
 
     let cancelled = false;
 
-    const launch = async () => {
+    const open = async () => {
       try {
-        const info = await ipcBridge.previewApp.launch.invoke({
-          appId: 'excalidraw',
-          resource: {
-            filePath,
-            content,
-            contentType: 'excalidraw',
-            workspace,
-          },
+        const session = await ipcBridge.app.open.invoke({
+          appName: 'excalidraw',
+          resource: { filePath, content, contentType: 'excalidraw', workspace },
         });
 
         if (cancelled) {
-          // Component unmounted before launch completed - stop the instance
-          ipcBridge.previewApp.stop.invoke({ instanceId: info.instanceId }).catch(() => {});
+          ipcBridge.app.close.invoke({ sessionId: session.sessionId }).catch(() => {});
           return;
         }
 
-        setAppUrl(info.url);
-        setInstanceId(info.instanceId);
-        instanceIdRef.current = info.instanceId;
+        setAppUrl(session.url);
+        setSessionId(session.sessionId);
+        sessionIdRef.current = session.sessionId;
       } catch (err) {
         if (!cancelled) {
-          console.error('[ExcalidrawAppViewer] Failed to launch excalidraw app:', err);
+          console.error('[ExcalidrawAppViewer] Failed to open excalidraw:', err);
           setError(err instanceof Error ? err.message : 'Failed to launch Excalidraw');
         }
       }
     };
 
-    void launch();
-
-    return () => {
-      cancelled = true;
-    };
+    void open();
+    return () => { cancelled = true; };
   }, []);
 
-  // Stop the app instance on unmount
+  // Close session on unmount
   useEffect(() => {
     return () => {
-      const id = instanceIdRef.current;
-      if (id) {
-        ipcBridge.previewApp.stop.invoke({ instanceId: id }).catch(() => {});
-      }
+      const sid = sessionIdRef.current;
+      if (sid) ipcBridge.app.close.invoke({ sessionId: sid }).catch(() => {});
     };
   }, []);
 
-  // Handle content changes from the app
   const handleContentChanged = useCallback(
     (newContent: string, isDirty: boolean) => {
-      if (isDirty && onChange) {
-        onChange(newContent);
-      }
+      if (isDirty && onChange) onChange(newContent);
     },
     [onChange]
   );
@@ -99,7 +85,7 @@ const ExcalidrawAppViewer: React.FC<ExcalidrawAppViewerProps> = ({ content, onCh
     );
   }
 
-  if (!appUrl || !instanceId) {
+  if (!appUrl || !sessionId) {
     return (
       <div className='flex-1 flex items-center justify-center bg-bg-1'>
         <div className='text-14px text-t-secondary'>Loading Excalidraw...</div>
@@ -107,7 +93,7 @@ const ExcalidrawAppViewer: React.FC<ExcalidrawAppViewerProps> = ({ content, onCh
     );
   }
 
-  return <AppViewer url={appUrl} instanceId={instanceId} appName='Excalidraw' onContentChanged={handleContentChanged} />;
+  return <AppViewer url={appUrl} instanceId={sessionId} appName='Excalidraw' onContentChanged={handleContentChanged} />;
 };
 
 export default ExcalidrawAppViewer;

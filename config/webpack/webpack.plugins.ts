@@ -24,9 +24,9 @@ export const plugins: WebpackPluginInstance[] = [
       // tools 目录：包含工具定义 (tool.json) 和关联的技能文件
       // tools directory: contains tool manifests (tool.json) and associated skill files
       { from: path.resolve(__dirname, '../../tools'), to: 'tools', noErrorOnMissing: true },
-      // previewApps 目录：包含可扩展的预览应用（独立 HTML/JS 应用，通过 iframe 显示）
-      // previewApps directory: extensible preview apps (standalone HTML/JS apps displayed in iframes)
-      { from: path.resolve(__dirname, '../../src/previewApps'), to: 'previewApps', noErrorOnMissing: true },
+      // apps 目录：包含可扩展的预览应用（独立 HTML/JS 应用，通过 iframe 显示）
+      // apps directory: extensible preview apps (standalone HTML/JS apps displayed in iframes)
+      { from: path.resolve(__dirname, '../../src/apps'), to: 'apps', noErrorOnMissing: true },
       // logos 目录：包含应用 logo 等图片资源，使用 CopyPlugin 确保二进制文件不被错误编码
       // logos directory: contains app logo images, use CopyPlugin to ensure binary files are not incorrectly encoded
       // force: true 强制覆盖 webpack asset/resource 输出的损坏文件

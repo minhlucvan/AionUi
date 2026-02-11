@@ -69,6 +69,7 @@
     }
 
     this.appId = options.appId;
+    this.sessionId = options.sessionId || this._detectSessionId();
     this.wsUrl = options.wsUrl || this._detectWsUrl();
     this.autoConnect = options.autoConnect !== false;
     this.reconnectInterval = options.reconnectInterval || 2000;
@@ -105,6 +106,18 @@
     var loc = window.location;
     var protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
     return protocol + '//' + loc.host;
+  };
+
+  /**
+   * Auto-detect session ID from URL query parameter (?sid=xxx)
+   */
+  PreviewApp.prototype._detectSessionId = function () {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      return params.get('sid') || '';
+    } catch (e) {
+      return '';
+    }
   };
 
   /**
@@ -213,6 +226,7 @@
       type: 'app:ready',
       payload: {
         appId: this.appId,
+        sessionId: this.sessionId,
         capabilities: capDeclarations,
       },
     });

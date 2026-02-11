@@ -388,27 +388,18 @@ export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
 };
 
-// Preview App System - extensible preview/editor apps running in isolated iframes
-// 预览应用系统 - 在隔离 iframe 中运行的可扩展预览/编辑应用
-export const previewApp = {
-  /** List all registered preview app manifests */
-  listApps: bridge.buildProvider<import('./types/previewApp').PreviewAppManifest[], void>('preview-app.list-apps'),
-  /** Launch a preview app instance (starts its server) */
-  launch: bridge.buildProvider<import('./types/previewApp').PreviewAppInfo, import('./types/previewApp').LaunchPreviewAppParams>('preview-app.launch'),
-  /** Stop a running preview app instance */
-  stop: bridge.buildProvider<void, { instanceId: string }>('preview-app.stop'),
-  /** List all running preview app instances */
-  listInstances: bridge.buildProvider<import('./types/previewApp').PreviewAppInfo[], void>('preview-app.list-instances'),
-  /** Get info about a specific running instance */
-  getInstance: bridge.buildProvider<import('./types/previewApp').PreviewAppInfo | null, { instanceId: string }>('preview-app.get-instance'),
-  /** Execute a capability on a running app instance (agent bridge) */
-  executeCapability: bridge.buildProvider<unknown, import('./types/previewApp').ExecuteAppCapabilityParams>('preview-app.execute-capability'),
-  /** Get all capabilities across all running instances */
-  getCapabilities: bridge.buildProvider<import('./types/previewApp').PreviewAppCapability[], void>('preview-app.get-capabilities'),
-  /** Event: app instance status changed */
-  instanceChanged: bridge.buildEmitter<import('./types/previewApp').PreviewAppInfo>('preview-app.instance-changed'),
-  /** Event: app sent a content-changed message (for preview context dirty tracking) */
-  contentChanged: bridge.buildEmitter<{ instanceId: string; filePath?: string; content: string; isDirty: boolean }>('preview-app.content-changed'),
+// App System - extensible apps running in isolated iframes (served at /:appName/)
+export const app = {
+  /** List available apps */
+  list: bridge.buildProvider<import('./types/app').AppInfo[], void>('app.list'),
+  /** Open a resource in an app → returns session with URL */
+  open: bridge.buildProvider<import('./types/app').AppSession, { appName: string; resource?: import('./types/app').AppResource }>('app.open'),
+  /** Close an app session */
+  close: bridge.buildProvider<void, { sessionId: string }>('app.close'),
+  /** Execute a capability on a session */
+  execute: bridge.buildProvider<unknown, { sessionId: string; capability: string; params: Record<string, unknown> }>('app.execute'),
+  /** Event: app content changed */
+  contentChanged: bridge.buildEmitter<{ sessionId: string; content: string; isDirty: boolean }>('app.content-changed'),
 };
 
 // 窗口控制相关接口 / Window controls API

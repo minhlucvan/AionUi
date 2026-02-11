@@ -5,116 +5,64 @@
  */
 
 /**
- * usePreviewApps - React hook for interacting with the Preview App system.
+ * usePreviewApps - React hook for the app system.
  *
- * Provides:
- * - List of registered apps (available to launch)
- * - List of running instances
- * - Functions to launch, stop, and open files in apps
- * - Integration with PreviewContext to open apps as preview tabs
+ * Simple interface to list available apps, open resources, and close sessions.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { ipcBridge } from '@/common';
-import type { PreviewAppInfo, PreviewAppManifest } from '@/common/types/previewApp';
+import type { AppInfo, AppResource, AppSession } from '@/common/types/app';
 import { usePreviewContext } from '../context/PreviewContext';
 
 export function usePreviewApps() {
-  const [registeredApps, setRegisteredApps] = useState<PreviewAppManifest[]>([]);
-  const [runningInstances, setRunningInstances] = useState<PreviewAppInfo[]>([]);
+  const [apps, setApps] = useState<AppInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const { openPreview } = usePreviewContext();
 
-  // Fetch registered apps
   const refreshApps = useCallback(async () => {
     try {
-      const apps = await ipcBridge.previewApp.listApps.invoke(undefined as never);
-      setRegisteredApps(apps);
+      const list = await ipcBridge.app.list.invoke(undefined as never);
+      setApps(list);
     } catch (err) {
       console.error('[usePreviewApps] Failed to list apps:', err);
     }
   }, []);
 
-  // Fetch running instances
-  const refreshInstances = useCallback(async () => {
-    try {
-      const instances = await ipcBridge.previewApp.listInstances.invoke(undefined as never);
-      setRunningInstances(instances);
-    } catch (err) {
-      console.error('[usePreviewApps] Failed to list instances:', err);
-    }
-  }, []);
-
-  // Launch an app and open it in the preview panel
+  /** Open a resource in an app and show it in the preview panel */
   const launchApp = useCallback(
-    async (appId: string, resource?: { filePath?: string; content?: string; language?: string; contentType?: string; workspace?: string }) => {
+    async (appName: string, resource?: AppResource): Promise<AppSession> => {
       setLoading(true);
       try {
-        const info = await ipcBridge.previewApp.launch.invoke({ appId, resource });
+        const session = await ipcBridge.app.open.invoke({ appName, resource });
 
-        // Open in preview panel as an iframe
-        openPreview(info.url, 'app', {
-          title: info.name,
-          appId: info.appId,
-          appInstanceId: info.instanceId,
-          appUrl: info.url,
-          appName: info.name,
-          editable: info.editable,
+        openPreview(session.url, 'app', {
+          title: session.appName,
+          appId: session.appName,
+          appInstanceId: session.sessionId,
+          appUrl: session.url,
+          appName: session.appName,
+          editable: session.editable,
           filePath: resource?.filePath,
           workspace: resource?.workspace,
           fileName: resource?.filePath?.split('/').pop() || resource?.filePath?.split('\\').pop(),
         });
 
-        // Refresh instances list
-        await refreshInstances();
-
-        return info;
-      } catch (err) {
-        console.error('[usePreviewApps] Failed to launch app:', err);
-        throw err;
+        return session;
       } finally {
         setLoading(false);
       }
     },
-    [openPreview, refreshInstances]
+    [openPreview]
   );
 
-  // Stop a running app instance
-  const stopApp = useCallback(
-    async (instanceId: string) => {
-      try {
-        await ipcBridge.previewApp.stop.invoke({ instanceId });
-        await refreshInstances();
-      } catch (err) {
-        console.error('[usePreviewApps] Failed to stop app:', err);
-        throw err;
-      }
-    },
-    [refreshInstances]
-  );
+  const closeApp = useCallback(async (sessionId: string) => {
+    await ipcBridge.app.close.invoke({ sessionId });
+  }, []);
 
-  // Listen for instance changes
-  useEffect(() => {
-    const unsubscribe = ipcBridge.previewApp.instanceChanged.on(() => {
-      refreshInstances();
-    });
-
-    return unsubscribe;
-  }, [refreshInstances]);
-
-  // Initial fetch
   useEffect(() => {
     refreshApps();
-    refreshInstances();
-  }, [refreshApps, refreshInstances]);
+  }, [refreshApps]);
 
-  return {
-    registeredApps,
-    runningInstances,
-    loading,
-    launchApp,
-    stopApp,
-    refreshApps,
-    refreshInstances,
-  };
+  return { apps, loading, launchApp, closeApp, refreshApps };
 }
