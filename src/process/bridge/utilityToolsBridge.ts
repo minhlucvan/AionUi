@@ -104,6 +104,65 @@ export function initUtilityToolsBridge(): void {
     return Promise.resolve({ success: true, data: toolRegistry.getAcpBackendsAll() });
   });
 
+  // Get utility tools list from registry (fast, no CLI execution)
+  ipcBridge.utilityTools.getToolsList.provider(() => {
+    const loadedTools = toolRegistry.getUtilityTools();
+
+    const results = loadedTools.map(({ manifest, toolDir }) => {
+      const firstSkill = manifest.skills?.[0];
+      const hasSkill = !!firstSkill && toolRegistry.hasSkillContent(manifest.id, firstSkill);
+
+      return {
+        id: manifest.id,
+        name: manifest.name,
+        description: manifest.description,
+        cliCommand: manifest.cliCommand,
+        installCommand: getInstallCommand(manifest),
+        updateCommand: manifest.updateCommand,
+        loginCommand: manifest.loginCommand,
+        installUrl: manifest.installUrl,
+        hasSkill,
+        toolDir,
+      };
+    });
+
+    return Promise.resolve({ success: true, data: results });
+  });
+
+  // Check a single utility tool's status (installed, version, login)
+  ipcBridge.utilityTools.checkToolStatus.provider(({ toolId }) => {
+    const loaded = toolRegistry.getById(toolId);
+    if (!loaded) {
+      return Promise.resolve({ success: false, msg: `Unknown utility tool: ${toolId}` });
+    }
+
+    const { manifest } = loaded;
+    const cliPath = detectCli(manifest.cliCommand);
+    const installed = !!cliPath;
+
+    let version: string | undefined;
+    let loggedIn: boolean | undefined;
+    let loginUser: string | undefined;
+
+    if (installed) {
+      version = getCliVersion(cliPath!, manifest.versionCommand);
+
+      if (manifest.loginStatusCommand) {
+        const loginStatus = checkLoginStatus(manifest.loginStatusCommand);
+        loggedIn = loginStatus.loggedIn;
+        loginUser = loginStatus.loginUser;
+      }
+    }
+
+    const firstSkill = manifest.skills?.[0];
+    const skillInstalled = firstSkill ? isSkillInstalled(firstSkill) : false;
+
+    return Promise.resolve({
+      success: true,
+      data: { id: manifest.id, installed, version, loggedIn, loginUser, skillInstalled },
+    });
+  });
+
   // Get status of all utility tools
   ipcBridge.utilityTools.getStatus.provider(() => {
     const loadedTools = toolRegistry.getUtilityTools();
