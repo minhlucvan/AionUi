@@ -42,7 +42,7 @@ interface UseWorkspaceFileOpsOptions {
   setDeleteModal: React.Dispatch<React.SetStateAction<DeleteModalState>>;
 
   // Dependencies from preview context
-  openPreview: (content: string, type: PreviewContentType, metadata?: PreviewMetadata) => void;
+  openPreview: (content: string, type: PreviewContentType, metadata?: { title?: string; fileName?: string; filePath?: string; workspace?: string; language?: string; editable?: boolean }) => void;
 }
 
 /**

@@ -1,6 +1,6 @@
 # Excalidraw Diagram Skill
 
-Create professional diagrams using data-driven patterns with BM25 search and the `excalidraw` CLI tool. Features semantic color palettes, queryable pattern database, visual feedback system, and token-efficient CSV data layer.
+Create professional diagrams directly in AionUi's preview panel using the `excalidraw` CLI tool. Features data-driven patterns with BM25 search, semantic color palettes, real-time preview updates, quality analysis, and seamless workspace integration.
 
 ## Quick Start
 
@@ -9,15 +9,15 @@ Create professional diagrams using data-driven patterns with BM25 search and the
 python3 scripts/search.py "3-tier architecture"
 
 # 2. Initialize Excalidraw
-python3 scripts/excalidraw.py init
+node scripts/excalidraw.js init
 
 # 3. Create diagram using queried data
-python3 scripts/excalidraw.py add-shape --type rectangle --id "api" --x 100 --y 100 --width 200 --height 100 --palette backend
-python3 scripts/excalidraw.py add-text --id "api-label" --text "API Gateway" --x 160 --y 135 --container-id "api"
-python3 scripts/excalidraw.py link-text api api-label
+node scripts/excalidraw.js add-shape --type rectangle --id "api" --x 100 --y 100 --width 200 --height 100 --palette backend
+node scripts/excalidraw.js add-text --id "api-label" --text "API Gateway" --x 160 --y 135 --container-id "api"
+node scripts/excalidraw.js link-text api api-label
 
 # 4. Analyze quality (NEW!)
-python3 scripts/excalidraw.py analyze
+node scripts/excalidraw.js analyze
 ```
 
 Or use a template:
@@ -31,20 +31,21 @@ cat templates/3-tier-architecture.md
 
 ## Installation
 
-Python 3.8+ is required:
+Node.js is required (Python 3.8+ optional for quality analysis):
 
 ```bash
-python3 --version  # Verify Python 3.8+
-pip install rank-bm25  # Install search dependency
+node --version     # Verify Node.js is installed
+python3 --version  # Optional: For quality analysis only
+pip install rank-bm25  # Optional: For pattern search
 ```
 
-No PATH configuration needed - just call scripts directly.
+No additional configuration needed - the skill works within AionUi conversations.
 
 ### Optional: Create Aliases
 
 ```bash
 # Add to ~/.bashrc or ~/.zshrc
-alias excalidraw='python3 ~/.claude/skills/excalidraw/scripts/excalidraw.py'
+alias excalidraw='node ~/.claude/skills/excalidraw/scripts/excalidraw.js'
 alias excalidraw-search='python3 ~/.claude/skills/excalidraw/scripts/search.py'
 ```
 
@@ -63,11 +64,12 @@ excalidraw/
 │   ├── colors.csv              # Semantic color palettes
 │   ├── spacing.csv             # Layout spacing rules
 │   └── best-practices.csv      # Design guidelines
-├── scripts/                    # 🐍 Python tools
-│   ├── excalidraw.py           # Main CLI tool
-│   ├── analyzer.py             # Quality analysis engine
-│   ├── search.py               # BM25 search (query CSV data)
-│   └── control-script.js       # Browser control layer
+├── scripts/                    # 🚀 Node.js & Python tools
+│   ├── excalidraw.js           # Main CLI tool (Node.js)
+│   ├── diagram-manager.js      # Core diagram state management
+│   ├── ipc-bridge-loader.js    # Direct IPC bridge communication
+│   ├── analyzer.py             # Quality analysis engine (Python)
+│   └── search.py               # BM25 search (Python)
 ├── templates/                  # Copy-paste ready templates
 │   └── 3-tier-architecture.md  # Markdown template
 ├── tests/                      # 🧪 Test suites
@@ -85,48 +87,50 @@ excalidraw/
 ### Session Management
 
 ```bash
-python3 scripts/excalidraw.py init         # Initialize Excalidraw (required first step)
-python3 scripts/excalidraw.py clear        # Clear the canvas
-python3 scripts/excalidraw.py get          # Get all elements as JSON
+node scripts/excalidraw.js init         # Initialize diagram (opens preview panel)
+node scripts/excalidraw.js clear        # Clear the canvas
+node scripts/excalidraw.js get          # Get all elements as JSON
 ```
+
+**Architecture**: The Node.js CLI communicates directly with AionUi's preview panel via Electron IPC (ipcRenderer), enabling real-time diagram updates (~50ms latency).
 
 ### Element Creation
 
 ```bash
-python3 scripts/excalidraw.py add-shape [options]   # Create rectangle/ellipse/diamond
-python3 scripts/excalidraw.py add-text [options]    # Create text element
-python3 scripts/excalidraw.py add-arrow [options]   # Create arrow/line
-python3 scripts/excalidraw.py add-frame [options]   # Create frame container
+node scripts/excalidraw.js add-shape [options]   # Create rectangle/ellipse/diamond
+node scripts/excalidraw.js add-text [options]    # Create text element
+node scripts/excalidraw.js add-arrow [options]   # Create arrow/line
+node scripts/excalidraw.js add-frame [options]   # Create frame container
 ```
 
 ### Relationships
 
 ```bash
-python3 scripts/excalidraw.py link-text <shape-id> <text-id>           # Link text to shape
-python3 scripts/excalidraw.py bind-arrow <arrow-id> <from-id> <to-id>  # Bind arrow to shapes
+node scripts/excalidraw.js link-text <shape-id> <text-id>           # Link text to shape
+node scripts/excalidraw.js bind-arrow <arrow-id> <from-id> <to-id>  # Bind arrow to shapes
 ```
 
 ### Visual Feedback
 
 ```bash
-python3 scripts/excalidraw.py snapshot             # Capture full snapshot (PNG + metadata)
-python3 scripts/excalidraw.py get-state            # Get metadata (fast, no image)
-python3 scripts/excalidraw.py analyze              # Analyze quality (0-100 score)
+node scripts/excalidraw.js snapshot             # Capture full snapshot (PNG + metadata)
+node scripts/excalidraw.js get-state            # Get metadata (fast, no image)
+node scripts/excalidraw.js analyze              # Analyze quality (0-100 score)
 ```
 
 ### Export
 
 ```bash
-python3 scripts/excalidraw.py export-excalidraw -o <file>   # Export as .excalidraw (editable)
-python3 scripts/excalidraw.py export-png -o <file>          # Export as PNG image
+node scripts/excalidraw.js export-excalidraw -o <file>   # Export as .excalidraw (editable)
+node scripts/excalidraw.js export-png -o <file>          # Export as PNG image
 ```
 
 ### Utilities
 
 ```bash
-python3 scripts/excalidraw.py delete <id>          # Delete element
-python3 scripts/excalidraw.py template <name>      # Run template
-python3 scripts/excalidraw.py help                 # Show all commands
+node scripts/excalidraw.js delete <id>          # Delete element
+node scripts/excalidraw.js template <name>      # Run template
+node scripts/excalidraw.js help                 # Show all commands
 ```
 
 ## Visual Feedback Workflow
@@ -135,22 +139,22 @@ The skill now supports quality analysis, self-correction, and export:
 
 ```bash
 # 1. Create diagram
-python3 scripts/excalidraw.py init
+node scripts/excalidraw.js init
 # ... add elements ...
 
 # 2. Analyze quality
-python3 scripts/excalidraw.py analyze
+node scripts/excalidraw.js analyze
 # Output: Score: 75/100 (Grade: C)
 # Issues: Small text, inconsistent spacing
 
 # 3. Fix issues and re-analyze
 # ... adjust based on feedback ...
-python3 scripts/excalidraw.py analyze
+node scripts/excalidraw.js analyze
 # Output: Score: 88/100 (Grade: B) - Good quality!
 
 # 4. Export final diagram
-python3 scripts/excalidraw.py export-excalidraw -o diagram.excalidraw
-python3 scripts/excalidraw.py export-png -o diagram.png
+node scripts/excalidraw.js export-excalidraw -o diagram.excalidraw
+node scripts/excalidraw.js export-png -o diagram.png
 ```
 
 ## Color Palettes
@@ -173,10 +177,42 @@ Use semantic palettes with `--palette` flag:
 - **start-end**: Green (`#d3f9d8` / `#37b24d`)
 - **data**: Blue (`#e7f5ff` / `#1c7ed6`)
 
+## Integration with AionUi
+
+This skill is designed to work seamlessly within AionUi:
+
+### How It Works
+
+1. **IPC Bridge**: Python CLI communicates with AionUi via a Node.js IPC helper (`ipc-helper.js`)
+2. **Preview Panel**: Diagrams are rendered in AionUi's ExcalidrawEditor component
+3. **Real-time Updates**: Each command immediately updates the preview (~50ms)
+4. **Workspace Integration**: Files are automatically saved to conversation workspace
+5. **No Browser Required**: Everything happens within AionUi
+
+### Workflow
+
+```
+Python CLI (excalidraw.py)
+    ↓ JSON-RPC
+Node.js Helper (ipc-helper.js)
+    ↓ IPC Bridge
+AionUi Main Process
+    ↓ Event
+Preview Panel → ExcalidrawEditor
+```
+
+### Benefits
+
+- **Seamless**: No browser switching
+- **Fast**: Direct JSON manipulation
+- **Offline**: No external dependencies
+- **Integrated**: Diagrams saved to conversation workspace
+- **Editable**: Preview panel allows manual adjustments
+
 ## Documentation
 
 - **📘 SKILL.md**: **Primary agent guide** - Start here!
-  - Agent-browser style workflow
+  - IPC-based workflow
   - Essential commands with examples
   - Common patterns (3-tier, search-driven, quality-driven)
   - Copy-paste ready code
@@ -185,7 +221,7 @@ Use semantic palettes with `--palette` flag:
   - Visual feedback system
   - Semantic color system
   - Professional diagram rules
-- **CHANGELOG.md**: Version history (1.0 → 2.1)
+- **CHANGELOG.md**: Version history (1.0 → 3.0)
 - **STRUCTURE.md**: Directory organization
 - **data/\*.csv**: Queryable pattern database (use `search.py` to query)
 
@@ -221,20 +257,20 @@ python3 scripts/search.py "3-tier architecture"
 # Returns: layout=vertical-layers, spacing=150px
 
 # 2. Initialize
-python3 scripts/excalidraw.py init
+node scripts/excalidraw.js init
 
 # 3. Create layers with 150px spacing
-python3 scripts/excalidraw.py add-frame --name "Presentation" --x 50 --y 50 --width 700 --height 180
-python3 scripts/excalidraw.py add-frame --name "Business Logic" --x 50 --y 280 --width 700 --height 180
-python3 scripts/excalidraw.py add-frame --name "Data" --x 50 --y 510 --width 700 --height 180
+node scripts/excalidraw.js add-frame --name "Presentation" --x 50 --y 50 --width 700 --height 180
+node scripts/excalidraw.js add-frame --name "Business Logic" --x 50 --y 280 --width 700 --height 180
+node scripts/excalidraw.js add-frame --name "Data" --x 50 --y 510 --width 700 --height 180
 
 # 4. Add components with semantic colors
-python3 scripts/excalidraw.py add-shape --type rectangle --id "web" --x 120 --y 110 --width 180 --height 100 --palette frontend
-python3 scripts/excalidraw.py add-text --text "Web App" --x 170 --y 145 --container-id "web"
-python3 scripts/excalidraw.py link-text web web-text
+node scripts/excalidraw.js add-shape --type rectangle --id "web" --x 120 --y 110 --width 180 --height 100 --palette frontend
+node scripts/excalidraw.js add-text --text "Web App" --x 170 --y 145 --container-id "web"
+node scripts/excalidraw.js link-text web web-text
 
 # 5. Analyze quality
-python3 scripts/excalidraw.py analyze
+node scripts/excalidraw.js analyze
 ```
 
 ## Tips
@@ -249,7 +285,7 @@ python3 scripts/excalidraw.py analyze
 
 **Command not found?**
 
-- Use `python3 scripts/excalidraw.py` with full path
+- Use `node scripts/excalidraw.js` with full path
 
 **Arrows not connecting?**
 
@@ -273,8 +309,8 @@ python3 scripts/excalidraw.py analyze
 ## Getting Help
 
 ```bash
-python3 scripts/excalidraw.py help          # Show command summary
-python3 scripts/excalidraw.py --version     # Show CLI version
+node scripts/excalidraw.js help          # Show command summary
+node scripts/excalidraw.js --version     # Show CLI version
 python3 scripts/search.py "help"            # Test search functionality
 ```
 

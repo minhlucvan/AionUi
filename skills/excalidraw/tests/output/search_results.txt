@@ -1,9 +1,0 @@
-Top 1 results for '3-tier architecture' in domain 'pattern':
-
-1. [Score: 4.24]
-   name: 3-Tier Architecture
-   type: architecture
-   description: Layered architecture with presentation/logic/data
-   layout_pattern: vertical-layers
-   spacing: 150px-between-layers
-

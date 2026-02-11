@@ -794,8 +794,8 @@ export class ActionExecutor {
       }
     }
     // Fallback to default model
-    // For Mezon bots without configured model, return a minimal Claude ACP model config
-    if (pluginId?.startsWith('mezon_')) {
+    // For Mezon and Telegram bots without configured model, return a minimal Claude ACP model config
+    if (pluginId?.startsWith('mezon_') || pluginId?.startsWith('telegram_')) {
       return {
         id: 'acp_default',
         platform: 'anthropic',
@@ -806,7 +806,16 @@ export class ActionExecutor {
         useModel: 'claude-sonnet-4.5',
       } as TProviderWithModel;
     }
-    return getTelegramDefaultModel();
+    // Default fallback for other plugins
+    return {
+      id: 'acp_default',
+      platform: 'anthropic',
+      name: 'Claude (ACP)',
+      baseUrl: '',
+      apiKey: '',
+      model: [],
+      useModel: 'claude-sonnet-4.5',
+    } as TProviderWithModel;
   }
 
   /**
