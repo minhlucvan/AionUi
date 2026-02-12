@@ -1226,5 +1226,21 @@
       "configureFirst": "請先在設定中配置一個 Agent。",
       "switching": "正在切換 Agent..."
     }
+  },
+  "teamMonitor": {
+    "team": "團隊",
+    "agents": "個成員",
+    "taskList": "任務列表",
+    "agentView": "成員視圖",
+    "noTasks": "暫無任務，團隊開始工作後將建立任務。",
+    "noAgents": "暫未發現成員，團隊負責人即將啟動成員。",
+    "completed": "已完成",
+    "waitingForOutput": "等待輸出...",
+    "lead": "負責人",
+    "taskState": {
+      "pending": "待處理",
+      "in_progress": "進行中",
+      "completed": "已完成"
+    }
   }
 }

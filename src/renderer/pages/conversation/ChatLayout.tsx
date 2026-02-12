@@ -101,6 +101,8 @@ const ChatLayout: React.FC<{
   headerExtra?: React.ReactNode;
   headerLeft?: React.ReactNode;
   workspaceEnabled?: boolean;
+  /** Bottom panel for team monitoring (tmux-like agent split view) */
+  bottomPanel?: React.ReactNode;
 }> = (props) => {
   // 工作空间面板折叠状态 - 全局持久化
   // Workspace panel collapse state - globally persisted
@@ -425,7 +427,18 @@ const ChatLayout: React.FC<{
                 )}
               </div>
             </ArcoLayout.Header>
-            <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>{props.children}</ArcoLayout.Content>
+            <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>
+              {props.bottomPanel ? (
+                <div className='flex flex-col h-full'>
+                  <div className='flex-1 min-h-0 overflow-hidden'>{props.children}</div>
+                  <div className='border-t border-[var(--bg-3)]' style={{ height: '40%', minHeight: '160px', maxHeight: '50%' }}>
+                    {props.bottomPanel}
+                  </div>
+                </div>
+              ) : (
+                props.children
+              )}
+            </ArcoLayout.Content>
           </ArcoLayout.Content>
 
           {/* 会话右侧拖动手柄：在桌面模式下调节会话和预览的宽度比例 */}

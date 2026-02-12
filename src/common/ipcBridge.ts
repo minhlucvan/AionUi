@@ -614,3 +614,21 @@ export const channel = {
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
 };
 
+// ==================== Team Monitor API ====================
+// Monitors Claude's native agent teams (task list + agent observation)
+
+import type { AgentOutput, TeamMember, TeamMonitorEvent, TeamState, TeamTask } from '@/common/teamMonitor';
+
+export const teamMonitor = {
+  // Lifecycle
+  start: bridge.buildProvider<IBridgeResponse, { conversationId: string; teamName?: string }>('team-monitor.start'),
+  stop: bridge.buildProvider<IBridgeResponse, { conversationId: string }>('team-monitor.stop'),
+  // Queries
+  getState: bridge.buildProvider<IBridgeResponse<TeamState | null>, void>('team-monitor.get-state'),
+  getAgentOutputs: bridge.buildProvider<IBridgeResponse<AgentOutput[]>, void>('team-monitor.get-agent-outputs'),
+  // Events
+  onTeamConfig: bridge.buildEmitter<{ teamName: string; members: TeamMember[] }>('team-monitor.team-config'),
+  onTaskUpdate: bridge.buildEmitter<{ teamName: string; tasks: TeamTask[] }>('team-monitor.task-update'),
+  onAgentOutput: bridge.buildEmitter<AgentOutput>('team-monitor.agent-output'),
+};
+

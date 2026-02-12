@@ -1238,5 +1238,21 @@
       "configureFirst": "まず設定でエージェントを設定してください。",
       "switching": "エージェントを切り替え中..."
     }
+  },
+  "teamMonitor": {
+    "team": "チーム",
+    "agents": "エージェント",
+    "taskList": "タスク",
+    "agentView": "エージェント",
+    "noTasks": "タスクはまだありません。作業が始まるとタスクが作成されます。",
+    "noAgents": "エージェントはまだ検出されていません。リーダーがまもなくエージェントを起動します。",
+    "completed": "完了",
+    "waitingForOutput": "出力を待機中...",
+    "lead": "リーダー",
+    "taskState": {
+      "pending": "保留中",
+      "in_progress": "進行中",
+      "completed": "完了"
+    }
   }
 }

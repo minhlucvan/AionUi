@@ -8,12 +8,14 @@ import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/add-chat.svg';
+import { TeamPanel } from '@/renderer/components/team';
+import { useTeamMonitor } from '@/renderer/context/TeamMonitorContext';
 import { CronJobManager } from '@/renderer/pages/cron';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import { iconColors } from '@/renderer/theme/colors';
 import { Button, Dropdown, Menu, Tooltip, Typography } from '@arco-design/web-react';
 import { History } from '@icon-park/react';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
@@ -124,13 +126,33 @@ const GeminiConversationPanel: React.FC<{ conversation: GeminiConversation; slid
   );
 };
 
+/** Detect if a conversation uses agent teams (has CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS env var) */
+const isTeamConversation = (conversation?: TChatConversation): boolean => {
+  const customEnv = (conversation?.extra as { customEnv?: Record<string, string> })?.customEnv;
+  return customEnv?.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS === '1';
+};
+
 const ChatConversation: React.FC<{
   conversation?: TChatConversation;
 }> = ({ conversation }) => {
   const { t } = useTranslation();
   const workspaceEnabled = Boolean(conversation?.extra?.workspace);
+  const teamMonitor = useTeamMonitor();
 
   const isGeminiConversation = conversation?.type === 'gemini';
+  const isTeam = isTeamConversation(conversation);
+
+  // Auto-start/stop team monitoring when conversation changes
+  useEffect(() => {
+    if (isTeam && conversation) {
+      teamMonitor.startMonitoring(conversation.id);
+    }
+    return () => {
+      if (isTeam) {
+        teamMonitor.stopMonitoring();
+      }
+    };
+  }, [conversation?.id, isTeam]);
 
   const conversationNode = useMemo(() => {
     if (!conversation || isGeminiConversation) return null;
@@ -181,8 +203,11 @@ const ChatConversation: React.FC<{
           agentName: (conversation?.extra as { agentName?: string })?.agentName,
         };
 
+  // Show team panel as bottom split when team monitoring is active
+  const bottomPanel = teamMonitor.isTeamActive && teamMonitor.panelVisible ? <TeamPanel /> : undefined;
+
   return (
-    <ChatLayout title={conversation?.name} {...chatLayoutProps} headerExtra={conversation ? <CronJobManager conversationId={conversation.id} /> : undefined} siderTitle={sliderTitle} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled}>
+    <ChatLayout title={conversation?.name} {...chatLayoutProps} headerExtra={conversation ? <CronJobManager conversationId={conversation.id} /> : undefined} siderTitle={sliderTitle} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} bottomPanel={bottomPanel}>
       {conversationNode}
     </ChatLayout>
   );
