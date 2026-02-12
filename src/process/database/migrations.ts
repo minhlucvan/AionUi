@@ -596,10 +596,97 @@ const migration_v12: IMigration = {
 };
 
 /**
- * Migration v12 -> v13: Add 'mezon' to assistant_plugins type constraint
+ * Migration v12 -> v13: Add 'nanobot' to conversations type CHECK constraint
  */
 const migration_v13: IMigration = {
   version: 13,
+  name: 'Add nanobot to conversations type constraint',
+  up: (db) => {
+    // SQLite doesn't support ALTER TABLE to modify CHECK constraints.
+    // We recreate the table with the updated constraint that includes 'nanobot'.
+    // NOTE: The migration runner disables foreign_keys before the transaction,
+    // so DROP TABLE will NOT trigger ON DELETE CASCADE on the messages table.
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS conversations_new (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('gemini', 'acp', 'codex', 'openclaw-gateway', 'nanobot')),
+        extra TEXT NOT NULL,
+        model TEXT,
+        status TEXT CHECK(status IN ('pending', 'running', 'finished')),
+        source TEXT CHECK(source IS NULL OR source IN ('aionui', 'telegram', 'lark')),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO conversations_new (id, user_id, name, type, extra, model, status, source, created_at, updated_at)
+      SELECT id, user_id, name, type, extra, model, status, source, created_at, updated_at FROM conversations;
+
+      DROP TABLE conversations;
+      ALTER TABLE conversations_new RENAME TO conversations;
+
+      -- Recreate indexes
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_conversations_type ON conversations(type);
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
+    `);
+
+    console.log('[Migration v13] Added nanobot to conversations type constraint');
+  },
+  down: (db) => {
+    // Rollback: recreate table without 'nanobot' in type constraint
+    // NOTE: foreign_keys is disabled by the migration runner before the transaction.
+
+    // Remove nanobot conversations before copying to table with stricter constraint
+    db.exec(`
+      DELETE FROM conversations WHERE type = 'nanobot';
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS conversations_rollback (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('gemini', 'acp', 'codex', 'openclaw-gateway')),
+        extra TEXT NOT NULL,
+        model TEXT,
+        status TEXT CHECK(status IN ('pending', 'running', 'finished')),
+        source TEXT CHECK(source IS NULL OR source IN ('aionui', 'telegram', 'lark')),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO conversations_rollback (id, user_id, name, type, extra, model, status, source, created_at, updated_at)
+      SELECT id, user_id, name, type, extra, model, status, source, created_at, updated_at FROM conversations;
+
+      DROP TABLE conversations;
+      ALTER TABLE conversations_rollback RENAME TO conversations;
+
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_conversations_type ON conversations(type);
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
+    `);
+
+    console.log('[Migration v13] Rolled back: Removed nanobot from conversations type constraint');
+  },
+};
+
+/**
+ * Migration v13 -> v14: Add 'mezon' to assistant_plugins type constraint
+ * (Renumbered from original v13 during upstream sync v1.8.7)
+ */
+const migration_v14: IMigration = {
+  version: 14,
   name: 'Add mezon to assistant_plugins type constraint',
   up: (db) => {
     db.exec(`
@@ -625,67 +712,7 @@ const migration_v13: IMigration = {
       CREATE INDEX IF NOT EXISTS idx_assistant_plugins_enabled ON assistant_plugins(enabled);
     `);
 
-    console.log('[Migration v13] Added mezon to assistant_plugins type constraint');
-  },
-  down: (db) => {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS assistant_plugins_old (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL CHECK(type IN ('telegram', 'slack', 'discord', 'lark')),
-        name TEXT NOT NULL,
-        enabled INTEGER NOT NULL DEFAULT 0,
-        config TEXT NOT NULL,
-        status TEXT CHECK(status IN ('created', 'initializing', 'ready', 'starting', 'running', 'stopping', 'stopped', 'error')),
-        last_connected INTEGER,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-
-      INSERT OR IGNORE INTO assistant_plugins_old SELECT * FROM assistant_plugins WHERE type != 'mezon';
-
-      DROP TABLE IF EXISTS assistant_plugins;
-
-      ALTER TABLE assistant_plugins_old RENAME TO assistant_plugins;
-
-      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_type ON assistant_plugins(type);
-      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_enabled ON assistant_plugins(enabled);
-    `);
-    console.log('[Migration v13] Rolled back: Removed mezon from assistant_plugins type constraint');
-  },
-};
-
-/**
- * Migration v13 -> v14: Ensure 'mezon' is in assistant_plugins type constraint
- * Re-applies the mezon constraint for databases where v13 was skipped
- */
-const migration_v14: IMigration = {
-  version: 14,
-  name: 'Ensure mezon in assistant_plugins type constraint',
-  up: (db) => {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS assistant_plugins_new (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL CHECK(type IN ('telegram', 'slack', 'discord', 'lark', 'mezon')),
-        name TEXT NOT NULL,
-        enabled INTEGER NOT NULL DEFAULT 0,
-        config TEXT NOT NULL,
-        status TEXT CHECK(status IN ('created', 'initializing', 'ready', 'starting', 'running', 'stopping', 'stopped', 'error')),
-        last_connected INTEGER,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-
-      INSERT OR IGNORE INTO assistant_plugins_new SELECT * FROM assistant_plugins;
-
-      DROP TABLE IF EXISTS assistant_plugins;
-
-      ALTER TABLE assistant_plugins_new RENAME TO assistant_plugins;
-
-      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_type ON assistant_plugins(type);
-      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_enabled ON assistant_plugins(enabled);
-    `);
-
-    console.log('[Migration v14] Ensured mezon in assistant_plugins type constraint');
+    console.log('[Migration v14] Added mezon to assistant_plugins type constraint');
   },
   down: (db) => {
     db.exec(`
@@ -715,13 +742,74 @@ const migration_v14: IMigration = {
 };
 
 /**
+ * Migration v14 -> v15: Ensure 'mezon' is in assistant_plugins type constraint
+ * Re-applies the mezon constraint for databases where v14 was skipped
+ * (Renumbered from original v14 during upstream sync v1.8.7)
+ */
+const migration_v15: IMigration = {
+  version: 15,
+  name: 'Ensure mezon in assistant_plugins type constraint',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS assistant_plugins_new (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL CHECK(type IN ('telegram', 'slack', 'discord', 'lark', 'mezon')),
+        name TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        config TEXT NOT NULL,
+        status TEXT CHECK(status IN ('created', 'initializing', 'ready', 'starting', 'running', 'stopping', 'stopped', 'error')),
+        last_connected INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      INSERT OR IGNORE INTO assistant_plugins_new SELECT * FROM assistant_plugins;
+
+      DROP TABLE IF EXISTS assistant_plugins;
+
+      ALTER TABLE assistant_plugins_new RENAME TO assistant_plugins;
+
+      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_type ON assistant_plugins(type);
+      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_enabled ON assistant_plugins(enabled);
+    `);
+
+    console.log('[Migration v15] Ensured mezon in assistant_plugins type constraint');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS assistant_plugins_old (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL CHECK(type IN ('telegram', 'slack', 'discord', 'lark')),
+        name TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        config TEXT NOT NULL,
+        status TEXT CHECK(status IN ('created', 'initializing', 'ready', 'starting', 'running', 'stopping', 'stopped', 'error')),
+        last_connected INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      INSERT OR IGNORE INTO assistant_plugins_old SELECT * FROM assistant_plugins WHERE type != 'mezon';
+
+      DROP TABLE IF EXISTS assistant_plugins;
+
+      ALTER TABLE assistant_plugins_old RENAME TO assistant_plugins;
+
+      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_type ON assistant_plugins(type);
+      CREATE INDEX IF NOT EXISTS idx_assistant_plugins_enabled ON assistant_plugins(enabled);
+    `);
+    console.log('[Migration v15] Rolled back: Removed mezon from assistant_plugins type constraint');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14,
+  migration_v13, migration_v14, migration_v15,
 ];
 
 /**

@@ -1,6 +1,4 @@
 import { AcpAgent } from '@/agent/acp';
-import { runAgentHooks, runHooks } from '@/assistant/hooks';
-import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chatLib';
 import { transformMessage } from '@/common/chatLib';
@@ -8,17 +6,20 @@ import { AIONUI_FILES_MARKER } from '@/common/constants';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { parseError, uuid } from '@/common/utils';
 import type { AcpBackend, AcpPermissionOption, AcpPermissionRequest } from '@/types/acpTypes';
-import { toolRegistry } from '../services/toolRegistry';
+import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
-import { ProcessConfig, getAssistantsDir } from '../initStorage';
+import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
+/** Enable ACP performance diagnostics via ACP_PERF=1 */
+const ACP_PERF_LOG = process.env.ACP_PERF === '1';
+
 import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { stripThinkTags } from './ThinkTagDetector';
-import * as path from 'path';
 
 interface AcpAgentManagerData {
   workspace?: string;
@@ -36,8 +37,6 @@ interface AcpAgentManagerData {
   acpSessionId?: string;
   /** Last update time of ACP session / ACP session 最后更新时间 */
   acpSessionUpdatedAt?: number;
-  /** Default agent from assistant.json (metadata only) / 来自 assistant.json 的默认 agent */
-  defaultAgent?: string;
 }
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
@@ -49,6 +48,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   // Track current message for cron detection (accumulated from streaming chunks)
   private currentMsgId: string | null = null;
   private currentMsgContent: string = '';
+
   constructor(data: AcpAgentManagerData) {
     super('acp', data);
     this.conversation_id = data.conversation_id;
@@ -96,12 +96,13 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         yoloMode = data.yoloMode ?? (config?.[data.backend] as any)?.yoloMode;
 
         // Get acpArgs from backend config (for goose, auggie, opencode, etc.)
-        const backendConfig = toolRegistry.getAcpBackendConfig(data.backend);
+        const backendConfig = ACP_BACKENDS_ALL[data.backend];
         if (backendConfig?.acpArgs) {
           customArgs = backendConfig.acpArgs;
         }
 
-        // If cliPath is not configured, fallback to default cliCommand from tool registry
+        // 如果没有配置 cliPath，使用 ACP_BACKENDS_ALL 中的默认 cliCommand
+        // If cliPath is not configured, fallback to default cliCommand from ACP_BACKENDS_ALL
         if (!cliPath && backendConfig?.cliCommand) {
           cliPath = backendConfig.cliCommand;
         }
@@ -134,7 +135,9 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           // 保存 ACP session ID 到数据库以支持会话恢复
           this.saveAcpSessionId(sessionId);
         },
-        onStreamEvent: async (message) => {
+        onStreamEvent: (message) => {
+          const pipelineStart = Date.now();
+
           // Handle preview_open event (chrome-devtools navigation interception)
           // 处理 preview_open 事件（chrome-devtools 导航拦截）
           if (handlePreviewOpenEvent(message)) {
@@ -149,9 +152,18 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           }
 
           if (message.type !== 'thought') {
+            const transformStart = Date.now();
             const tMessage = transformMessage(message as IResponseMessage);
+            const transformDuration = Date.now() - transformStart;
+
             if (tMessage) {
+              const dbStart = Date.now();
               addOrUpdateMessage(message.conversation_id, tMessage, data.backend);
+              const dbDuration = Date.now() - dbStart;
+
+              if (transformDuration > 5 || dbDuration > 5) {
+                if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: transform ${transformDuration}ms, db ${dbDuration}ms type=${message.type}`);
+              }
 
               // Track streaming content for cron detection when turn ends
               // ACP sends content in chunks, we accumulate here for later detection
@@ -171,11 +183,18 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
 
           // Filter think tags from streaming content before emitting to UI
           // 在发送到 UI 之前过滤流式内容中的 think 标签
+          const filterStart = Date.now();
           const filteredMessage = this.filterThinkTagsFromMessage(message as IResponseMessage);
-          // Add timestamp to preserve message creation time
-          const messageWithTimestamp = { ...filteredMessage, timestamp: filteredMessage.timestamp || Date.now() };
-          ipcBridge.acpConversation.responseStream.emit(messageWithTimestamp);
-          channelEventBus.emitAgentMessage(this.conversation_id, messageWithTimestamp);
+          const filterDuration = Date.now() - filterStart;
+
+          const emitStart = Date.now();
+          ipcBridge.acpConversation.responseStream.emit(filteredMessage);
+          const emitDuration = Date.now() - emitStart;
+
+          const totalDuration = Date.now() - pipelineStart;
+          if (totalDuration > 10) {
+            if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: onStreamEvent pipeline ${totalDuration}ms (filter=${filterDuration}ms, emit=${emitDuration}ms) type=${message.type}`);
+          }
         },
         onSignalEvent: async (v) => {
           // 仅发送信号到前端，不更新消息列表
@@ -225,7 +244,6 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
                 data: sysMsg,
               };
               ipcBridge.acpConversation.responseStream.emit(systemMessage);
-              channelEventBus.emitAgentMessage(this.conversation_id, systemMessage);
             });
             // Send collected responses back to AI agent so it can continue
             if (collectedResponses.length > 0 && this.agent) {
@@ -238,16 +256,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           }
 
           ipcBridge.acpConversation.responseStream.emit(v);
-          channelEventBus.emitAgentMessage(this.conversation_id, v);
         },
-      });
-      // Run workspace init hooks BEFORE starting agent
-      // (Claude Code reads .claude/skills/ at startup, symlinks must exist first)
-      await runAgentHooks('onWorkspaceInit', {
-        workspace: data.workspace,
-        backend: data.backend,
-        enabledSkills: data.enabledSkills || [],
-        conversationId: data.conversation_id,
       });
       return this.agent.start().then(() => this.agent);
     })();
@@ -259,12 +268,15 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
     msg?: string;
     message?: string;
   }> {
+    const managerSendStart = Date.now();
     // Mark conversation as busy to prevent cron jobs from running
     cronBusyGuard.setProcessing(this.conversation_id, true);
     // Set status to running when message is being processed
     this.status = 'running';
     try {
+      const initStart = Date.now();
       await this.initAgent(this.options);
+      if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: initAgent completed ${Date.now() - initStart}ms`);
       // Save user message to chat history ONLY after successful sending
       if (data.msg_id && data.content) {
         let contentToSend = data.content;
@@ -272,53 +284,13 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           contentToSend = contentToSend.split(AIONUI_FILES_MARKER)[0].trimEnd();
         }
 
-        // Run assistant hooks from workspace .claude/hooks/ folder (if assistant has custom hooks)
-        const db = getDatabase();
-        const conversationResult = db.getConversation(this.conversation_id);
-        let assistantPath: string | undefined;
-        if (conversationResult.success && conversationResult.data?.extra?.presetAssistantId) {
-          assistantPath = path.join(getAssistantsDir(), conversationResult.data.extra.presetAssistantId);
-        }
-
-        const assistantHookResult = await runHooks('onSendMessage', {
-          workspace: this.workspace,
-          assistantPath,
-          conversationId: this.conversation_id,
-          content: contentToSend,
-          enabledSkills: this.options.enabledSkills || [],
-        });
-        if (assistantHookResult.blocked) {
-          return { success: false, msg: assistantHookResult.blockReason || 'Message blocked by assistant hook' };
-        }
-        contentToSend = assistantHookResult.content ?? contentToSend;
-
-        // Run agent-level hooks (backend-specific hooks like Claude skill injection)
-        const agentHookResult = await runAgentHooks('onSendMessage', {
-          workspace: this.workspace,
-          backend: this.options.backend,
-          content: contentToSend,
-          enabledSkills: this.options.enabledSkills || [],
-          conversationId: this.conversation_id,
-        });
-        if (agentHookResult.blocked) {
-          return { success: false, msg: agentHookResult.blockReason || 'Message blocked by agent hook' };
-        }
-        contentToSend = agentHookResult.content ?? contentToSend;
-
-        // Run first-message hooks (preset rules + skills injection)
+        // 首条消息时注入预设规则和 skills 索引（来自智能助手配置）
+        // Inject preset context and skills INDEX on first message (from smart assistant config)
         if (this.isFirstMessage) {
-          const firstMsgResult = await runAgentHooks('onFirstMessage', {
-            workspace: this.workspace,
-            backend: this.options.backend,
-            content: contentToSend,
-            enabledSkills: this.options.enabledSkills || [],
-            conversationId: this.conversation_id,
+          contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
             presetContext: this.options.presetContext,
+            enabledSkills: this.options.enabledSkills,
           });
-          if (firstMsgResult.blocked) {
-            return { success: false, msg: firstMsgResult.blockReason || 'Message blocked by first-message hook' };
-          }
-          contentToSend = firstMsgResult.content ?? contentToSend;
         }
 
         const userMessage: TMessage = {
@@ -340,9 +312,10 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           data: userMessage.content.content,
         };
         ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
-        channelEventBus.emitAgentMessage(this.conversation_id, userResponseMessage);
 
+        const agentSendStart = Date.now();
         const result = await this.agent.sendMessage({ ...data, content: contentToSend });
+        if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: agent.sendMessage completed ${Date.now() - agentSendStart}ms (total manager.sendMessage: ${Date.now() - managerSendStart}ms)`);
         // 首条消息发送后标记，无论是否有 presetContext
         if (this.isFirstMessage) {
           this.isFirstMessage = false;
@@ -352,7 +325,10 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         // It will be cleared when the conversation ends or on error.
         return result;
       }
-      return await this.agent.sendMessage(data);
+      const agentSendStart = Date.now();
+      const result = await this.agent.sendMessage(data);
+      console.log(`[ACP-PERF] manager: agent.sendMessage completed ${Date.now() - agentSendStart}ms (total manager.sendMessage: ${Date.now() - managerSendStart}ms)`);
+      return result;
     } catch (e) {
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
@@ -369,9 +345,8 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         addOrUpdateMessage(this.conversation_id, tMessage);
       }
 
-      // Emit to frontend for UI display
+      // Emit to frontend for UI display only
       ipcBridge.acpConversation.responseStream.emit(message);
-      channelEventBus.emitAgentMessage(this.conversation_id, message);
       return new Promise((_, reject) => {
         nextTickToLocalFinish(() => {
           reject(e);
@@ -440,8 +415,6 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       const result = db.getConversation(this.conversation_id);
       if (result.success && result.data && result.data.type === 'acp') {
         const conversation = result.data;
-        // Preserve all existing extra fields (including botId, externalChannelId, etc.)
-        // Only update acpSessionId and acpSessionUpdatedAt
         const updatedExtra = {
           ...conversation.extra,
           acpSessionId: sessionId,
