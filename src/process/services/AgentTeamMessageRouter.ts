@@ -80,8 +80,8 @@ export class AgentTeamMessageRouter {
       try {
         switch (cmd.type) {
           case 'message': {
-            // Resolve member name to ID
-            const toMemberId = memberNameToIdMap[cmd.to] || cmd.to;
+            // Resolve member name/id to definition ID (try exact, then case-insensitive)
+            const toMemberId = memberNameToIdMap[cmd.to] || memberNameToIdMap[cmd.to.toLowerCase()] || cmd.to;
             await agentTeamManager.sendTeamMessage(sessionId, fromMemberId, toMemberId, cmd.content);
             break;
           }

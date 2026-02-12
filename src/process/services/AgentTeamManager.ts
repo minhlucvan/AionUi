@@ -126,13 +126,18 @@ class AgentTeamManager {
     const membersList = team.members
       .map((m) => {
         const marker = m.id === member.id ? ' (you)' : '';
-        return `- ${m.name}${marker} [${m.role}]: ${m.systemPrompt.slice(0, 120)}...`;
+        return `- **${m.id}** — ${m.name}${marker} [${m.role}]: ${m.systemPrompt.slice(0, 120)}...`;
       })
       .join('\n');
 
+    const otherMemberIds = team.members
+      .filter((m) => m.id !== member.id)
+      .map((m) => `"${m.id}"`)
+      .join(', ');
+
     return `## Team Context
 
-You are "${member.name}" on the "${team.name}" team.
+You are "${member.name}" (id: ${member.id}) on the "${team.name}" team.
 Your role: ${roleDesc}
 
 ### Your Instructions
@@ -142,9 +147,11 @@ ${member.systemPrompt}
 ${membersList}
 
 ### Communication Protocol
-When you need to communicate with a teammate, include a message in this format at the end of your response:
+When you need to communicate with a teammate, include a message in this format at the end of your response.
+**IMPORTANT**: Use the member **id** (not name) in the TO field. Available ids: ${otherMemberIds}
+
 \`\`\`team-message
-TO: <member-name>
+TO: <member-id>
 <your message>
 \`\`\`
 

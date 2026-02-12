@@ -267,15 +267,28 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           // Process agent team commands when turn ends (finish signal)
           // Check accumulated content for team-message/team-broadcast/team-task blocks
           if (v.type === 'finish' && this.currentMsgContent && data.agentTeamSessionId && data.agentTeamMemberId && AgentTeamMessageRouter.hasTeamCommands(this.currentMsgContent)) {
-            // Build member name -> ID map from the agent team session for routing
+            // Build member name/id -> member definition ID map for routing
             const { agentTeamManager } = require('@process/services/AgentTeamManager');
             const session = agentTeamManager.getSession(data.agentTeamSessionId);
             const memberNameToIdMap: Record<string, string> = {};
             if (session) {
-              // We need the team definition to get member names
-              // For now, use member IDs directly (the system prompt tells agents to use names)
+              // Map both member IDs and conversation names for flexible resolution
               for (const memberId of Object.keys(session.memberConversations)) {
+                // ID -> ID (primary lookup, used by the protocol)
                 memberNameToIdMap[memberId] = memberId;
+                // Also map lowercased ID for case-insensitive matching
+                memberNameToIdMap[memberId.toLowerCase()] = memberId;
+              }
+              // Also map display names from conversation records
+              const database = require('@process/database').getDatabase();
+              for (const memberId of Object.keys(session.memberConversations)) {
+                const convId = session.memberConversations[memberId];
+                const conv = database.getConversation(convId);
+                if (conv.success && conv.data?.extra?.agentTeamMemberName) {
+                  const name = conv.data.extra.agentTeamMemberName as string;
+                  memberNameToIdMap[name] = memberId;
+                  memberNameToIdMap[name.toLowerCase()] = memberId;
+                }
               }
             }
             void AgentTeamMessageRouter.processCommands(data.agentTeamSessionId, data.agentTeamMemberId, this.currentMsgContent, memberNameToIdMap);
