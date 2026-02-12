@@ -1,0 +1,15 @@
+{
+  "type": "utility",
+  "id": "git",
+  "name": "Git",
+  "description": "Distributed version control system for tracking changes in source code",
+  "cliCommand": "git",
+  "installCommand": {
+    "darwin": "brew install git",
+    "linux": "sudo apt-get update && sudo apt-get install git -y",
+    "win32": "winget install --id Git.Git"
+  },
+  "versionCommand": "git --version",
+  "installUrl": "https://git-scm.com/downloads",
+  "skills": ["git"]
+}
