@@ -1297,6 +1297,7 @@
   "teamMonitor": {
     "team": "팀",
     "agents": "에이전트",
+    "chatTab": "채팅",
     "taskList": "작업",
     "agentView": "에이전트",
     "noTasks": "아직 작업이 없습니다. 작업이 시작되면 생성됩니다.",

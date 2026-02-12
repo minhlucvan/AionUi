@@ -3,6 +3,7 @@ import type { AcpBackend } from '@/types/acpTypes';
 import { transformMessage, type TMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
+import { useTeamMonitorSafe } from '@/renderer/context/TeamMonitorContext';
 import SendBox from '@/renderer/components/sendbox';
 import ThoughtDisplay, { type ThoughtData } from '@/renderer/components/ThoughtDisplay';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/useSendBoxDraft';
@@ -32,6 +33,7 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
 
 const useAcpMessage = (conversation_id: string) => {
   const addOrUpdateMessage = useAddOrUpdateMessage();
+  const teamMonitor = useTeamMonitorSafe();
   const [running, setRunning] = useState(false);
   const [thought, setThought] = useState<ThoughtData>({
     description: '',
@@ -188,6 +190,10 @@ const useAcpMessage = (conversation_id: string) => {
             runningRef.current = true;
           }
           addOrUpdateMessage(transformedMessage);
+          break;
+        case 'team_event':
+          // Team tool call detected — activate team monitoring via hook
+          teamMonitor?.activateFromHook(conversation_id);
           break;
         case 'error':
           // Stop AI processing state when error occurs

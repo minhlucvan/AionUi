@@ -8,6 +8,11 @@ import { ipcBridge } from '@/common';
 import type { AgentOutput, TeamMember, TeamTask } from '@/common/teamMonitor';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
+/** Tab ID for the main chat view */
+export const TEAM_TAB_CHAT = 'chat';
+/** Tab ID for the tasks view */
+export const TEAM_TAB_TASKS = 'tasks';
+
 export interface TeamMonitorContextValue {
   /** Whether team monitoring is active */
   isTeamActive: boolean;
@@ -19,18 +24,16 @@ export interface TeamMonitorContextValue {
   tasks: TeamTask[];
   /** Per-agent output transcripts */
   agentOutputs: Map<string, AgentOutput>;
-  /** Whether the team panel is visible */
-  panelVisible: boolean;
-  /** Toggle panel visibility */
-  setPanelVisible: (visible: boolean) => void;
-  /** Currently selected agent in split view */
-  selectedAgent: string | null;
-  /** Select an agent for detailed view */
-  setSelectedAgent: (name: string | null) => void;
+  /** Currently active tab ID ('chat', 'tasks', or agent name) */
+  activeTab: string;
+  /** Switch the active team tab */
+  setActiveTab: (tabId: string) => void;
   /** Start monitoring a team conversation */
   startMonitoring: (conversationId: string, teamName?: string) => void;
   /** Stop monitoring */
   stopMonitoring: () => void;
+  /** Activate team mode from ACP hook (dynamic detection) */
+  activateFromHook: (conversationId: string) => void;
 }
 
 const TeamMonitorContext = createContext<TeamMonitorContextValue | null>(null);
@@ -41,14 +44,13 @@ export const TeamMonitorProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [tasks, setTasks] = useState<TeamTask[]>([]);
   const [agentOutputs, setAgentOutputs] = useState<Map<string, AgentOutput>>(new Map());
-  const [panelVisible, setPanelVisible] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>(TEAM_TAB_CHAT);
   const conversationIdRef = useRef<string | null>(null);
 
   const startMonitoring = useCallback((conversationId: string, name?: string) => {
     conversationIdRef.current = conversationId;
     setIsTeamActive(true);
-    setPanelVisible(true);
+    setActiveTab(TEAM_TAB_CHAT);
     ipcBridge.teamMonitor.start.invoke({ conversationId, teamName: name }).catch((err) => {
       console.error('[TeamMonitor] Failed to start:', err);
     });
@@ -65,9 +67,22 @@ export const TeamMonitorProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setMembers([]);
     setTasks([]);
     setAgentOutputs(new Map());
-    setPanelVisible(false);
-    setSelectedAgent(null);
+    setActiveTab(TEAM_TAB_CHAT);
   }, []);
+
+  // Activate team mode from ACP hook (dynamic detection via tool calls)
+  const activateFromHook = useCallback(
+    (conversationId: string) => {
+      if (isTeamActive) return; // Already active
+      conversationIdRef.current = conversationId;
+      setIsTeamActive(true);
+      setActiveTab(TEAM_TAB_CHAT);
+      ipcBridge.teamMonitor.start.invoke({ conversationId }).catch((err) => {
+        console.error('[TeamMonitor] Failed to start from hook:', err);
+      });
+    },
+    [isTeamActive]
+  );
 
   // Subscribe to IPC events
   useEffect(() => {
@@ -96,7 +111,7 @@ export const TeamMonitorProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, []);
 
-  // Also poll initial state when monitoring starts
+  // Poll state when monitoring starts
   useEffect(() => {
     if (!isTeamActive) return;
 
@@ -128,7 +143,6 @@ export const TeamMonitorProvider: React.FC<{ children: React.ReactNode }> = ({ c
         .catch(() => {});
     };
 
-    // Poll every 5s for state updates (supplements the event-based updates)
     pollState();
     const timer = setInterval(pollState, 5000);
     return () => clearInterval(timer);
@@ -142,12 +156,11 @@ export const TeamMonitorProvider: React.FC<{ children: React.ReactNode }> = ({ c
         members,
         tasks,
         agentOutputs,
-        panelVisible,
-        setPanelVisible,
-        selectedAgent,
-        setSelectedAgent,
+        activeTab,
+        setActiveTab,
         startMonitoring,
         stopMonitoring,
+        activateFromHook,
       }}
     >
       {children}

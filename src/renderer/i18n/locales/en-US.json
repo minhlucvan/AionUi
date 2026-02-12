@@ -1465,6 +1465,7 @@
   "teamMonitor": {
     "team": "Team",
     "agents": "agents",
+    "chatTab": "Chat",
     "taskList": "Tasks",
     "agentView": "Agents",
     "noTasks": "No tasks yet. The team will create tasks once work begins.",

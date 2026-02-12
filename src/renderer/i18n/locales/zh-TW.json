@@ -1230,6 +1230,7 @@
   "teamMonitor": {
     "team": "團隊",
     "agents": "個成員",
+    "chatTab": "對話",
     "taskList": "任務列表",
     "agentView": "成員視圖",
     "noTasks": "暫無任務，團隊開始工作後將建立任務。",

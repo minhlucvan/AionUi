@@ -8,8 +8,8 @@ import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/add-chat.svg';
-import { TeamPanel } from '@/renderer/components/team';
-import { useTeamMonitor } from '@/renderer/context/TeamMonitorContext';
+import { TeamTabContent, TeamTabs } from '@/renderer/components/team';
+import { TEAM_TAB_CHAT, useTeamMonitor } from '@/renderer/context/TeamMonitorContext';
 import { CronJobManager } from '@/renderer/pages/cron';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import { iconColors } from '@/renderer/theme/colors';
@@ -203,11 +203,12 @@ const ChatConversation: React.FC<{
           agentName: (conversation?.extra as { agentName?: string })?.agentName,
         };
 
-  // Show team panel as bottom split when team monitoring is active
-  const bottomPanel = teamMonitor.isTeamActive && teamMonitor.panelVisible ? <TeamPanel /> : undefined;
+  // Team tabs & content for tab-based team layout
+  const teamTabs = teamMonitor.isTeamActive ? <TeamTabs /> : undefined;
+  const teamContent = teamMonitor.isTeamActive && teamMonitor.activeTab !== TEAM_TAB_CHAT ? <TeamTabContent /> : undefined;
 
   return (
-    <ChatLayout title={conversation?.name} {...chatLayoutProps} headerExtra={conversation ? <CronJobManager conversationId={conversation.id} /> : undefined} siderTitle={sliderTitle} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} bottomPanel={bottomPanel}>
+    <ChatLayout title={conversation?.name} {...chatLayoutProps} headerExtra={conversation ? <CronJobManager conversationId={conversation.id} /> : undefined} siderTitle={sliderTitle} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} teamTabs={teamTabs} teamContent={teamContent}>
       {conversationNode}
     </ChatLayout>
   );

@@ -101,8 +101,10 @@ const ChatLayout: React.FC<{
   headerExtra?: React.ReactNode;
   headerLeft?: React.ReactNode;
   workspaceEnabled?: boolean;
-  /** Bottom panel for team monitoring (tmux-like agent split view) */
-  bottomPanel?: React.ReactNode;
+  /** Team tab bar (rendered below ConversationTabs when team mode is active) */
+  teamTabs?: React.ReactNode;
+  /** Team content that replaces the main chat when a non-chat team tab is active */
+  teamContent?: React.ReactNode;
 }> = (props) => {
   // 工作空间面板折叠状态 - 全局持久化
   // Workspace panel collapse state - globally persisted
@@ -406,6 +408,8 @@ const ChatLayout: React.FC<{
           >
             {/* 会话 Tabs 栏 / Conversation tabs bar */}
             <ConversationTabs />
+            {/* Team tabs bar (when team mode is active) */}
+            {props.teamTabs}
             <ArcoLayout.Header className={classNames('h-36px flex items-center justify-between p-16px gap-16px !bg-1 chat-layout-header')}>
               <div>{props.headerLeft}</div>
               <FlexFullContainer className='h-full' containerClassName='flex items-center gap-16px'>
@@ -428,16 +432,7 @@ const ChatLayout: React.FC<{
               </div>
             </ArcoLayout.Header>
             <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>
-              {props.bottomPanel ? (
-                <div className='flex flex-col h-full'>
-                  <div className='flex-1 min-h-0 overflow-hidden'>{props.children}</div>
-                  <div className='border-t border-[var(--bg-3)]' style={{ height: '40%', minHeight: '160px', maxHeight: '50%' }}>
-                    {props.bottomPanel}
-                  </div>
-                </div>
-              ) : (
-                props.children
-              )}
+              {props.teamContent || props.children}
             </ArcoLayout.Content>
           </ArcoLayout.Content>
 

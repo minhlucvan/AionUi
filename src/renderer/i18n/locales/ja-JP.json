@@ -1242,6 +1242,7 @@
   "teamMonitor": {
     "team": "チーム",
     "agents": "エージェント",
+    "chatTab": "チャット",
     "taskList": "タスク",
     "agentView": "エージェント",
     "noTasks": "タスクはまだありません。作業が始まるとタスクが作成されます。",
