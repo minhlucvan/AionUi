@@ -15,7 +15,6 @@ import { Plus, Right, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import TeamSection from './TeamSection';
 
 interface BotWithStatus extends IMezonBotConfig {
   pluginStatus?: IChannelPluginStatus;
@@ -216,9 +215,6 @@ const BotsPage: React.FC = () => {
               ))}
             </div>
           )}
-
-          {/* Agent Teams Section */}
-          <TeamSection />
         </div>
       </div>
     </div>

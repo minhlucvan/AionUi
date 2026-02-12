@@ -4,13 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITeamDefinition, ITeamSession } from '@/common/team';
+import type { ITeamDefinition, ITeamMemberDefinition, ITeamSession } from '@/common/team';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
+import { resolveLocaleKey } from '@/common/utils';
 import { TeamProvider, useTeamContext } from '@/renderer/context/TeamContext';
+import type { AcpBackendConfig } from '@/types/acpTypes';
 import { Empty, Spin } from '@arco-design/web-react';
-import React, { useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useEffect, useState } from 'react';
+import { useTranslation, getI18n } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import useSWR from 'swr';
 import ChatConversation from '../conversation/ChatConversation';
@@ -82,13 +84,24 @@ const TeamConversationPage: React.FC = () => {
         }
         setSession(result.data);
 
-        // Load team definition from ConfigStorage
-        const teams = (await ConfigStorage.get('agent.teams')) || [];
-        const teamDef = teams.find((team: ITeamDefinition) => team.id === result.data!.teamDefinitionId);
-        if (!teamDef) {
+        // Load team definition from custom agents (team assistants)
+        const customAgents: AcpBackendConfig[] = (await ConfigStorage.get('acp.customAgents')) || [];
+        const teamAgentId = result.data!.teamDefinitionId;
+        const customAgent = customAgents.find((a: AcpBackendConfig) => a.id === teamAgentId);
+        if (!customAgent?.teamMembers) {
           setError(t('teams.definitionNotFound', { defaultValue: 'Team definition not found' }));
           return;
         }
+        const localeKey = resolveLocaleKey(getI18n().language || 'en-US');
+        const teamDef: ITeamDefinition = {
+          id: customAgent.id,
+          name: customAgent.nameI18n?.[localeKey] || customAgent.name,
+          icon: customAgent.avatar,
+          description: customAgent.description,
+          members: customAgent.teamMembers as ITeamMemberDefinition[],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
         setDefinition(teamDef);
       } catch (err) {
         console.error('[TeamConversationPage] Failed to load:', err);

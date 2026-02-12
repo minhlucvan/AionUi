@@ -781,6 +781,7 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
             customSkillNames: config.customSkillNames || [],
             assistantPath,
             workspacePath: config.workspacePath,
+            teamMembers: config.teamMembers,
           });
           continue;
         } catch (error) {
@@ -810,6 +811,7 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
           enabledSkills: preset.defaultEnabledSkills || [],
           customSkillNames: [],
           assistantPath,
+          teamMembers: preset.teamMembers,
         });
       } else {
         console.warn(`[AionUi] No assistant.json or preset found for: ${entry.name}`);

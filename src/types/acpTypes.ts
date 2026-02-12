@@ -296,6 +296,14 @@ export interface AcpBackendConfig {
    * These skills will be displayed in the Custom Skills section even after being imported.
    */
   customSkillNames?: string[];
+
+  /**
+   * 团队成员定义 — 存在时，此助手启动多 Agent 团队而非单个对话
+   *
+   * Team member definitions — when present, launching this assistant
+   * spawns a multi-agent team instead of a single conversation.
+   */
+  teamMembers?: import('@/common/team').ITeamMemberDefinition[];
 }
 
 // 所有后端配置 - 包括暂时禁用的 / All backend configurations - including temporarily disabled ones

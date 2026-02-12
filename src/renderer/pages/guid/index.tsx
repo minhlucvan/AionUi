@@ -880,6 +880,41 @@ const Guid: React.FC = () => {
     // 获取启用的 skills 列表 / Get enabled skills list
     const enabledSkills = resolveEnabledSkills(agentInfo);
 
+    // Team assistant detection: if the selected assistant has teamMembers,
+    // spawn a team session instead of a single conversation
+    if (isPreset && agentInfo?.customAgentId) {
+      const customAgent = customAgents.find((a: AcpBackendConfig) => a.id === agentInfo.customAgentId);
+      if (customAgent?.teamMembers && customAgent.teamMembers.length >= 2) {
+        try {
+          const teamDefinition = {
+            id: customAgent.id,
+            name: customAgent.nameI18n?.[resolveLocaleKey(i18n.language)] || customAgent.name,
+            icon: customAgent.avatar,
+            description: customAgent.description,
+            members: customAgent.teamMembers,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+
+          const result = await ipcBridge.team.createSession.invoke({
+            definition: teamDefinition,
+            workspace: finalWorkspace || '',
+          });
+
+          if (!result.success || !result.data) {
+            throw new Error(result.msg || 'Failed to create team session');
+          }
+
+          emitter.emit('chat.history.refresh');
+          void navigate(`/team/${result.data.id}`);
+        } catch (error: unknown) {
+          console.error('Failed to create team session:', error);
+          throw error;
+        }
+        return;
+      }
+    }
+
     // 对于预设助手，当 Main Agent 不可用时自动切换到下一个可用的 Agent
     // 会话类型会随之改变（如 gemini → acp），但 presetAssistantId/rules/skills 保持不变
     // For preset assistants, auto-switch to next available agent when Main Agent is unavailable

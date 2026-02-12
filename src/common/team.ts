@@ -29,7 +29,7 @@ export type ITeamMemberDefinition = {
 
 /**
  * Team definition (reusable template)
- * Stored in ConfigStorage under 'agent.teams'
+ * Used at runtime when creating team sessions from assistant presets.
  */
 export type ITeamDefinition = {
   id: string;
@@ -126,14 +126,3 @@ export function rowToTeamSession(row: ITeamSessionRow): ITeamSession {
   };
 }
 
-// ==================== ConfigStorage Extension ====================
-
-/**
- * Extend IConfigStorageRefer with team definitions
- * Usage: ConfigStorage.get('agent.teams')
- */
-declare module '@/common/storage' {
-  interface IConfigStorageRefer {
-    'agent.teams'?: ITeamDefinition[];
-  }
-}
