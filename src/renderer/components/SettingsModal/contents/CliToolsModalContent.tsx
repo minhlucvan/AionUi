@@ -75,9 +75,7 @@ export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode
       const result = await ipcBridge.acpConversation.checkCliToolStatus.invoke({ backend: backend as any });
       if (!mountedRef.current) return;
       if (result.success && result.data) {
-        setCliTools((prev) =>
-          prev.map((tool) => (tool.backend === backend ? { ...tool, installed: result.data!.installed, version: result.data!.version, statusChecked: true } : tool))
-        );
+        setCliTools((prev) => prev.map((tool) => (tool.backend === backend ? { ...tool, installed: result.data!.installed, version: result.data!.version, statusChecked: true } : tool)));
       } else {
         setCliTools((prev) => prev.map((tool) => (tool.backend === backend ? { ...tool, statusChecked: true } : tool)));
       }
@@ -103,8 +101,8 @@ export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode
       if (result.success && result.data) {
         const tools: CliToolInfo[] = result.data.map((tool) => ({
           ...tool,
-          installed: undefined,
-          version: undefined,
+          installed: undefined as boolean | undefined,
+          version: undefined as string | undefined,
           statusChecked: false,
         }));
         setCliTools(tools);
@@ -417,11 +415,11 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
       if (result.success && result.data) {
         const toolsList: UtilityToolInfo[] = result.data.map((tool) => ({
           ...tool,
-          installed: undefined,
-          version: undefined,
-          loggedIn: undefined,
-          loginUser: undefined,
-          skillInstalled: undefined,
+          installed: undefined as boolean | undefined,
+          version: undefined as string | undefined,
+          loggedIn: undefined as boolean | undefined,
+          loginUser: undefined as string | undefined,
+          skillInstalled: undefined as boolean | undefined,
           statusChecked: false,
         }));
         setTools(toolsList);
@@ -591,13 +589,7 @@ export const UtilityToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPage
                 {/* Tool header row */}
                 <div className='flex items-center justify-between gap-16px'>
                   <div className='flex items-center gap-12px min-w-0 flex-1'>
-                    {isChecking ? (
-                      <Spin size={18} className='flex-shrink-0' />
-                    ) : tool.installed ? (
-                      <CheckOne theme='filled' size='18' fill='rgb(var(--green-6))' className='flex-shrink-0' />
-                    ) : (
-                      <CloseOne theme='filled' size='18' fill='rgb(var(--gray-5))' className='flex-shrink-0' />
-                    )}
+                    {isChecking ? <Spin size={18} className='flex-shrink-0' /> : tool.installed ? <CheckOne theme='filled' size='18' fill='rgb(var(--green-6))' className='flex-shrink-0' /> : <CloseOne theme='filled' size='18' fill='rgb(var(--gray-5))' className='flex-shrink-0' />}
                     <div className='min-w-0'>
                       <div className='text-14px text-t-primary font-medium'>{tool.name}</div>
                       <div className='text-12px text-t-secondary font-mono'>{tool.cliCommand}</div>
