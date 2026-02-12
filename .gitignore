@@ -99,6 +99,8 @@ out/
 **/.claude/settings.local.json
 **/.claude/settings.json
 **/.claude/commands/
+# Allow assistant workspace commands (these are templates, not user configs)
+!assistant/**/workspace/.claude/commands/
 .qwen/
 .qwen/*/
 .iflow/
