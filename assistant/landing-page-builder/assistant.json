@@ -1,0 +1,34 @@
+{
+  "id": "landing-page-builder",
+  "name": "Landing Page Builder Assistant",
+  "version": "1.0.0",
+  "description": "Design engineering assistant for crafting high-converting landing pages with visual storytelling, scroll rhythm, and conversion architecture",
+  "author": "AionUi",
+  "workspacePath": "./workspace",
+  "tags": ["landing-page", "marketing", "conversion", "hero", "copywriting", "scroll", "visual-storytelling", "cta"],
+  "presetAgentType": "claude",
+  "avatar": "🚀",
+  "nameI18n": {
+    "en-US": "Landing Page Builder",
+    "zh-CN": "落地页构建助手"
+  },
+  "descriptionI18n": {
+    "en-US": "Design engineering assistant for crafting high-converting landing pages with visual storytelling, scroll rhythm, and conversion architecture.",
+    "zh-CN": "设计工程助手，用于构建高转化率落地页，支持视觉叙事、滚动节奏与转化架构。"
+  },
+  "promptsI18n": {
+    "en-US": [
+      "Build a landing page for my SaaS product",
+      "Design a hero section with strong visual hierarchy",
+      "Create a pricing page with social proof",
+      "Critique my landing page for conversion craft"
+    ],
+    "zh-CN": [
+      "为我的 SaaS 产品构建落地页",
+      "设计一个视觉层次分明的英雄区块",
+      "创建一个包含社会证明的定价页面",
+      "评审我的落地页转化工艺"
+    ]
+  },
+  "defaultEnabledSkills": ["landing-page-builder"]
+}
