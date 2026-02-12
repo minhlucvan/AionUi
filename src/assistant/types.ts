@@ -54,5 +54,5 @@ export interface AssistantMetadata {
   /** Localized prompt suggestions */
   promptsI18n?: Record<string, string[]>;
   /** Team member definitions — when present, this assistant spawns a multi-agent team */
-  teamMembers?: import('@/common/team').ITeamMemberDefinition[];
+  teamMembers?: import('@/common/agentTeam').IAgentTeamMemberDefinition[];
 }

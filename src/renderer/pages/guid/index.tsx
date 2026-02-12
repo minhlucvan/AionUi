@@ -880,8 +880,8 @@ const Guid: React.FC = () => {
     // 获取启用的 skills 列表 / Get enabled skills list
     const enabledSkills = resolveEnabledSkills(agentInfo);
 
-    // Team assistant detection: if the selected assistant has teamMembers,
-    // spawn a team session instead of a single conversation
+    // Agent team assistant detection: if the selected assistant has teamMembers,
+    // spawn an agent team session instead of a single conversation
     if (isPreset && agentInfo?.customAgentId) {
       const customAgent = customAgents.find((a: AcpBackendConfig) => a.id === agentInfo.customAgentId);
       if (customAgent?.teamMembers && customAgent.teamMembers.length >= 2) {
@@ -896,7 +896,7 @@ const Guid: React.FC = () => {
             updatedAt: Date.now(),
           };
 
-          const result = await ipcBridge.team.createSession.invoke({
+          const result = await ipcBridge.agentTeam.createSession.invoke({
             definition: teamDefinition,
             workspace: finalWorkspace || '',
           });
@@ -906,7 +906,7 @@ const Guid: React.FC = () => {
           }
 
           emitter.emit('chat.history.refresh');
-          void navigate(`/team/${result.data.id}`);
+          void navigate(`/agent-team/${result.data.id}`);
         } catch (error: unknown) {
           console.error('Failed to create team session:', error);
           throw error;

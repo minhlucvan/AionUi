@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { teamManager } from './TeamManager';
+import { agentTeamManager } from './AgentTeamManager';
 
 /**
  * Parsed team command from agent output
@@ -20,11 +20,11 @@ const TEAM_MESSAGE_REGEX = /```team-message\s*\nTO:\s*(.+?)\n([\s\S]*?)```/g;
 const TEAM_BROADCAST_REGEX = /```team-broadcast\s*\n([\s\S]*?)```/g;
 
 /**
- * TeamMessageRouter parses team commands from agent output
+ * AgentTeamMessageRouter parses team commands from agent output
  * and routes them automatically to the appropriate team members.
  * All team coordination is internal — no user intervention needed.
  */
-export class TeamMessageRouter {
+export class AgentTeamMessageRouter {
   /**
    * Parse all team commands from agent output text
    */
@@ -74,7 +74,7 @@ export class TeamMessageRouter {
     const commands = this.parseTeamCommands(content);
     if (commands.length === 0) return;
 
-    console.log(`[TeamMessageRouter] Processing ${commands.length} commands from member ${fromMemberId}`);
+    console.log(`[AgentTeamMessageRouter] Processing ${commands.length} commands from member ${fromMemberId}`);
 
     for (const cmd of commands) {
       try {
@@ -82,16 +82,16 @@ export class TeamMessageRouter {
           case 'message': {
             // Resolve member name to ID
             const toMemberId = memberNameToIdMap[cmd.to] || cmd.to;
-            await teamManager.sendTeamMessage(sessionId, fromMemberId, toMemberId, cmd.content);
+            await agentTeamManager.sendTeamMessage(sessionId, fromMemberId, toMemberId, cmd.content);
             break;
           }
           case 'broadcast': {
-            await teamManager.broadcastTeamMessage(sessionId, fromMemberId, cmd.content);
+            await agentTeamManager.broadcastTeamMessage(sessionId, fromMemberId, cmd.content);
             break;
           }
         }
       } catch (error) {
-        console.error(`[TeamMessageRouter] Failed to process command:`, cmd, error);
+        console.error(`[AgentTeamMessageRouter] Failed to process command:`, cmd, error);
       }
     }
   }

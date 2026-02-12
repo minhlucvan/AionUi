@@ -1,5 +1,5 @@
 import type { PresetAgentType } from '@/types/acpTypes';
-import type { ITeamMemberDefinition } from '@/common/team';
+import type { IAgentTeamMemberDefinition } from '@/common/agentTeam';
 
 export type AssistantPreset = {
   id: string;
@@ -26,7 +26,7 @@ export type AssistantPreset = {
    * When present, launching this assistant spawns a multi-agent team
    * instead of a single conversation.
    */
-  teamMembers?: ITeamMemberDefinition[];
+  teamMembers?: IAgentTeamMemberDefinition[];
 };
 
 export const ASSISTANT_PRESETS: AssistantPreset[] = [
@@ -267,11 +267,11 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
   },
 
-  // ==================== Team Assistants ====================
+  // ==================== Agent Team Assistants ====================
   // These spawn multi-agent teams instead of a single conversation
 
   {
-    id: 'team-fullstack-dev',
+    id: 'agent-team-fullstack-dev',
     avatar: '👥',
     presetAgentType: 'claude',
     ruleFiles: {},
@@ -315,7 +315,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     ],
   },
   {
-    id: 'team-code-review',
+    id: 'agent-team-code-review',
     avatar: '🔍',
     presetAgentType: 'claude',
     ruleFiles: {},
@@ -352,7 +352,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     ],
   },
   {
-    id: 'team-research',
+    id: 'agent-team-research',
     avatar: '🔬',
     presetAgentType: 'claude',
     ruleFiles: {},

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITeamDefinition, ITeamMemberDefinition, ITeamSession, ITeamSessionRow } from '@/common/team';
-import { rowToTeamSession, teamSessionToRow } from '@/common/team';
+import type { IAgentTeamDefinition, IAgentTeamMemberDefinition, IAgentTeamSession, IAgentTeamSessionRow } from '@/common/agentTeam';
+import { rowToAgentTeamSession, agentTeamSessionToRow } from '@/common/agentTeam';
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
@@ -16,7 +16,7 @@ import type AcpAgentManager from '../task/AcpAgentManager';
 /**
  * Access the underlying better-sqlite3 instance from AionUIDatabase.
  * The `db` property is private, so we use a cast to access it.
- * This is safe because TeamManager runs in the same main process.
+ * This is safe because AgentTeamManager runs in the same main process.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getRawDb(): any {
@@ -24,21 +24,21 @@ function getRawDb(): any {
 }
 
 /**
- * TeamManager orchestrates multi-agent team sessions.
+ * AgentTeamManager orchestrates multi-agent team sessions.
  * Each team member is an independent ACP (Claude Code) conversation
  * managed by AionUi, following the patterns from Claude Agent Teams.
  *
  * Team and task management is fully internal and automatic —
  * agents coordinate via the communication protocol without user intervention.
  */
-class TeamManager {
+class AgentTeamManager {
   /**
    * Create a new team session from a definition
    */
-  async createSession(definition: ITeamDefinition, workspace: string): Promise<ITeamSession> {
-    const session: ITeamSession = {
+  async createSession(definition: IAgentTeamDefinition, workspace: string): Promise<IAgentTeamSession> {
+    const session: IAgentTeamSession = {
       id: uuid(16),
-      teamDefinitionId: definition.id,
+      agentTeamDefinitionId: definition.id,
       name: definition.name,
       workspace,
       memberConversations: {},
@@ -58,14 +58,14 @@ class TeamManager {
     // Save updated session with member conversations
     this.saveSession(session);
 
-    console.log(`[TeamManager] Created team session: ${session.id} with ${definition.members.length} members`);
+    console.log(`[AgentTeamManager] Created team session: ${session.id} with ${definition.members.length} members`);
     return session;
   }
 
   /**
    * Spawn a single team member as an ACP conversation
    */
-  async spawnMember(session: ITeamSession, memberDef: ITeamMemberDefinition, teamDef: ITeamDefinition): Promise<string> {
+  async spawnMember(session: IAgentTeamSession, memberDef: IAgentTeamMemberDefinition, teamDef: IAgentTeamDefinition): Promise<string> {
     const teamContext = this.buildTeamSystemPrompt(memberDef, teamDef);
 
     // Build params compatible with ICreateConversationParams
@@ -111,7 +111,7 @@ class TeamManager {
     session.memberConversations[memberDef.id] = conversationId;
     session.updatedAt = Date.now();
 
-    console.log(`[TeamManager] Spawned member "${memberDef.name}" (${memberDef.role}) -> conversation: ${conversationId}`);
+    console.log(`[AgentTeamManager] Spawned member "${memberDef.name}" (${memberDef.role}) -> conversation: ${conversationId}`);
     return conversationId;
   }
 
@@ -120,7 +120,7 @@ class TeamManager {
    * Team coordination and task management are handled automatically
    * through the communication protocol between agents.
    */
-  private buildTeamSystemPrompt(member: ITeamMemberDefinition, team: ITeamDefinition): string {
+  private buildTeamSystemPrompt(member: IAgentTeamMemberDefinition, team: IAgentTeamDefinition): string {
     const roleDesc = member.role === 'lead' ? 'Team Lead - coordinate work, delegate tasks, and synthesize results' : 'Team Member';
 
     const membersList = team.members
@@ -176,7 +176,7 @@ The team orchestrator will route your messages automatically. Coordinate tasks a
         await task.sendMessage({ content: message, msg_id: uuid() });
       }
     } catch (error) {
-      console.error(`[TeamManager] Failed to route message to ${toMemberId}:`, error);
+      console.error(`[AgentTeamManager] Failed to route message to ${toMemberId}:`, error);
     }
   }
 
@@ -204,7 +204,7 @@ The team orchestrator will route your messages automatically. Coordinate tasks a
     const conversationId = session.memberConversations[memberId];
     if (conversationId) {
       WorkerManage.kill(conversationId);
-      console.log(`[TeamManager] Shutdown member ${memberId} (conversation: ${conversationId})`);
+      console.log(`[AgentTeamManager] Shutdown member ${memberId} (conversation: ${conversationId})`);
     }
   }
 
@@ -226,19 +226,19 @@ The team orchestrator will route your messages automatically. Coordinate tasks a
     session.updatedAt = Date.now();
     this.saveSession(session);
 
-    console.log(`[TeamManager] Destroyed team session: ${sessionId}`);
+    console.log(`[AgentTeamManager] Destroyed team session: ${sessionId}`);
   }
 
   /**
    * Get a team session by ID
    */
-  getSession(sessionId: string): ITeamSession | undefined {
+  getSession(sessionId: string): IAgentTeamSession | undefined {
     try {
       const db = getRawDb();
-      const row = db.prepare('SELECT * FROM team_sessions WHERE id = ?').get(sessionId) as ITeamSessionRow | undefined;
-      if (row) return rowToTeamSession(row);
+      const row = db.prepare('SELECT * FROM agent_team_sessions WHERE id = ?').get(sessionId) as IAgentTeamSessionRow | undefined;
+      if (row) return rowToAgentTeamSession(row);
     } catch (error) {
-      console.error(`[TeamManager] Failed to get session ${sessionId}:`, error);
+      console.error(`[AgentTeamManager] Failed to get session ${sessionId}:`, error);
     }
     return undefined;
   }
@@ -246,13 +246,13 @@ The team orchestrator will route your messages automatically. Coordinate tasks a
   /**
    * List all active team sessions
    */
-  getActiveSessions(): ITeamSession[] {
+  getActiveSessions(): IAgentTeamSession[] {
     try {
       const db = getRawDb();
-      const rows = db.prepare('SELECT * FROM team_sessions WHERE status = ? ORDER BY updated_at DESC').all('active') as ITeamSessionRow[];
-      return rows.map(rowToTeamSession);
+      const rows = db.prepare('SELECT * FROM agent_team_sessions WHERE status = ? ORDER BY updated_at DESC').all('active') as IAgentTeamSessionRow[];
+      return rows.map(rowToAgentTeamSession);
     } catch (error) {
-      console.error('[TeamManager] Failed to list active sessions:', error);
+      console.error('[AgentTeamManager] Failed to list active sessions:', error);
       return [];
     }
   }
@@ -260,13 +260,13 @@ The team orchestrator will route your messages automatically. Coordinate tasks a
   /**
    * List all team sessions (any status)
    */
-  getAllSessions(): ITeamSession[] {
+  getAllSessions(): IAgentTeamSession[] {
     try {
       const db = getRawDb();
-      const rows = db.prepare('SELECT * FROM team_sessions ORDER BY updated_at DESC').all() as ITeamSessionRow[];
-      return rows.map(rowToTeamSession);
+      const rows = db.prepare('SELECT * FROM agent_team_sessions ORDER BY updated_at DESC').all() as IAgentTeamSessionRow[];
+      return rows.map(rowToAgentTeamSession);
     } catch (error) {
-      console.error('[TeamManager] Failed to list sessions:', error);
+      console.error('[AgentTeamManager] Failed to list sessions:', error);
       return [];
     }
   }
@@ -274,20 +274,20 @@ The team orchestrator will route your messages automatically. Coordinate tasks a
   /**
    * Save team session to database
    */
-  private saveSession(session: ITeamSession): void {
+  private saveSession(session: IAgentTeamSession): void {
     try {
       const db = getRawDb();
-      const row = teamSessionToRow(session);
+      const row = agentTeamSessionToRow(session);
 
       db.prepare(
-        `INSERT OR REPLACE INTO team_sessions (id, team_definition_id, name, workspace, member_conversations, status, created_at, updated_at)
+        `INSERT OR REPLACE INTO agent_team_sessions (id, agent_team_definition_id, name, workspace, member_conversations, status, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(row.id, row.team_definition_id, row.name, row.workspace, row.member_conversations, row.status, row.created_at, row.updated_at);
+      ).run(row.id, row.agent_team_definition_id, row.name, row.workspace, row.member_conversations, row.status, row.created_at, row.updated_at);
     } catch (error) {
-      console.error(`[TeamManager] Failed to save session ${session.id}:`, error);
+      console.error(`[AgentTeamManager] Failed to save session ${session.id}:`, error);
     }
   }
 }
 
 // Singleton instance
-export const teamManager = new TeamManager();
+export const agentTeamManager = new AgentTeamManager();

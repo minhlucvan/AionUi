@@ -6,20 +6,20 @@
 
 import type { AcpBackend } from '@/types/acpTypes';
 
-// ==================== Team Definition Types ====================
+// ==================== Agent Team Definition Types ====================
 
 /**
- * Role of a team member
+ * Role of an agent team member
  */
-export type TeamMemberRole = 'lead' | 'member';
+export type AgentTeamMemberRole = 'lead' | 'member';
 
 /**
- * Team member definition (stored in team definition)
+ * Agent team member definition (stored in agent team definition)
  */
-export type ITeamMemberDefinition = {
+export type IAgentTeamMemberDefinition = {
   id: string;
   name: string;
-  role: TeamMemberRole;
+  role: AgentTeamMemberRole;
   systemPrompt: string;
   backend?: AcpBackend;
   model?: string;
@@ -28,48 +28,48 @@ export type ITeamMemberDefinition = {
 };
 
 /**
- * Team definition (reusable template)
- * Used at runtime when creating team sessions from assistant presets.
+ * Agent team definition (reusable template)
+ * Used at runtime when creating agent team sessions from assistant presets.
  */
-export type ITeamDefinition = {
+export type IAgentTeamDefinition = {
   id: string;
   name: string;
   description?: string;
   icon?: string;
-  members: ITeamMemberDefinition[];
+  members: IAgentTeamMemberDefinition[];
   defaultWorkspace?: string;
   createdAt: number;
   updatedAt: number;
 };
 
-// ==================== Team Session Types (Runtime) ====================
+// ==================== Agent Team Session Types (Runtime) ====================
 
 /**
- * Team session status
+ * Agent team session status
  */
-export type TeamSessionStatus = 'active' | 'completed' | 'cancelled';
+export type AgentTeamSessionStatus = 'active' | 'completed' | 'cancelled';
 
 /**
- * Runtime team session (active team instance)
+ * Runtime agent team session (active agent team instance)
  */
-export type ITeamSession = {
+export type IAgentTeamSession = {
   id: string;
-  teamDefinitionId: string;
+  agentTeamDefinitionId: string;
   name: string;
   workspace: string;
   /** Map of member definition ID -> conversation ID */
   memberConversations: Record<string, string>;
-  status: TeamSessionStatus;
+  status: AgentTeamSessionStatus;
   createdAt: number;
   updatedAt: number;
 };
 
-// ==================== Team Message Types ====================
+// ==================== Agent Team Message Types ====================
 
 /**
- * A cross-member message routed by the team system
+ * A cross-member message routed by the agent team system
  */
-export type ITeamMessage = {
+export type IAgentTeamMessage = {
   id: string;
   sessionId: string;
   fromMemberId: string;
@@ -81,26 +81,26 @@ export type ITeamMessage = {
 // ==================== Database Row Types ====================
 
 /**
- * Team session stored in database (serialized format)
+ * Agent team session stored in database (serialized format)
  */
-export type ITeamSessionRow = {
+export type IAgentTeamSessionRow = {
   id: string;
-  team_definition_id: string;
+  agent_team_definition_id: string;
   name: string;
   workspace: string;
   member_conversations: string; // JSON string of Record<string, string>
-  status: TeamSessionStatus;
+  status: AgentTeamSessionStatus;
   created_at: number;
   updated_at: number;
 };
 
 /**
- * Convert ITeamSession to database row
+ * Convert IAgentTeamSession to database row
  */
-export function teamSessionToRow(session: ITeamSession): ITeamSessionRow {
+export function agentTeamSessionToRow(session: IAgentTeamSession): IAgentTeamSessionRow {
   return {
     id: session.id,
-    team_definition_id: session.teamDefinitionId,
+    agent_team_definition_id: session.agentTeamDefinitionId,
     name: session.name,
     workspace: session.workspace,
     member_conversations: JSON.stringify(session.memberConversations),
@@ -111,12 +111,12 @@ export function teamSessionToRow(session: ITeamSession): ITeamSessionRow {
 }
 
 /**
- * Convert database row to ITeamSession
+ * Convert database row to IAgentTeamSession
  */
-export function rowToTeamSession(row: ITeamSessionRow): ITeamSession {
+export function rowToAgentTeamSession(row: IAgentTeamSessionRow): IAgentTeamSession {
   return {
     id: row.id,
-    teamDefinitionId: row.team_definition_id,
+    agentTeamDefinitionId: row.agent_team_definition_id,
     name: row.name,
     workspace: row.workspace,
     memberConversations: JSON.parse(row.member_conversations),
@@ -125,4 +125,3 @@ export function rowToTeamSession(row: ITeamSessionRow): ITeamSession {
     updatedAt: row.updated_at,
   };
 }
-

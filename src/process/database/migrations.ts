@@ -803,17 +803,17 @@ const migration_v15: IMigration = {
 };
 
 /**
- * Migration v15 -> v16: Add team_sessions table for Agent Teams feature
- * Stores runtime team session state (member conversations, shared tasks)
+ * Migration v15 -> v16: Add agent_team_sessions table for Agent Teams feature
+ * Stores runtime agent team session state (member conversations)
  */
 const migration_v16: IMigration = {
   version: 16,
-  name: 'Add team_sessions table',
+  name: 'Add agent_team_sessions table',
   up: (db) => {
     db.exec(`
-      CREATE TABLE IF NOT EXISTS team_sessions (
+      CREATE TABLE IF NOT EXISTS agent_team_sessions (
         id TEXT PRIMARY KEY,
-        team_definition_id TEXT NOT NULL,
+        agent_team_definition_id TEXT NOT NULL,
         name TEXT NOT NULL,
         workspace TEXT NOT NULL,
         member_conversations TEXT NOT NULL DEFAULT '{}',
@@ -822,21 +822,21 @@ const migration_v16: IMigration = {
         updated_at INTEGER NOT NULL
       );
 
-      CREATE INDEX IF NOT EXISTS idx_team_sessions_status ON team_sessions(status);
-      CREATE INDEX IF NOT EXISTS idx_team_sessions_updated ON team_sessions(updated_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_team_sessions_definition ON team_sessions(team_definition_id);
+      CREATE INDEX IF NOT EXISTS idx_agent_team_sessions_status ON agent_team_sessions(status);
+      CREATE INDEX IF NOT EXISTS idx_agent_team_sessions_updated ON agent_team_sessions(updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_agent_team_sessions_definition ON agent_team_sessions(agent_team_definition_id);
     `);
 
-    console.log('[Migration v16] Added team_sessions table');
+    console.log('[Migration v16] Added agent_team_sessions table');
   },
   down: (db) => {
     db.exec(`
-      DROP INDEX IF EXISTS idx_team_sessions_definition;
-      DROP INDEX IF EXISTS idx_team_sessions_updated;
-      DROP INDEX IF EXISTS idx_team_sessions_status;
-      DROP TABLE IF EXISTS team_sessions;
+      DROP INDEX IF EXISTS idx_agent_team_sessions_definition;
+      DROP INDEX IF EXISTS idx_agent_team_sessions_updated;
+      DROP INDEX IF EXISTS idx_agent_team_sessions_status;
+      DROP TABLE IF EXISTS agent_team_sessions;
     `);
-    console.log('[Migration v16] Rolled back: Removed team_sessions table');
+    console.log('[Migration v16] Rolled back: Removed agent_team_sessions table');
   },
 };
 

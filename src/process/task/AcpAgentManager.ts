@@ -20,7 +20,7 @@ import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { stripThinkTags } from './ThinkTagDetector';
-import { TeamMessageRouter } from '@process/services/TeamMessageRouter';
+import { AgentTeamMessageRouter } from '@process/services/AgentTeamMessageRouter';
 
 interface AcpAgentManagerData {
   workspace?: string;
@@ -38,14 +38,14 @@ interface AcpAgentManagerData {
   acpSessionId?: string;
   /** Last update time of ACP session / ACP session 最后更新时间 */
   acpSessionUpdatedAt?: number;
-  /** Team session ID if this conversation belongs to a team / 团队会话 ID */
-  teamSessionId?: string;
-  /** Team member definition ID / 团队成员定义 ID */
-  teamMemberId?: string;
-  /** Team member display name / 团队成员名称 */
-  teamMemberName?: string;
-  /** Team role / 团队角色 */
-  teamRole?: string;
+  /** Agent team session ID if this conversation belongs to an agent team / 团队会话 ID */
+  agentTeamSessionId?: string;
+  /** Agent team member definition ID / 团队成员定义 ID */
+  agentTeamMemberId?: string;
+  /** Agent team member display name / 团队成员名称 */
+  agentTeamMemberName?: string;
+  /** Agent team role / 团队角色 */
+  agentTeamRole?: string;
 }
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
@@ -264,12 +264,12 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             this.currentMsgContent = '';
           }
 
-          // Process team commands when turn ends (finish signal)
+          // Process agent team commands when turn ends (finish signal)
           // Check accumulated content for team-message/team-broadcast/team-task blocks
-          if (v.type === 'finish' && this.currentMsgContent && data.teamSessionId && data.teamMemberId && TeamMessageRouter.hasTeamCommands(this.currentMsgContent)) {
-            // Build member name -> ID map from the team session for routing
-            const { teamManager } = require('@process/services/TeamManager');
-            const session = teamManager.getSession(data.teamSessionId);
+          if (v.type === 'finish' && this.currentMsgContent && data.agentTeamSessionId && data.agentTeamMemberId && AgentTeamMessageRouter.hasTeamCommands(this.currentMsgContent)) {
+            // Build member name -> ID map from the agent team session for routing
+            const { agentTeamManager } = require('@process/services/AgentTeamManager');
+            const session = agentTeamManager.getSession(data.agentTeamSessionId);
             const memberNameToIdMap: Record<string, string> = {};
             if (session) {
               // We need the team definition to get member names
@@ -278,7 +278,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
                 memberNameToIdMap[memberId] = memberId;
               }
             }
-            void TeamMessageRouter.processCommands(data.teamSessionId, data.teamMemberId, this.currentMsgContent, memberNameToIdMap);
+            void AgentTeamMessageRouter.processCommands(data.agentTeamSessionId, data.agentTeamMemberId, this.currentMsgContent, memberNameToIdMap);
           }
 
           ipcBridge.acpConversation.responseStream.emit(v);

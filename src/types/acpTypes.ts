@@ -303,7 +303,7 @@ export interface AcpBackendConfig {
    * Team member definitions — when present, launching this assistant
    * spawns a multi-agent team instead of a single conversation.
    */
-  teamMembers?: import('@/common/team').ITeamMemberDefinition[];
+  teamMembers?: import('@/common/agentTeam').IAgentTeamMemberDefinition[];
 }
 
 // 所有后端配置 - 包括暂时禁用的 / All backend configurations - including temporarily disabled ones
