@@ -5,11 +5,13 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { ITeamDefinition, ITeamSession, ITeamTask } from '@/common/team';
+import type { ITeamDefinition } from '@/common/team';
 import { teamManager } from '@process/services/TeamManager';
 
 /**
- * Initialize IPC bridge handlers for Agent Teams feature
+ * Initialize IPC bridge handlers for Agent Teams feature.
+ * Team and task management is internal and automatic —
+ * only session lifecycle and member management are exposed to the renderer.
  */
 export function initTeamBridge(): void {
   // Create a new team session
@@ -62,61 +64,6 @@ export function initTeamBridge(): void {
     try {
       await teamManager.shutdownMember(params.sessionId, params.memberId);
       return { success: true };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      return { success: false, msg };
-    }
-  });
-
-  // Send cross-member message
-  ipcBridge.team.sendMessage.provider(async (params: { sessionId: string; fromMemberId: string; toMemberId: string; content: string }) => {
-    try {
-      await teamManager.sendTeamMessage(params.sessionId, params.fromMemberId, params.toMemberId, params.content);
-      return { success: true };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      return { success: false, msg };
-    }
-  });
-
-  // Broadcast message to all members
-  ipcBridge.team.broadcastMessage.provider(async (params: { sessionId: string; fromMemberId: string; content: string }) => {
-    try {
-      await teamManager.broadcastTeamMessage(params.sessionId, params.fromMemberId, params.content);
-      return { success: true };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      return { success: false, msg };
-    }
-  });
-
-  // Add task
-  ipcBridge.team.addTask.provider(async (params: { sessionId: string; title: string; description?: string; assigneeId?: string }) => {
-    try {
-      const task = teamManager.addTask(params.sessionId, params.title, params.description, params.assigneeId);
-      return { success: true, data: task };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      return { success: false, msg };
-    }
-  });
-
-  // Update task
-  ipcBridge.team.updateTask.provider(async (params: { sessionId: string; taskId: string; updates: Partial<Pick<ITeamTask, 'title' | 'description' | 'assigneeId' | 'status'>> }) => {
-    try {
-      const task = teamManager.updateTask(params.sessionId, params.taskId, params.updates);
-      return { success: true, data: task };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      return { success: false, msg };
-    }
-  });
-
-  // Get tasks
-  ipcBridge.team.getTasks.provider(async (params: { sessionId: string }) => {
-    try {
-      const tasks = teamManager.getTasks(params.sessionId);
-      return { success: true, data: tasks };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       return { success: false, msg };

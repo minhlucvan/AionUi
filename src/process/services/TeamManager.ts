@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITeamDefinition, ITeamMemberDefinition, ITeamSession, ITeamTask, ITeamSessionRow } from '@/common/team';
+import type { ITeamDefinition, ITeamMemberDefinition, ITeamSession, ITeamSessionRow } from '@/common/team';
 import { rowToTeamSession, teamSessionToRow } from '@/common/team';
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
@@ -27,6 +27,9 @@ function getRawDb(): any {
  * TeamManager orchestrates multi-agent team sessions.
  * Each team member is an independent ACP (Claude Code) conversation
  * managed by AionUi, following the patterns from Claude Agent Teams.
+ *
+ * Team and task management is fully internal and automatic —
+ * agents coordinate via the communication protocol without user intervention.
  */
 class TeamManager {
   /**
@@ -39,7 +42,6 @@ class TeamManager {
       name: definition.name,
       workspace,
       memberConversations: {},
-      tasks: [],
       status: 'active',
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -64,7 +66,7 @@ class TeamManager {
    * Spawn a single team member as an ACP conversation
    */
   async spawnMember(session: ITeamSession, memberDef: ITeamMemberDefinition, teamDef: ITeamDefinition): Promise<string> {
-    const teamContext = this.buildTeamSystemPrompt(memberDef, teamDef, session.tasks);
+    const teamContext = this.buildTeamSystemPrompt(memberDef, teamDef);
 
     // Build params compatible with ICreateConversationParams
     const params: ICreateConversationParams = {
@@ -114,10 +116,12 @@ class TeamManager {
   }
 
   /**
-   * Build system prompt for a team member with team context
+   * Build system prompt for a team member with team context.
+   * Team coordination and task management are handled automatically
+   * through the communication protocol between agents.
    */
-  private buildTeamSystemPrompt(member: ITeamMemberDefinition, team: ITeamDefinition, tasks: ITeamTask[]): string {
-    const roleDesc = member.role === 'lead' ? 'Team Lead - coordinate work, assign tasks, and synthesize results' : 'Team Member';
+  private buildTeamSystemPrompt(member: ITeamMemberDefinition, team: ITeamDefinition): string {
+    const roleDesc = member.role === 'lead' ? 'Team Lead - coordinate work, delegate tasks, and synthesize results' : 'Team Member';
 
     const membersList = team.members
       .map((m) => {
@@ -125,16 +129,6 @@ class TeamManager {
         return `- ${m.name}${marker} [${m.role}]: ${m.systemPrompt.slice(0, 120)}...`;
       })
       .join('\n');
-
-    const taskList =
-      tasks.length > 0
-        ? tasks
-            .map((t) => {
-              const assignee = t.assigneeId === member.id ? ' (assigned to you)' : t.assigneeId ? ` (assigned to ${t.assigneeId})` : ' (unassigned)';
-              return `- [${t.status}] ${t.title}${assignee}`;
-            })
-            .join('\n')
-        : '(no tasks yet)';
 
     return `## Team Context
 
@@ -146,9 +140,6 @@ ${member.systemPrompt}
 
 ### Team Members
 ${membersList}
-
-### Current Task List
-${taskList}
 
 ### Communication Protocol
 When you need to communicate with a teammate, include a message in this format at the end of your response:
@@ -162,13 +153,7 @@ To broadcast to all teammates:
 <your message>
 \`\`\`
 
-To update a task status:
-\`\`\`team-task
-TASK: <task-title>
-STATUS: <pending|in_progress|completed>
-\`\`\`
-
-The team orchestrator will route your messages and task updates automatically.
+The team orchestrator will route your messages automatically. Coordinate tasks and share progress through these messages.
 `;
   }
 
@@ -207,56 +192,6 @@ The team orchestrator will route your messages and task updates automatically.
     for (const memberId of memberIds) {
       await this.sendTeamMessage(sessionId, fromMemberId, memberId, content);
     }
-  }
-
-  /**
-   * Add a task to the shared task list
-   */
-  addTask(sessionId: string, title: string, description?: string, assigneeId?: string): ITeamTask {
-    const session = this.getSession(sessionId);
-    if (!session) throw new Error(`Team session not found: ${sessionId}`);
-
-    const task: ITeamTask = {
-      id: uuid(8),
-      title,
-      description,
-      assigneeId,
-      status: 'pending',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    session.tasks.push(task);
-    session.updatedAt = Date.now();
-    this.saveSession(session);
-
-    console.log(`[TeamManager] Added task "${title}" to session ${sessionId}`);
-    return task;
-  }
-
-  /**
-   * Update a task in the shared task list
-   */
-  updateTask(sessionId: string, taskId: string, updates: Partial<Pick<ITeamTask, 'title' | 'description' | 'assigneeId' | 'status'>>): ITeamTask | undefined {
-    const session = this.getSession(sessionId);
-    if (!session) throw new Error(`Team session not found: ${sessionId}`);
-
-    const task = session.tasks.find((t) => t.id === taskId);
-    if (!task) return undefined;
-
-    Object.assign(task, updates, { updatedAt: Date.now() });
-    session.updatedAt = Date.now();
-    this.saveSession(session);
-
-    return task;
-  }
-
-  /**
-   * Get tasks for a session
-   */
-  getTasks(sessionId: string): ITeamTask[] {
-    const session = this.getSession(sessionId);
-    return session?.tasks || [];
   }
 
   /**
@@ -345,9 +280,9 @@ The team orchestrator will route your messages and task updates automatically.
       const row = teamSessionToRow(session);
 
       db.prepare(
-        `INSERT OR REPLACE INTO team_sessions (id, team_definition_id, name, workspace, member_conversations, tasks, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(row.id, row.team_definition_id, row.name, row.workspace, row.member_conversations, row.tasks, row.status, row.created_at, row.updated_at);
+        `INSERT OR REPLACE INTO team_sessions (id, team_definition_id, name, workspace, member_conversations, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(row.id, row.team_definition_id, row.name, row.workspace, row.member_conversations, row.status, row.created_at, row.updated_at);
     } catch (error) {
       console.error(`[TeamManager] Failed to save session ${session.id}:`, error);
     }

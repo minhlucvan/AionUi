@@ -32,8 +32,6 @@ export const STORAGE_KEYS = {
   /** Language preference / 语言偏好 */
   LANGUAGE: 'aionui_language',
 
-  /** Team active member tab state / 团队活跃成员 tab 状态 */
-  TEAM_ACTIVE_MEMBER: 'aionui_team_active_member',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

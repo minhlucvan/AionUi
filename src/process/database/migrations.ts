@@ -817,7 +817,6 @@ const migration_v16: IMigration = {
         name TEXT NOT NULL,
         workspace TEXT NOT NULL,
         member_conversations TEXT NOT NULL DEFAULT '{}',
-        tasks TEXT NOT NULL DEFAULT '[]',
         status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'completed', 'cancelled')),
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL

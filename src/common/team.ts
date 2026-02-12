@@ -45,25 +45,6 @@ export type ITeamDefinition = {
 // ==================== Team Session Types (Runtime) ====================
 
 /**
- * Task status in a team session
- */
-export type TeamTaskStatus = 'pending' | 'in_progress' | 'completed' | 'blocked';
-
-/**
- * A task in the shared task list
- */
-export type ITeamTask = {
-  id: string;
-  title: string;
-  description?: string;
-  assigneeId?: string;
-  status: TeamTaskStatus;
-  dependsOn?: string[];
-  createdAt: number;
-  updatedAt: number;
-};
-
-/**
  * Team session status
  */
 export type TeamSessionStatus = 'active' | 'completed' | 'cancelled';
@@ -78,7 +59,6 @@ export type ITeamSession = {
   workspace: string;
   /** Map of member definition ID -> conversation ID */
   memberConversations: Record<string, string>;
-  tasks: ITeamTask[];
   status: TeamSessionStatus;
   createdAt: number;
   updatedAt: number;
@@ -109,7 +89,6 @@ export type ITeamSessionRow = {
   name: string;
   workspace: string;
   member_conversations: string; // JSON string of Record<string, string>
-  tasks: string; // JSON string of ITeamTask[]
   status: TeamSessionStatus;
   created_at: number;
   updated_at: number;
@@ -125,7 +104,6 @@ export function teamSessionToRow(session: ITeamSession): ITeamSessionRow {
     name: session.name,
     workspace: session.workspace,
     member_conversations: JSON.stringify(session.memberConversations),
-    tasks: JSON.stringify(session.tasks),
     status: session.status,
     created_at: session.createdAt,
     updated_at: session.updatedAt,
@@ -142,7 +120,6 @@ export function rowToTeamSession(row: ITeamSessionRow): ITeamSession {
     name: row.name,
     workspace: row.workspace,
     memberConversations: JSON.parse(row.member_conversations),
-    tasks: JSON.parse(row.tasks),
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

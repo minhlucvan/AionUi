@@ -11,19 +11,18 @@ import { teamManager } from './TeamManager';
  */
 export type TeamCommand =
   | { type: 'message'; to: string; content: string }
-  | { type: 'broadcast'; content: string }
-  | { type: 'task'; title: string; status: string };
+  | { type: 'broadcast'; content: string };
 
 /**
  * Regex patterns for team communication protocol
  */
 const TEAM_MESSAGE_REGEX = /```team-message\s*\nTO:\s*(.+?)\n([\s\S]*?)```/g;
 const TEAM_BROADCAST_REGEX = /```team-broadcast\s*\n([\s\S]*?)```/g;
-const TEAM_TASK_REGEX = /```team-task\s*\nTASK:\s*(.+?)\nSTATUS:\s*(.+?)\s*```/g;
 
 /**
  * TeamMessageRouter parses team commands from agent output
- * and routes them to the appropriate team members.
+ * and routes them automatically to the appropriate team members.
+ * All team coordination is internal — no user intervention needed.
  */
 export class TeamMessageRouter {
   /**
@@ -52,16 +51,6 @@ export class TeamMessageRouter {
       });
     }
 
-    // Parse task updates
-    const taskRegex = new RegExp(TEAM_TASK_REGEX.source, 'g');
-    while ((match = taskRegex.exec(content)) !== null) {
-      commands.push({
-        type: 'task',
-        title: match[1].trim(),
-        status: match[2].trim().toLowerCase(),
-      });
-    }
-
     return commands;
   }
 
@@ -69,11 +58,12 @@ export class TeamMessageRouter {
    * Check if content contains any team commands
    */
   static hasTeamCommands(content: string): boolean {
-    return /```team-(message|broadcast|task)\s*\n/.test(content);
+    return /```team-(message|broadcast)\s*\n/.test(content);
   }
 
   /**
-   * Process team commands from a member's output
+   * Process team commands from a member's output.
+   * Routes messages automatically between team members.
    *
    * @param sessionId - Team session ID
    * @param fromMemberId - ID of the member who produced the output
@@ -97,25 +87,6 @@ export class TeamMessageRouter {
           }
           case 'broadcast': {
             await teamManager.broadcastTeamMessage(sessionId, fromMemberId, cmd.content);
-            break;
-          }
-          case 'task': {
-            // Try to find existing task and update, or create new
-            const session = teamManager.getSession(sessionId);
-            if (session) {
-              const existingTask = session.tasks.find((t) => t.title.toLowerCase() === cmd.title.toLowerCase());
-              const validStatuses: string[] = ['pending', 'in_progress', 'completed', 'blocked'];
-              if (existingTask) {
-                const status = validStatuses.indexOf(cmd.status) >= 0 ? (cmd.status as any) : undefined;
-                if (status) {
-                  teamManager.updateTask(sessionId, existingTask.id, { status });
-                }
-              } else {
-                // Create new task
-                const status = validStatuses.indexOf(cmd.status) >= 0 ? cmd.status : 'pending';
-                teamManager.addTask(sessionId, cmd.title, undefined, status === 'in_progress' ? fromMemberId : undefined);
-              }
-            }
             break;
           }
         }
