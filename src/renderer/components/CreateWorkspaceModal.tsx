@@ -31,34 +31,36 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({ visible, on
     });
     if (result && result.length > 0) {
       setFolderPath(result[0]);
-      // Auto-fill name from folder name if empty
-      if (!name) {
-        const parts = result[0].replace(/[\\/]+$/, '').split(/[\\/]/);
-        setName(parts[parts.length - 1] || '');
-      }
+      // Auto-fill name from folder name
+      const parts = result[0].replace(/[\\/]+$/, '').split(/[\\/]/);
+      setName(parts[parts.length - 1] || '');
     }
-  }, [name]);
+  }, []);
 
   const handleCreate = useCallback(async () => {
     if (!name.trim() || !folderPath.trim()) return;
 
+    console.log('[CreateWorkspaceModal] Starting workspace creation...', { name, folderPath, description });
     setCreating(true);
     try {
+      console.log('[CreateWorkspaceModal] Calling createWorkspace...');
       const ws = await createWorkspace({
         name: name.trim(),
         path: folderPath.trim(),
         description: description.trim() || undefined,
       });
+      console.log('[CreateWorkspaceModal] Workspace created:', ws);
       setActiveWorkspace(ws);
       setName('');
       setFolderPath('');
       setDescription('');
       onClose();
       onCreated?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[CreateWorkspaceModal] Failed to create workspace:', error);
-      Message.error(error?.message || 'Failed to create workspace');
+      Message.error((error as Error)?.message || 'Failed to create workspace');
     } finally {
+      console.log('[CreateWorkspaceModal] Creation process finished');
       setCreating(false);
     }
   }, [name, folderPath, description, createWorkspace, setActiveWorkspace, onClose, onCreated]);
@@ -73,12 +75,6 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({ visible, on
   return (
     <Modal visible={visible} title={t('workspace.create')} onCancel={handleCancel} footer={null} unmountOnExit autoFocus>
       <div className='flex flex-col gap-16px'>
-        {/* Workspace name */}
-        <div>
-          <div className='text-13px text-t-secondary mb-4px'>{t('workspace.name')}</div>
-          <Input value={name} onChange={setName} placeholder={t('workspace.name')} maxLength={100} />
-        </div>
-
         {/* Folder picker */}
         <div>
           <div className='text-13px text-t-secondary mb-4px'>{t('workspace.folder')}</div>
@@ -88,6 +84,14 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({ visible, on
               {t('workspace.selectFolder')}
             </Button>
           </div>
+        </div>
+
+        {/* Workspace name (auto-filled, editable) */}
+        <div>
+          <div className='text-13px text-t-secondary mb-4px'>
+            {t('workspace.name')} <span className='text-t-tertiary'>({t('common.optional') || 'Optional'})</span>
+          </div>
+          <Input value={name} onChange={setName} placeholder={t('workspace.name')} maxLength={100} />
         </div>
 
         {/* Description (optional) */}

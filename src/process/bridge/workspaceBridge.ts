@@ -12,6 +12,7 @@ import type { IWorkspace } from '@/common/types/workspace';
 export function initWorkspaceBridge(): void {
   // Create workspace
   ipcBridge.workspace.create.provider(async (params) => {
+    console.log('[workspaceBridge] Creating workspace with params:', params);
     const db = getDatabase();
     const now = Date.now();
 
@@ -27,10 +28,13 @@ export function initWorkspaceBridge(): void {
       updatedAt: now,
     };
 
+    console.log('[workspaceBridge] Calling db.createWorkspace with:', workspace);
     const result = db.createWorkspace(workspace);
+    console.log('[workspaceBridge] Database result:', result);
     if (!result.success) {
       throw new Error(result.error || 'Failed to create workspace');
     }
+    console.log('[workspaceBridge] Workspace created successfully:', result.data);
     return result.data!;
   });
 

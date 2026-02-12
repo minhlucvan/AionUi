@@ -68,11 +68,11 @@ export const WorkspaceProvider: React.FC<React.PropsWithChildren> = ({ children 
 
   // Initial load + auto-create default workspace if none exist
   useEffect(() => {
-    fetchWorkspaces().then((data) => {
+    void fetchWorkspaces().then((data) => {
       if (data.length === 0 && !defaultCreatedRef.current) {
         defaultCreatedRef.current = true;
         // Auto-create default workspace using home directory
-        ipcBridge.application.getHomePath
+        void ipcBridge.application.getHomePath
           .invoke()
           .then((homePath) => {
             return ipcBridge.workspace.create.invoke({
@@ -83,7 +83,7 @@ export const WorkspaceProvider: React.FC<React.PropsWithChildren> = ({ children 
             });
           })
           .then(() => {
-            fetchWorkspaces();
+            void fetchWorkspaces();
           })
           .catch((error) => {
             console.error('[WorkspaceContext] Failed to auto-create default workspace:', error);
@@ -95,7 +95,7 @@ export const WorkspaceProvider: React.FC<React.PropsWithChildren> = ({ children 
   // Listen for workspace refresh events
   useEffect(() => {
     return addEventListener('workspace.refresh', () => {
-      fetchWorkspaces();
+      void fetchWorkspaces();
     });
   }, [fetchWorkspaces]);
 
@@ -161,8 +161,11 @@ export const WorkspaceProvider: React.FC<React.PropsWithChildren> = ({ children 
 
   const createWorkspace = useCallback(
     async (params: ICreateWorkspaceParams): Promise<IWorkspace> => {
+      console.log('[WorkspaceContext] createWorkspace called with:', params);
       const ws = await ipcBridge.workspace.create.invoke(params);
+      console.log('[WorkspaceContext] Workspace created via IPC:', ws);
       await fetchWorkspaces();
+      console.log('[WorkspaceContext] Workspaces refreshed');
       return ws;
     },
     [fetchWorkspaces]
@@ -207,7 +210,7 @@ export const WorkspaceProvider: React.FC<React.PropsWithChildren> = ({ children 
       updateWorkspace,
       deleteWorkspace,
       refreshWorkspaces: () => {
-        fetchWorkspaces();
+        void fetchWorkspaces();
       },
       loaded,
     }),
