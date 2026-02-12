@@ -126,10 +126,11 @@ const GeminiConversationPanel: React.FC<{ conversation: GeminiConversation; slid
   );
 };
 
-/** Detect if a conversation uses agent teams (has CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS env var) */
+/** Detect if a conversation uses agent teams (persisted isTeam flag or customEnv fallback) */
 const isTeamConversation = (conversation?: TChatConversation): boolean => {
-  const customEnv = (conversation?.extra as { customEnv?: Record<string, string> })?.customEnv;
-  return customEnv?.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS === '1';
+  if (!conversation || conversation.type !== 'acp') return false;
+  const extra = conversation.extra as { isTeam?: boolean; customEnv?: Record<string, string> };
+  return extra.isTeam === true || extra.customEnv?.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS === '1';
 };
 
 const ChatConversation: React.FC<{

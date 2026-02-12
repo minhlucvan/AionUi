@@ -176,7 +176,16 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   // that may have hooks already in place.
   await runHooks('onConversationInit', { workspace });
 
-  return { workspace, customWorkspace, defaultAgent };
+  // Detect team mode from assistant teamMembers config
+  let isTeam = false;
+  if (presetAssistantId && customAgents && Array.isArray(customAgents)) {
+    const assistant = customAgents.find((a: any) => a.id === presetAssistantId);
+    if (assistant?.teamMembers && assistant.teamMembers.length >= 2) {
+      isTeam = true;
+    }
+  }
+
+  return { workspace, customWorkspace, defaultAgent, isTeam };
 };
 
 export const createGeminiAgent = async (model: TProviderWithModel, workspace?: string, defaultFiles?: string[], webSearchEngine?: 'google' | 'default', customWorkspace?: boolean, contextFileName?: string, presetRules?: string, enabledSkills?: string[], presetAssistantId?: string): Promise<TChatConversation> => {
@@ -212,7 +221,35 @@ export const createGeminiAgent = async (model: TProviderWithModel, workspace?: s
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   // Use presetAssistantId as workspace template source (resolves automatically)
-  const { workspace, customWorkspace, defaultAgent } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
+  const { workspace, customWorkspace, defaultAgent, isTeam: isTeamFromAssistant } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
+
+  // Detect team mode: from frontend customEnv or assistant teamMembers config
+  let isTeam = isTeamFromAssistant || extra.customEnv?.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS === '1';
+  let customEnv = extra.customEnv;
+
+  // Run onSetup hook — allows hooks to detect/override team mode and provide env vars
+  if (extra.presetAssistantId) {
+    try {
+      const assistantPath = path.join(getAssistantsDir(), extra.presetAssistantId);
+      const setupResult = await runHooks('onSetup', {
+        workspace,
+        backend: extra.backend,
+        assistantPath,
+        isTeam,
+        customEnv,
+      });
+      // Merge hook results: hooks can override isTeam or provide additional env vars
+      if (setupResult.isTeam !== undefined) isTeam = setupResult.isTeam;
+      if (setupResult.customEnv) customEnv = { ...customEnv, ...setupResult.customEnv };
+    } catch (error) {
+      console.warn('[AionUi] onSetup hook failed (non-critical):', error);
+    }
+  }
+
+  // If team detected but customEnv not set, auto-set the env var
+  if (isTeam && !customEnv?.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS) {
+    customEnv = { ...customEnv, CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' };
+  }
 
   // Build extra object, only including defined fields to prevent undefined values from being JSON.stringify'd
   const conversationExtra: any = {
@@ -231,6 +268,8 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
   if (extra.botId !== undefined) conversationExtra.botId = extra.botId;
   if (extra.externalChannelId !== undefined) conversationExtra.externalChannelId = extra.externalChannelId;
   if (defaultAgent !== undefined) conversationExtra.defaultAgent = defaultAgent;
+  if (customEnv !== undefined) conversationExtra.customEnv = customEnv;
+  if (isTeam) conversationExtra.isTeam = true;
 
   return {
     type: 'acp' as const,

@@ -28,7 +28,7 @@ export const HOOK_PRIORITY = {
 /**
  * Hook events (extensible)
  */
-export type HookEvent = 'onWorkspaceInit' | 'onConversationInit' | 'onSendMessage' | 'onFirstMessage' | 'onBuildSystemInstructions' | 'onError';
+export type HookEvent = 'onWorkspaceInit' | 'onConversationInit' | 'onSetup' | 'onSendMessage' | 'onFirstMessage' | 'onBuildSystemInstructions' | 'onError';
 
 /**
  * Hook context (same for all hooks)
@@ -43,6 +43,10 @@ export type HookContext = {
   enabledSkills?: string[];
   skillsSourceDir?: string;
   presetContext?: string;
+  /** Whether this conversation is detected as a team conversation / 是否为团队会话 */
+  isTeam?: boolean;
+  /** Custom environment variables for the agent process / 自定义环境变量 */
+  customEnv?: Record<string, string>;
   utils: HookUtils;
 };
 
@@ -53,6 +57,10 @@ export type HookResult = {
   content?: string;
   blocked?: boolean;
   blockReason?: string;
+  /** Hook can set isTeam to override team detection / Hook 可设置 isTeam 覆盖团队检测 */
+  isTeam?: boolean;
+  /** Hook can provide extra env vars to merge / Hook 可提供额外环境变量合并 */
+  customEnv?: Record<string, string>;
 };
 
 /**
@@ -75,6 +83,8 @@ export type HookConfig = {
 export type HookModule = {
   onWorkspaceInit?: HookConfig | HookHandler;
   onConversationInit?: HookConfig | HookHandler;
+  /** Fires after workspace init, before conversation is saved to DB. Can return isTeam/customEnv to merge into conversation extra. */
+  onSetup?: HookConfig | HookHandler;
   onSendMessage?: HookConfig | HookHandler;
   onFirstMessage?: HookConfig | HookHandler;
   onBuildSystemInstructions?: HookConfig | HookHandler;
