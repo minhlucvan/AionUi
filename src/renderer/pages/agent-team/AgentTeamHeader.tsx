@@ -9,12 +9,12 @@ import { CloseSmall } from '@icon-park/react';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useTeamContext } from '@/renderer/context/TeamContext';
+import { useAgentTeamContext } from '@/renderer/context/AgentTeamContext';
 
-const TeamHeader: React.FC = () => {
+const AgentTeamHeader: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { session, definition, destroyTeam } = useTeamContext();
+  const { session, definition, destroyTeam } = useAgentTeamContext();
 
   const handleDestroy = useCallback(() => {
     Modal.confirm({
@@ -50,4 +50,4 @@ const TeamHeader: React.FC = () => {
   );
 };
 
-export default TeamHeader;
+export default AgentTeamHeader;

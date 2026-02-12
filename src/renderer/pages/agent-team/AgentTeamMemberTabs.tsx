@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITeamMemberDefinition } from '@/common/team';
+import type { IAgentTeamMemberDefinition } from '@/common/agentTeam';
 import React from 'react';
 
 const ROLE_ICONS: Record<string, string> = {
@@ -12,16 +12,16 @@ const ROLE_ICONS: Record<string, string> = {
   member: '🔧',
 };
 
-type TeamMemberTabsProps = {
-  members: ITeamMemberDefinition[];
+type AgentTeamMemberTabsProps = {
+  members: IAgentTeamMemberDefinition[];
   activeMemberId: string;
   onSwitchMember: (memberId: string) => void;
 };
 
-const TeamMemberTabs: React.FC<TeamMemberTabsProps> = ({ members, activeMemberId, onSwitchMember }: TeamMemberTabsProps) => {
+const AgentTeamMemberTabs: React.FC<AgentTeamMemberTabsProps> = ({ members, activeMemberId, onSwitchMember }: AgentTeamMemberTabsProps) => {
   return (
     <div className='flex items-center gap-2px overflow-x-auto px-12px py-6px border-b border-[var(--color-border)]' style={{ scrollbarWidth: 'none' }}>
-      {members.map((member: ITeamMemberDefinition) => {
+      {members.map((member: IAgentTeamMemberDefinition) => {
         const isActive = member.id === activeMemberId;
         const icon = ROLE_ICONS[member.role] || ROLE_ICONS.member;
 
@@ -44,4 +44,4 @@ const TeamMemberTabs: React.FC<TeamMemberTabsProps> = ({ members, activeMemberId
   );
 };
 
-export default TeamMemberTabs;
+export default AgentTeamMemberTabs;

@@ -612,20 +612,20 @@ export const channel = {
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
 };
 
-// ==================== Team API ====================
+// ==================== Agent Team API ====================
 
-import type { ITeamDefinition, ITeamSession } from '@/common/team';
+import type { IAgentTeamDefinition, IAgentTeamSession } from '@/common/agentTeam';
 
-export const team = {
+export const agentTeam = {
   // Session lifecycle
-  createSession: bridge.buildProvider<IBridgeResponse<ITeamSession>, { definition: ITeamDefinition; workspace: string }>('team.create-session'),
-  destroySession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('team.destroy-session'),
-  getSession: bridge.buildProvider<IBridgeResponse<ITeamSession | undefined>, { sessionId: string }>('team.get-session'),
-  listSessions: bridge.buildProvider<IBridgeResponse<ITeamSession[]>, void>('team.list-sessions'),
+  createSession: bridge.buildProvider<IBridgeResponse<IAgentTeamSession>, { definition: IAgentTeamDefinition; workspace: string }>('agentTeam.create-session'),
+  destroySession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('agentTeam.destroy-session'),
+  getSession: bridge.buildProvider<IBridgeResponse<IAgentTeamSession | undefined>, { sessionId: string }>('agentTeam.get-session'),
+  listSessions: bridge.buildProvider<IBridgeResponse<IAgentTeamSession[]>, void>('agentTeam.list-sessions'),
 
   // Member management
-  shutdownMember: bridge.buildProvider<IBridgeResponse, { sessionId: string; memberId: string }>('team.shutdown-member'),
+  shutdownMember: bridge.buildProvider<IBridgeResponse, { sessionId: string; memberId: string }>('agentTeam.shutdown-member'),
 
   // Events
-  sessionUpdated: bridge.buildEmitter<ITeamSession>('team.session-updated'),
+  sessionUpdated: bridge.buildEmitter<IAgentTeamSession>('agentTeam.session-updated'),
 };

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITeamDefinition, ITeamMemberDefinition, ITeamSession } from '@/common/team';
+import type { IAgentTeamDefinition, IAgentTeamMemberDefinition, IAgentTeamSession } from '@/common/agentTeam';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import { resolveLocaleKey } from '@/common/utils';
-import { TeamProvider, useTeamContext } from '@/renderer/context/TeamContext';
+import { AgentTeamProvider, useAgentTeamContext } from '@/renderer/context/AgentTeamContext';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { Empty, Spin } from '@arco-design/web-react';
 import React, { useEffect, useState } from 'react';
@@ -16,15 +16,15 @@ import { useTranslation, getI18n } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import useSWR from 'swr';
 import ChatConversation from '../conversation/ChatConversation';
-import TeamHeader from './TeamHeader';
-import TeamMemberTabs from './TeamMemberTabs';
+import AgentTeamHeader from './AgentTeamHeader';
+import AgentTeamMemberTabs from './AgentTeamMemberTabs';
 
 /**
  * Inner component that renders the active member's conversation
- * Must be inside TeamProvider to use useTeamContext
+ * Must be inside AgentTeamProvider to use useAgentTeamContext
  */
-const TeamConversationContent: React.FC = () => {
-  const { definition, activeMemberId, activeConversationId, switchMember } = useTeamContext();
+const AgentTeamConversationContent: React.FC = () => {
+  const { definition, activeMemberId, activeConversationId, switchMember } = useAgentTeamContext();
 
   // Load the active member's conversation
   const { data: conversation, isLoading } = useSWR(
@@ -35,8 +35,8 @@ const TeamConversationContent: React.FC = () => {
 
   return (
     <div className='flex flex-col size-full'>
-      <TeamHeader />
-      <TeamMemberTabs members={definition.members} activeMemberId={activeMemberId} onSwitchMember={switchMember} />
+      <AgentTeamHeader />
+      <AgentTeamMemberTabs members={definition.members} activeMemberId={activeMemberId} onSwitchMember={switchMember} />
       <div className='flex-1 overflow-hidden'>
         {isLoading ? (
           <div className='size-full flex items-center justify-center'>
@@ -58,11 +58,11 @@ const TeamConversationContent: React.FC = () => {
  * Team conversation page - loads team session and definition,
  * then renders member tabs with chat conversations
  */
-const TeamConversationPage: React.FC = () => {
+const AgentTeamConversationPage: React.FC = () => {
   const { teamSessionId } = useParams<{ teamSessionId: string }>();
   const { t } = useTranslation();
-  const [session, setSession] = useState<ITeamSession | null>(null);
-  const [definition, setDefinition] = useState<ITeamDefinition | null>(null);
+  const [session, setSession] = useState<IAgentTeamSession | null>(null);
+  const [definition, setDefinition] = useState<IAgentTeamDefinition | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,7 +77,7 @@ const TeamConversationPage: React.FC = () => {
       setLoading(true);
       try {
         // Load session from backend
-        const result = await ipcBridge.team.getSession.invoke({ sessionId: teamSessionId });
+        const result = await ipcBridge.agentTeam.getSession.invoke({ sessionId: teamSessionId });
         if (!result.success || !result.data) {
           setError(t('teams.sessionNotFound', { defaultValue: 'Team session not found' }));
           return;
@@ -86,25 +86,25 @@ const TeamConversationPage: React.FC = () => {
 
         // Load team definition from custom agents (team assistants)
         const customAgents: AcpBackendConfig[] = (await ConfigStorage.get('acp.customAgents')) || [];
-        const teamAgentId = result.data!.teamDefinitionId;
+        const teamAgentId = result.data!.agentTeamDefinitionId;
         const customAgent = customAgents.find((a: AcpBackendConfig) => a.id === teamAgentId);
         if (!customAgent?.teamMembers) {
           setError(t('teams.definitionNotFound', { defaultValue: 'Team definition not found' }));
           return;
         }
         const localeKey = resolveLocaleKey(getI18n().language || 'en-US');
-        const teamDef: ITeamDefinition = {
+        const teamDef: IAgentTeamDefinition = {
           id: customAgent.id,
           name: customAgent.nameI18n?.[localeKey] || customAgent.name,
           icon: customAgent.avatar,
           description: customAgent.description,
-          members: customAgent.teamMembers as ITeamMemberDefinition[],
+          members: customAgent.teamMembers as IAgentTeamMemberDefinition[],
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
         setDefinition(teamDef);
       } catch (err) {
-        console.error('[TeamConversationPage] Failed to load:', err);
+        console.error('[AgentTeamConversationPage] Failed to load:', err);
         setError(t('teams.loadError', { defaultValue: 'Failed to load team session' }));
       } finally {
         setLoading(false);
@@ -131,10 +131,10 @@ const TeamConversationPage: React.FC = () => {
   }
 
   return (
-    <TeamProvider session={session} definition={definition}>
-      <TeamConversationContent />
-    </TeamProvider>
+    <AgentTeamProvider session={session} definition={definition}>
+      <AgentTeamConversationContent />
+    </AgentTeamProvider>
   );
 };
 
-export default TeamConversationPage;
+export default AgentTeamConversationPage;

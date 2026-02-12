@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITeamDefinition, ITeamMemberDefinition, ITeamSession } from '@/common/team';
+import type { IAgentTeamDefinition, IAgentTeamMemberDefinition, IAgentTeamSession } from '@/common/agentTeam';
 import { ipcBridge } from '@/common';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
-export interface TeamContextValue {
+export interface AgentTeamContextValue {
   /** The active team session */
-  session: ITeamSession;
+  session: IAgentTeamSession;
   /** The team definition used to create this session */
-  definition: ITeamDefinition;
+  definition: IAgentTeamDefinition;
   /** Currently active member tab */
   activeMemberId: string;
   /** Conversation ID for the active member */
@@ -28,17 +28,17 @@ export interface TeamContextValue {
   destroyTeam: () => Promise<void>;
 }
 
-const TeamContext = createContext<TeamContextValue | null>(null);
+const AgentTeamContext = createContext<AgentTeamContextValue | null>(null);
 
-export const TeamProvider: React.FC<{
-  session: ITeamSession;
-  definition: ITeamDefinition;
+export const AgentTeamProvider: React.FC<{
+  session: IAgentTeamSession;
+  definition: IAgentTeamDefinition;
   children: React.ReactNode;
-}> = ({ session: initialSession, definition, children }: { session: ITeamSession; definition: ITeamDefinition; children: React.ReactNode }) => {
-  const [session, setSession] = useState<ITeamSession>(initialSession);
+}> = ({ session: initialSession, definition, children }: { session: IAgentTeamSession; definition: IAgentTeamDefinition; children: React.ReactNode }) => {
+  const [session, setSession] = useState<IAgentTeamSession>(initialSession);
   const [activeMemberId, setActiveMemberId] = useState<string>(() => {
     // Default to lead member, or first member
-    const leadMember = definition.members.find((m: ITeamMemberDefinition) => m.role === 'lead');
+    const leadMember = definition.members.find((m: IAgentTeamMemberDefinition) => m.role === 'lead');
     return leadMember?.id || definition.members[0]?.id || '';
   });
 
@@ -49,19 +49,19 @@ export const TeamProvider: React.FC<{
   }, []);
 
   const refreshSession = useCallback(async () => {
-    const result = await ipcBridge.team.getSession.invoke({ sessionId: session.id });
+    const result = await ipcBridge.agentTeam.getSession.invoke({ sessionId: session.id });
     if (result.success && result.data) {
       setSession(result.data);
     }
   }, [session.id]);
 
   const destroyTeam = useCallback(async () => {
-    await ipcBridge.team.destroySession.invoke({ sessionId: session.id });
+    await ipcBridge.agentTeam.destroySession.invoke({ sessionId: session.id });
   }, [session.id]);
 
   // Listen for session updates
   useEffect(() => {
-    const unsub = ipcBridge.team.sessionUpdated.on((updatedSession: ITeamSession) => {
+    const unsub = ipcBridge.agentTeam.sessionUpdated.on((updatedSession: IAgentTeamSession) => {
       if (updatedSession.id === session.id) {
         setSession(updatedSession);
       }
@@ -70,7 +70,7 @@ export const TeamProvider: React.FC<{
   }, [session.id]);
 
   return (
-    <TeamContext.Provider
+    <AgentTeamContext.Provider
       value={{
         session,
         definition,
@@ -82,14 +82,14 @@ export const TeamProvider: React.FC<{
       }}
     >
       {children}
-    </TeamContext.Provider>
+    </AgentTeamContext.Provider>
   );
 };
 
-export function useTeamContext(): TeamContextValue {
-  const context = useContext(TeamContext);
+export function useAgentTeamContext(): AgentTeamContextValue {
+  const context = useContext(AgentTeamContext);
   if (!context) {
-    throw new Error('useTeamContext must be used within TeamProvider');
+    throw new Error('useAgentTeamContext must be used within AgentTeamProvider');
   }
   return context;
 }

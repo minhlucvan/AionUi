@@ -5,31 +5,31 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { ITeamDefinition } from '@/common/team';
-import { teamManager } from '@process/services/TeamManager';
+import type { IAgentTeamDefinition } from '@/common/agentTeam';
+import { agentTeamManager } from '@process/services/AgentTeamManager';
 
 /**
  * Initialize IPC bridge handlers for Agent Teams feature.
  * Team and task management is internal and automatic —
  * only session lifecycle and member management are exposed to the renderer.
  */
-export function initTeamBridge(): void {
+export function initAgentTeamBridge(): void {
   // Create a new team session
-  ipcBridge.team.createSession.provider(async (params: { definition: ITeamDefinition; workspace: string }) => {
+  ipcBridge.agentTeam.createSession.provider(async (params: { definition: IAgentTeamDefinition; workspace: string }) => {
     try {
-      const session = await teamManager.createSession(params.definition, params.workspace);
+      const session = await agentTeamManager.createSession(params.definition, params.workspace);
       return { success: true, data: session };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error('[teamBridge] Failed to create session:', error);
+      console.error('[agentTeamBridge] Failed to create session:', error);
       return { success: false, msg };
     }
   });
 
   // Destroy a team session
-  ipcBridge.team.destroySession.provider(async (params: { sessionId: string }) => {
+  ipcBridge.agentTeam.destroySession.provider(async (params: { sessionId: string }) => {
     try {
-      await teamManager.destroySession(params.sessionId);
+      await agentTeamManager.destroySession(params.sessionId);
       return { success: true };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -38,9 +38,9 @@ export function initTeamBridge(): void {
   });
 
   // Get a team session
-  ipcBridge.team.getSession.provider(async (params: { sessionId: string }) => {
+  ipcBridge.agentTeam.getSession.provider(async (params: { sessionId: string }) => {
     try {
-      const session = teamManager.getSession(params.sessionId);
+      const session = agentTeamManager.getSession(params.sessionId);
       return { success: true, data: session };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -49,9 +49,9 @@ export function initTeamBridge(): void {
   });
 
   // List all team sessions
-  ipcBridge.team.listSessions.provider(async () => {
+  ipcBridge.agentTeam.listSessions.provider(async () => {
     try {
-      const sessions = teamManager.getAllSessions();
+      const sessions = agentTeamManager.getAllSessions();
       return { success: true, data: sessions };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -60,9 +60,9 @@ export function initTeamBridge(): void {
   });
 
   // Shutdown a team member
-  ipcBridge.team.shutdownMember.provider(async (params: { sessionId: string; memberId: string }) => {
+  ipcBridge.agentTeam.shutdownMember.provider(async (params: { sessionId: string; memberId: string }) => {
     try {
-      await teamManager.shutdownMember(params.sessionId, params.memberId);
+      await agentTeamManager.shutdownMember(params.sessionId, params.memberId);
       return { success: true };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
