@@ -20,6 +20,7 @@ import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { stripThinkTags } from './ThinkTagDetector';
+import { TeamMessageRouter } from '@process/services/TeamMessageRouter';
 
 interface AcpAgentManagerData {
   workspace?: string;
@@ -37,6 +38,14 @@ interface AcpAgentManagerData {
   acpSessionId?: string;
   /** Last update time of ACP session / ACP session 最后更新时间 */
   acpSessionUpdatedAt?: number;
+  /** Team session ID if this conversation belongs to a team / 团队会话 ID */
+  teamSessionId?: string;
+  /** Team member definition ID / 团队成员定义 ID */
+  teamMemberId?: string;
+  /** Team member display name / 团队成员名称 */
+  teamMemberName?: string;
+  /** Team role / 团队角色 */
+  teamRole?: string;
 }
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
@@ -253,6 +262,23 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             // Reset after processing
             this.currentMsgId = null;
             this.currentMsgContent = '';
+          }
+
+          // Process team commands when turn ends (finish signal)
+          // Check accumulated content for team-message/team-broadcast/team-task blocks
+          if (v.type === 'finish' && this.currentMsgContent && data.teamSessionId && data.teamMemberId && TeamMessageRouter.hasTeamCommands(this.currentMsgContent)) {
+            // Build member name -> ID map from the team session for routing
+            const { teamManager } = require('@process/services/TeamManager');
+            const session = teamManager.getSession(data.teamSessionId);
+            const memberNameToIdMap: Record<string, string> = {};
+            if (session) {
+              // We need the team definition to get member names
+              // For now, use member IDs directly (the system prompt tells agents to use names)
+              for (const memberId of Object.keys(session.memberConversations)) {
+                memberNameToIdMap[memberId] = memberId;
+              }
+            }
+            void TeamMessageRouter.processCommands(data.teamSessionId, data.teamMemberId, this.currentMsgContent, memberNameToIdMap);
           }
 
           ipcBridge.acpConversation.responseStream.emit(v);

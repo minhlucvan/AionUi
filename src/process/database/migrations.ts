@@ -803,13 +803,52 @@ const migration_v15: IMigration = {
 };
 
 /**
+ * Migration v15 -> v16: Add team_sessions table for Agent Teams feature
+ * Stores runtime team session state (member conversations, shared tasks)
+ */
+const migration_v16: IMigration = {
+  version: 16,
+  name: 'Add team_sessions table',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS team_sessions (
+        id TEXT PRIMARY KEY,
+        team_definition_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        workspace TEXT NOT NULL,
+        member_conversations TEXT NOT NULL DEFAULT '{}',
+        tasks TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'completed', 'cancelled')),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_team_sessions_status ON team_sessions(status);
+      CREATE INDEX IF NOT EXISTS idx_team_sessions_updated ON team_sessions(updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_team_sessions_definition ON team_sessions(team_definition_id);
+    `);
+
+    console.log('[Migration v16] Added team_sessions table');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_team_sessions_definition;
+      DROP INDEX IF EXISTS idx_team_sessions_updated;
+      DROP INDEX IF EXISTS idx_team_sessions_status;
+      DROP TABLE IF EXISTS team_sessions;
+    `);
+    console.log('[Migration v16] Rolled back: Removed team_sessions table');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14, migration_v15,
+  migration_v13, migration_v14, migration_v15, migration_v16,
 ];
 
 /**

@@ -20,6 +20,7 @@ import ComponentsShowcase from './pages/test/ComponentsShowcase';
 import BotsPage from './pages/bots';
 import BotDetailPage from './pages/bots/BotDetailPage';
 import BotConversationPage from './pages/bots/BotConversationPage';
+import TeamConversationPage from './pages/team/TeamConversationPage';
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
@@ -62,6 +63,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/bots' element={<BotsPage />} />
           <Route path='/bots/:botId/conversation/:conversationId' element={<BotConversationPage />} />
           <Route path='/bots/:botId' element={<BotDetailPage />} />
+          <Route path='/team/:teamSessionId' element={<TeamConversationPage />} />
           <Route path='/test/components' element={<ComponentsShowcase />} />
         </Route>
         <Route path='*' element={<Navigate to={status === 'authenticated' ? '/guid' : '/login'} replace />} />

@@ -611,3 +611,31 @@ export const channel = {
   pluginStatusChanged: bridge.buildEmitter<{ pluginId: string; status: IChannelPluginStatus }>('channel.plugin-status-changed'),
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
 };
+
+// ==================== Team API ====================
+
+import type { ITeamDefinition, ITeamSession, ITeamTask } from '@/common/team';
+
+export const team = {
+  // Session lifecycle
+  createSession: bridge.buildProvider<IBridgeResponse<ITeamSession>, { definition: ITeamDefinition; workspace: string }>('team.create-session'),
+  destroySession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('team.destroy-session'),
+  getSession: bridge.buildProvider<IBridgeResponse<ITeamSession | undefined>, { sessionId: string }>('team.get-session'),
+  listSessions: bridge.buildProvider<IBridgeResponse<ITeamSession[]>, void>('team.list-sessions'),
+
+  // Member management
+  shutdownMember: bridge.buildProvider<IBridgeResponse, { sessionId: string; memberId: string }>('team.shutdown-member'),
+
+  // Cross-member messaging
+  sendMessage: bridge.buildProvider<IBridgeResponse, { sessionId: string; fromMemberId: string; toMemberId: string; content: string }>('team.send-message'),
+  broadcastMessage: bridge.buildProvider<IBridgeResponse, { sessionId: string; fromMemberId: string; content: string }>('team.broadcast-message'),
+
+  // Shared task list
+  addTask: bridge.buildProvider<IBridgeResponse<ITeamTask>, { sessionId: string; title: string; description?: string; assigneeId?: string }>('team.add-task'),
+  updateTask: bridge.buildProvider<IBridgeResponse<ITeamTask | undefined>, { sessionId: string; taskId: string; updates: Partial<Pick<ITeamTask, 'title' | 'description' | 'assigneeId' | 'status'>> }>('team.update-task'),
+  getTasks: bridge.buildProvider<IBridgeResponse<ITeamTask[]>, { sessionId: string }>('team.get-tasks'),
+
+  // Events
+  sessionUpdated: bridge.buildEmitter<ITeamSession>('team.session-updated'),
+  taskUpdated: bridge.buildEmitter<{ sessionId: string; task: ITeamTask }>('team.task-updated'),
+};

@@ -1,0 +1,358 @@
+/**
+ * @license
+ * Copyright 2025 AionUi (aionui.com)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type { ITeamDefinition, ITeamMemberDefinition, ITeamSession, ITeamTask, ITeamSessionRow } from '@/common/team';
+import { rowToTeamSession, teamSessionToRow } from '@/common/team';
+import type { ICreateConversationParams } from '@/common/ipcBridge';
+import { uuid } from '@/common/utils';
+import { getDatabase } from '@process/database';
+import { ConversationService } from './conversationService';
+import WorkerManage from '../WorkerManage';
+import type AcpAgentManager from '../task/AcpAgentManager';
+
+/**
+ * Access the underlying better-sqlite3 instance from AionUIDatabase.
+ * The `db` property is private, so we use a cast to access it.
+ * This is safe because TeamManager runs in the same main process.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getRawDb(): any {
+  return (getDatabase() as any).db;
+}
+
+/**
+ * TeamManager orchestrates multi-agent team sessions.
+ * Each team member is an independent ACP (Claude Code) conversation
+ * managed by AionUi, following the patterns from Claude Agent Teams.
+ */
+class TeamManager {
+  /**
+   * Create a new team session from a definition
+   */
+  async createSession(definition: ITeamDefinition, workspace: string): Promise<ITeamSession> {
+    const session: ITeamSession = {
+      id: uuid(16),
+      teamDefinitionId: definition.id,
+      name: definition.name,
+      workspace,
+      memberConversations: {},
+      tasks: [],
+      status: 'active',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    // Persist to database
+    this.saveSession(session);
+
+    // Spawn all members
+    for (const memberDef of definition.members) {
+      await this.spawnMember(session, memberDef, definition);
+    }
+
+    // Save updated session with member conversations
+    this.saveSession(session);
+
+    console.log(`[TeamManager] Created team session: ${session.id} with ${definition.members.length} members`);
+    return session;
+  }
+
+  /**
+   * Spawn a single team member as an ACP conversation
+   */
+  async spawnMember(session: ITeamSession, memberDef: ITeamMemberDefinition, teamDef: ITeamDefinition): Promise<string> {
+    const teamContext = this.buildTeamSystemPrompt(memberDef, teamDef, session.tasks);
+
+    // Build params compatible with ICreateConversationParams
+    const params: ICreateConversationParams = {
+      type: 'acp',
+      model: { id: '', useModel: '' } as any,
+      extra: {
+        workspace: session.workspace,
+        backend: (memberDef.backend || 'claude') as any,
+        customWorkspace: true,
+        presetContext: teamContext,
+        enabledSkills: memberDef.skills,
+        presetAssistantId: memberDef.presetAssistantId,
+      },
+      name: `[${session.name}] ${memberDef.name}`,
+    };
+
+    const result = await ConversationService.createConversation({
+      ...params,
+      source: 'aionui',
+    });
+
+    if (!result.success || !result.conversation) {
+      throw new Error(`Failed to spawn team member "${memberDef.name}": ${result.error}`);
+    }
+
+    const conversationId = result.conversation.id;
+
+    // Update conversation extra with team metadata
+    const db = getDatabase();
+    const existingConv = db.getConversation(conversationId);
+    if (existingConv.success && existingConv.data) {
+      const updatedExtra = {
+        ...existingConv.data.extra,
+        teamSessionId: session.id,
+        teamMemberId: memberDef.id,
+        teamMemberName: memberDef.name,
+        teamRole: memberDef.role,
+      };
+      db.updateConversation(conversationId, { extra: updatedExtra } as any);
+    }
+
+    session.memberConversations[memberDef.id] = conversationId;
+    session.updatedAt = Date.now();
+
+    console.log(`[TeamManager] Spawned member "${memberDef.name}" (${memberDef.role}) -> conversation: ${conversationId}`);
+    return conversationId;
+  }
+
+  /**
+   * Build system prompt for a team member with team context
+   */
+  private buildTeamSystemPrompt(member: ITeamMemberDefinition, team: ITeamDefinition, tasks: ITeamTask[]): string {
+    const roleDesc = member.role === 'lead' ? 'Team Lead - coordinate work, assign tasks, and synthesize results' : 'Team Member';
+
+    const membersList = team.members
+      .map((m) => {
+        const marker = m.id === member.id ? ' (you)' : '';
+        return `- ${m.name}${marker} [${m.role}]: ${m.systemPrompt.slice(0, 120)}...`;
+      })
+      .join('\n');
+
+    const taskList =
+      tasks.length > 0
+        ? tasks
+            .map((t) => {
+              const assignee = t.assigneeId === member.id ? ' (assigned to you)' : t.assigneeId ? ` (assigned to ${t.assigneeId})` : ' (unassigned)';
+              return `- [${t.status}] ${t.title}${assignee}`;
+            })
+            .join('\n')
+        : '(no tasks yet)';
+
+    return `## Team Context
+
+You are "${member.name}" on the "${team.name}" team.
+Your role: ${roleDesc}
+
+### Your Instructions
+${member.systemPrompt}
+
+### Team Members
+${membersList}
+
+### Current Task List
+${taskList}
+
+### Communication Protocol
+When you need to communicate with a teammate, include a message in this format at the end of your response:
+\`\`\`team-message
+TO: <member-name>
+<your message>
+\`\`\`
+
+To broadcast to all teammates:
+\`\`\`team-broadcast
+<your message>
+\`\`\`
+
+To update a task status:
+\`\`\`team-task
+TASK: <task-title>
+STATUS: <pending|in_progress|completed>
+\`\`\`
+
+The team orchestrator will route your messages and task updates automatically.
+`;
+  }
+
+  /**
+   * Send a message from one member to another by injecting it into the target's conversation
+   */
+  async sendTeamMessage(sessionId: string, fromMemberId: string, toMemberId: string, content: string): Promise<void> {
+    const session = this.getSession(sessionId);
+    if (!session) throw new Error(`Team session not found: ${sessionId}`);
+
+    const fromName = fromMemberId;
+    const toConversationId = session.memberConversations[toMemberId];
+    if (!toConversationId) throw new Error(`Member not found in session: ${toMemberId}`);
+
+    const message = `[Team message from ${fromName}]: ${content}`;
+
+    try {
+      const task = (await WorkerManage.getTaskByIdRollbackBuild(toConversationId)) as AcpAgentManager;
+      if (task && task.type === 'acp') {
+        await task.sendMessage({ content: message, msg_id: uuid() });
+      }
+    } catch (error) {
+      console.error(`[TeamManager] Failed to route message to ${toMemberId}:`, error);
+    }
+  }
+
+  /**
+   * Broadcast a message from one member to all others
+   */
+  async broadcastTeamMessage(sessionId: string, fromMemberId: string, content: string): Promise<void> {
+    const session = this.getSession(sessionId);
+    if (!session) throw new Error(`Team session not found: ${sessionId}`);
+
+    const memberIds = Object.keys(session.memberConversations).filter((id) => id !== fromMemberId);
+
+    for (const memberId of memberIds) {
+      await this.sendTeamMessage(sessionId, fromMemberId, memberId, content);
+    }
+  }
+
+  /**
+   * Add a task to the shared task list
+   */
+  addTask(sessionId: string, title: string, description?: string, assigneeId?: string): ITeamTask {
+    const session = this.getSession(sessionId);
+    if (!session) throw new Error(`Team session not found: ${sessionId}`);
+
+    const task: ITeamTask = {
+      id: uuid(8),
+      title,
+      description,
+      assigneeId,
+      status: 'pending',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    session.tasks.push(task);
+    session.updatedAt = Date.now();
+    this.saveSession(session);
+
+    console.log(`[TeamManager] Added task "${title}" to session ${sessionId}`);
+    return task;
+  }
+
+  /**
+   * Update a task in the shared task list
+   */
+  updateTask(sessionId: string, taskId: string, updates: Partial<Pick<ITeamTask, 'title' | 'description' | 'assigneeId' | 'status'>>): ITeamTask | undefined {
+    const session = this.getSession(sessionId);
+    if (!session) throw new Error(`Team session not found: ${sessionId}`);
+
+    const task = session.tasks.find((t) => t.id === taskId);
+    if (!task) return undefined;
+
+    Object.assign(task, updates, { updatedAt: Date.now() });
+    session.updatedAt = Date.now();
+    this.saveSession(session);
+
+    return task;
+  }
+
+  /**
+   * Get tasks for a session
+   */
+  getTasks(sessionId: string): ITeamTask[] {
+    const session = this.getSession(sessionId);
+    return session?.tasks || [];
+  }
+
+  /**
+   * Shutdown a single team member
+   */
+  async shutdownMember(sessionId: string, memberId: string): Promise<void> {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+
+    const conversationId = session.memberConversations[memberId];
+    if (conversationId) {
+      WorkerManage.kill(conversationId);
+      console.log(`[TeamManager] Shutdown member ${memberId} (conversation: ${conversationId})`);
+    }
+  }
+
+  /**
+   * Destroy a team session and kill all member conversations
+   */
+  async destroySession(sessionId: string): Promise<void> {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+
+    // Kill all member conversations
+    const conversationIds = Object.keys(session.memberConversations).map((k) => session.memberConversations[k]);
+    for (const conversationId of conversationIds) {
+      WorkerManage.kill(conversationId);
+    }
+
+    // Update status
+    session.status = 'cancelled';
+    session.updatedAt = Date.now();
+    this.saveSession(session);
+
+    console.log(`[TeamManager] Destroyed team session: ${sessionId}`);
+  }
+
+  /**
+   * Get a team session by ID
+   */
+  getSession(sessionId: string): ITeamSession | undefined {
+    try {
+      const db = getRawDb();
+      const row = db.prepare('SELECT * FROM team_sessions WHERE id = ?').get(sessionId) as ITeamSessionRow | undefined;
+      if (row) return rowToTeamSession(row);
+    } catch (error) {
+      console.error(`[TeamManager] Failed to get session ${sessionId}:`, error);
+    }
+    return undefined;
+  }
+
+  /**
+   * List all active team sessions
+   */
+  getActiveSessions(): ITeamSession[] {
+    try {
+      const db = getRawDb();
+      const rows = db.prepare('SELECT * FROM team_sessions WHERE status = ? ORDER BY updated_at DESC').all('active') as ITeamSessionRow[];
+      return rows.map(rowToTeamSession);
+    } catch (error) {
+      console.error('[TeamManager] Failed to list active sessions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * List all team sessions (any status)
+   */
+  getAllSessions(): ITeamSession[] {
+    try {
+      const db = getRawDb();
+      const rows = db.prepare('SELECT * FROM team_sessions ORDER BY updated_at DESC').all() as ITeamSessionRow[];
+      return rows.map(rowToTeamSession);
+    } catch (error) {
+      console.error('[TeamManager] Failed to list sessions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Save team session to database
+   */
+  private saveSession(session: ITeamSession): void {
+    try {
+      const db = getRawDb();
+      const row = teamSessionToRow(session);
+
+      db.prepare(
+        `INSERT OR REPLACE INTO team_sessions (id, team_definition_id, name, workspace, member_conversations, tasks, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(row.id, row.team_definition_id, row.name, row.workspace, row.member_conversations, row.tasks, row.status, row.created_at, row.updated_at);
+    } catch (error) {
+      console.error(`[TeamManager] Failed to save session ${session.id}:`, error);
+    }
+  }
+}
+
+// Singleton instance
+export const teamManager = new TeamManager();
