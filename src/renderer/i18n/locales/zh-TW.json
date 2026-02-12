@@ -1226,5 +1226,22 @@
       "configureFirst": "請先在設定中配置一個 Agent。",
       "switching": "正在切換 Agent..."
     }
-  }
+  },
+  "workspace.create": "建立工作空間",
+  "workspace.delete": "刪除工作空間",
+  "workspace.deleteConfirm": "確定要刪除此工作空間嗎？會話將保留但取消關聯。",
+  "workspace.name": "工作空間名稱",
+  "workspace.folder": "資料夾",
+  "workspace.description": "描述",
+  "workspace.allConversations": "所有會話",
+  "workspace.settings": "工作空間設定",
+  "workspace.noWorkspaces": "暫無工作空間",
+  "workspace.selectFolder": "選擇資料夾",
+  "workspace.pin": "置頂工作空間",
+  "workspace.unpin": "取消置頂",
+  "workspace.default": "預設工作空間",
+  "workspace.defaultDescription": "未選擇特定工作空間時使用的工作空間",
+  "workspace.setAsDefault": "設為預設",
+  "workspace.defaultAgent": "預設代理",
+  "workspace.defaultModel": "預設模型"
 }

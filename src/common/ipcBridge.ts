@@ -11,6 +11,7 @@ import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpBackendConfig, PresetAgentType } from '../types/acpTypes';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel } from './storage';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
+import type { ICreateWorkspaceParams, IUpdateWorkspaceParams, IWorkspace } from './types/workspace';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
 
@@ -66,6 +67,7 @@ export const application = {
   updateSystemInfo: bridge.buildProvider<IBridgeResponse, { cacheDir: string; workDir: string }>('system.update-info'), // 更新系统信息
   getZoomFactor: bridge.buildProvider<number, void>('app.get-zoom-factor'),
   setZoomFactor: bridge.buildProvider<number, { factor: number }>('app.set-zoom-factor'),
+  getHomePath: bridge.buildProvider<string, void>('app.get-home-path'),
 };
 
 // Manual (opt-in) updates via GitHub Releases
@@ -365,6 +367,19 @@ export const database = {
   getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number }>('database.get-user-conversations'),
 };
 
+// Workspace operations
+export const workspace = {
+  create: bridge.buildProvider<IWorkspace, ICreateWorkspaceParams>('workspace.create'),
+  get: bridge.buildProvider<IWorkspace | null, { id: string }>('workspace.get'),
+  getByPath: bridge.buildProvider<IWorkspace | null, { path: string }>('workspace.get-by-path'),
+  list: bridge.buildProvider<IWorkspace[], { page?: number; pageSize?: number }>('workspace.list'),
+  update: bridge.buildProvider<boolean, IUpdateWorkspaceParams>('workspace.update'),
+  delete: bridge.buildProvider<boolean, { id: string }>('workspace.delete'),
+  getConversations: bridge.buildProvider<TChatConversation[], { workspaceId: string }>('workspace.get-conversations'),
+  setActiveConversation: bridge.buildProvider<boolean, { workspaceId: string; conversationId: string }>('workspace.set-active-conversation'),
+  setConversationWorkspace: bridge.buildProvider<boolean, { conversationId: string; workspaceId: string | null }>('workspace.set-conversation-workspace'),
+};
+
 export const previewHistory = {
   list: bridge.buildProvider<PreviewSnapshotInfo[], { target: PreviewHistoryTarget }>('preview-history.list'),
   save: bridge.buildProvider<PreviewSnapshotInfo, { target: PreviewHistoryTarget; content: string }>('preview-history.save'),
@@ -507,6 +522,8 @@ export interface ICreateConversationParams {
   id?: string;
   name?: string;
   model: TProviderWithModel;
+  /** Workspace ID to link this conversation to */
+  workspaceId?: string;
   extra: {
     workspace?: string;
     customWorkspace?: boolean;

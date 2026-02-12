@@ -170,6 +170,11 @@ export class ConversationService {
         return { success: false, error: result.error };
       }
 
+      // Link conversation to workspace if workspaceId is provided
+      if (params.workspaceId) {
+        db.setConversationWorkspace(conversation.id, params.workspaceId);
+      }
+
       console.log(`[ConversationService] Created ${type} conversation ${conversation.id} with source=${source || 'aionui'}`);
       return { success: true, conversation };
     } catch (error) {

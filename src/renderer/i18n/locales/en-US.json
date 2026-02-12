@@ -1445,5 +1445,22 @@
       "configureFirst": "Please configure an agent in Settings first.",
       "switching": "Switching agent..."
     }
-  }
+  },
+  "workspace.create": "Create Workspace",
+  "workspace.delete": "Delete Workspace",
+  "workspace.deleteConfirm": "Are you sure you want to delete this workspace? Conversations will be kept but unlinked.",
+  "workspace.name": "Workspace Name",
+  "workspace.folder": "Folder",
+  "workspace.description": "Description",
+  "workspace.allConversations": "All Conversations",
+  "workspace.settings": "Workspace Settings",
+  "workspace.noWorkspaces": "No workspaces yet",
+  "workspace.selectFolder": "Select Folder",
+  "workspace.pin": "Pin Workspace",
+  "workspace.unpin": "Unpin Workspace",
+  "workspace.default": "Default Workspace",
+  "workspace.defaultDescription": "The workspace used when no specific workspace is selected",
+  "workspace.setAsDefault": "Set as Default",
+  "workspace.defaultAgent": "Default Agent",
+  "workspace.defaultModel": "Default Model"
 }

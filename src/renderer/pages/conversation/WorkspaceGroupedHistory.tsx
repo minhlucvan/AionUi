@@ -147,7 +147,7 @@ const groupConversationsByTimelineAndWorkspace = (conversations: TChatConversati
 
 const EXPANSION_STORAGE_KEY = 'aionui_workspace_expansion';
 
-const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }> = ({ onSessionClick, collapsed = false }) => {
+const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean; workspaceId?: string }> = ({ onSessionClick, collapsed = false, workspaceId }) => {
   const [conversations, setConversations] = useState<TChatConversation[]>([]);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>(() => {
     // 从 localStorage 恢复展开状态
@@ -178,16 +178,15 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
     return match ? match[1] : null;
   }, [location.pathname]);
 
-  // 加载会话列表
+  // Load conversation list — when a workspaceId is active, fetch workspace-scoped conversations
   useEffect(() => {
     const refresh = () => {
-      ipcBridge.database.getUserConversations
-        .invoke({ page: 0, pageSize: 10000 })
+      const fetchFn = workspaceId
+        ? ipcBridge.workspace.getConversations.invoke({ workspaceId })
+        : ipcBridge.database.getUserConversations.invoke({ page: 0, pageSize: 10000 });
+
+      fetchFn
         .then((data) => {
-          console.log('[WorkspaceGroupedHistory] Loaded conversations:', {
-            count: Array.isArray(data) ? data.length : 0,
-            data: data,
-          });
           if (data && Array.isArray(data)) {
             setConversations(data);
           } else {
@@ -200,8 +199,13 @@ const WorkspaceGroupedHistory: React.FC<{ onSessionClick?: () => void; collapsed
         });
     };
     refresh();
-    return addEventListener('chat.history.refresh', refresh);
-  }, []);
+    const unsub1 = addEventListener('chat.history.refresh', refresh);
+    const unsub2 = addEventListener('workspace.changed', refresh);
+    return () => {
+      unsub1();
+      unsub2();
+    };
+  }, [workspaceId]);
 
   // Scroll to active conversation when route changes
   useEffect(() => {

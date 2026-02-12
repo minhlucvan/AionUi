@@ -14,6 +14,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PreviewProvider } from './pages/conversation/preview';
 import { ConversationTabsProvider } from './pages/conversation/context/ConversationTabsContext';
+import { WorkspaceProvider } from './context/WorkspaceContext';
 
 import { ConfigProvider } from '@arco-design/web-react';
 // 配置 Arco Design 使用 React 18 的 createRoot，修复 Message 组件的 CopyReactDOM.render 错误
@@ -61,7 +62,7 @@ const arcoLocales: Record<string, typeof enUS> = {
   'en-US': enUS,
 };
 
-const AppProviders: React.FC<PropsWithChildren> = ({ children }) => React.createElement(AuthProvider, null, React.createElement(ThemeProvider, null, React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children))));
+const AppProviders: React.FC<PropsWithChildren> = ({ children }) => React.createElement(AuthProvider, null, React.createElement(ThemeProvider, null, React.createElement(WorkspaceProvider, null, React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children)))));
 
 const Config: React.FC<PropsWithChildren> = ({ children }) => {
   const {
