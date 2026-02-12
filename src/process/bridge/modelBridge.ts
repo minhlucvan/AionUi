@@ -12,7 +12,7 @@ import OpenAI from 'openai';
 import { isNewApiPlatform } from '@/common/utils/platformConstants';
 import { ipcBridge } from '../../common';
 import { ProcessConfig } from '../initStorage';
-import { BedrockClient, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock';
+import { BedrockClient, ListInferenceProfilesCommand, type InferenceProfileSummary } from '@aws-sdk/client-bedrock';
 
 /**
  * OpenAI 兼容 API 的常见路径格式
@@ -194,7 +194,7 @@ export function initModelBridge(): void {
 
           // Filter inference profiles that contain Claude models
           const inferenceProfiles = response.inferenceProfileSummaries || [];
-          const claudeProfiles = inferenceProfiles.filter((profile) => profile.inferenceProfileId?.includes('anthropic.claude'));
+          const claudeProfiles = inferenceProfiles.filter((profile: InferenceProfileSummary) => profile.inferenceProfileId?.includes('anthropic.claude'));
 
           if (claudeProfiles.length === 0) {
             return {
@@ -204,7 +204,7 @@ export function initModelBridge(): void {
           }
 
           // Map to objects with friendly names
-          const modelsWithNames = claudeProfiles.map((profile) => ({
+          const modelsWithNames = claudeProfiles.map((profile: InferenceProfileSummary) => ({
             id: profile.inferenceProfileId || '',
             name: getBedrockModelDisplayName(profile.inferenceProfileId || ''),
           }));
