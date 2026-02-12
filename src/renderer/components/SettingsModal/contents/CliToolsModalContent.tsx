@@ -203,10 +203,7 @@ export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode
   );
 
   const isRefreshing = checkingBackends.size > 0;
-  const checkedTools = cliTools.filter((tool) => tool.statusChecked);
-  const installedTools = checkedTools.filter((tool) => tool.installed === true);
-  const notInstalledTools = checkedTools.filter((tool) => tool.installed === false);
-  const pendingTools = cliTools.filter((tool) => !tool.statusChecked);
+  const installedCount = cliTools.filter((tool) => tool.statusChecked && tool.installed === true).length;
 
   return (
     <div className='flex flex-col gap-16px min-h-0'>
@@ -229,116 +226,78 @@ export const CliToolsSection: React.FC<{ isPageMode?: boolean }> = ({ isPageMode
         </div>
       ) : (
         <div className='space-y-16px'>
-          {/* Installed Tools */}
-          {installedTools.length > 0 && (
-            <div className='space-y-4px'>
-              <div className='text-13px font-medium text-t-secondary mb-8px'>
-                {t('settings.cliTools.installed', { defaultValue: 'Installed' })} ({installedTools.length})
-              </div>
-              <div className='w-full flex flex-col divide-y divide-border-2'>
-                {installedTools.map((tool) => (
-                  <div key={tool.backend} className='flex items-center justify-between py-12px gap-16px'>
-                    <div className='flex items-center gap-12px min-w-0 flex-1'>
-                      <CheckOne theme='filled' size='18' fill='rgb(var(--green-6))' className='flex-shrink-0' />
-                      <div className='min-w-0'>
-                        <div className='text-14px text-t-primary font-medium'>{tool.name}</div>
-                        {tool.cliCommand && <div className='text-12px text-t-secondary font-mono'>{tool.cliCommand}</div>}
-                      </div>
-                    </div>
-                    <div className='flex items-center gap-8px flex-shrink-0'>
-                      {tool.version && (
-                        <Tag size='small' color='arcoblue'>
-                          {tool.version}
-                        </Tag>
-                      )}
-                      <Tooltip content={t('settings.cliTools.verifySetup', { defaultValue: 'Verify setup' })}>
-                        <Button type='text' size='mini' loading={settingUpBackend === tool.backend} icon={<CheckOne theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => void handleSetup(tool)} />
-                      </Tooltip>
-                      {tool.installUrl && (
-                        <Tooltip content={t('settings.cliTools.viewDocs', { defaultValue: 'View documentation' })}>
-                          <Button type='text' size='mini' icon={<LinkCloud theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
-                        </Tooltip>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className='w-full flex flex-col divide-y divide-border-2'>
+            {cliTools.map((tool) => {
+              const isPending = !tool.statusChecked;
 
-          {/* Not Installed Tools */}
-          {notInstalledTools.length > 0 && (
-            <div className='space-y-4px'>
-              <div className='text-13px font-medium text-t-secondary mb-8px'>
-                {t('settings.cliTools.notInstalled', { defaultValue: 'Not Installed' })} ({notInstalledTools.length})
-              </div>
-              <div className='w-full flex flex-col divide-y divide-border-2'>
-                {notInstalledTools.map((tool) => (
-                  <div key={tool.backend} className='flex items-center justify-between py-12px gap-16px'>
-                    <div className='flex items-center gap-12px min-w-0 flex-1'>
-                      <CloseOne theme='filled' size='18' fill='rgb(var(--gray-5))' className='flex-shrink-0' />
-                      <div className='min-w-0'>
-                        <div className='text-14px text-t-primary font-medium'>{tool.name}</div>
-                        {tool.cliCommand && <div className='text-12px text-t-secondary font-mono'>{tool.cliCommand}</div>}
-                      </div>
-                    </div>
-                    <div className='flex items-center gap-8px flex-shrink-0'>
-                      {tool.installCommand && (
-                        <>
-                          <Tooltip content={t('settings.cliTools.installTooltip', { defaultValue: 'Install {{name}} on your system', name: tool.name })}>
-                            <Button type='primary' size='mini' loading={installingBackend === tool.backend} icon={<DownloadOne theme='outline' size='14' />} onClick={() => handleInstall(tool)}>
-                              {t('settings.cliTools.installBtn', { defaultValue: 'Install' })}
-                            </Button>
-                          </Tooltip>
-                          <Tooltip content={tool.installCommand}>
-                            <Button type='text' size='mini' icon={<Copy theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleCopyCommand(tool.installCommand!)} />
-                          </Tooltip>
-                        </>
-                      )}
-                      {tool.installUrl && (
-                        <Tooltip content={t('settings.cliTools.installGuide', { defaultValue: 'Installation guide' })}>
-                          <Button type='text' size='mini' icon={<LinkCloud theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
-                        </Tooltip>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Tools still being checked */}
-          {pendingTools.length > 0 && (
-            <div className='w-full flex flex-col divide-y divide-border-2'>
-              {pendingTools.map((tool) => (
+              return (
                 <div key={tool.backend} className='flex items-center justify-between py-12px gap-16px'>
                   <div className='flex items-center gap-12px min-w-0 flex-1'>
-                    <Spin size={18} className='flex-shrink-0' />
+                    {isPending ? (
+                      <Spin size={18} className='flex-shrink-0' />
+                    ) : tool.installed ? (
+                      <CheckOne theme='filled' size='18' fill='rgb(var(--green-6))' className='flex-shrink-0' />
+                    ) : (
+                      <CloseOne theme='filled' size='18' fill='rgb(var(--gray-5))' className='flex-shrink-0' />
+                    )}
                     <div className='min-w-0'>
                       <div className='text-14px text-t-primary font-medium'>{tool.name}</div>
                       {tool.cliCommand && <div className='text-12px text-t-secondary font-mono'>{tool.cliCommand}</div>}
                     </div>
                   </div>
+                  <div className='flex items-center gap-8px flex-shrink-0'>
+                    {tool.statusChecked && tool.installed && (
+                      <>
+                        {tool.version && (
+                          <Tag size='small' color='arcoblue'>
+                            {tool.version}
+                          </Tag>
+                        )}
+                        <Tooltip content={t('settings.cliTools.verifySetup', { defaultValue: 'Verify setup' })}>
+                          <Button type='text' size='mini' loading={settingUpBackend === tool.backend} icon={<CheckOne theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => void handleSetup(tool)} />
+                        </Tooltip>
+                        {tool.installUrl && (
+                          <Tooltip content={t('settings.cliTools.viewDocs', { defaultValue: 'View documentation' })}>
+                            <Button type='text' size='mini' icon={<LinkCloud theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
+                          </Tooltip>
+                        )}
+                      </>
+                    )}
+                    {tool.statusChecked && !tool.installed && (
+                      <>
+                        {tool.installCommand && (
+                          <>
+                            <Tooltip content={t('settings.cliTools.installTooltip', { defaultValue: 'Install {{name}} on your system', name: tool.name })}>
+                              <Button type='primary' size='mini' loading={installingBackend === tool.backend} icon={<DownloadOne theme='outline' size='14' />} onClick={() => handleInstall(tool)}>
+                                {t('settings.cliTools.installBtn', { defaultValue: 'Install' })}
+                              </Button>
+                            </Tooltip>
+                            <Tooltip content={tool.installCommand}>
+                              <Button type='text' size='mini' icon={<Copy theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleCopyCommand(tool.installCommand!)} />
+                            </Tooltip>
+                          </>
+                        )}
+                        {tool.installUrl && (
+                          <Tooltip content={t('settings.cliTools.installGuide', { defaultValue: 'Installation guide' })}>
+                            <Button type='text' size='mini' icon={<LinkCloud theme='outline' size='14' fill={iconColors.secondary} />} onClick={() => handleOpenUrl(tool.installUrl!)} />
+                          </Tooltip>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
 
           {/* Summary */}
           {cliTools.length > 0 && (
             <div className='text-12px text-t-secondary'>
-              {pendingTools.length > 0
-                ? t('settings.cliTools.summaryChecking', {
-                    defaultValue: '{{installed}} of {{checked}} checked tools installed, {{pending}} checking...',
-                    installed: installedTools.length,
-                    checked: checkedTools.length,
-                    pending: pendingTools.length,
-                  })
-                : t('settings.cliTools.summary', {
-                    defaultValue: '{{installed}} of {{total}} CLI tools installed',
-                    installed: installedTools.length,
-                    total: cliTools.length,
-                  })}
+              {t('settings.cliTools.summary', {
+                defaultValue: '{{installed}} of {{total}} CLI tools installed',
+                installed: installedCount,
+                total: cliTools.length,
+              })}
             </div>
           )}
         </div>
