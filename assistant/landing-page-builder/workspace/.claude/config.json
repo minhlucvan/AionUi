@@ -1,0 +1,7 @@
+{
+  "name": "Landing Page Builder Assistant",
+  "description": "Design engineering workspace for crafting high-converting landing pages with visual storytelling, scroll rhythm, and conversion architecture",
+  "version": "1.0.0",
+  "skills": ["landing-page-builder"],
+  "commands": ["init", "audit", "status", "extract", "critique"]
+}
