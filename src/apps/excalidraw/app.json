@@ -4,7 +4,7 @@
   "contentTypes": ["excalidraw"],
   "fileExtensions": [".excalidraw", ".excalidraw.json"],
   "editable": true,
-  "capabilities": [
+  "tools": [
     { "name": "getContent", "description": "Get the current diagram as JSON" },
     { "name": "setContent", "description": "Replace the entire diagram content" },
     { "name": "addElements", "description": "Add elements to the diagram" },

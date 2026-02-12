@@ -5,17 +5,20 @@
  */
 
 /**
- * AppServer - Single server that serves all apps.
+ * AppServer - Platform server for AI-powered mini-apps.
+ *
+ * Serves bundled apps (from apps/ directory) and workspace apps
+ * (.aionui/app.json in project root). Apps communicate via WebSocket
+ * protocol for tools, events, and file operations.
  *
  * Two modes per app:
- *   Static  (no `command` in app.json): serves files from apps/<name>/
+ *   Static  (no `command`): serves files from apps/<name>/
  *   Process (has `command`): spawns the app's own server, iframe points directly to it
  *
  * Static apps URL:  http://127.0.0.1:PORT/<appName>/?sid=<sessionId>
  * Process apps URL: http://127.0.0.1:APP_PORT/?sid=<sessionId>&wsPort=PORT
  *
- * SDK protocol WebSocket always lives at ws://127.0.0.1:PORT/__ws
- * (process apps pass wsPort query param so SDK knows where to connect)
+ * SDK protocol WebSocket: ws://127.0.0.1:PORT/__ws
  */
 
 import type { ChildProcess } from 'child_process';
@@ -30,14 +33,14 @@ import type { Duplex } from 'stream';
 import net from 'net';
 import path from 'path';
 import { WebSocket, WebSocketServer } from 'ws';
-import type { AppCapability, AppConfig, AppInfo, AppResource, AppSession, WorkspacePreviewConfig } from '@/common/types/app';
+import type { AppConfig, AppInfo, AppResource, AppSession, AppTool, WorkspaceAppConfig } from '@/common/types/app';
 
 type SessionState = {
   sessionId: string;
   appName: string;
   resource?: AppResource;
   ws: WebSocket | null;
-  capabilities: AppCapability[];
+  tools: AppTool[];
 };
 
 type AppProcess = {
@@ -48,6 +51,11 @@ type AppProcess = {
 };
 
 type MessageListener = (sessionId: string, type: string, payload: Record<string, unknown>) => void;
+
+/** Resolve tools from config (supports both `tools` and deprecated `capabilities`) */
+function resolveTools(config: AppConfig): AppTool[] {
+  return config.tools || config.capabilities || [];
+}
 
 /** Resolve the apps/ directory for both dev and production builds */
 function resolveAppsDir(): string {
@@ -108,7 +116,6 @@ class AppServer {
   constructor() {
     this.appsDir = resolveAppsDir();
     this.server = createServer(this.expressApp);
-    // SDK protocol WebSocket on /__ws path only
     this.wss = new WebSocketServer({ noServer: true });
     this.loadApps();
     this.setupRoutes();
@@ -135,7 +142,8 @@ class AppServer {
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as AppConfig;
         this.apps.set(entry.name, config);
         const mode = config.command ? 'process' : 'static';
-        console.log(`[AppServer] Loaded app: ${entry.name} (${config.name}) [${mode}]`);
+        const toolCount = resolveTools(config).length;
+        console.log(`[AppServer] Loaded app: ${entry.name} (${config.name}) [${mode}] [${toolCount} tools]`);
       } catch (err) {
         console.error(`[AppServer] Failed to load ${configPath}:`, err);
       }
@@ -158,10 +166,26 @@ class AppServer {
     return null;
   }
 
+  /** Get tools for a specific app (resolved from tools + capabilities) */
+  getAppTools(appName: string): AppTool[] {
+    const config = this.apps.get(appName);
+    return config ? resolveTools(config) : [];
+  }
+
+  /** Get all tools from all apps (for agent integration) */
+  getAllTools(): Array<AppTool & { appName: string }> {
+    const allTools: Array<AppTool & { appName: string }> = [];
+    for (const [appName, config] of this.apps) {
+      for (const tool of resolveTools(config)) {
+        allTools.push({ ...tool, appName });
+      }
+    }
+    return allTools;
+  }
+
   // ==================== HTTP Routes ====================
 
   private setupRoutes(): void {
-    // CORS + iframe embedding
     this.expressApp.use((_req, res, next) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -176,15 +200,19 @@ class AppServer {
       this.expressApp.use('/__sdk', express.static(sdkDir));
     }
 
-    // Health check
+    // Health check + tool discovery endpoint
     this.expressApp.get('/__health', (_req, res) => {
       res.json({ status: 'running', port: this.port, apps: Array.from(this.apps.keys()) });
     });
 
-    // Only static apps are served by this server.
-    // Process apps run their own server; iframe points directly to them.
+    // Tool discovery endpoint (for agent integration)
+    this.expressApp.get('/__tools', (_req, res) => {
+      res.json(this.getAllTools());
+    });
+
+    // Only static apps are served by this server
     for (const [appName, config] of this.apps) {
-      if (config.command) continue; // process apps don't need routes here
+      if (config.command) continue;
 
       const appDir = path.join(this.appsDir, appName);
       this.expressApp.use(`/${appName}`, express.static(appDir));
@@ -199,7 +227,6 @@ class AppServer {
   // ==================== WebSocket ====================
 
   private setupWebSocket(): void {
-    // SDK protocol WebSocket at /__ws
     this.server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
       const url = req.url || '';
 
@@ -212,7 +239,6 @@ class AppServer {
       }
     });
 
-    // Handle SDK protocol connections
     this.wss.on('connection', (ws: WebSocket) => {
       ws.on('message', (data: Buffer) => {
         try {
@@ -242,7 +268,7 @@ class AppServer {
   private handleMessage(ws: WebSocket, msg: { type: string; id?: string; payload?: Record<string, unknown> }): void {
     const { type, id, payload } = msg;
 
-    // app:ready → bind WS to session
+    // app:ready → bind WS to session, register tools
     if (type === 'app:ready' && payload) {
       const sid = payload.sessionId as string;
       const session = sid ? this.sessions.get(sid) : undefined;
@@ -250,8 +276,10 @@ class AppServer {
         session.ws = ws;
         this.wsToSession.set(ws, sid);
 
-        if (Array.isArray(payload.capabilities)) {
-          session.capabilities = payload.capabilities as AppCapability[];
+        // Accept tools from both `tools` and `capabilities` (backward compat)
+        const tools = (payload.tools || payload.capabilities) as AppTool[] | undefined;
+        if (Array.isArray(tools)) {
+          session.tools = tools;
         }
 
         // Send the resource if one was queued
@@ -264,7 +292,7 @@ class AppServer {
           });
         }
 
-        console.log(`[AppServer] Session ${sid} connected (${session.appName})`);
+        console.log(`[AppServer] Session ${sid} connected (${session.appName}, ${session.tools.length} tools)`);
       }
       return;
     }
@@ -283,7 +311,8 @@ class AppServer {
       return;
     }
 
-    // Forward to external listeners (IPC bridge)
+    // Forward all other messages to external listeners (IPC bridge)
+    // This includes: app:content-changed, app:tool-result, app:execute-result, app:event
     for (const listener of this.listeners) {
       listener(sessionId, type, payload || {});
     }
@@ -296,7 +325,6 @@ class AppServer {
     const config = this.apps.get(appName);
     if (!config?.command) throw new Error(`App '${appName}' has no command`);
 
-    // Check if already running
     const existing = this.processes.get(appName);
     if (existing && existing.ready) return existing;
 
@@ -334,7 +362,6 @@ class AppServer {
       this.processes.delete(appName);
     });
 
-    // Wait for the app server to be ready (poll the port)
     await this.waitForPort(port, 30000);
     appProcess.ready = true;
     console.log(`[AppServer] ${appName} ready on port ${port}`);
@@ -372,7 +399,6 @@ class AppServer {
     proc.process.kill('SIGTERM');
     this.processes.delete(appName);
 
-    // Force kill after 5s
     setTimeout(() => {
       try { proc.process.kill('SIGKILL'); } catch { /* already dead */ }
     }, 5000);
@@ -385,7 +411,6 @@ class AppServer {
     const config = this.apps.get(appName);
     if (!config) throw new Error(`App '${appName}' not found`);
 
-    // Spawn process app if needed
     if (config.command && !this.processes.get(appName)?.ready) {
       await this.spawnApp(appName);
     }
@@ -394,20 +419,20 @@ class AppServer {
     let url: string;
 
     if (config.command) {
-      // Process app: iframe points directly to the app's own server
       const proc = this.processes.get(appName);
       url = `http://127.0.0.1:${proc!.port}/?sid=${sessionId}&wsPort=${this.port}`;
     } else {
-      // Static app: served by our AppServer
       url = `http://127.0.0.1:${this.port}/${appName}/?sid=${sessionId}`;
     }
+
+    const tools = resolveTools(config);
 
     this.sessions.set(sessionId, {
       sessionId,
       appName,
       resource,
       ws: null,
-      capabilities: config.capabilities || [],
+      tools,
     });
 
     return {
@@ -415,7 +440,7 @@ class AppServer {
       appName,
       url,
       editable: config.editable,
-      capabilities: config.capabilities || [],
+      tools,
     };
   }
 
@@ -430,42 +455,50 @@ class AppServer {
     this.sessions.delete(sessionId);
   }
 
-  // ==================== Workspace Preview ====================
+  // ==================== Workspace Apps ====================
 
-  /** Read .aionui/preview.json from a workspace */
-  getWorkspaceConfig(workspace: string): WorkspacePreviewConfig | null {
-    const configPath = path.join(workspace, '.aionui', 'preview.json');
-    if (!fs.existsSync(configPath)) return null;
+  /** Read .aionui/app.json from a workspace (falls back to .aionui/preview.json) */
+  getWorkspaceConfig(workspace: string): WorkspaceAppConfig | null {
+    // Try app.json first, then legacy preview.json
+    const candidates = [
+      path.join(workspace, '.aionui', 'app.json'),
+      path.join(workspace, '.aionui', 'preview.json'),
+    ];
 
-    try {
-      return JSON.parse(fs.readFileSync(configPath, 'utf-8')) as WorkspacePreviewConfig;
-    } catch {
-      return null;
+    for (const configPath of candidates) {
+      if (!fs.existsSync(configPath)) continue;
+      try {
+        return JSON.parse(fs.readFileSync(configPath, 'utf-8')) as WorkspaceAppConfig;
+      } catch {
+        continue;
+      }
     }
+    return null;
   }
 
-  /** Open a workspace's dev server as a live preview */
-  async openWorkspacePreview(workspace: string): Promise<AppSession> {
+  /** Open a workspace app as a live preview */
+  async openWorkspaceApp(workspace: string): Promise<AppSession> {
     const config = this.getWorkspaceConfig(workspace);
     if (!config?.command) {
-      throw new Error(`No .aionui/preview.json with command found in ${workspace}`);
+      throw new Error(`No .aionui/app.json with command found in ${workspace}`);
     }
 
-    // Derive a stable app name from the workspace folder
     const appName = `ws:${path.basename(workspace)}`;
 
-    // Register as a dynamic app if not already registered
     if (!this.apps.has(appName)) {
       this.apps.set(appName, {
         name: config.name || path.basename(workspace),
+        description: config.description,
         command: config.command,
         port: config.port,
+        tools: config.tools,
+        events: config.events,
       });
       this.workspaceDirs.set(appName, workspace);
       console.log(`[AppServer] Registered workspace app: ${appName} (${workspace})`);
     }
 
-    // Check if there's already a running session for this workspace
+    // Reuse existing session if the workspace app is already running
     for (const session of this.sessions.values()) {
       if (session.appName === appName) {
         const proc = this.processes.get(appName);
@@ -475,7 +508,7 @@ class AppServer {
             appName,
             url: `http://127.0.0.1:${proc.port}/?sid=${session.sessionId}&wsPort=${this.port}`,
             editable: false,
-            capabilities: [],
+            tools: resolveTools(this.apps.get(appName)!),
           };
         }
       }
@@ -484,8 +517,15 @@ class AppServer {
     return this.open(appName);
   }
 
-  /** Execute a capability on a session */
-  async execute(sessionId: string, capability: string, params: Record<string, unknown>): Promise<unknown> {
+  /** @deprecated Use openWorkspaceApp */
+  async openWorkspacePreview(workspace: string): Promise<AppSession> {
+    return this.openWorkspaceApp(workspace);
+  }
+
+  // ==================== Tool Execution ====================
+
+  /** Call a tool on an app session */
+  async callTool(sessionId: string, toolName: string, params: Record<string, unknown>): Promise<unknown> {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Session '${sessionId}' not found`);
     if (!session.ws || session.ws.readyState !== WebSocket.OPEN) {
@@ -496,7 +536,7 @@ class AppServer {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         cleanup();
-        reject(new Error(`Capability '${capability}' timed out`));
+        reject(new Error(`Tool '${toolName}' timed out`));
       }, 30000);
 
       const cleanup = () => {
@@ -506,12 +546,15 @@ class AppServer {
       };
 
       const listener: MessageListener = (sid, type, payload) => {
-        if (sid === sessionId && type === 'app:execute-result' && payload.requestId === requestId) {
+        if (sid !== sessionId) return;
+        // Accept both new and legacy result message types
+        const isResult = (type === 'app:tool-result' || type === 'app:execute-result') && payload.requestId === requestId;
+        if (isResult) {
           cleanup();
           if (payload.success) {
             resolve(payload.data);
           } else {
-            reject(new Error((payload.error as string) || 'Execution failed'));
+            reject(new Error((payload.error as string) || 'Tool call failed'));
           }
         }
       };
@@ -521,13 +564,40 @@ class AppServer {
       this.sendToSession(sessionId, {
         id: requestId,
         ts: Date.now(),
-        type: 'backend:execute',
-        payload: { capability, params },
+        type: 'backend:call-tool',
+        payload: { tool: toolName, params },
       });
     });
   }
 
-  /** Send a content update to all sessions tracking a file */
+  /** @deprecated Use callTool instead */
+  async execute(sessionId: string, capability: string, params: Record<string, unknown>): Promise<unknown> {
+    return this.callTool(sessionId, capability, params);
+  }
+
+  // ==================== Events ====================
+
+  /** Send an event to an app session */
+  sendEvent(sessionId: string, event: string, data?: Record<string, unknown>): void {
+    this.sendToSession(sessionId, {
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      type: 'backend:event',
+      payload: { event, ...data },
+    });
+  }
+
+  /** Send context to an app session (workspace, conversation, etc.) */
+  sendContext(sessionId: string, context: Record<string, unknown>): void {
+    this.sendToSession(sessionId, {
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      type: 'backend:context',
+      payload: context,
+    });
+  }
+
+  /** Send a content update to all sessions */
   broadcastContentUpdate(filePath: string, content: string, source: string): void {
     const msg = {
       id: crypto.randomUUID(),
@@ -571,14 +641,12 @@ class AppServer {
   async stop(): Promise<void> {
     if (!this.running) return;
 
-    // Close all sessions
     for (const session of this.sessions.values()) {
       if (session.ws) session.ws.close(1000, 'Server shutting down');
     }
     this.sessions.clear();
     this.wsToSession.clear();
 
-    // Stop all spawned processes
     for (const appName of this.processes.keys()) {
       this.stopProcess(appName);
     }

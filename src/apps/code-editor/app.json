@@ -4,8 +4,16 @@
   "contentTypes": ["code"],
   "fileExtensions": [".ts", ".tsx", ".js", ".jsx", ".py", ".java", ".go", ".rs", ".c", ".cpp", ".json", ".yaml", ".yml", ".toml", ".xml", ".css", ".scss", ".html", ".sql", ".sh", ".md", ".txt"],
   "editable": true,
-  "capabilities": [
-    { "name": "gotoLine", "description": "Navigate to a line number" },
+  "tools": [
+    {
+      "name": "gotoLine",
+      "description": "Navigate to a line number",
+      "parameters": {
+        "type": "object",
+        "properties": { "line": { "type": "number", "description": "Line number" } },
+        "required": ["line"]
+      }
+    },
     { "name": "insertText", "description": "Insert text at cursor position" },
     { "name": "replaceText", "description": "Find and replace text" },
     { "name": "getContent", "description": "Get editor content" },

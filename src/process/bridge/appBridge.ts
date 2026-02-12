@@ -9,8 +9,8 @@ import type { AppResource } from '@/common/types/app';
 import { appServer } from '../services/appServer';
 
 /**
- * Initialize IPC bridge for the app system.
- * Connects the renderer to the single AppServer.
+ * Initialize IPC bridge for the app platform.
+ * Connects the renderer to the AppServer.
  */
 export function initAppBridge(): void {
   // List available apps
@@ -20,7 +20,6 @@ export function initAppBridge(): void {
 
   // Open a resource in an app → returns session with URL
   ipcBridge.app.open.provider(async ({ appName, resource }: { appName: string; resource?: AppResource }) => {
-    // Ensure server is running
     if (!appServer.isRunning()) {
       await appServer.start();
     }
@@ -32,31 +31,43 @@ export function initAppBridge(): void {
     appServer.close(sessionId);
   });
 
-  // Execute a capability
-  ipcBridge.app.execute.provider(async ({ sessionId, capability, params }: { sessionId: string; capability: string; params: Record<string, unknown> }) => {
-    return appServer.execute(sessionId, capability, params);
+  // Call a tool on an app session
+  ipcBridge.app.callTool.provider(async ({ sessionId, tool, params }: { sessionId: string; tool: string; params: Record<string, unknown> }) => {
+    return appServer.callTool(sessionId, tool, params);
   });
 
-  // Read workspace preview config (.aionui/preview.json)
+  // Legacy: execute a capability (deprecated, use callTool)
+  ipcBridge.app.execute.provider(async ({ sessionId, capability, params }: { sessionId: string; capability: string; params: Record<string, unknown> }) => {
+    return appServer.callTool(sessionId, capability, params);
+  });
+
+  // Read workspace app config (.aionui/app.json)
   ipcBridge.app.getWorkspaceConfig.provider(({ workspace }: { workspace: string }) => {
     return appServer.getWorkspaceConfig(workspace);
   });
 
-  // Open workspace dev server as live preview
+  // Open workspace app
   ipcBridge.app.openWorkspace.provider(async ({ workspace }: { workspace: string }) => {
     if (!appServer.isRunning()) {
       await appServer.start();
     }
-    return appServer.openWorkspacePreview(workspace);
+    return appServer.openWorkspaceApp(workspace);
   });
 
-  // Forward app content-changed messages to renderer
+  // Forward app messages to renderer
   appServer.onMessage((sessionId, type, payload) => {
     if (type === 'app:content-changed') {
       ipcBridge.app.contentChanged.emit({
         sessionId,
         content: payload.content as string,
         isDirty: payload.isDirty as boolean,
+      });
+    }
+    if (type === 'app:event') {
+      ipcBridge.app.event.emit({
+        sessionId,
+        event: payload.event as string,
+        data: payload,
       });
     }
   });

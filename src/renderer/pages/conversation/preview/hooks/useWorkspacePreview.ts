@@ -5,13 +5,13 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { WorkspacePreviewConfig } from '@/common/types/app';
+import type { WorkspaceAppConfig } from '@/common/types/app';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
 import { useCallback, useEffect, useState } from 'react';
 import { usePreviewContext } from '../context/PreviewContext';
 
 /**
- * Hook for workspace preview - detects .aionui/preview.json and provides
+ * Hook for workspace app - detects .aionui/app.json and provides
  * a function to launch the project's dev server as a live preview.
  */
 export function useWorkspacePreview() {
@@ -19,10 +19,10 @@ export function useWorkspacePreview() {
   const { openPreview } = usePreviewContext();
   const workspace = conversationCtx?.workspace;
 
-  const [config, setConfig] = useState<WorkspacePreviewConfig | null>(null);
+  const [config, setConfig] = useState<WorkspaceAppConfig | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Check if workspace has a preview config
+  // Check if workspace has an app config
   useEffect(() => {
     if (!workspace) {
       setConfig(null);
@@ -32,7 +32,7 @@ export function useWorkspacePreview() {
     ipcBridge.app.getWorkspaceConfig.invoke({ workspace }).then(setConfig).catch(() => setConfig(null));
   }, [workspace]);
 
-  // Launch workspace preview
+  // Launch workspace app
   const openWorkspacePreview = useCallback(async () => {
     if (!workspace) return;
     setLoading(true);
@@ -42,24 +42,24 @@ export function useWorkspacePreview() {
       openPreview('', 'app', {
         appUrl: session.url,
         appInstanceId: session.sessionId,
-        appName: config?.name || 'Workspace Preview',
+        appName: config?.name || 'Workspace App',
         workspace,
       });
     } catch (err) {
-      console.error('[WorkspacePreview] Failed to open:', err);
+      console.error('[WorkspaceApp] Failed to open:', err);
     } finally {
       setLoading(false);
     }
   }, [workspace, config, openPreview]);
 
   return {
-    /** Whether the current workspace has a preview config */
+    /** Whether the current workspace has an app config (.aionui/app.json) */
     hasPreview: !!config,
-    /** The workspace preview config */
+    /** The workspace app config */
     config,
     /** Whether the server is being started */
     loading,
-    /** Launch the workspace dev server and show in preview panel */
+    /** Launch the workspace app and show in preview panel */
     openWorkspacePreview,
   };
 }

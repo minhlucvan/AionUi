@@ -38,8 +38,8 @@
   <!-- Monaco Editor from CDN (could be bundled for production) -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
 
-  <!-- AionUi Preview App SDK -->
-  <script src="/__sdk/preview-app-sdk.js"></script>
+  <!-- AionUi App SDK -->
+  <script src="/__sdk/aionui-app-sdk.js"></script>
 
   <script>
     (function () {
@@ -116,7 +116,7 @@
 
       // --- Preview App SDK ---
       var pendingOpen = null;
-      var app = new PreviewApp({ appId: 'code-editor' });
+      var app = new AionUiApp({ appId: 'code-editor' });
 
       // Handle open file
       app.on('open', function (payload) {
@@ -172,7 +172,7 @@
 
       // --- Register Capabilities ---
 
-      app.registerCapability('gotoLine', {
+      app.registerTool('gotoLine', {
         description: 'Navigate to a specific line number',
       }, function (params) {
         if (!editor) return { success: false, error: 'Editor not initialized' };
@@ -184,7 +184,7 @@
         return { line: line, column: column };
       });
 
-      app.registerCapability('insertText', {
+      app.registerTool('insertText', {
         description: 'Insert text at the current cursor position or a specific line',
       }, function (params) {
         if (!editor) return { success: false, error: 'Editor not initialized' };
@@ -201,7 +201,7 @@
         return { inserted: true };
       });
 
-      app.registerCapability('replaceText', {
+      app.registerTool('replaceText', {
         description: 'Find and replace text in the editor',
       }, function (params) {
         if (!editor) return { success: false, error: 'Editor not initialized' };
@@ -224,14 +224,14 @@
         return { replaced: edits.length };
       });
 
-      app.registerCapability('getContent', {
+      app.registerTool('getContent', {
         description: 'Get the current editor content',
       }, function () {
         if (!editor) return { success: false, error: 'Editor not initialized' };
         return { content: editor.getValue() };
       });
 
-      app.registerCapability('setContent', {
+      app.registerTool('setContent', {
         description: 'Replace the entire editor content',
       }, function (params) {
         if (!editor) return { success: false, error: 'Editor not initialized' };
@@ -246,7 +246,7 @@
         return { success: true };
       });
 
-      app.registerCapability('getSelection', {
+      app.registerTool('getSelection', {
         description: 'Get the currently selected text',
       }, function () {
         if (!editor) return { success: false, error: 'Editor not initialized' };
@@ -264,7 +264,7 @@
         };
       });
 
-      app.registerCapability('formatDocument', {
+      app.registerTool('formatDocument', {
         description: 'Format the entire document',
       }, function () {
         if (!editor) return { success: false, error: 'Editor not initialized' };

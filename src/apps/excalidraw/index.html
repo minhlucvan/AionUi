@@ -38,7 +38,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@excalidraw/excalidraw@0.18/dist/excalidraw.production.min.js" crossorigin></script>
 
   <!-- AionUi Preview App SDK -->
-  <script src="/__sdk/preview-app-sdk.js"></script>
+  <script src="/__sdk/aionui-app-sdk.js"></script>
 
   <script>
     (function () {
@@ -54,7 +54,7 @@
       var currentTheme = 'light';
 
       // --- Preview App SDK ---
-      var app = new PreviewApp({ appId: 'excalidraw', autoConnect: true });
+      var app = new AionUiApp({ appId: 'excalidraw', autoConnect: true });
 
       // --- Helpers ---
       function parseContent(content) {
@@ -215,7 +215,7 @@
 
       // --- Register Capabilities ---
 
-      app.registerCapability('getContent', {
+      app.registerTool('getContent', {
         description: 'Get the current diagram as JSON',
       }, function () {
         if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
@@ -225,7 +225,7 @@
         return { content: serializeData(elements, appState, files) };
       });
 
-      app.registerCapability('setContent', {
+      app.registerTool('setContent', {
         description: 'Replace the entire diagram content',
       }, function (params) {
         if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
@@ -236,7 +236,7 @@
         return { success: true };
       });
 
-      app.registerCapability('addElements', {
+      app.registerTool('addElements', {
         description: 'Add elements to the current diagram',
       }, function (params) {
         if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
@@ -253,7 +253,7 @@
         }
       });
 
-      app.registerCapability('zoomToFit', {
+      app.registerTool('zoomToFit', {
         description: 'Zoom the view to fit all elements',
       }, function () {
         if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
@@ -264,7 +264,7 @@
         return { success: true };
       });
 
-      app.registerCapability('getSelectedElements', {
+      app.registerTool('getSelectedElements', {
         description: 'Get the currently selected elements',
       }, function () {
         if (!excalidrawAPI) return { success: false, error: 'Not initialized' };
@@ -277,7 +277,7 @@
         return { elements: selectedElements, count: selectedElements.length };
       });
 
-      app.registerCapability('clearCanvas', {
+      app.registerTool('clearCanvas', {
         description: 'Clear all elements from the canvas',
       }, function () {
         if (!excalidrawAPI) return { success: false, error: 'Not initialized' };

@@ -31,7 +31,7 @@ type AppViewerProps = {
  * This is the universal container for all preview apps in the new architecture.
  * Each preview app runs on its own server and is displayed in this iframe.
  * Communication between the host and the app happens via:
- * 1. WebSocket (app ↔ backend, for file ops and agent capabilities)
+ * 1. WebSocket (app ↔ backend, for tools, events, and file ops)
  * 2. postMessage (iframe ↔ host, for UI coordination like theme, focus)
  */
 const AppViewer: React.FC<AppViewerProps> = ({ url, instanceId, appName, showLoading = true, onContentChanged, onLoad, onError }) => {
