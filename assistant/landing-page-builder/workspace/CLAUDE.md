@@ -28,7 +28,17 @@ workspace/
 │               ├── principles.md      # Layout, typography, color, motion
 │               ├── patterns.md        # Section patterns (hero, features, pricing, etc.)
 │               ├── critique.md        # Conversion-focused craft critique
-│               └── examples.md        # Craft in action
+│               ├── examples.md        # Style gallery index (choose ONE style)
+│               └── styles/            # Individual style references
+│                   ├── developer-dark.md      # Linear/Vercel/Raycast style
+│                   ├── clean-minimal.md       # Stripe/Clerk/Resend style
+│                   ├── warm-friendly.md       # Notion/Slack/Loom style
+│                   ├── bold-gradient.md       # Arc/Framer/Figma style
+│                   ├── editorial-premium.md   # Apple/Squarespace/Craft style
+│                   ├── enterprise-confident.md # Datadog/Snowflake style
+│                   ├── playful-creative.md    # Figma/Miro/Canva style
+│                   ├── data-dense.md          # Supabase/Neon/Prisma style
+│                   └── startup-launch.md      # Product Hunt/waitlist style
 ├── reference/
 │   ├── system-template.md             # Template for .landing-page/system.md
 │   └── examples/

@@ -338,6 +338,40 @@ When explaining alternatives, build a quick sketch of each rather than describin
 
 ---
 
+## Style Selection
+
+**You must choose ONE style as the foundation for each landing page.** Do NOT blend styles. Each style is a complete, opinionated system — mixing them produces generic output.
+
+The `references/styles/` directory contains 8 distinct styles. Read the style gallery index at `references/examples.md` first to understand which style fits the product, then read ONLY the chosen style's file in detail.
+
+### How to Choose
+
+Match the style to the product's **audience**, **positioning**, and **personality**:
+
+| Style | Best For | Personality |
+|-------|----------|-------------|
+| **developer-dark** | Dev tools, CLIs, APIs | Precision, speed, technical credibility |
+| **clean-minimal** | Fintech, enterprise, trust-critical | Clarity, restraint, confidence |
+| **warm-friendly** | Collaboration, productivity, consumer SaaS | Approachable, human, welcoming |
+| **bold-gradient** | Creative tools, AI products, design platforms | Expressive, ambitious, dramatic |
+| **editorial-premium** | Premium products, lifestyle, hardware | Refined, considered, luxurious |
+| **enterprise-confident** | Infrastructure, DevOps, data platforms | Authority, reliability, scale |
+| **playful-creative** | Design tools, no-code, marketplaces | Energetic, colorful, inspiring |
+| **data-dense** | Databases, SDKs, developer libraries | Technical depth, code-first, DX-focused |
+| **startup-launch** | Product Hunt, beta, waitlist campaigns | Momentum, urgency, conversion-optimized |
+
+After choosing, commit to that style's:
+- Color world (use its token naming, not generic names)
+- Typography system (its font choices and scale)
+- Hero approach (its specific layout pattern)
+- Motion language (its animation character)
+- Depth strategy (shadows vs borders vs glass)
+- CTA style (its button treatment)
+
+You may customize values within the style, but don't borrow a hero from one style and cards from another.
+
+---
+
 ## Reference Material
 
 Detailed reference guides are available in the `references/` directory:
@@ -345,6 +379,7 @@ Detailed reference guides are available in the `references/` directory:
 - **principles.md** — Layout grids, typography systems, color architecture, motion language
 - **patterns.md** — Section-by-section patterns (hero variants, feature layouts, pricing, testimonials, CTAs)
 - **critique.md** — Full conversion-focused craft critique protocol
-- **examples.md** — Craft in action with annotated examples
+- **examples.md** — Style gallery index — overview of all 8 styles with selection guide
+- **styles/*.md** — Individual style references (one per file, each self-contained)
 
 Read these references before building. They contain the specific CSS patterns, layout structures, and craft details that elevate a page from correct to compelling.
