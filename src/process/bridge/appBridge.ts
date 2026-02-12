@@ -37,6 +37,19 @@ export function initAppBridge(): void {
     return appServer.execute(sessionId, capability, params);
   });
 
+  // Read workspace preview config (.aionui/preview.json)
+  ipcBridge.app.getWorkspaceConfig.provider(({ workspace }: { workspace: string }) => {
+    return appServer.getWorkspaceConfig(workspace);
+  });
+
+  // Open workspace dev server as live preview
+  ipcBridge.app.openWorkspace.provider(async ({ workspace }: { workspace: string }) => {
+    if (!appServer.isRunning()) {
+      await appServer.start();
+    }
+    return appServer.openWorkspacePreview(workspace);
+  });
+
   // Forward app content-changed messages to renderer
   appServer.onMessage((sessionId, type, payload) => {
     if (type === 'app:content-changed') {

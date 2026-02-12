@@ -400,6 +400,10 @@ export const app = {
   execute: bridge.buildProvider<unknown, { sessionId: string; capability: string; params: Record<string, unknown> }>('app.execute'),
   /** Event: app content changed */
   contentChanged: bridge.buildEmitter<{ sessionId: string; content: string; isDirty: boolean }>('app.content-changed'),
+  /** Open workspace dev server as live preview */
+  openWorkspace: bridge.buildProvider<import('./types/app').AppSession, { workspace: string }>('app.open-workspace'),
+  /** Read .aionui/preview.json from workspace */
+  getWorkspaceConfig: bridge.buildProvider<import('./types/app').WorkspacePreviewConfig | null, { workspace: string }>('app.workspace-config'),
 };
 
 // 窗口控制相关接口 / Window controls API

@@ -65,3 +65,19 @@ export type AppResource = {
 export type AppInfo = AppConfig & {
   appName: string;
 };
+
+/**
+ * Workspace preview config (.aionui/preview.json).
+ * Defines how to run the project's dev server for live preview.
+ *
+ * Example:
+ * {
+ *   "name": "My Streamlit App",
+ *   "command": "streamlit run app.py --server.port {port}"
+ * }
+ */
+export type WorkspacePreviewConfig = {
+  name?: string;
+  command: string;
+  port?: number;
+};

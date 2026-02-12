@@ -30,7 +30,7 @@ import type { Duplex } from 'stream';
 import net from 'net';
 import path from 'path';
 import { WebSocket, WebSocketServer } from 'ws';
-import type { AppCapability, AppConfig, AppInfo, AppResource, AppSession } from '@/common/types/app';
+import type { AppCapability, AppConfig, AppInfo, AppResource, AppSession, WorkspacePreviewConfig } from '@/common/types/app';
 
 type SessionState = {
   sessionId: string;
@@ -98,6 +98,8 @@ class AppServer {
   private sessions = new Map<string, SessionState>();
   /** ws → sessionId */
   private wsToSession = new Map<WebSocket, string>();
+  /** appName → workspace dir (for workspace apps, overrides appsDir) */
+  private workspaceDirs = new Map<string, string>();
   /** Message listeners for IPC forwarding */
   private listeners: MessageListener[] = [];
 
@@ -300,7 +302,7 @@ class AppServer {
 
     const port = config.port || await findFreePort();
     const command = config.command.replace(/\{port\}/g, String(port));
-    const appDir = path.join(this.appsDir, appName);
+    const appDir = this.workspaceDirs.get(appName) || path.join(this.appsDir, appName);
 
     console.log(`[AppServer] Spawning ${appName}: ${command} (port ${port})`);
 
@@ -426,6 +428,60 @@ class AppServer {
       session.ws.close(1000, 'Session closed');
     }
     this.sessions.delete(sessionId);
+  }
+
+  // ==================== Workspace Preview ====================
+
+  /** Read .aionui/preview.json from a workspace */
+  getWorkspaceConfig(workspace: string): WorkspacePreviewConfig | null {
+    const configPath = path.join(workspace, '.aionui', 'preview.json');
+    if (!fs.existsSync(configPath)) return null;
+
+    try {
+      return JSON.parse(fs.readFileSync(configPath, 'utf-8')) as WorkspacePreviewConfig;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Open a workspace's dev server as a live preview */
+  async openWorkspacePreview(workspace: string): Promise<AppSession> {
+    const config = this.getWorkspaceConfig(workspace);
+    if (!config?.command) {
+      throw new Error(`No .aionui/preview.json with command found in ${workspace}`);
+    }
+
+    // Derive a stable app name from the workspace folder
+    const appName = `ws:${path.basename(workspace)}`;
+
+    // Register as a dynamic app if not already registered
+    if (!this.apps.has(appName)) {
+      this.apps.set(appName, {
+        name: config.name || path.basename(workspace),
+        command: config.command,
+        port: config.port,
+      });
+      this.workspaceDirs.set(appName, workspace);
+      console.log(`[AppServer] Registered workspace app: ${appName} (${workspace})`);
+    }
+
+    // Check if there's already a running session for this workspace
+    for (const session of this.sessions.values()) {
+      if (session.appName === appName) {
+        const proc = this.processes.get(appName);
+        if (proc?.ready) {
+          return {
+            sessionId: session.sessionId,
+            appName,
+            url: `http://127.0.0.1:${proc.port}/?sid=${session.sessionId}&wsPort=${this.port}`,
+            editable: false,
+            capabilities: [],
+          };
+        }
+      }
+    }
+
+    return this.open(appName);
   }
 
   /** Execute a capability on a session */
