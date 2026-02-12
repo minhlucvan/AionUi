@@ -803,40 +803,21 @@ const migration_v15: IMigration = {
 };
 
 /**
- * Migration v15 -> v16: Add agent_team_sessions table for Agent Teams feature
- * Stores runtime agent team session state (member conversations)
+ * Migration v15 -> v16: Reserved (agent team sessions table removed)
+ * Agent teams now use Claude's native agent teams feature instead of
+ * AionUi-managed sessions. This migration is kept as a no-op for
+ * DB version consistency.
  */
 const migration_v16: IMigration = {
   version: 16,
-  name: 'Add agent_team_sessions table',
-  up: (db) => {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS agent_team_sessions (
-        id TEXT PRIMARY KEY,
-        agent_team_definition_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        workspace TEXT NOT NULL,
-        member_conversations TEXT NOT NULL DEFAULT '{}',
-        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'completed', 'cancelled')),
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_agent_team_sessions_status ON agent_team_sessions(status);
-      CREATE INDEX IF NOT EXISTS idx_agent_team_sessions_updated ON agent_team_sessions(updated_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_agent_team_sessions_definition ON agent_team_sessions(agent_team_definition_id);
-    `);
-
-    console.log('[Migration v16] Added agent_team_sessions table');
+  name: 'Reserved (agent team sessions removed)',
+  up: (_db) => {
+    // Drop table if it was created by a previous version
+    _db.exec(`DROP TABLE IF EXISTS agent_team_sessions`);
+    console.log('[Migration v16] No-op (agent teams use native Claude feature)');
   },
-  down: (db) => {
-    db.exec(`
-      DROP INDEX IF EXISTS idx_agent_team_sessions_definition;
-      DROP INDEX IF EXISTS idx_agent_team_sessions_updated;
-      DROP INDEX IF EXISTS idx_agent_team_sessions_status;
-      DROP TABLE IF EXISTS agent_team_sessions;
-    `);
-    console.log('[Migration v16] Rolled back: Removed agent_team_sessions table');
+  down: (_db) => {
+    console.log('[Migration v16] No-op rollback');
   },
 };
 

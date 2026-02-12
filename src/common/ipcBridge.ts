@@ -540,6 +540,8 @@ export interface ICreateConversationParams {
     botId?: string;
     /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
     externalChannelId?: string;
+    /** Custom environment variables passed to the spawned ACP process / 传递给 ACP 子进程的自定义环境变量 */
+    customEnv?: Record<string, string>;
   };
 }
 interface IResetConversationParams {
@@ -612,20 +614,3 @@ export const channel = {
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
 };
 
-// ==================== Agent Team API ====================
-
-import type { IAgentTeamDefinition, IAgentTeamSession } from '@/common/agentTeam';
-
-export const agentTeam = {
-  // Session lifecycle
-  createSession: bridge.buildProvider<IBridgeResponse<IAgentTeamSession>, { definition: IAgentTeamDefinition; workspace: string }>('agentTeam.create-session'),
-  destroySession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('agentTeam.destroy-session'),
-  getSession: bridge.buildProvider<IBridgeResponse<IAgentTeamSession | undefined>, { sessionId: string }>('agentTeam.get-session'),
-  listSessions: bridge.buildProvider<IBridgeResponse<IAgentTeamSession[]>, void>('agentTeam.list-sessions'),
-
-  // Member management
-  shutdownMember: bridge.buildProvider<IBridgeResponse, { sessionId: string; memberId: string }>('agentTeam.shutdown-member'),
-
-  // Events
-  sessionUpdated: bridge.buildEmitter<IAgentTeamSession>('agentTeam.session-updated'),
-};
