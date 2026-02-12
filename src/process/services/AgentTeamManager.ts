@@ -100,10 +100,10 @@ class AgentTeamManager {
     if (existingConv.success && existingConv.data) {
       const updatedExtra = {
         ...existingConv.data.extra,
-        teamSessionId: session.id,
-        teamMemberId: memberDef.id,
-        teamMemberName: memberDef.name,
-        teamRole: memberDef.role,
+        agentTeamSessionId: session.id,
+        agentTeamMemberId: memberDef.id,
+        agentTeamMemberName: memberDef.name,
+        agentTeamRole: memberDef.role,
       };
       db.updateConversation(conversationId, { extra: updatedExtra } as any);
     }
