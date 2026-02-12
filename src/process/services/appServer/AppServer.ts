@@ -33,7 +33,7 @@ import type { Duplex } from 'stream';
 import net from 'net';
 import path from 'path';
 import { WebSocket, WebSocketServer } from 'ws';
-import type { AppConfig, AppInfo, AppResource, AppSession, AppTool, WorkspaceAppConfig } from '@/common/types/app';
+import type { AppConfig, AppInfo, AppResource, AppSession, AppState, AppTool, WorkspaceAppConfig } from '@/common/types/app';
 
 type SessionState = {
   sessionId: string;
@@ -41,6 +41,7 @@ type SessionState = {
   resource?: AppResource;
   ws: WebSocket | null;
   tools: AppTool[];
+  state: AppState;
 };
 
 type AppProcess = {
@@ -108,6 +109,8 @@ class AppServer {
   private wsToSession = new Map<WebSocket, string>();
   /** appName → workspace dir (for workspace apps, overrides appsDir) */
   private workspaceDirs = new Map<string, string>();
+  /** sessionId → pending tool calls (for polling-based apps) */
+  private pendingToolCalls = new Map<string, Array<{ id: string; tool: string; params: Record<string, unknown> }>>();
   /** Message listeners for IPC forwarding */
   private listeners: MessageListener[] = [];
 
@@ -208,6 +211,74 @@ class AppServer {
     // Tool discovery endpoint (for agent integration)
     this.expressApp.get('/__tools', (_req, res) => {
       res.json(this.getAllTools());
+    });
+
+    // ── HTTP API for non-JS apps (Python/Streamlit, etc.) ──
+    // Apps use AIONUI_API_URL env var to reach these endpoints.
+    this.expressApp.use('/__api', express.json());
+
+    // Push state update: POST /__api/state { sid, state }
+    this.expressApp.post('/__api/state', (req, res) => {
+      const { sid, state } = req.body || {};
+      const session = sid ? this.sessions.get(sid) : undefined;
+      if (!session) return res.status(404).json({ error: 'Session not found' });
+      Object.assign(session.state, state);
+      for (const listener of this.listeners) {
+        listener(sid, 'app:state-update', session.state);
+      }
+      res.json({ ok: true });
+    });
+
+    // Read state: GET /__api/state?sid=xxx
+    this.expressApp.get('/__api/state', (req, res) => {
+      const sid = req.query.sid as string;
+      const session = sid ? this.sessions.get(sid) : undefined;
+      if (!session) return res.status(404).json({ error: 'Session not found' });
+      res.json(session.state);
+    });
+
+    // Emit event: POST /__api/event { sid, event, ...data }
+    this.expressApp.post('/__api/event', (req, res) => {
+      const { sid, event, ...data } = req.body || {};
+      const session = sid ? this.sessions.get(sid) : undefined;
+      if (!session) return res.status(404).json({ error: 'Session not found' });
+      for (const listener of this.listeners) {
+        listener(sid, 'app:event', { event, ...data });
+      }
+      res.json({ ok: true });
+    });
+
+    // Tool result: POST /__api/tool-result { sid, requestId, success, data?, error? }
+    this.expressApp.post('/__api/tool-result', (req, res) => {
+      const { sid, ...payload } = req.body || {};
+      const session = sid ? this.sessions.get(sid) : undefined;
+      if (!session) return res.status(404).json({ error: 'Session not found' });
+      for (const listener of this.listeners) {
+        listener(sid, 'app:tool-result', payload);
+      }
+      res.json({ ok: true });
+    });
+
+    // Get pending tool calls: GET /__api/tools/pending?sid=xxx
+    // (for polling-based apps that can't use WebSocket)
+    this.expressApp.get('/__api/tools/pending', (req, res) => {
+      const sid = req.query.sid as string;
+      const session = sid ? this.sessions.get(sid) : undefined;
+      if (!session) return res.status(404).json({ error: 'Session not found' });
+      const pending = this.pendingToolCalls.get(sid) || [];
+      this.pendingToolCalls.set(sid, []);
+      res.json(pending);
+    });
+
+    // Register tools at runtime: POST /__api/tools { sid, tools }
+    this.expressApp.post('/__api/tools', (req, res) => {
+      const { sid, tools } = req.body || {};
+      const session = sid ? this.sessions.get(sid) : undefined;
+      if (!session) return res.status(404).json({ error: 'Session not found' });
+      if (Array.isArray(tools)) {
+        session.tools = tools;
+      }
+      res.json({ ok: true, tools: session.tools });
     });
 
     // Only static apps are served by this server
@@ -311,8 +382,14 @@ class AppServer {
       return;
     }
 
+    // Handle state updates (merge into session state)
+    if (type === 'app:state-update' && payload) {
+      const session = this.sessions.get(sessionId);
+      if (session) Object.assign(session.state, payload);
+    }
+
     // Forward all other messages to external listeners (IPC bridge)
-    // This includes: app:content-changed, app:tool-result, app:execute-result, app:event
+    // This includes: app:content-changed, app:tool-result, app:execute-result, app:event, app:state-update
     for (const listener of this.listeners) {
       listener(sessionId, type, payload || {});
     }
@@ -339,7 +416,16 @@ class AppServer {
       cwd: appDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,
-      env: { ...process.env, PORT: String(port) },
+      env: {
+        ...process.env,
+        PORT: String(port),
+        // AionUi platform connection info for non-JS apps (Python, etc.)
+        AIONUI_API_URL: `http://127.0.0.1:${this.port}/__api`,
+        AIONUI_WS_URL: `ws://127.0.0.1:${this.port}/__ws`,
+        AIONUI_PORT: String(this.port),
+        AIONUI_APP_PORT: String(port),
+        AIONUI_APP_NAME: appName,
+      },
     });
 
     const appProcess: AppProcess = {
@@ -433,6 +519,7 @@ class AppServer {
       resource,
       ws: null,
       tools,
+      state: {},
     });
 
     return {
@@ -524,15 +611,20 @@ class AppServer {
 
   // ==================== Tool Execution ====================
 
-  /** Call a tool on an app session */
+  /** Call a tool on an app session (works via WebSocket or HTTP polling) */
   async callTool(sessionId: string, toolName: string, params: Record<string, unknown>): Promise<unknown> {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Session '${sessionId}' not found`);
-    if (!session.ws || session.ws.readyState !== WebSocket.OPEN) {
-      throw new Error(`Session '${sessionId}' has no active connection`);
-    }
 
     const requestId = crypto.randomUUID();
+
+    // If no WebSocket, queue for HTTP polling
+    if (!session.ws || session.ws.readyState !== WebSocket.OPEN) {
+      const pending = this.pendingToolCalls.get(sessionId) || [];
+      pending.push({ id: requestId, tool: toolName, params });
+      this.pendingToolCalls.set(sessionId, pending);
+    }
+
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         cleanup();
@@ -573,6 +665,15 @@ class AppServer {
   /** @deprecated Use callTool instead */
   async execute(sessionId: string, capability: string, params: Record<string, unknown>): Promise<unknown> {
     return this.callTool(sessionId, capability, params);
+  }
+
+  // ==================== State ====================
+
+  /** Get the current state of an app session */
+  getState(sessionId: string): AppState {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error(`Session '${sessionId}' not found`);
+    return { ...session.state };
   }
 
   // ==================== Events ====================

@@ -54,6 +54,11 @@ export function initAppBridge(): void {
     return appServer.openWorkspaceApp(workspace);
   });
 
+  // Get app session state
+  ipcBridge.app.getState.provider(({ sessionId }: { sessionId: string }) => {
+    return appServer.getState(sessionId);
+  });
+
   // Forward app messages to renderer
   appServer.onMessage((sessionId, type, payload) => {
     if (type === 'app:content-changed') {
@@ -68,6 +73,12 @@ export function initAppBridge(): void {
         sessionId,
         event: payload.event as string,
         data: payload,
+      });
+    }
+    if (type === 'app:state-update') {
+      ipcBridge.app.stateUpdated.emit({
+        sessionId,
+        state: payload as Record<string, unknown>,
       });
     }
   });

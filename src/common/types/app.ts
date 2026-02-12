@@ -68,6 +68,22 @@ export type AppConfig = {
   port?: number;
 };
 
+// ==================== App State ====================
+
+/**
+ * Structured state published by an app.
+ * The agent can read this to understand what the app currently shows.
+ *
+ * Example - financial research app:
+ * {
+ *   "current_symbol": "AAPL",
+ *   "price_data": { "open": 150.2, "close": 152.8, "volume": 1200000 },
+ *   "analysis_results": { "trend": "bullish", "rsi": 65.3 },
+ *   "active_charts": ["price_1Y", "volume_3M"]
+ * }
+ */
+export type AppState = Record<string, unknown>;
+
 // ==================== Runtime Types ====================
 
 /** Runtime session: one per opened app instance */
@@ -153,6 +169,7 @@ export type AppMessage = {
  *   app:file-read      - Read a file
  *   app:file-write     - Write a file
  *   app:save           - Save current content
+ *   app:state-update   - Push structured state (data, results, etc.)
  *
  * Backend → App:
  *   backend:open       - Open a resource in the app

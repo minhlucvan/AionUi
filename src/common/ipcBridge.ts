@@ -408,6 +408,10 @@ export const app = {
   openWorkspace: bridge.buildProvider<import('./types/app').AppSession, { workspace: string }>('app.open-workspace'),
   /** Read workspace app config (.aionui/app.json) */
   getWorkspaceConfig: bridge.buildProvider<import('./types/app').WorkspaceAppConfig | null, { workspace: string }>('app.workspace-config'),
+  /** Get app session state (structured data published by the app) */
+  getState: bridge.buildProvider<import('./types/app').AppState, { sessionId: string }>('app.get-state'),
+  /** Event: app state updated */
+  stateUpdated: bridge.buildEmitter<{ sessionId: string; state: import('./types/app').AppState }>('app.state-updated'),
 };
 
 // 窗口控制相关接口 / Window controls API
