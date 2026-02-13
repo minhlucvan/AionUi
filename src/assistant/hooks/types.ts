@@ -112,6 +112,9 @@ export type HookUtils = {
   symlinkSkill: (skillName: string, targetDir: string) => Promise<void>;
   readSkillContent: (skillName: string) => Promise<string>;
   getSkillMetadata: (skillName: string) => Promise<{ name: string; description: string }>;
+
+  // Agent operations — copy agent .md files from assistant agents/ dir to workspace
+  copyAgentFile: (agentName: string, sourceDir: string, targetDir: string) => Promise<void>;
 };
 
 /**

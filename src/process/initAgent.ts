@@ -200,9 +200,38 @@ const buildWorkspaceWidthFiles = async (
     }
   }
 
-  // Generate .claude/agents/*.md subagent files from teamMembers
-  // This materializes team member definitions as Claude Code subagent files
-  // so the team lead can discover and spawn them by name.
+  // Copy agent files from {assistantPath}/agents/ to {workspace}/.claude/agents/
+  // This is the agents equivalent of the skills/ folder — assistants can define
+  // reusable subagent .md files that Claude Code discovers automatically.
+  if (assistantPath) {
+    const assistantAgentsDir = path.join(assistantPath, 'agents');
+    const hasAgentsDir = await fs
+      .access(assistantAgentsDir)
+      .then(() => true)
+      .catch(() => false);
+
+    if (hasAgentsDir) {
+      const workspaceAgentsDir = path.join(workspace, '.claude', 'agents');
+      await fs.mkdir(workspaceAgentsDir, { recursive: true });
+
+      try {
+        const agentFiles = await fs.readdir(assistantAgentsDir);
+        const mdFiles = agentFiles.filter((f) => f.endsWith('.md'));
+        for (const file of mdFiles) {
+          await fs.copyFile(path.join(assistantAgentsDir, file), path.join(workspaceAgentsDir, file));
+        }
+        if (mdFiles.length > 0) {
+          console.log(`[AionUi] Copied ${mdFiles.length} agent files from ${assistantAgentsDir}`);
+        }
+      } catch (error) {
+        console.warn(`[AionUi] Failed to copy agent files from assistant:`, error);
+      }
+    }
+  }
+
+  // Generate .claude/agents/*.md subagent files from teamMembers config.
+  // Runs AFTER folder copy so teamMembers definitions override folder agents
+  // with the same ID.
   if (isTeam && teamMembers && teamMembers.length > 0) {
     const agentsDir = path.join(workspace, '.claude', 'agents');
     await fs.mkdir(agentsDir, { recursive: true });
