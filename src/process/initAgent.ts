@@ -230,33 +230,35 @@ const buildWorkspaceWidthFiles = async (
   }
 
   // Generate .claude/agents/*.md subagent files from teamMembers config.
-  // Runs AFTER folder copy so teamMembers definitions override folder agents
-  // with the same ID.
+  // Only generates for members that have an inline systemPrompt — members
+  // without systemPrompt get their definition from agents/ folder files
+  // (copied in the step above).
   if (isTeam && teamMembers && teamMembers.length > 0) {
-    const agentsDir = path.join(workspace, '.claude', 'agents');
-    await fs.mkdir(agentsDir, { recursive: true });
+    const membersToGenerate = teamMembers.filter((m) => m.role !== 'lead' && m.systemPrompt);
 
-    for (const member of teamMembers) {
-      // Skip the lead — the lead IS the main conversation, not a subagent
-      if (member.role === 'lead') continue;
+    if (membersToGenerate.length > 0) {
+      const agentsDir = path.join(workspace, '.claude', 'agents');
+      await fs.mkdir(agentsDir, { recursive: true });
 
-      const frontmatter: string[] = ['---'];
-      frontmatter.push(`name: ${member.id}`);
-      frontmatter.push(`description: "${member.name}"`);
-      if (member.model) frontmatter.push(`model: ${member.model}`);
-      if (member.skills?.length) frontmatter.push(`skills: ${JSON.stringify(member.skills)}`);
-      frontmatter.push('---');
-      frontmatter.push('');
-      frontmatter.push(member.systemPrompt);
+      for (const member of membersToGenerate) {
+        const frontmatter: string[] = ['---'];
+        frontmatter.push(`name: ${member.id}`);
+        frontmatter.push(`description: "${member.name}"`);
+        if (member.model) frontmatter.push(`model: ${member.model}`);
+        if (member.skills?.length) frontmatter.push(`skills: ${JSON.stringify(member.skills)}`);
+        frontmatter.push('---');
+        frontmatter.push('');
+        frontmatter.push(member.systemPrompt!);
 
-      const agentFilePath = path.join(agentsDir, `${member.id}.md`);
-      try {
-        await fs.writeFile(agentFilePath, frontmatter.join('\n'), 'utf-8');
-      } catch (error) {
-        console.error(`[AionUi] Failed to generate subagent file for ${member.id}:`, error);
+        const agentFilePath = path.join(agentsDir, `${member.id}.md`);
+        try {
+          await fs.writeFile(agentFilePath, frontmatter.join('\n'), 'utf-8');
+        } catch (error) {
+          console.error(`[AionUi] Failed to generate subagent file for ${member.id}:`, error);
+        }
       }
+      console.log(`[AionUi] Generated ${membersToGenerate.length} subagent files in ${agentsDir}`);
     }
-    console.log(`[AionUi] Generated ${teamMembers.filter((m) => m.role !== 'lead').length} subagent files in ${agentsDir}`);
   }
 
   // Copy default files to workspace
