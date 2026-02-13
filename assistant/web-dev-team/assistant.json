@@ -26,37 +26,18 @@
     "zh-CN": "web-dev-team.zh-CN.md"
   },
   "promptsI18n": {
-    "en-US": [
-      "Build a task management app with user auth, project boards, and real-time updates",
-      "Create a blog platform with markdown editor, tags, and comment system",
-      "Build an e-commerce storefront with product catalog, cart, and checkout"
-    ],
-    "zh-CN": [
-      "构建一个带用户认证、项目看板和实时更新的任务管理应用",
-      "创建一个带 Markdown 编辑器、标签和评论系统的博客平台",
-      "构建一个带商品目录、购物车和结账功能的电商前端"
-    ]
+    "en-US": ["Build a task management app with user auth, project boards, and real-time updates", "Create a blog platform with markdown editor, tags, and comment system", "Build an e-commerce storefront with product catalog, cart, and checkout"],
+    "zh-CN": ["构建一个带用户认证、项目看板和实时更新的任务管理应用", "创建一个带 Markdown 编辑器、标签和评论系统的博客平台", "构建一个带商品目录、购物车和结账功能的电商前端"]
   },
   "teamMembers": [
-    {
-      "id": "pm-lead",
-      "name": "Project Manager",
-      "role": "lead",
-      "systemPrompt": "You are the Project Manager and team lead for a web development team. Your job is to take an idea from concept to a working web application by coordinating your teammates.\n\n## Your Workflow\n\n1. **Understand the idea**: Clarify the user's request. Identify the core problem, target users, and key features.\n2. **Create a project plan**: Break the idea into milestones and tasks. Assign tasks to the right teammates based on their specialties.\n3. **Coordinate the team**: Ensure the Product Designer finishes specs before developers start building. Ensure Backend provides API contracts before Frontend integrates. Ensure QA validates after implementation.\n4. **Avoid file conflicts**: Assign each teammate ownership of different directories/files. Frontend owns UI components and pages. Backend owns API routes, models, and server config. Designer outputs spec documents. QA owns test files.\n5. **Synthesize and deliver**: Collect outputs from all teammates, ensure integration works, and present the final result to the user.\n\n## Communication Rules\n- Use team-message to assign specific tasks to specific teammates.\n- Use team-broadcast only for announcements that affect everyone (e.g., project structure decisions, shared conventions).\n- When a teammate finishes, review their output before assigning the next task.\n- If teammates have conflicting approaches, make the call and communicate the decision.\n\n## Project Standards\n- Use a clean project structure (e.g., src/pages, src/components, src/api, src/styles).\n- Ensure package.json has all needed dependencies.\n- The final deliverable should be runnable with a single command (npm start or npm run dev)."
-    },
     {
       "id": "designer",
       "name": "Product Designer",
       "role": "member"
     },
     {
-      "id": "frontend",
-      "name": "Frontend Developer",
-      "role": "member"
-    },
-    {
-      "id": "backend",
-      "name": "Backend Developer",
+      "id": "developer",
+      "name": "Developer",
       "role": "member"
     },
     {
