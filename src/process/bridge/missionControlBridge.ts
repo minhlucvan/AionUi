@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import { missionSyncService } from '@process/services/missionControl/MissionSyncService';
+import { missionSyncService } from '@process/services/missionControl';
 
 /**
  * Initialize Mission Control IPC bridge handlers.

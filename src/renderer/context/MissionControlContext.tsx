@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { Mission } from '@/common/missionControl';
+import type { Mission } from '@process/services/missionControl/types';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 export type MissionControlContextValue = {

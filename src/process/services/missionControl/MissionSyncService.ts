@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Mission, MissionControlEvent, MissionState } from '@/common/missionControl';
+import type { Mission, MissionControlEvent, MissionState } from './types';
 import type { TeamTask, TeamTaskState } from '@/common/teamMonitor';
 import { missionStore } from './MissionStore';
 import { randomUUID } from 'crypto';
