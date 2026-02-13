@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { teamMonitorService } from '@process/services/teamMonitor/TeamMonitorService';
+import WorkerManage from '@process/WorkerManage';
 
 /**
  * Initialize team monitor IPC bridge handlers.
@@ -29,7 +30,19 @@ export function initTeamMonitorBridge(): void {
 
   // Lifecycle handlers
   ipcBridge.teamMonitor.start.provider(async ({ conversationId, teamName }) => {
-    teamMonitorService.start(conversationId, teamName);
+    // Get workspace directory from the conversation/task
+    let workspaceDir: string | undefined;
+    try {
+      const task = WorkerManage.getTaskById(conversationId);
+      if (task && 'extra' in task && task.extra && typeof task.extra === 'object') {
+        const extra = task.extra as { workspace?: string };
+        workspaceDir = extra.workspace;
+      }
+    } catch (err) {
+      console.warn('[TeamMonitorBridge] Could not get workspace for conversation:', err);
+    }
+
+    teamMonitorService.start(conversationId, teamName, workspaceDir);
     return { success: true };
   });
 

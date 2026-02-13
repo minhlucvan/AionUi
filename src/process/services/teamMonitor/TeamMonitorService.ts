@@ -30,6 +30,7 @@ export class TeamMonitorService {
   private lastTranscriptSizes: Map<string, number> = new Map();
   private cachedAgentOutputs: Map<string, AgentOutput> = new Map();
   private isRunning = false;
+  private workspaceDir: string | null = null;
 
   constructor() {
     this.claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
@@ -56,12 +57,14 @@ export class TeamMonitorService {
    * Start monitoring for a conversation.
    * If teamName is provided, monitors that team directly.
    * Otherwise, watches for new team directories.
+   * @param workspaceDir - Optional workspace directory (for AionUi temp workspaces)
    */
-  start(conversationId: string, teamName?: string): void {
+  start(conversationId: string, teamName?: string, workspaceDir?: string): void {
     if (this.isRunning) {
       this.stop();
     }
     this.conversationId = conversationId;
+    this.workspaceDir = workspaceDir || null;
     this.isRunning = true;
 
     if (teamName) {
@@ -104,6 +107,14 @@ export class TeamMonitorService {
     return this.isRunning;
   }
 
+  /** Get the effective .claude directory (workspace or default) */
+  private getEffectiveClaudeDir(): string {
+    if (this.workspaceDir) {
+      return path.join(this.workspaceDir, '.claude');
+    }
+    return this.claudeDir;
+  }
+
   /** Manually read and return current team state */
   getTeamState(): { teamName: string; members: TeamMember[]; tasks: TeamTask[] } | null {
     if (!this.teamName) return null;
@@ -121,7 +132,7 @@ export class TeamMonitorService {
   // ── Team Discovery ──
 
   private startTeamDiscovery(): void {
-    const teamsDir = path.join(this.claudeDir, 'teams');
+    const teamsDir = path.join(this.getEffectiveClaudeDir(), 'teams');
 
     // Poll for new team directories since they may not exist yet
     const timer = setInterval(() => {
@@ -184,7 +195,7 @@ export class TeamMonitorService {
   // ── Team Config ──
 
   private watchTeamConfig(teamName: string): void {
-    const configPath = path.join(this.claudeDir, 'teams', teamName, 'config.json');
+    const configPath = path.join(this.getEffectiveClaudeDir(), 'teams', teamName, 'config.json');
     const timer = setInterval(() => {
       if (!this.isRunning) return;
       this.pollTeamConfig(teamName);
@@ -207,7 +218,7 @@ export class TeamMonitorService {
 
   private pollTeamConfig(teamName: string): void {
     try {
-      const configPath = path.join(this.claudeDir, 'teams', teamName, 'config.json');
+      const configPath = path.join(this.getEffectiveClaudeDir(), 'teams', teamName, 'config.json');
       if (!fs.existsSync(configPath)) return;
 
       const content = fs.readFileSync(configPath, 'utf-8');
@@ -249,7 +260,7 @@ export class TeamMonitorService {
 
   readTeamConfig(teamName: string): TeamMember[] {
     try {
-      const configPath = path.join(this.claudeDir, 'teams', teamName, 'config.json');
+      const configPath = path.join(this.getEffectiveClaudeDir(), 'teams', teamName, 'config.json');
       const content = fs.readFileSync(configPath, 'utf-8');
       return this.parseTeamConfig(content);
     } catch {
@@ -260,7 +271,7 @@ export class TeamMonitorService {
   // ── Task List ──
 
   private watchTasks(teamName: string): void {
-    const tasksDir = path.join(this.claudeDir, 'tasks', teamName);
+    const tasksDir = path.join(this.getEffectiveClaudeDir(), 'tasks', teamName);
 
     const timer = setInterval(() => {
       if (!this.isRunning) return;
@@ -293,12 +304,13 @@ export class TeamMonitorService {
         data: { teamName, tasks },
       });
 
-      // Sync to Mission Control (lazy import to avoid pulling in DB at module load)
+      // Sync to Mission Control (async import to avoid pulling in DB at module load)
       if (this.conversationId && tasks.length > 0) {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { missionSyncService } = require('@process/services/missionControl/MissionSyncService');
-          missionSyncService.syncFromClaudeTasks(this.conversationId, teamName, tasks);
+          void (async () => {
+            const { missionSyncService } = await import('@process/services/missionControl/MissionSyncService');
+            missionSyncService.syncFromClaudeTasks(this.conversationId!, teamName, tasks);
+          })();
         } catch (err) {
           console.error('[TeamMonitor] Mission sync error:', err);
         }
@@ -309,7 +321,7 @@ export class TeamMonitorService {
   }
 
   readTasks(teamName: string): TeamTask[] {
-    const tasksDir = path.join(this.claudeDir, 'tasks', teamName);
+    const tasksDir = path.join(this.getEffectiveClaudeDir(), 'tasks', teamName);
     const tasks: TeamTask[] = [];
 
     try {
@@ -376,7 +388,9 @@ export class TeamMonitorService {
   }
 
   private normalizeTaskState(state: unknown): TeamTask['state'] {
-    const s = String(state || '').toLowerCase().replace(/[-_\s]/g, '');
+    const s = String(state || '')
+      .toLowerCase()
+      .replace(/[-_\s]/g, '');
     if (s === 'inprogress' || s === 'active' || s === 'working' || s === 'claimed') return 'in_progress';
     if (s === 'completed' || s === 'done' || s === 'finished') return 'completed';
     return 'pending';
@@ -387,7 +401,7 @@ export class TeamMonitorService {
   private watchSubagentTranscripts(): void {
     // Look for subagent transcripts in the project directory
     // Claude stores them at {project_dir}/subagents/agent-{id}.jsonl
-    const projectsDir = path.join(this.claudeDir, 'projects');
+    const projectsDir = path.join(this.getEffectiveClaudeDir(), 'projects');
 
     const timer = setInterval(() => {
       if (!this.isRunning) return;
@@ -423,7 +437,7 @@ export class TeamMonitorService {
 
   private readSubagentTranscripts(): AgentOutput[] {
     const outputs: AgentOutput[] = [];
-    const projectsDir = path.join(this.claudeDir, 'projects');
+    const projectsDir = path.join(this.getEffectiveClaudeDir(), 'projects');
 
     try {
       if (!fs.existsSync(projectsDir)) return outputs;
