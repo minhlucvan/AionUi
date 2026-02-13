@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Mission, MissionState, StateTransition } from '@/common/missionControl';
+import type { Mission, MissionState, StateTransition } from './types';
 import { getDatabase } from '@process/database';
 
 /**

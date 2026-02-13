@@ -635,7 +635,7 @@ export const teamMonitor = {
 // ==================== Mission Control API ====================
 // Persistent mission tracking synced from Claude's native task files
 
-import type { Mission } from '@/common/missionControl';
+import type { Mission } from '@process/services/missionControl/types';
 
 export const missionControl = {
   // Queries

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it, beforeEach, jest } from '@jest/globals';
-import type { Mission, MissionState } from '@/common/missionControl';
+import type { Mission, MissionState } from '@process/services/missionControl/types';
 import type { TeamTask } from '@/common/teamMonitor';
 
 /**
@@ -104,7 +104,7 @@ jest.mock('@process/database', () => ({
 
 // Now import the sync service (it uses the mocked store)
 import { missionSyncService } from '@process/services/missionControl/MissionSyncService';
-import type { MissionControlEvent } from '@/common/missionControl';
+import type { MissionControlEvent } from '@process/services/missionControl/types';
 
 // Import the real row conversion functions for testing (no DB dependency)
 import { missionToRow as realMissionToRow, rowToMission as realRowToMission } from '@process/services/missionControl/MissionStore';
