@@ -29,21 +29,10 @@ export type AgentType = 'acp' | 'codex' | 'gemini' | 'openclaw';
  *   };
  *
  * @param event - The hook event (e.g., 'onWorkspaceInit', 'onFirstMessage')
- * @param context - Hook context object
+ * @param context - Hook context object (accepts all HookContext fields)
  * @returns HookResult with transformed content
  */
-export async function runAgentHooks(
-  event: HookEvent,
-  context: {
-    agentType?: AgentType;
-    workspace: string;
-    backend?: string;
-    content?: string;
-    enabledSkills?: string[];
-    conversationId?: string;
-    presetContext?: string;
-  }
-): Promise<HookResult> {
+export async function runAgentHooks(event: HookEvent, context: Partial<HookContext> & { agentType?: AgentType }): Promise<HookResult> {
   const agentType = context.agentType || 'acp';
   const hooksDir = path.join(__dirname, 'agent', agentType, 'hooks');
 
@@ -58,7 +47,7 @@ export async function runAgentHooks(
 
   const fullContext: HookContext = {
     event,
-    workspace: context.workspace,
+    workspace: context.workspace!,
     backend: context.backend,
     content: context.content,
     enabledSkills: context.enabledSkills || [],
@@ -66,6 +55,7 @@ export async function runAgentHooks(
     skillsSourceDir: getSkillsDir(),
     presetContext: context.presetContext,
     utils: createHookUtils(),
+    ...context,
   };
 
   return await executeHooks(event, fullContext, hookModules);
