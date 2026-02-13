@@ -21,8 +21,9 @@ type TabKey = 'tasks' | 'agents';
  */
 const TeamPanel: React.FC = () => {
   const { t } = useTranslation();
-  const { teamName, members, tasks, agentOutputs, selectedAgent, setSelectedAgent } = useTeamMonitor();
+  const { teamName, members, tasks, agentOutputs } = useTeamMonitor();
   const [activeTab, setActiveTab] = useState<TabKey>('tasks');
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   const inProgressCount = tasks.filter((t) => t.state === 'in_progress').length;
   const completedCount = tasks.filter((t) => t.state === 'completed').length;

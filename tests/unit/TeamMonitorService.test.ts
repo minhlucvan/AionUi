@@ -452,11 +452,160 @@ describe('TeamMonitorService', () => {
     });
   });
 
-  // ── getAgentOutputs ──
+  // ── getAgentOutputs (cached) ──
 
   describe('getAgentOutputs', () => {
     it('should return empty array when no team is being monitored', () => {
       expect(service.getAgentOutputs()).toEqual([]);
+    });
+
+    it('should return cached outputs after polling reads transcripts', (done) => {
+      // Set up team config so we can start monitoring
+      const teamDir = path.join(tmpDir, 'teams', 'cache-team');
+      fs.mkdirSync(teamDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(teamDir, 'config.json'),
+        JSON.stringify({ members: [{ name: 'worker', role: 'member' }] })
+      );
+
+      // Set up subagent transcript
+      const projectDir = path.join(tmpDir, 'projects', 'test-proj', 'subagents');
+      fs.mkdirSync(projectDir, { recursive: true });
+
+      const transcript = [
+        JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Hello from agent' }] } }),
+      ].join('\n');
+      fs.writeFileSync(path.join(projectDir, 'agent-worker.jsonl'), transcript);
+
+      // Listen for the agent_output event which signals polling has completed
+      service.on((event) => {
+        if (event.type === 'agent_output') {
+          // After polling reads the transcript, getAgentOutputs should return cached data
+          const outputs = service.getAgentOutputs();
+          expect(outputs.length).toBeGreaterThanOrEqual(1);
+
+          const workerOutput = outputs.find((o) => o.agentName === 'worker');
+          expect(workerOutput).toBeDefined();
+          expect(workerOutput!.entries).toHaveLength(1);
+          expect(workerOutput!.entries[0].text).toBe('Hello from agent');
+          done();
+        }
+      });
+
+      service.start('conv-1', 'cache-team');
+    });
+
+    it('should still return cached outputs even when transcript file has not grown', (done) => {
+      const teamDir = path.join(tmpDir, 'teams', 'cache-team2');
+      fs.mkdirSync(teamDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(teamDir, 'config.json'),
+        JSON.stringify({ members: [{ name: 'agent-a', role: 'member' }] })
+      );
+
+      const projectDir = path.join(tmpDir, 'projects', 'test-proj2', 'subagents');
+      fs.mkdirSync(projectDir, { recursive: true });
+
+      const transcript = JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: 'Cached output' }] },
+      });
+      fs.writeFileSync(path.join(projectDir, 'agent-test.jsonl'), transcript);
+
+      let pollCount = 0;
+      service.on((event) => {
+        if (event.type === 'agent_output') {
+          pollCount++;
+          if (pollCount === 1) {
+            // First poll reads the transcript.
+            // Calling getAgentOutputs again (simulating context 5s poll)
+            // should return cached data, not empty.
+            const outputs = service.getAgentOutputs();
+            expect(outputs.length).toBeGreaterThanOrEqual(1);
+            done();
+          }
+        }
+      });
+
+      service.start('conv-1', 'cache-team2');
+    });
+
+    it('should clear cached outputs on stop', () => {
+      service.start('conv-1', 'some-team');
+      // Manually verify cache is cleared after stop
+      service.stop();
+      expect(service.getAgentOutputs()).toEqual([]);
+    });
+  });
+
+  // ── Transcript parsing ──
+
+  describe('transcript parsing', () => {
+    it('should parse text content blocks', (done) => {
+      const teamDir = path.join(tmpDir, 'teams', 'parse-team');
+      fs.mkdirSync(teamDir, { recursive: true });
+      fs.writeFileSync(path.join(teamDir, 'config.json'), JSON.stringify({ members: [] }));
+
+      const projectDir = path.join(tmpDir, 'projects', 'parse-proj', 'subagents');
+      fs.mkdirSync(projectDir, { recursive: true });
+
+      const lines = [
+        JSON.stringify({ type: 'human', message: { content: 'User says hi' } }),
+        JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Bot responds' }] } }),
+      ];
+      fs.writeFileSync(path.join(projectDir, 'agent-bot.jsonl'), lines.join('\n'));
+
+      service.on((event) => {
+        if (event.type === 'agent_output' && event.data.agentName === 'bot') {
+          expect(event.data.entries).toHaveLength(2);
+          expect(event.data.entries[0]).toMatchObject({ role: 'user', text: 'User says hi' });
+          expect(event.data.entries[1]).toMatchObject({ role: 'assistant', text: 'Bot responds' });
+          done();
+        }
+      });
+
+      service.start('conv-1', 'parse-team');
+    });
+
+    it('should parse tool_use and tool_result blocks', (done) => {
+      const teamDir = path.join(tmpDir, 'teams', 'tool-team');
+      fs.mkdirSync(teamDir, { recursive: true });
+      fs.writeFileSync(path.join(teamDir, 'config.json'), JSON.stringify({ members: [] }));
+
+      const projectDir = path.join(tmpDir, 'projects', 'tool-proj', 'subagents');
+      fs.mkdirSync(projectDir, { recursive: true });
+
+      const lines = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'read_file', input: { path: '/tmp/test.txt' } },
+            ],
+          },
+        }),
+        JSON.stringify({
+          type: 'human',
+          message: {
+            content: [
+              { type: 'tool_result', content: 'file contents here' },
+            ],
+          },
+        }),
+      ];
+      fs.writeFileSync(path.join(projectDir, 'agent-toolbot.jsonl'), lines.join('\n'));
+
+      service.on((event) => {
+        if (event.type === 'agent_output' && event.data.agentName === 'toolbot') {
+          expect(event.data.entries).toHaveLength(2);
+          expect(event.data.entries[0].toolName).toBe('read_file');
+          expect(event.data.entries[0].toolInput).toContain('/tmp/test.txt');
+          expect(event.data.entries[1].text).toContain('file contents here');
+          done();
+        }
+      });
+
+      service.start('conv-1', 'tool-team');
     });
   });
 });

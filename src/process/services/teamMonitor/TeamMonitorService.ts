@@ -28,6 +28,7 @@ export class TeamMonitorService {
   private lastTeamConfig: string = '';
   private lastTasksHash: string = '';
   private lastTranscriptSizes: Map<string, number> = new Map();
+  private cachedAgentOutputs: Map<string, AgentOutput> = new Map();
   private isRunning = false;
 
   constructor() {
@@ -78,6 +79,7 @@ export class TeamMonitorService {
     this.lastTeamConfig = '';
     this.lastTasksHash = '';
     this.lastTranscriptSizes.clear();
+    this.cachedAgentOutputs.clear();
 
     for (const watcher of this.watchers) {
       try {
@@ -110,10 +112,10 @@ export class TeamMonitorService {
     return { teamName: this.teamName, members, tasks };
   }
 
-  /** Read agent output from subagent transcripts */
+  /** Return cached agent outputs (updated by polling) */
   getAgentOutputs(): AgentOutput[] {
     if (!this.teamName) return [];
-    return this.readSubagentTranscripts();
+    return Array.from(this.cachedAgentOutputs.values());
   }
 
   // ── Team Discovery ──
@@ -400,6 +402,7 @@ export class TeamMonitorService {
   private pollSubagentTranscripts(): void {
     const outputs = this.readSubagentTranscripts();
     for (const output of outputs) {
+      this.cachedAgentOutputs.set(output.agentName, output);
       this.emit({
         type: 'agent_output',
         data: output,
