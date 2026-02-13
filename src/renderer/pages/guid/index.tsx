@@ -887,12 +887,20 @@ const Guid: React.FC = () => {
       const customAgent = customAgents.find((a: AcpBackendConfig) => a.id === agentInfo.customAgentId);
       if (customAgent?.teamMembers && customAgent.teamMembers.length >= 2) {
         try {
-          // Build team prompt from member definitions
+          // Build team prompt that references the generated .claude/agents/*.md subagent files.
+          // Full systemPrompts are in the subagent files — the prompt just needs agent names.
           const teamName = customAgent.nameI18n?.[resolveLocaleKey(i18n.language)] || customAgent.name;
-          const memberDescriptions = customAgent.teamMembers
-            .map((m: { id: string; name: string; role: string; systemPrompt: string }) => `- **${m.name}** (${m.role}): ${m.systemPrompt.slice(0, 200)}`)
+          const lead = customAgent.teamMembers.find((m: { role: string }) => m.role === 'lead');
+          const members = customAgent.teamMembers.filter((m: { role: string }) => m.role !== 'lead');
+
+          const memberList = members
+            .map((m: { id: string; name: string }) => `- **${m.name}** (\`${m.id}\`)`)
             .join('\n');
-          const teamPrompt = `Create an agent team called "${teamName}" with the following members:\n${memberDescriptions}\n\nTask: ${input}`;
+
+          // Include the lead's full systemPrompt as team lead instructions
+          const leadInstructions = lead?.systemPrompt ? `\n\n## Team Lead Instructions\n\n${lead.systemPrompt}` : '';
+
+          const teamPrompt = `Create an agent team called "${teamName}". Your teammates are defined as subagents in \`.claude/agents/\` — spawn them by name:\n\n${memberList}${leadInstructions}\n\n## Task\n\n${input}`;
 
           // Create a normal ACP conversation with native team env var
           const conversation = await ipcBridge.conversation.create.invoke({
