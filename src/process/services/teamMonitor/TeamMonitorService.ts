@@ -292,6 +292,17 @@ export class TeamMonitorService {
         type: 'task_update',
         data: { teamName, tasks },
       });
+
+      // Sync to Mission Control (lazy import to avoid pulling in DB at module load)
+      if (this.conversationId && tasks.length > 0) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { missionSyncService } = require('@process/services/missionControl/MissionSyncService');
+          missionSyncService.syncFromClaudeTasks(this.conversationId, teamName, tasks);
+        } catch (err) {
+          console.error('[TeamMonitor] Mission sync error:', err);
+        }
+      }
     } catch {
       // tasks not ready yet
     }

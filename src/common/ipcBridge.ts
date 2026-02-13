@@ -632,3 +632,18 @@ export const teamMonitor = {
   onAgentOutput: bridge.buildEmitter<AgentOutput>('team-monitor.agent-output'),
 };
 
+// ==================== Mission Control API ====================
+// Persistent mission tracking synced from Claude's native task files
+
+import type { Mission } from '@/common/missionControl';
+
+export const missionControl = {
+  // Queries
+  getMissions: bridge.buildProvider<IBridgeResponse<Mission[]>, { conversationId: string }>('mission-control.get-missions'),
+  getTeamMissions: bridge.buildProvider<IBridgeResponse<Mission[]>, { conversationId: string; teamName: string }>('mission-control.get-team-missions'),
+  getMission: bridge.buildProvider<IBridgeResponse<Mission | null>, { id: string }>('mission-control.get-mission'),
+  // Events
+  onMissionsSync: bridge.buildEmitter<{ teamName: string; missions: Mission[] }>('mission-control.missions-synced'),
+  onMissionUpdate: bridge.buildEmitter<Mission>('mission-control.mission-updated'),
+};
+
