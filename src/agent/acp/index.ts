@@ -170,14 +170,7 @@ export class AcpAgent {
    */
   private isTeamToolCall(toolName: string): boolean {
     const name = toolName.toLowerCase();
-    return (
-      name.includes('task') ||
-      name.includes('teammate') ||
-      name.includes('spawn') ||
-      name.includes('team') ||
-      name.includes('send_message') ||
-      name.includes('mailbox')
-    );
+    return name.includes('task') || name.includes('teammate') || name.includes('spawn') || name.includes('team') || name.includes('send_message') || name.includes('mailbox');
   }
 
   /**
@@ -187,10 +180,10 @@ export class AcpAgent {
     const message: IResponseMessage = {
       type: 'team_event',
       msg_id: toolCallId || uuid(),
-      conversation_id: this.config.id,
+      conversation_id: this.id,
       data: { toolName },
     };
-    this.config.onSignalEvent?.(message);
+    this.onSignalEvent?.(message);
   }
 
   /**
@@ -626,9 +619,15 @@ export class AcpAgent {
 
   private handleSessionUpdate(data: AcpSessionUpdate): void {
     try {
+      // Safety check: ensure data.update exists
+      if (!data || !data.update) {
+        console.warn('[ACP] Received session update with missing data.update:', data);
+        return;
+      }
+
       // Intercept chrome-devtools navigation tools from session updates
       // 从会话更新中拦截 chrome-devtools 导航工具
-      if (data.update?.sessionUpdate === 'tool_call') {
+      if (data.update.sessionUpdate === 'tool_call') {
         const toolCallUpdate = data as ToolCallUpdate;
         const toolName = toolCallUpdate.update?.title || '';
         const toolCallId = toolCallUpdate.update?.toolCallId;
