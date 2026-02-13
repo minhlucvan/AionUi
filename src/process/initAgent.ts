@@ -6,6 +6,7 @@
 
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { TChatConversation, TProviderWithModel } from '@/common/storage';
+import type { IAgentTeamMemberDefinition } from '@/common/agentTeam';
 import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
 import path from 'path';
@@ -47,6 +48,7 @@ const buildWorkspaceWidthFiles = async (
   let customAgents: any = null;
   let assistantPath: string | undefined;
   let defaultAgent: string | undefined;
+  let teamMembers: IAgentTeamMemberDefinition[] | undefined;
 
   if (presetAssistantId) {
     try {
@@ -81,15 +83,26 @@ const buildWorkspaceWidthFiles = async (
     workspace = path.resolve(workspace);
   }
 
-  // Read assistant.json for defaultAgent
+  // Read assistant.json for defaultAgent and teamMembers
   if (assistantPath) {
     const configPath = path.join(assistantPath, 'assistant.json');
     try {
       const configContent = await fs.readFile(configPath, 'utf-8');
       const config = JSON.parse(configContent);
       defaultAgent = config.defaultAgent;
+      if (Array.isArray(config.teamMembers)) {
+        teamMembers = config.teamMembers;
+      }
     } catch (error) {
-      console.warn(`[AionUi] Failed to read assistant.json for defaultAgent:`, error);
+      console.warn(`[AionUi] Failed to read assistant.json:`, error);
+    }
+  }
+
+  // Fallback: read teamMembers from customAgents ConfigStorage if not in assistant.json
+  if (!teamMembers && presetAssistantId && customAgents && Array.isArray(customAgents)) {
+    const assistant = customAgents.find((a: any) => a.id === presetAssistantId);
+    if (Array.isArray(assistant?.teamMembers)) {
+      teamMembers = assistant.teamMembers;
     }
   }
 
@@ -97,14 +110,8 @@ const buildWorkspaceWidthFiles = async (
   // Phase 2: onSetup hook — team detection, env setup (BEFORE file ops)
   // ──────────────────────────────────────────────────────────────
 
-  // Built-in team detection from assistant teamMembers
-  let isTeam = false;
-  if (presetAssistantId && customAgents && Array.isArray(customAgents)) {
-    const assistant = customAgents.find((a: any) => a.id === presetAssistantId);
-    if (assistant?.teamMembers && assistant.teamMembers.length >= 2) {
-      isTeam = true;
-    }
-  }
+  // Built-in team detection from teamMembers
+  let isTeam = !!(teamMembers && teamMembers.length >= 2);
 
   // Also check frontend-provided customEnv
   let customEnv = options?.customEnv;
@@ -112,7 +119,7 @@ const buildWorkspaceWidthFiles = async (
     isTeam = true;
   }
 
-  // Run onSetup hook — hooks can override isTeam or provide env vars
+  // Run onSetup hook — hooks can override isTeam, customEnv, or teamMembers
   if (assistantPath) {
     try {
       const setupResult = await runHooks('onSetup', {
@@ -121,9 +128,11 @@ const buildWorkspaceWidthFiles = async (
         assistantPath,
         isTeam,
         customEnv,
+        teamMembers,
       });
       if (setupResult.isTeam !== undefined) isTeam = setupResult.isTeam;
       if (setupResult.customEnv) customEnv = { ...customEnv, ...setupResult.customEnv };
+      if (setupResult.teamMembers) teamMembers = setupResult.teamMembers;
     } catch (error) {
       console.warn('[AionUi] onSetup hook failed (non-critical):', error);
     }
@@ -178,6 +187,7 @@ const buildWorkspaceWidthFiles = async (
             assistantPath,
             isTeam,
             customEnv,
+            teamMembers,
           });
 
           console.log(`[AionUi] Workspace initialized via hook: ${workspace}`);
@@ -188,6 +198,36 @@ const buildWorkspaceWidthFiles = async (
     } catch (error) {
       console.warn(`[AionUi] Error initializing workspace:`, error);
     }
+  }
+
+  // Generate .claude/agents/*.md subagent files from teamMembers
+  // This materializes team member definitions as Claude Code subagent files
+  // so the team lead can discover and spawn them by name.
+  if (isTeam && teamMembers && teamMembers.length > 0) {
+    const agentsDir = path.join(workspace, '.claude', 'agents');
+    await fs.mkdir(agentsDir, { recursive: true });
+
+    for (const member of teamMembers) {
+      // Skip the lead — the lead IS the main conversation, not a subagent
+      if (member.role === 'lead') continue;
+
+      const frontmatter: string[] = ['---'];
+      frontmatter.push(`name: ${member.id}`);
+      frontmatter.push(`description: "${member.name}"`);
+      if (member.model) frontmatter.push(`model: ${member.model}`);
+      if (member.skills?.length) frontmatter.push(`skills: ${JSON.stringify(member.skills)}`);
+      frontmatter.push('---');
+      frontmatter.push('');
+      frontmatter.push(member.systemPrompt);
+
+      const agentFilePath = path.join(agentsDir, `${member.id}.md`);
+      try {
+        await fs.writeFile(agentFilePath, frontmatter.join('\n'), 'utf-8');
+      } catch (error) {
+        console.error(`[AionUi] Failed to generate subagent file for ${member.id}:`, error);
+      }
+    }
+    console.log(`[AionUi] Generated ${teamMembers.filter((m) => m.role !== 'lead').length} subagent files in ${agentsDir}`);
   }
 
   // Copy default files to workspace

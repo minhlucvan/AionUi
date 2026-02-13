@@ -47,6 +47,8 @@ export type HookContext = {
   isTeam?: boolean;
   /** Custom environment variables for the agent process / 自定义环境变量 */
   customEnv?: Record<string, string>;
+  /** Team member definitions from assistant config / 来自助手配置的团队成员定义 */
+  teamMembers?: import('@/common/agentTeam').IAgentTeamMemberDefinition[];
   utils: HookUtils;
 };
 
@@ -61,6 +63,8 @@ export type HookResult = {
   isTeam?: boolean;
   /** Hook can provide extra env vars to merge / Hook 可提供额外环境变量合并 */
   customEnv?: Record<string, string>;
+  /** Hook can modify team members (e.g., add/remove/override definitions) */
+  teamMembers?: import('@/common/agentTeam').IAgentTeamMemberDefinition[];
 };
 
 /**
