@@ -822,13 +822,59 @@ const migration_v16: IMigration = {
 };
 
 /**
+ * Migration v16 -> v17: Add missions table for Mission Control
+ * Persistent storage for tasks synced from Claude Code's native task files.
+ */
+const migration_v17: IMigration = {
+  version: 17,
+  name: 'Add missions table',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS missions (
+        id TEXT PRIMARY KEY,
+        external_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        team_name TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        description TEXT,
+        state TEXT NOT NULL DEFAULT 'pending',
+        assignee TEXT,
+        dependencies TEXT,
+        source TEXT NOT NULL DEFAULT 'claude_file',
+        state_history TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        started_at INTEGER,
+        completed_at INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_missions_conversation ON missions(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_missions_team ON missions(team_name);
+      CREATE INDEX IF NOT EXISTS idx_missions_state ON missions(state);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_missions_external ON missions(conversation_id, team_name, external_id);
+    `);
+    console.log('[Migration v17] Added missions table');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_missions_external;
+      DROP INDEX IF EXISTS idx_missions_state;
+      DROP INDEX IF EXISTS idx_missions_team;
+      DROP INDEX IF EXISTS idx_missions_conversation;
+      DROP TABLE IF EXISTS missions;
+    `);
+    console.log('[Migration v17] Rolled back: Removed missions table');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14, migration_v15, migration_v16,
+  migration_v13, migration_v14, migration_v15, migration_v16, migration_v17,
 ];
 
 /**

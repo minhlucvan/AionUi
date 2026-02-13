@@ -7,11 +7,13 @@
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { TChatConversation, TProviderWithModel } from '@/common/storage';
 import type { IAgentTeamMemberDefinition } from '@/common/agentTeam';
+import type { AgentType } from '@/assistant/hooks/AgentHooks';
 import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
 import { runHooks } from '@/assistant/hooks';
+import { runAgentHooks } from '@/assistant/hooks/AgentHooks';
 import { ConfigStorage } from '@/common/storage';
 import { getAssistantsDir } from './migrations/assistantMigration';
 import { copyDirectoryRecursively } from './utils';
@@ -35,8 +37,8 @@ const buildWorkspaceWidthFiles = async (
   defaultFiles?: string[],
   providedCustomWorkspace?: boolean,
   presetAssistantId?: string,
-  /** Extra options for hook context (e.g., backend, customEnv from frontend) */
-  options?: { backend?: string; customEnv?: Record<string, string> }
+  /** Extra options for hook context (e.g., backend, customEnv, agentType) */
+  options?: { backend?: string; customEnv?: Record<string, string>; agentType?: AgentType }
 ) => {
   // 使用前端提供的customWorkspace标志，如果没有则根据workspace参数判断
   const customWorkspace = providedCustomWorkspace !== undefined ? providedCustomWorkspace : !!workspace;
@@ -107,40 +109,51 @@ const buildWorkspaceWidthFiles = async (
   }
 
   // ──────────────────────────────────────────────────────────────
-  // Phase 2: onSetup hook — team detection, env setup (BEFORE file ops)
+  // Phase 2: onSetup hooks — team detection, env setup (BEFORE file ops)
+  //   1. Assistant hooks (per-assistant customization)
+  //   2. Agent hooks (agent-type logic, e.g. acp-agents.js team detection)
   // ──────────────────────────────────────────────────────────────
 
-  // Built-in team detection from teamMembers
-  let isTeam = !!(teamMembers && teamMembers.length >= 2);
-
-  // Also check frontend-provided customEnv
+  let isTeam = false;
   let customEnv = options?.customEnv;
-  if (customEnv?.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS === '1') {
-    isTeam = true;
-  }
 
-  // Run onSetup hook — hooks can override isTeam, customEnv, or teamMembers
+  const setupCtx = {
+    workspace,
+    backend: options?.backend,
+    assistantPath,
+    isTeam,
+    customEnv,
+    teamMembers,
+  };
+
+  // Run assistant-level onSetup hooks
   if (assistantPath) {
     try {
-      const setupResult = await runHooks('onSetup', {
-        workspace,
-        backend: options?.backend,
-        assistantPath,
+      const result = await runHooks('onSetup', setupCtx);
+      if (result.isTeam !== undefined) isTeam = result.isTeam;
+      if (result.customEnv) customEnv = { ...customEnv, ...result.customEnv };
+      if (result.teamMembers) teamMembers = result.teamMembers;
+    } catch (error) {
+      console.warn('[AionUi] Assistant onSetup hook failed (non-critical):', error);
+    }
+  }
+
+  // Run agent-type onSetup hooks (e.g. src/agent/acp/hooks/acp-agents.js)
+  if (options?.agentType) {
+    try {
+      const result = await runAgentHooks('onSetup', {
+        agentType: options.agentType,
+        ...setupCtx,
         isTeam,
         customEnv,
         teamMembers,
       });
-      if (setupResult.isTeam !== undefined) isTeam = setupResult.isTeam;
-      if (setupResult.customEnv) customEnv = { ...customEnv, ...setupResult.customEnv };
-      if (setupResult.teamMembers) teamMembers = setupResult.teamMembers;
+      if (result.isTeam !== undefined) isTeam = result.isTeam;
+      if (result.customEnv) customEnv = { ...customEnv, ...result.customEnv };
+      if (result.teamMembers) teamMembers = result.teamMembers;
     } catch (error) {
-      console.warn('[AionUi] onSetup hook failed (non-critical):', error);
+      console.warn('[AionUi] Agent onSetup hook failed (non-critical):', error);
     }
-  }
-
-  // Auto-set team env var when team detected
-  if (isTeam && !customEnv?.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS) {
-    customEnv = { ...customEnv, CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' };
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -157,6 +170,7 @@ const buildWorkspaceWidthFiles = async (
 
         const workspaceTemplatePath = path.join(assistantPath, 'workspace');
         const hooksPath = path.join(assistantPath, 'hooks');
+        const agentsPath = path.join(assistantPath, 'agents');
 
         const hasWorkspaceTemplate = await fs
           .access(workspaceTemplatePath)
@@ -166,8 +180,12 @@ const buildWorkspaceWidthFiles = async (
           .access(hooksPath)
           .then(() => true)
           .catch(() => false);
+        const hasAgents = await fs
+          .access(agentsPath)
+          .then(() => true)
+          .catch(() => false);
 
-        if (hasWorkspaceTemplate || hasHooks) {
+        if (hasWorkspaceTemplate || hasHooks || hasAgents || isTeam) {
           console.log(`[AionUi] Detected workspace features for ${presetAssistantId}: workspace=${hasWorkspaceTemplate}, hooks=${hasHooks}`);
 
           // Copy workspace template
@@ -180,15 +198,22 @@ const buildWorkspaceWidthFiles = async (
             }
           }
 
-          // Run onWorkspaceInit hook — hooks can customize workspace files
-          await runHooks('onWorkspaceInit', {
+          const initCtx = {
             workspace,
             backend: options?.backend,
             assistantPath,
             isTeam,
             customEnv,
             teamMembers,
-          });
+          };
+
+          // Run assistant-level onWorkspaceInit hooks
+          await runHooks('onWorkspaceInit', initCtx);
+
+          // Run agent-type onWorkspaceInit hooks (e.g. acp-agents.js: copy agents, generate subagent files)
+          if (options?.agentType) {
+            await runAgentHooks('onWorkspaceInit', { agentType: options.agentType, ...initCtx });
+          }
 
           console.log(`[AionUi] Workspace initialized via hook: ${workspace}`);
         }
@@ -197,67 +222,6 @@ const buildWorkspaceWidthFiles = async (
       }
     } catch (error) {
       console.warn(`[AionUi] Error initializing workspace:`, error);
-    }
-  }
-
-  // Copy agent files from {assistantPath}/agents/ to {workspace}/.claude/agents/
-  // This is the agents equivalent of the skills/ folder — assistants can define
-  // reusable subagent .md files that Claude Code discovers automatically.
-  if (assistantPath) {
-    const assistantAgentsDir = path.join(assistantPath, 'agents');
-    const hasAgentsDir = await fs
-      .access(assistantAgentsDir)
-      .then(() => true)
-      .catch(() => false);
-
-    if (hasAgentsDir) {
-      const workspaceAgentsDir = path.join(workspace, '.claude', 'agents');
-      await fs.mkdir(workspaceAgentsDir, { recursive: true });
-
-      try {
-        const agentFiles = await fs.readdir(assistantAgentsDir);
-        const mdFiles = agentFiles.filter((f) => f.endsWith('.md'));
-        for (const file of mdFiles) {
-          await fs.copyFile(path.join(assistantAgentsDir, file), path.join(workspaceAgentsDir, file));
-        }
-        if (mdFiles.length > 0) {
-          console.log(`[AionUi] Copied ${mdFiles.length} agent files from ${assistantAgentsDir}`);
-        }
-      } catch (error) {
-        console.warn(`[AionUi] Failed to copy agent files from assistant:`, error);
-      }
-    }
-  }
-
-  // Generate .claude/agents/*.md subagent files from teamMembers config.
-  // Only generates for members that have an inline systemPrompt — members
-  // without systemPrompt get their definition from agents/ folder files
-  // (copied in the step above).
-  if (isTeam && teamMembers && teamMembers.length > 0) {
-    const membersToGenerate = teamMembers.filter((m) => m.role !== 'lead' && m.systemPrompt);
-
-    if (membersToGenerate.length > 0) {
-      const agentsDir = path.join(workspace, '.claude', 'agents');
-      await fs.mkdir(agentsDir, { recursive: true });
-
-      for (const member of membersToGenerate) {
-        const frontmatter: string[] = ['---'];
-        frontmatter.push(`name: ${member.id}`);
-        frontmatter.push(`description: "${member.name}"`);
-        if (member.model) frontmatter.push(`model: ${member.model}`);
-        if (member.skills?.length) frontmatter.push(`skills: ${JSON.stringify(member.skills)}`);
-        frontmatter.push('---');
-        frontmatter.push('');
-        frontmatter.push(member.systemPrompt!);
-
-        const agentFilePath = path.join(agentsDir, `${member.id}.md`);
-        try {
-          await fs.writeFile(agentFilePath, frontmatter.join('\n'), 'utf-8');
-        } catch (error) {
-          console.error(`[AionUi] Failed to generate subagent file for ${member.id}:`, error);
-        }
-      }
-      console.log(`[AionUi] Generated ${membersToGenerate.length} subagent files in ${agentsDir}`);
     }
   }
 
@@ -340,7 +304,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
     extra.defaultFiles,
     extra.customWorkspace,
     extra.presetAssistantId,
-    { backend: extra.backend, customEnv: extra.customEnv }
+    { backend: extra.backend, customEnv: extra.customEnv, agentType: 'acp' }
   );
 
   // Build extra object, only including defined fields to prevent undefined values from being JSON.stringify'd
