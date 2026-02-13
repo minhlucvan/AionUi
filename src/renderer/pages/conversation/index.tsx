@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { TeamMonitorProvider } from '@/renderer/context/TeamMonitorContext';
 import { Spin } from '@arco-design/web-react';
 import React, { useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
@@ -38,7 +39,11 @@ const ChatConversationIndex: React.FC = () => {
   }, [data, openTab]);
 
   if (isLoading) return <Spin loading></Spin>;
-  return <ChatConversation conversation={data}></ChatConversation>;
+  return (
+    <TeamMonitorProvider>
+      <ChatConversation conversation={data} />
+    </TeamMonitorProvider>
+  );
 };
 
 export default ChatConversationIndex;

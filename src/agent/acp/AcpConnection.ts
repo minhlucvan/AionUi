@@ -330,7 +330,7 @@ export class AcpConnection {
 
     switch (backend) {
       case 'claude':
-        await this.connectClaude(workingDir);
+        await this.connectClaude(workingDir, customEnv);
         break;
 
       case 'gemini':
@@ -363,14 +363,14 @@ export class AcpConnection {
     if (ACP_PERF_LOG) console.log(`[ACP-PERF] connect: total ${Date.now() - connectStart}ms`);
   }
 
-  private async connectClaude(workingDir: string = process.cwd()): Promise<void> {
+  private async connectClaude(workingDir: string = process.cwd(), customEnv?: Record<string, string>): Promise<void> {
     // Use NPX to run Claude Code ACP bridge directly from npm registry
     // This eliminates dependency packaging issues and simplifies deployment
     console.error('[ACP] Using NPX approach for Claude ACP bridge');
 
     const envStart = Date.now();
-    // Use enhanced env with shell variables, then clean up Node.js debugging vars
-    const cleanEnv = getEnhancedEnv();
+    // Use enhanced env with shell variables and custom env, then clean up Node.js debugging vars
+    const cleanEnv = getEnhancedEnv(customEnv);
     delete cleanEnv.NODE_OPTIONS;
     delete cleanEnv.NODE_INSPECT;
     delete cleanEnv.NODE_DEBUG;

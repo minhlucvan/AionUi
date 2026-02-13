@@ -20,8 +20,6 @@ import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { stripThinkTags } from './ThinkTagDetector';
-import { AgentTeamMessageRouter } from '@process/services/AgentTeamMessageRouter';
-
 interface AcpAgentManagerData {
   workspace?: string;
   backend: AcpBackend;
@@ -38,14 +36,8 @@ interface AcpAgentManagerData {
   acpSessionId?: string;
   /** Last update time of ACP session / ACP session 最后更新时间 */
   acpSessionUpdatedAt?: number;
-  /** Agent team session ID if this conversation belongs to an agent team / 团队会话 ID */
-  agentTeamSessionId?: string;
-  /** Agent team member definition ID / 团队成员定义 ID */
-  agentTeamMemberId?: string;
-  /** Agent team member display name / 团队成员名称 */
-  agentTeamMemberName?: string;
-  /** Agent team role / 团队角色 */
-  agentTeamRole?: string;
+  /** Custom environment variables passed to the ACP process / 传递给 ACP 子进程的自定义环境变量 */
+  customEnv?: Record<string, string>;
 }
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
@@ -114,6 +106,11 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         // If cliPath is not configured, fallback to default cliCommand from ACP_BACKENDS_ALL
         if (!cliPath && backendConfig?.cliCommand) {
           cliPath = backendConfig.cliCommand;
+        }
+
+        // Merge custom env vars from conversation extra (e.g., agent team env)
+        if (data.customEnv) {
+          customEnv = { ...customEnv, ...data.customEnv };
         }
       } else {
         // backend === 'custom' but no customAgentId - this is an invalid state
@@ -262,23 +259,6 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             // Reset after processing
             this.currentMsgId = null;
             this.currentMsgContent = '';
-          }
-
-          // Process agent team commands when turn ends (finish signal)
-          // Check accumulated content for team-message/team-broadcast/team-task blocks
-          if (v.type === 'finish' && this.currentMsgContent && data.agentTeamSessionId && data.agentTeamMemberId && AgentTeamMessageRouter.hasTeamCommands(this.currentMsgContent)) {
-            // Build member name -> ID map from the agent team session for routing
-            const { agentTeamManager } = require('@process/services/AgentTeamManager');
-            const session = agentTeamManager.getSession(data.agentTeamSessionId);
-            const memberNameToIdMap: Record<string, string> = {};
-            if (session) {
-              // We need the team definition to get member names
-              // For now, use member IDs directly (the system prompt tells agents to use names)
-              for (const memberId of Object.keys(session.memberConversations)) {
-                memberNameToIdMap[memberId] = memberId;
-              }
-            }
-            void AgentTeamMessageRouter.processCommands(data.agentTeamSessionId, data.agentTeamMemberId, this.currentMsgContent, memberNameToIdMap);
           }
 
           ipcBridge.acpConversation.responseStream.emit(v);

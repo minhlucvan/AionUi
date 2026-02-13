@@ -540,6 +540,8 @@ export interface ICreateConversationParams {
     botId?: string;
     /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
     externalChannelId?: string;
+    /** Custom environment variables passed to the spawned ACP process / 传递给 ACP 子进程的自定义环境变量 */
+    customEnv?: Record<string, string>;
   };
 }
 interface IResetConversationParams {
@@ -612,20 +614,21 @@ export const channel = {
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
 };
 
-// ==================== Agent Team API ====================
+// ==================== Team Monitor API ====================
+// Monitors Claude's native agent teams (task list + agent observation)
 
-import type { IAgentTeamDefinition, IAgentTeamSession } from '@/common/agentTeam';
+import type { AgentOutput, TeamMember, TeamMonitorEvent, TeamState, TeamTask } from '@/common/teamMonitor';
 
-export const agentTeam = {
-  // Session lifecycle
-  createSession: bridge.buildProvider<IBridgeResponse<IAgentTeamSession>, { definition: IAgentTeamDefinition; workspace: string }>('agentTeam.create-session'),
-  destroySession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('agentTeam.destroy-session'),
-  getSession: bridge.buildProvider<IBridgeResponse<IAgentTeamSession | undefined>, { sessionId: string }>('agentTeam.get-session'),
-  listSessions: bridge.buildProvider<IBridgeResponse<IAgentTeamSession[]>, void>('agentTeam.list-sessions'),
-
-  // Member management
-  shutdownMember: bridge.buildProvider<IBridgeResponse, { sessionId: string; memberId: string }>('agentTeam.shutdown-member'),
-
+export const teamMonitor = {
+  // Lifecycle
+  start: bridge.buildProvider<IBridgeResponse, { conversationId: string; teamName?: string }>('team-monitor.start'),
+  stop: bridge.buildProvider<IBridgeResponse, { conversationId: string }>('team-monitor.stop'),
+  // Queries
+  getState: bridge.buildProvider<IBridgeResponse<TeamState | null>, void>('team-monitor.get-state'),
+  getAgentOutputs: bridge.buildProvider<IBridgeResponse<AgentOutput[]>, void>('team-monitor.get-agent-outputs'),
   // Events
-  sessionUpdated: bridge.buildEmitter<IAgentTeamSession>('agentTeam.session-updated'),
+  onTeamConfig: bridge.buildEmitter<{ teamName: string; members: TeamMember[] }>('team-monitor.team-config'),
+  onTaskUpdate: bridge.buildEmitter<{ teamName: string; tasks: TeamTask[] }>('team-monitor.task-update'),
+  onAgentOutput: bridge.buildEmitter<AgentOutput>('team-monitor.agent-output'),
 };
+

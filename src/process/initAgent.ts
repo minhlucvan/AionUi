@@ -6,6 +6,7 @@
 
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { TChatConversation, TProviderWithModel } from '@/common/storage';
+import type { IAgentTeamMemberDefinition } from '@/common/agentTeam';
 import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
 import path from 'path';
@@ -19,20 +20,36 @@ import { copyDirectoryRecursively } from './utils';
 const AIONUI_TIMESTAMP_REGEX = /^(.+?)_aionui_\d+(\.[^.]+)$/;
 
 /**
- * 创建工作空间目录（不复制文件）
- * Create workspace directory (without copying files)
+ * Build workspace with hook-driven lifecycle:
  *
- * 注意：文件复制统一由 sendMessage 时的 copyFilesToDirectory 处理
- * 避免文件被复制两次（一次在创建会话时，一次在发送消息时）
- * Note: File copying is handled by copyFilesToDirectory in sendMessage
- * This avoids files being copied twice
+ *   Phase 1: Config resolution — load assistant config, resolve workspace path
+ *   Phase 2: onSetup hook     — team detection, env setup (BEFORE file ops)
+ *   Phase 3: onWorkspaceInit  — workspace file init (template copying, default files)
+ *   Phase 4: onConversationInit — legacy backward compat
+ *
+ * This flow is shared by all agent types (ACP, Gemini, Codex, etc.)
  */
-const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?: string, defaultFiles?: string[], providedCustomWorkspace?: boolean, presetAssistantId?: string) => {
+const buildWorkspaceWidthFiles = async (
+  defaultWorkspaceName: string,
+  workspace?: string,
+  defaultFiles?: string[],
+  providedCustomWorkspace?: boolean,
+  presetAssistantId?: string,
+  /** Extra options for hook context (e.g., backend, customEnv from frontend) */
+  options?: { backend?: string; customEnv?: Record<string, string> }
+) => {
   // 使用前端提供的customWorkspace标志，如果没有则根据workspace参数判断
   const customWorkspace = providedCustomWorkspace !== undefined ? providedCustomWorkspace : !!workspace;
 
-  // Load customAgents once for both workspace path and hook initialization
+  // ──────────────────────────────────────────────────────────────
+  // Phase 1: Config resolution — load assistant config, paths
+  // ──────────────────────────────────────────────────────────────
+
   let customAgents: any = null;
+  let assistantPath: string | undefined;
+  let defaultAgent: string | undefined;
+  let teamMembers: IAgentTeamMemberDefinition[] | undefined;
+
   if (presetAssistantId) {
     try {
       // Reduced timeout (1 second) - this is non-critical, we can fallback
@@ -45,11 +62,13 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     } catch (error) {
       console.warn(`[AionUi] Failed to load custom agents:`, error);
     }
+
+    assistantPath = path.join(getAssistantsDir(), presetAssistantId);
   }
 
-  // If presetAssistantId is provided, check if it has a workspacePath
+  // Resolve workspace path from assistant config
   if (presetAssistantId && !workspace && customAgents && Array.isArray(customAgents)) {
-    const assistant = customAgents.find((a) => a.id === presetAssistantId);
+    const assistant = customAgents.find((a: any) => a.id === presetAssistantId);
     if (assistant?.workspacePath) {
       console.log(`[AionUi] Using workspace from assistant ${presetAssistantId}: ${assistant.workspacePath}`);
       workspace = assistant.workspacePath;
@@ -61,26 +80,81 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     workspace = path.join(tempPath, defaultWorkspaceName);
     await fs.mkdir(workspace, { recursive: true });
   } else {
-    // 规范化路径：去除末尾斜杠，解析为绝对路径
     workspace = path.resolve(workspace);
   }
 
-  // Initialize workspace via on-conversation-init hook if presetAssistantId is provided
-  // Skip if workspace was loaded from assistant (already has the template)
-  let defaultAgent: string | undefined;
-  if (presetAssistantId) {
+  // Read assistant.json for defaultAgent and teamMembers
+  if (assistantPath) {
+    const configPath = path.join(assistantPath, 'assistant.json');
     try {
-      // Reuse customAgents loaded earlier (no second ConfigStorage call)
+      const configContent = await fs.readFile(configPath, 'utf-8');
+      const config = JSON.parse(configContent);
+      defaultAgent = config.defaultAgent;
+      if (Array.isArray(config.teamMembers)) {
+        teamMembers = config.teamMembers;
+      }
+    } catch (error) {
+      console.warn(`[AionUi] Failed to read assistant.json:`, error);
+    }
+  }
+
+  // Fallback: read teamMembers from customAgents ConfigStorage if not in assistant.json
+  if (!teamMembers && presetAssistantId && customAgents && Array.isArray(customAgents)) {
+    const assistant = customAgents.find((a: any) => a.id === presetAssistantId);
+    if (Array.isArray(assistant?.teamMembers)) {
+      teamMembers = assistant.teamMembers;
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // Phase 2: onSetup hook — team detection, env setup (BEFORE file ops)
+  // ──────────────────────────────────────────────────────────────
+
+  // Built-in team detection from teamMembers
+  let isTeam = !!(teamMembers && teamMembers.length >= 2);
+
+  // Also check frontend-provided customEnv
+  let customEnv = options?.customEnv;
+  if (customEnv?.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS === '1') {
+    isTeam = true;
+  }
+
+  // Run onSetup hook — hooks can override isTeam, customEnv, or teamMembers
+  if (assistantPath) {
+    try {
+      const setupResult = await runHooks('onSetup', {
+        workspace,
+        backend: options?.backend,
+        assistantPath,
+        isTeam,
+        customEnv,
+        teamMembers,
+      });
+      if (setupResult.isTeam !== undefined) isTeam = setupResult.isTeam;
+      if (setupResult.customEnv) customEnv = { ...customEnv, ...setupResult.customEnv };
+      if (setupResult.teamMembers) teamMembers = setupResult.teamMembers;
+    } catch (error) {
+      console.warn('[AionUi] onSetup hook failed (non-critical):', error);
+    }
+  }
+
+  // Auto-set team env var when team detected
+  if (isTeam && !customEnv?.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS) {
+    customEnv = { ...customEnv, CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' };
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // Phase 3: onWorkspaceInit — workspace file init (template, files)
+  // ──────────────────────────────────────────────────────────────
+
+  if (presetAssistantId && assistantPath) {
+    try {
       const assistant = Array.isArray(customAgents) ? customAgents.find((a: any) => a.id === presetAssistantId) : null;
       const hasExistingWorkspace = assistant?.workspacePath;
 
       if (!hasExistingWorkspace) {
         console.log(`[AionUi] Initializing workspace for assistant: ${presetAssistantId}`);
 
-        // Get assistant path (no longer strip builtin- prefix, all assistants use their ID directly)
-        const assistantPath = path.join(getAssistantsDir(), presetAssistantId);
-
-        // Check if workspace template or hooks exist (filesystem-based detection)
         const workspaceTemplatePath = path.join(assistantPath, 'workspace');
         const hooksPath = path.join(assistantPath, 'hooks');
 
@@ -96,7 +170,7 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
         if (hasWorkspaceTemplate || hasHooks) {
           console.log(`[AionUi] Detected workspace features for ${presetAssistantId}: workspace=${hasWorkspaceTemplate}, hooks=${hasHooks}`);
 
-          // Copy workspace template if it exists
+          // Copy workspace template
           if (hasWorkspaceTemplate) {
             try {
               await copyDirectoryRecursively(workspaceTemplatePath, workspace, { overwrite: false });
@@ -106,26 +180,17 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
             }
           }
 
-          // Execute on-conversation-init hook from assistant directory
-          // Pass assistantPath so HookRunner can find hooks there
-          const conversationId = uuid();
-          await runHooks('onConversationInit', {
+          // Run onWorkspaceInit hook — hooks can customize workspace files
+          await runHooks('onWorkspaceInit', {
             workspace,
+            backend: options?.backend,
             assistantPath,
-            conversationId,
+            isTeam,
+            customEnv,
+            teamMembers,
           });
 
           console.log(`[AionUi] Workspace initialized via hook: ${workspace}`);
-        }
-
-        // Read assistant.json to get defaultAgent
-        const configPath = path.join(assistantPath, 'assistant.json');
-        try {
-          const configContent = await fs.readFile(configPath, 'utf-8');
-          const config = JSON.parse(configContent);
-          defaultAgent = config.defaultAgent;
-        } catch (error) {
-          console.warn(`[AionUi] Failed to read assistant.json for defaultAgent:`, error);
         }
       } else {
         console.log(`[AionUi] Using existing workspace, skipping initialization`);
@@ -135,24 +200,80 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     }
   }
 
+  // Copy agent files from {assistantPath}/agents/ to {workspace}/.claude/agents/
+  // This is the agents equivalent of the skills/ folder — assistants can define
+  // reusable subagent .md files that Claude Code discovers automatically.
+  if (assistantPath) {
+    const assistantAgentsDir = path.join(assistantPath, 'agents');
+    const hasAgentsDir = await fs
+      .access(assistantAgentsDir)
+      .then(() => true)
+      .catch(() => false);
+
+    if (hasAgentsDir) {
+      const workspaceAgentsDir = path.join(workspace, '.claude', 'agents');
+      await fs.mkdir(workspaceAgentsDir, { recursive: true });
+
+      try {
+        const agentFiles = await fs.readdir(assistantAgentsDir);
+        const mdFiles = agentFiles.filter((f) => f.endsWith('.md'));
+        for (const file of mdFiles) {
+          await fs.copyFile(path.join(assistantAgentsDir, file), path.join(workspaceAgentsDir, file));
+        }
+        if (mdFiles.length > 0) {
+          console.log(`[AionUi] Copied ${mdFiles.length} agent files from ${assistantAgentsDir}`);
+        }
+      } catch (error) {
+        console.warn(`[AionUi] Failed to copy agent files from assistant:`, error);
+      }
+    }
+  }
+
+  // Generate .claude/agents/*.md subagent files from teamMembers config.
+  // Runs AFTER folder copy so teamMembers definitions override folder agents
+  // with the same ID.
+  if (isTeam && teamMembers && teamMembers.length > 0) {
+    const agentsDir = path.join(workspace, '.claude', 'agents');
+    await fs.mkdir(agentsDir, { recursive: true });
+
+    for (const member of teamMembers) {
+      // Skip the lead — the lead IS the main conversation, not a subagent
+      if (member.role === 'lead') continue;
+
+      const frontmatter: string[] = ['---'];
+      frontmatter.push(`name: ${member.id}`);
+      frontmatter.push(`description: "${member.name}"`);
+      if (member.model) frontmatter.push(`model: ${member.model}`);
+      if (member.skills?.length) frontmatter.push(`skills: ${JSON.stringify(member.skills)}`);
+      frontmatter.push('---');
+      frontmatter.push('');
+      frontmatter.push(member.systemPrompt);
+
+      const agentFilePath = path.join(agentsDir, `${member.id}.md`);
+      try {
+        await fs.writeFile(agentFilePath, frontmatter.join('\n'), 'utf-8');
+      } catch (error) {
+        console.error(`[AionUi] Failed to generate subagent file for ${member.id}:`, error);
+      }
+    }
+    console.log(`[AionUi] Generated ${teamMembers.filter((m) => m.role !== 'lead').length} subagent files in ${agentsDir}`);
+  }
+
+  // Copy default files to workspace
   if (defaultFiles) {
     for (const file of defaultFiles) {
-      // 确保文件路径是绝对路径
       const absoluteFilePath = path.isAbsolute(file) ? file : path.resolve(file);
 
-      // 检查源文件是否存在
       try {
         await fs.access(absoluteFilePath);
       } catch (error) {
         console.warn(`[AionUi] Source file does not exist, skipping: ${absoluteFilePath}`);
         console.warn(`[AionUi] Original path: ${file}`);
-        // 跳过不存在的文件，而不是抛出错误
         continue;
       }
 
       let fileName = path.basename(absoluteFilePath);
 
-      // 如果是临时文件，去掉 AionUI 时间戳后缀
       const { cacheDir } = getSystemDir();
       const tempDir = path.join(cacheDir, 'temp');
       if (absoluteFilePath.startsWith(tempDir)) {
@@ -165,18 +286,17 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
         await fs.copyFile(absoluteFilePath, destPath);
       } catch (error) {
         console.error(`[AionUi] Failed to copy file from ${absoluteFilePath} to ${destPath}:`, error);
-        // 继续处理其他文件，而不是完全失败
       }
     }
   }
 
-  // Note: on-conversation-init hooks are now run earlier in this function
-  // (when presetAssistantId is provided) to initialize the workspace template.
-  // This legacy call is kept for backward compatibility with existing workspaces
-  // that may have hooks already in place.
+  // ──────────────────────────────────────────────────────────────
+  // Phase 4: onConversationInit — legacy backward compat
+  // ──────────────────────────────────────────────────────────────
+
   await runHooks('onConversationInit', { workspace });
 
-  return { workspace, customWorkspace, defaultAgent };
+  return { workspace, customWorkspace, defaultAgent, isTeam, customEnv };
 };
 
 export const createGeminiAgent = async (model: TProviderWithModel, workspace?: string, defaultFiles?: string[], webSearchEngine?: 'google' | 'default', customWorkspace?: boolean, contextFileName?: string, presetRules?: string, enabledSkills?: string[], presetAssistantId?: string): Promise<TChatConversation> => {
@@ -211,8 +331,15 @@ export const createGeminiAgent = async (model: TProviderWithModel, workspace?: s
 
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
-  // Use presetAssistantId as workspace template source (resolves automatically)
-  const { workspace, customWorkspace, defaultAgent } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
+  // Hook-driven workspace init: onSetup (team detect) → onWorkspaceInit (files) → onConversationInit (legacy)
+  const { workspace, customWorkspace, defaultAgent, isTeam, customEnv } = await buildWorkspaceWidthFiles(
+    `${extra.backend}-temp-${Date.now()}`,
+    extra.workspace,
+    extra.defaultFiles,
+    extra.customWorkspace,
+    extra.presetAssistantId,
+    { backend: extra.backend, customEnv: extra.customEnv }
+  );
 
   // Build extra object, only including defined fields to prevent undefined values from being JSON.stringify'd
   const conversationExtra: any = {
@@ -231,6 +358,8 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
   if (extra.botId !== undefined) conversationExtra.botId = extra.botId;
   if (extra.externalChannelId !== undefined) conversationExtra.externalChannelId = extra.externalChannelId;
   if (defaultAgent !== undefined) conversationExtra.defaultAgent = defaultAgent;
+  if (customEnv !== undefined) conversationExtra.customEnv = customEnv;
+  if (isTeam) conversationExtra.isTeam = true;
 
   return {
     type: 'acp' as const,
