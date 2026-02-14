@@ -79,7 +79,7 @@ function extractSemanticSteps(responses: ParsedMessage[]): SemanticStep[] {
 
     if (msg.type === 'assistant' && Array.isArray(content)) {
       for (const block of content as ContentBlock[]) {
-        if (block.type === 'thinking') {
+        if (block.type === 'thinking' && block.thinking) {
           steps.push({
             id: `step-${++stepIndex}`,
             type: 'thinking',
@@ -103,7 +103,7 @@ function extractSemanticSteps(responses: ParsedMessage[]): SemanticStep[] {
               output: Math.ceil(JSON.stringify(block.input).length / 4),
             },
           });
-        } else if (block.type === 'text' && block.text.trim()) {
+        } else if (block.type === 'text' && block.text && block.text.trim()) {
           steps.push({
             id: `step-${++stepIndex}`,
             type: 'output',
@@ -121,14 +121,15 @@ function extractSemanticSteps(responses: ParsedMessage[]): SemanticStep[] {
     // Tool results from user messages (fed back to assistant)
     if (msg.toolResults.length > 0) {
       for (const result of msg.toolResults) {
+        const resultContent = result.content || '';
         steps.push({
           id: `step-${++stepIndex}`,
           type: 'tool_result',
-          content: result.content.slice(0, 500),
+          content: resultContent.slice(0, 500),
           startTime: msg.timestamp,
           isError: result.isError,
           tokens: {
-            input: Math.ceil(result.content.length / 4),
+            input: Math.ceil(resultContent.length / 4),
             output: 0,
           },
         });

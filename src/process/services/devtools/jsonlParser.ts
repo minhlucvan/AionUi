@@ -17,7 +17,8 @@ import { EMPTY_METRICS } from './types';
 /**
  * Estimate token count from text (chars / 4 approximation).
  */
-export function countTokens(text: string): number {
+export function countTokens(text: string | undefined | null): number {
+  if (!text) return 0;
   return Math.ceil(text.length / 4);
 }
 

@@ -37,7 +37,7 @@ function computeTokenAttribution(messages: ParsedMessage[]): TokenAttribution {
       if (msg.isMeta) {
         attribution.system += tokens;
       } else if (msg.toolResults.length > 0) {
-        attribution.tool_output += msg.toolResults.reduce((sum, r) => sum + countTokens(r.content), 0);
+        attribution.tool_output += msg.toolResults.reduce((sum, r) => sum + countTokens(r.content || ''), 0);
       } else {
         attribution.user += tokens;
       }
@@ -45,11 +45,11 @@ function computeTokenAttribution(messages: ParsedMessage[]): TokenAttribution {
       // Break down assistant content blocks
       if (Array.isArray(msg.content)) {
         for (const block of msg.content as ContentBlock[]) {
-          if (block.type === 'thinking') {
+          if (block.type === 'thinking' && block.thinking) {
             attribution.thinking += countTokens(block.thinking);
           } else if (block.type === 'tool_use') {
-            attribution.tool_input += countTokens(JSON.stringify(block.input));
-          } else if (block.type === 'text') {
+            attribution.tool_input += countTokens(JSON.stringify(block.input || {}));
+          } else if (block.type === 'text' && block.text) {
             attribution.assistant += countTokens(block.text);
           }
         }
