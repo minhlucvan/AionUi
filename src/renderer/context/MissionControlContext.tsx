@@ -62,11 +62,7 @@ export const MissionControlProvider: React.FC<{ children: React.ReactNode }> = (
     };
   }, []);
 
-  return (
-    <MissionControlContext.Provider value={{ missions, loaded, loadMissions, clearMissions }}>
-      {children}
-    </MissionControlContext.Provider>
-  );
+  return <MissionControlContext.Provider value={{ missions, loaded, loadMissions, clearMissions }}>{children}</MissionControlContext.Provider>;
 };
 
 export const useMissionControl = (): MissionControlContextValue => {

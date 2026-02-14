@@ -54,18 +54,16 @@ export type TranscriptEntry = {
 /** Agent output from transcript reading */
 export type AgentOutput = {
   agentName: string;
-  entries: TranscriptEntry[];
+  messages: Array<Record<string, unknown>>; // TMessage[] but avoiding circular dependency
   lastActivity?: number;
 };
 
 /** Events emitted by TeamMonitorService */
-export type TeamMonitorEvent =
-  | { type: 'team_config'; data: { teamName: string; members: TeamMember[] } }
-  | { type: 'task_update'; data: { teamName: string; tasks: TeamTask[] } }
-  | { type: 'agent_output'; data: AgentOutput };
+export type TeamMonitorEvent = { type: 'team_config'; data: { teamName: string; members: TeamMember[] } } | { type: 'task_update'; data: { teamName: string; tasks: TeamTask[] } } | { type: 'agent_output'; data: AgentOutput };
 
 /** Parameters for starting team monitoring */
 export type TeamMonitorStartParams = {
   conversationId: string;
+  workspace?: string;
   teamName?: string;
 };

@@ -76,10 +76,7 @@ const TeamTabs: React.FC = () => {
   const inProgressCount = tasks.filter((t) => t.state === 'in_progress').length;
   const { left: showLeftFade, right: showRightFade } = tabFadeState;
 
-  const tabClass = (tabId: string) =>
-    `flex items-center gap-6px px-12px h-full max-w-240px cursor-pointer transition-all duration-200 shrink-0 border-r border-[color:var(--border-base)] ${
-      tabId === activeTab ? 'bg-1 text-[color:var(--color-text-1)] font-medium' : 'bg-2 text-[color:var(--color-text-3)] hover:text-[color:var(--color-text-2)] border-b border-[color:var(--border-base)]'
-    }`;
+  const tabClass = (tabId: string) => `flex items-center gap-6px px-12px h-full flex-1 cursor-pointer transition-all duration-200 border-r border-[color:var(--border-base)] ${tabId === activeTab ? 'bg-1 text-[color:var(--color-text-1)] font-medium' : 'bg-2 text-[color:var(--color-text-3)] hover:text-[color:var(--color-text-2)] border-b border-[color:var(--border-base)]'}`;
 
   return (
     <div className='relative shrink-0 bg-2 min-h-36px'>

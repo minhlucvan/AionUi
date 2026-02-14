@@ -146,14 +146,15 @@ const ChatConversation: React.FC<{
   // Auto-start/stop team monitoring when conversation changes
   useEffect(() => {
     if (isTeam && conversation) {
-      teamMonitor.startMonitoring(conversation.id);
+      const workspace = conversation.extra?.workspace;
+      teamMonitor.startMonitoring(conversation.id, workspace);
     }
     return () => {
       if (isTeam) {
         teamMonitor.stopMonitoring();
       }
     };
-  }, [conversation?.id, isTeam]);
+  }, [conversation?.id, conversation?.extra?.workspace, isTeam]);
 
   const conversationNode = useMemo(() => {
     if (!conversation || isGeminiConversation) return null;

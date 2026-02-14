@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it, beforeEach, jest } from '@jest/globals';
-import type { Mission, MissionState } from '@process/services/missionControl/types';
+import type { Mission, MissionState, MissionControlEvent } from '@process/services/missionControl/types';
 import type { TeamTask } from '@/common/teamMonitor';
 
 /**
@@ -25,9 +25,7 @@ function extKey(m: { conversationId: string; teamName: string; externalId: strin
 
 const mockMissionStore = {
   upsert: jest.fn((mission: Mission) => {
-    const existing = Array.from(memoryStore.values()).find(
-      (m) => m.conversationId === mission.conversationId && m.teamName === mission.teamName && m.externalId === mission.externalId
-    );
+    const existing = Array.from(memoryStore.values()).find((m) => m.conversationId === mission.conversationId && m.teamName === mission.teamName && m.externalId === mission.externalId);
     if (existing) {
       // Upsert: update existing
       memoryStore.set(existing.id, { ...mission, id: existing.id });
@@ -37,9 +35,7 @@ const mockMissionStore = {
   }),
   getById: jest.fn((id: string) => memoryStore.get(id) ?? null),
   getByExternalId: jest.fn((conversationId: string, teamName: string, externalId: string) => {
-    return Array.from(memoryStore.values()).find(
-      (m) => m.conversationId === conversationId && m.teamName === teamName && m.externalId === externalId
-    ) ?? null;
+    return Array.from(memoryStore.values()).find((m) => m.conversationId === conversationId && m.teamName === teamName && m.externalId === externalId) ?? null;
   }),
   listByConversation: jest.fn((conversationId: string) => {
     return Array.from(memoryStore.values())
@@ -104,7 +100,6 @@ jest.mock('@process/database', () => ({
 
 // Now import the sync service (it uses the mocked store)
 import { missionSyncService } from '@process/services/missionControl/MissionSyncService';
-import type { MissionControlEvent } from '@process/services/missionControl/types';
 
 // Import the real row conversion functions for testing (no DB dependency)
 import { missionToRow as realMissionToRow, rowToMission as realRowToMission } from '@process/services/missionControl/MissionStore';
@@ -272,16 +267,12 @@ describe('MissionControl', () => {
     });
 
     it('should detect state changes and record history', () => {
-      missionSyncService.syncFromClaudeTasks('conv-1', 'team-x', [
-        { id: 'ct-1', subject: 'Build API', state: 'pending' },
-      ]);
+      missionSyncService.syncFromClaudeTasks('conv-1', 'team-x', [{ id: 'ct-1', subject: 'Build API', state: 'pending' }]);
 
       const events: MissionControlEvent[] = [];
       const unsub = missionSyncService.on((e) => events.push(e));
 
-      missionSyncService.syncFromClaudeTasks('conv-1', 'team-x', [
-        { id: 'ct-1', subject: 'Build API', state: 'in_progress', assignee: 'agent-a' },
-      ]);
+      missionSyncService.syncFromClaudeTasks('conv-1', 'team-x', [{ id: 'ct-1', subject: 'Build API', state: 'in_progress', assignee: 'agent-a' }]);
 
       unsub();
 
@@ -296,14 +287,10 @@ describe('MissionControl', () => {
     });
 
     it('should update metadata without state change', () => {
-      missionSyncService.syncFromClaudeTasks('conv-1', 'team-x', [
-        { id: 'ct-1', subject: 'Build API', state: 'pending' },
-      ]);
+      missionSyncService.syncFromClaudeTasks('conv-1', 'team-x', [{ id: 'ct-1', subject: 'Build API', state: 'pending' }]);
       jest.clearAllMocks();
 
-      missionSyncService.syncFromClaudeTasks('conv-1', 'team-x', [
-        { id: 'ct-1', subject: 'Build REST API', state: 'pending', assignee: 'agent-a' },
-      ]);
+      missionSyncService.syncFromClaudeTasks('conv-1', 'team-x', [{ id: 'ct-1', subject: 'Build REST API', state: 'pending', assignee: 'agent-a' }]);
 
       // Should have called upsert to update metadata
       expect(mockMissionStore.upsert).toHaveBeenCalled();
@@ -358,12 +345,8 @@ describe('MissionControl', () => {
     });
 
     it('should isolate missions across conversations', () => {
-      missionSyncService.syncFromClaudeTasks('conv-1', 'team-x', [
-        { id: 'ct-1', subject: 'Task A', state: 'pending' },
-      ]);
-      missionSyncService.syncFromClaudeTasks('conv-2', 'team-x', [
-        { id: 'ct-1', subject: 'Task B', state: 'completed' },
-      ]);
+      missionSyncService.syncFromClaudeTasks('conv-1', 'team-x', [{ id: 'ct-1', subject: 'Task A', state: 'pending' }]);
+      missionSyncService.syncFromClaudeTasks('conv-2', 'team-x', [{ id: 'ct-1', subject: 'Task B', state: 'completed' }]);
 
       const conv1 = missionSyncService.getMissions('conv-1');
       const conv2 = missionSyncService.getMissions('conv-2');

@@ -29,19 +29,22 @@ export function initTeamMonitorBridge(): void {
   });
 
   // Lifecycle handlers
-  ipcBridge.teamMonitor.start.provider(async ({ conversationId, teamName }) => {
-    // Get workspace directory from the conversation/task
-    let workspaceDir: string | undefined;
-    try {
-      const task = WorkerManage.getTaskById(conversationId);
-      if (task && 'extra' in task && task.extra && typeof task.extra === 'object') {
-        const extra = task.extra as { workspace?: string };
-        workspaceDir = extra.workspace;
+  ipcBridge.teamMonitor.start.provider(async ({ conversationId, workspace, teamName }) => {
+    // Use provided workspace or get it from the conversation/task
+    let workspaceDir: string | undefined = workspace;
+    if (!workspaceDir) {
+      try {
+        const task = WorkerManage.getTaskById(conversationId);
+        if (task && 'extra' in task && task.extra && typeof task.extra === 'object') {
+          const extra = task.extra as { workspace?: string };
+          workspaceDir = extra.workspace;
+        }
+      } catch (err) {
+        console.warn('[TeamMonitorBridge] Could not get workspace for conversation:', err);
       }
-    } catch (err) {
-      console.warn('[TeamMonitorBridge] Could not get workspace for conversation:', err);
     }
 
+    console.log('[TeamMonitorBridge] Starting with workspace:', workspaceDir);
     teamMonitorService.start(conversationId, teamName, workspaceDir);
     return { success: true };
   });

@@ -431,9 +431,7 @@ const ChatLayout: React.FC<{
                 )}
               </div>
             </ArcoLayout.Header>
-            <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>
-              {props.teamContent || props.children}
-            </ArcoLayout.Content>
+            <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>{props.teamContent || props.children}</ArcoLayout.Content>
           </ArcoLayout.Content>
 
           {/* 会话右侧拖动手柄：在桌面模式下调节会话和预览的宽度比例 */}

@@ -646,4 +646,3 @@ export const missionControl = {
   onMissionsSync: bridge.buildEmitter<{ teamName: string; missions: Mission[] }>('mission-control.missions-synced'),
   onMissionUpdate: bridge.buildEmitter<Mission>('mission-control.mission-updated'),
 };
-

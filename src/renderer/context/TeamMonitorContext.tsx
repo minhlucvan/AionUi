@@ -29,7 +29,7 @@ export interface TeamMonitorContextValue {
   /** Switch the active team tab */
   setActiveTab: (tabId: string) => void;
   /** Start monitoring a team conversation */
-  startMonitoring: (conversationId: string, teamName?: string) => void;
+  startMonitoring: (conversationId: string, workspace?: string, teamName?: string) => void;
   /** Stop monitoring */
   stopMonitoring: () => void;
   /** Activate team mode from ACP hook (dynamic detection) */
@@ -47,11 +47,11 @@ export const TeamMonitorProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [activeTab, setActiveTab] = useState<string>(TEAM_TAB_CHAT);
   const conversationIdRef = useRef<string | null>(null);
 
-  const startMonitoring = useCallback((conversationId: string, name?: string) => {
+  const startMonitoring = useCallback((conversationId: string, workspace?: string, name?: string) => {
     conversationIdRef.current = conversationId;
     setIsTeamActive(true);
     setActiveTab(TEAM_TAB_CHAT);
-    ipcBridge.teamMonitor.start.invoke({ conversationId, teamName: name }).catch((err) => {
+    ipcBridge.teamMonitor.start.invoke({ conversationId, workspace, teamName: name }).catch((err) => {
       console.error('[TeamMonitor] Failed to start:', err);
     });
   }, []);

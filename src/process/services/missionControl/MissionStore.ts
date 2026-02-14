@@ -124,23 +124,7 @@ class MissionStore {
         completed_at = excluded.completed_at
     `
       )
-      .run(
-        row.id,
-        row.external_id,
-        row.conversation_id,
-        row.team_name,
-        row.subject,
-        row.description,
-        row.state,
-        row.assignee,
-        row.dependencies,
-        row.source,
-        row.state_history,
-        row.created_at,
-        row.updated_at,
-        row.started_at,
-        row.completed_at
-      );
+      .run(row.id, row.external_id, row.conversation_id, row.team_name, row.subject, row.description, row.state, row.assignee, row.dependencies, row.source, row.state_history, row.created_at, row.updated_at, row.started_at, row.completed_at);
   }
 
   /** Get a mission by internal ID */
@@ -151,25 +135,19 @@ class MissionStore {
 
   /** Find a mission by its external key (conversation + team + external_id) */
   getByExternalId(conversationId: string, teamName: string, externalId: string): Mission | null {
-    const row = this.getDb()
-      .prepare('SELECT * FROM missions WHERE conversation_id = ? AND team_name = ? AND external_id = ?')
-      .get(conversationId, teamName, externalId) as MissionRow | undefined;
+    const row = this.getDb().prepare('SELECT * FROM missions WHERE conversation_id = ? AND team_name = ? AND external_id = ?').get(conversationId, teamName, externalId) as MissionRow | undefined;
     return row ? rowToMission(row) : null;
   }
 
   /** List all missions for a conversation */
   listByConversation(conversationId: string): Mission[] {
-    const rows = this.getDb()
-      .prepare('SELECT * FROM missions WHERE conversation_id = ? ORDER BY created_at ASC')
-      .all(conversationId) as MissionRow[];
+    const rows = this.getDb().prepare('SELECT * FROM missions WHERE conversation_id = ? ORDER BY created_at ASC').all(conversationId) as MissionRow[];
     return rows.map(rowToMission);
   }
 
   /** List all missions for a team */
   listByTeam(conversationId: string, teamName: string): Mission[] {
-    const rows = this.getDb()
-      .prepare('SELECT * FROM missions WHERE conversation_id = ? AND team_name = ? ORDER BY created_at ASC')
-      .all(conversationId, teamName) as MissionRow[];
+    const rows = this.getDb().prepare('SELECT * FROM missions WHERE conversation_id = ? AND team_name = ? ORDER BY created_at ASC').all(conversationId, teamName) as MissionRow[];
     return rows.map(rowToMission);
   }
 
@@ -209,9 +187,7 @@ class MissionStore {
 
   /** Delete all missions for a team */
   deleteByTeam(conversationId: string, teamName: string): number {
-    const result = this.getDb()
-      .prepare('DELETE FROM missions WHERE conversation_id = ? AND team_name = ?')
-      .run(conversationId, teamName);
+    const result = this.getDb().prepare('DELETE FROM missions WHERE conversation_id = ? AND team_name = ?').run(conversationId, teamName);
     return result.changes;
   }
 }

@@ -5,6 +5,8 @@
  */
 
 import type { AgentOutput, TeamMember, TeamMonitorEvent, TeamTask, TranscriptEntry } from '@/common/teamMonitor';
+import type { IMessageText, IMessageAcpToolCall } from '@/common/chatLib';
+import { uuid } from '@/common/utils';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -109,9 +111,8 @@ export class TeamMonitorService {
 
   /** Get the effective .claude directory (workspace or default) */
   private getEffectiveClaudeDir(): string {
-    if (this.workspaceDir) {
-      return path.join(this.workspaceDir, '.claude');
-    }
+    // Always use global Claude directory for teams and tasks
+    // (Claude Code stores these globally, not in workspace)
     return this.claudeDir;
   }
 
@@ -180,6 +181,7 @@ export class TeamMonitorService {
   // ── Team Monitoring ──
 
   private startTeamMonitoring(teamName: string): void {
+    console.log('[TeamMonitor] Starting team monitoring for:', teamName);
     // Monitor team config
     this.watchTeamConfig(teamName);
     // Monitor task list
@@ -190,6 +192,7 @@ export class TeamMonitorService {
     // Initial read
     this.pollTeamConfig(teamName);
     this.pollTasks(teamName);
+    this.pollSubagentTranscripts();
   }
 
   // ── Team Config ──
@@ -425,8 +428,17 @@ export class TeamMonitorService {
   }
 
   private pollSubagentTranscripts(): void {
+    console.log('[TeamMonitor] pollSubagentTranscripts called, teamName:', this.teamName);
     const outputs = this.readSubagentTranscripts();
+    console.log(`[TeamMonitor] readSubagentTranscripts returned ${outputs.length} outputs`);
+    if (outputs.length > 0) {
+      console.log(
+        `[TeamMonitor] Agent outputs:`,
+        outputs.map((o) => ({ name: o.agentName, messages: o.messages.length }))
+      );
+    }
     for (const output of outputs) {
+      console.log(`[TeamMonitor] Caching and emitting output for:`, output.agentName);
       this.cachedAgentOutputs.set(output.agentName, output);
       this.emit({
         type: 'agent_output',
@@ -440,8 +452,12 @@ export class TeamMonitorService {
     const projectsDir = path.join(this.getEffectiveClaudeDir(), 'projects');
 
     try {
-      if (!fs.existsSync(projectsDir)) return outputs;
+      if (!fs.existsSync(projectsDir)) {
+        console.log('[TeamMonitor] Projects directory does not exist:', projectsDir);
+        return outputs;
+      }
 
+      console.log('[TeamMonitor] Scanning projects directory:', projectsDir);
       // Find subagent directories recursively
       this.findSubagentDirs(projectsDir, (subagentDir) => {
         try {
@@ -460,12 +476,17 @@ export class TeamMonitorService {
               this.lastTranscriptSizes.set(filePath, stat.size);
 
               const content = fs.readFileSync(filePath, 'utf-8');
-              const transcriptEntries = this.parseTranscript(content);
 
-              if (transcriptEntries.length > 0) {
+              // Extract agent name from transcript metadata (first line)
+              const realAgentName = this.extractAgentNameFromTranscript(content, agentName);
+
+              // Convert to TMessage format
+              const messages = this.convertTranscriptToMessages(content, this.conversationId || 'unknown');
+
+              if (messages.length > 0) {
                 outputs.push({
-                  agentName,
-                  entries: transcriptEntries,
+                  agentName: realAgentName,
+                  messages: messages,
                   lastActivity: stat.mtimeMs,
                 });
               }
@@ -503,6 +524,164 @@ export class TeamMonitorService {
     }
   }
 
+  /**
+   * Extract the real agent name from the transcript content by matching against team config.
+   * Uses the team config as source of truth - compares the transcript's initial prompt
+   * against each member's prompt field to find the matching member name.
+   */
+  private extractAgentNameFromTranscript(content: string, fallbackName: string): string {
+    try {
+      if (!this.teamName) return fallbackName;
+
+      const firstLine = content.split('\n')[0];
+      if (!firstLine) return fallbackName;
+
+      const parsed = JSON.parse(firstLine);
+      const message = parsed.message;
+      if (!message?.content) return fallbackName;
+
+      // Get the prompt from the transcript's first message
+      const contentStr = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+
+      // Read team config to get member prompts
+      const members = this.readTeamConfig(this.teamName);
+
+      // Find member whose prompt matches this transcript's initial message
+      for (const member of members) {
+        // Check if the member config has a prompt field
+        const memberData = this.readTeamMemberData(this.teamName, member.agentId || member.name);
+        if (memberData?.prompt && contentStr.includes(memberData.prompt.substring(0, 100))) {
+          return member.name;
+        }
+      }
+
+      return fallbackName;
+    } catch {
+      return fallbackName;
+    }
+  }
+
+  /**
+   * Read detailed member data from team config (includes prompt field)
+   */
+  private readTeamMemberData(teamName: string, agentId: string): { prompt?: string } | null {
+    try {
+      const configPath = path.join(this.getEffectiveClaudeDir(), 'teams', teamName, 'config.json');
+      const content = fs.readFileSync(configPath, 'utf-8');
+      const config = JSON.parse(content);
+
+      if (Array.isArray(config.members)) {
+        const member = config.members.find((m: any) => m.agentId === agentId || m.name === agentId || m.agentId?.includes(agentId));
+        return member || null;
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Convert JSONL transcript to TMessage[] format for rich rendering
+   */
+  private convertTranscriptToMessages(content: string, conversationId: string): Array<IMessageText | IMessageAcpToolCall> {
+    const messages: Array<IMessageText | IMessageAcpToolCall> = [];
+    const lines = content.split('\n').filter((l) => l.trim());
+
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line);
+        const timestamp = parsed.timestamp ? new Date(parsed.timestamp).getTime() : Date.now();
+        const role = parsed.type === 'human' ? 'user' : parsed.type === 'assistant' ? 'assistant' : null;
+        if (!role) continue;
+
+        const message = parsed.message;
+        if (!message?.content) continue;
+
+        const contentArr = Array.isArray(message.content) ? message.content : [message.content];
+
+        for (const block of contentArr) {
+          if (typeof block === 'string') {
+            // Text message
+            messages.push({
+              type: 'text',
+              id: uuid(),
+              msg_id: parsed.uuid,
+              conversation_id: conversationId,
+              position: role === 'user' ? 'right' : 'left',
+              createdAt: timestamp,
+              content: {
+                content: block,
+              },
+            });
+          } else if (block.type === 'text') {
+            // Text message
+            messages.push({
+              type: 'text',
+              id: uuid(),
+              msg_id: parsed.uuid,
+              conversation_id: conversationId,
+              position: role === 'user' ? 'right' : 'left',
+              createdAt: timestamp,
+              content: {
+                content: block.text,
+              },
+            });
+          } else if (block.type === 'tool_use') {
+            // ACP tool call
+            messages.push({
+              type: 'acp_tool_call',
+              id: block.id || uuid(),
+              msg_id: parsed.uuid,
+              conversation_id: conversationId,
+              position: 'left',
+              createdAt: timestamp,
+              content: {
+                sessionId: conversationId, // Use conversation ID as session ID
+                update: {
+                  sessionUpdate: 'tool_call',
+                  title: block.name,
+                  status: 'completed', // Assume completed since we're reading completed transcripts
+                  toolCallId: block.id,
+                  kind: 'execute', // Default to execute for now
+                  rawInput: block.input,
+                },
+              },
+            });
+          } else if (block.type === 'tool_result') {
+            // Tool result - merge into previous tool call if possible
+            const resultText = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
+
+            // Find the matching tool_use message
+            const toolCallIndex = messages.findIndex((m) => m.type === 'acp_tool_call' && m.content.update?.toolCallId === block.tool_use_id);
+
+            if (toolCallIndex !== -1 && messages[toolCallIndex].type === 'acp_tool_call') {
+              // Merge result into tool call content array
+              const toolCall = messages[toolCallIndex] as IMessageAcpToolCall;
+              if (!toolCall.content.update.content) {
+                toolCall.content.update.content = [];
+              }
+              toolCall.content.update.content.push({
+                type: 'content',
+                content: {
+                  type: 'text',
+                  text: resultText,
+                },
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[TeamMonitor] Error converting transcript line:', err);
+      }
+    }
+
+    return messages;
+  }
+
+  /**
+   * Legacy parser kept for backward compatibility
+   */
   private parseTranscript(content: string): TranscriptEntry[] {
     const entries: TranscriptEntry[] = [];
     const lines = content.split('\n').filter((l) => l.trim());

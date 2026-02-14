@@ -298,14 +298,7 @@ export const createGeminiAgent = async (model: TProviderWithModel, workspace?: s
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   // Hook-driven workspace init: onSetup (team detect) → onWorkspaceInit (files) → onConversationInit (legacy)
-  const { workspace, customWorkspace, defaultAgent, isTeam, customEnv } = await buildWorkspaceWidthFiles(
-    `${extra.backend}-temp-${Date.now()}`,
-    extra.workspace,
-    extra.defaultFiles,
-    extra.customWorkspace,
-    extra.presetAssistantId,
-    { backend: extra.backend, customEnv: extra.customEnv, agentType: 'acp' }
-  );
+  const { workspace, customWorkspace, defaultAgent, isTeam, customEnv } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId, { backend: extra.backend, customEnv: extra.customEnv, agentType: 'acp' });
 
   // Build extra object, only including defined fields to prevent undefined values from being JSON.stringify'd
   const conversationExtra: any = {

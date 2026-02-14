@@ -31,7 +31,6 @@ export const STORAGE_KEYS = {
 
   /** Language preference / 语言偏好 */
   LANGUAGE: 'aionui_language',
-
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

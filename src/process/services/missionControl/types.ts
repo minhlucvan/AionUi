@@ -58,6 +58,4 @@ export type Mission = {
 };
 
 /** Events emitted by MissionSyncService */
-export type MissionControlEvent =
-  | { type: 'missions_synced'; data: { teamName: string; missions: Mission[] } }
-  | { type: 'mission_updated'; data: Mission };
+export type MissionControlEvent = { type: 'missions_synced'; data: { teamName: string; missions: Mission[] } } | { type: 'mission_updated'; data: Mission };

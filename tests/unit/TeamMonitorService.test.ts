@@ -119,10 +119,7 @@ describe('TeamMonitorService', () => {
     it('should default missing name to "unknown"', () => {
       const teamDir = path.join(tmpDir, 'teams', 'my-team');
       fs.mkdirSync(teamDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(teamDir, 'config.json'),
-        JSON.stringify({ members: [{ role: 'member' }] })
-      );
+      fs.writeFileSync(path.join(teamDir, 'config.json'), JSON.stringify({ members: [{ role: 'member' }] }));
 
       const members = service.readTeamConfig('my-team');
       expect(members[0].name).toBe('unknown');
@@ -152,10 +149,7 @@ describe('TeamMonitorService', () => {
     it('should read a single task JSON file', () => {
       const tasksDir = path.join(tmpDir, 'tasks', 'my-team');
       fs.mkdirSync(tasksDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(tasksDir, 'task-1.json'),
-        JSON.stringify({ id: 't1', subject: 'Fix bug', state: 'completed' })
-      );
+      fs.writeFileSync(path.join(tasksDir, 'task-1.json'), JSON.stringify({ id: 't1', subject: 'Fix bug', state: 'completed' }));
 
       const tasks = service.readTasks('my-team');
       expect(tasks).toHaveLength(1);
@@ -183,10 +177,7 @@ describe('TeamMonitorService', () => {
     it('should read tasks from JSONL file', () => {
       const tasksDir = path.join(tmpDir, 'tasks', 'my-team');
       fs.mkdirSync(tasksDir, { recursive: true });
-      const lines = [
-        JSON.stringify({ id: 't1', subject: 'Task 1', state: 'pending' }),
-        JSON.stringify({ id: 't2', subject: 'Task 2', state: 'in_progress' }),
-      ].join('\n');
+      const lines = [JSON.stringify({ id: 't1', subject: 'Task 1', state: 'pending' }), JSON.stringify({ id: 't2', subject: 'Task 2', state: 'in_progress' })].join('\n');
       fs.writeFileSync(path.join(tasksDir, 'tasks.jsonl'), lines);
 
       const tasks = service.readTasks('my-team');
@@ -196,11 +187,7 @@ describe('TeamMonitorService', () => {
     it('should skip invalid lines in JSONL', () => {
       const tasksDir = path.join(tmpDir, 'tasks', 'my-team');
       fs.mkdirSync(tasksDir, { recursive: true });
-      const lines = [
-        JSON.stringify({ id: 't1', subject: 'Valid', state: 'pending' }),
-        'not json',
-        JSON.stringify({ id: 't2', subject: 'Also valid', state: 'done' }),
-      ].join('\n');
+      const lines = [JSON.stringify({ id: 't1', subject: 'Valid', state: 'pending' }), 'not json', JSON.stringify({ id: 't2', subject: 'Also valid', state: 'done' })].join('\n');
       fs.writeFileSync(path.join(tasksDir, 'tasks.jsonl'), lines);
 
       const tasks = service.readTasks('my-team');
@@ -227,10 +214,7 @@ describe('TeamMonitorService', () => {
     function makeTask(state: string) {
       const tasksDir = path.join(tmpDir, 'tasks', 'norm-team');
       fs.mkdirSync(tasksDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(tasksDir, 'task.json'),
-        JSON.stringify({ id: 't1', subject: 'Test', state })
-      );
+      fs.writeFileSync(path.join(tasksDir, 'task.json'), JSON.stringify({ id: 't1', subject: 'Test', state }));
       return service.readTasks('norm-team')[0];
     }
 
@@ -319,10 +303,7 @@ describe('TeamMonitorService', () => {
     it('should use status as fallback for state', () => {
       const tasksDir = path.join(tmpDir, 'tasks', 'field-team');
       fs.mkdirSync(tasksDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(tasksDir, 'task.json'),
-        JSON.stringify({ id: 't1', subject: 'Test', status: 'done' })
-      );
+      fs.writeFileSync(path.join(tasksDir, 'task.json'), JSON.stringify({ id: 't1', subject: 'Test', status: 'done' }));
       const task = service.readTasks('field-team')[0];
       expect(task.state).toBe('completed');
     });
@@ -334,10 +315,7 @@ describe('TeamMonitorService', () => {
     it('should emit team_config event when config changes', (done) => {
       const teamDir = path.join(tmpDir, 'teams', 'ev-team');
       fs.mkdirSync(teamDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(teamDir, 'config.json'),
-        JSON.stringify({ members: [{ name: 'Agent', role: 'lead' }] })
-      );
+      fs.writeFileSync(path.join(teamDir, 'config.json'), JSON.stringify({ members: [{ name: 'Agent', role: 'lead' }] }));
 
       service.on((event: TeamMonitorEvent) => {
         if (event.type === 'team_config') {
@@ -358,10 +336,7 @@ describe('TeamMonitorService', () => {
 
       const tasksDir = path.join(tmpDir, 'tasks', 'ev-team');
       fs.mkdirSync(tasksDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(tasksDir, 'tasks.json'),
-        JSON.stringify([{ id: 't1', subject: 'Do it', state: 'pending' }])
-      );
+      fs.writeFileSync(path.join(tasksDir, 'tasks.json'), JSON.stringify([{ id: 't1', subject: 'Do it', state: 'pending' }]));
 
       service.on((event: TeamMonitorEvent) => {
         if (event.type === 'task_update') {
@@ -380,10 +355,7 @@ describe('TeamMonitorService', () => {
 
       const teamDir = path.join(tmpDir, 'teams', 'unsub-team');
       fs.mkdirSync(teamDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(teamDir, 'config.json'),
-        JSON.stringify({ members: [{ name: 'A' }] })
-      );
+      fs.writeFileSync(path.join(teamDir, 'config.json'), JSON.stringify({ members: [{ name: 'A' }] }));
 
       unsub(); // Unsubscribe before starting
       service.start('conv-1', 'unsub-team');
@@ -398,10 +370,7 @@ describe('TeamMonitorService', () => {
     it('should not crash if a listener throws', (done) => {
       const teamDir = path.join(tmpDir, 'teams', 'err-team');
       fs.mkdirSync(teamDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(teamDir, 'config.json'),
-        JSON.stringify({ members: [{ name: 'A' }] })
-      );
+      fs.writeFileSync(path.join(teamDir, 'config.json'), JSON.stringify({ members: [{ name: 'A' }] }));
 
       // First listener throws
       service.on(() => {
@@ -430,17 +399,11 @@ describe('TeamMonitorService', () => {
     it('should return combined state when monitoring', () => {
       const teamDir = path.join(tmpDir, 'teams', 'state-team');
       fs.mkdirSync(teamDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(teamDir, 'config.json'),
-        JSON.stringify({ members: [{ name: 'Dev', role: 'member' }] })
-      );
+      fs.writeFileSync(path.join(teamDir, 'config.json'), JSON.stringify({ members: [{ name: 'Dev', role: 'member' }] }));
 
       const tasksDir = path.join(tmpDir, 'tasks', 'state-team');
       fs.mkdirSync(tasksDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(tasksDir, 'tasks.json'),
-        JSON.stringify([{ id: 't1', subject: 'Ship it', state: 'in_progress' }])
-      );
+      fs.writeFileSync(path.join(tasksDir, 'tasks.json'), JSON.stringify([{ id: 't1', subject: 'Ship it', state: 'in_progress' }]));
 
       service.start('conv-1', 'state-team');
       const state = service.getTeamState();
@@ -463,18 +426,13 @@ describe('TeamMonitorService', () => {
       // Set up team config so we can start monitoring
       const teamDir = path.join(tmpDir, 'teams', 'cache-team');
       fs.mkdirSync(teamDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(teamDir, 'config.json'),
-        JSON.stringify({ members: [{ name: 'worker', role: 'member' }] })
-      );
+      fs.writeFileSync(path.join(teamDir, 'config.json'), JSON.stringify({ members: [{ name: 'worker', role: 'member' }] }));
 
       // Set up subagent transcript
       const projectDir = path.join(tmpDir, 'projects', 'test-proj', 'subagents');
       fs.mkdirSync(projectDir, { recursive: true });
 
-      const transcript = [
-        JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Hello from agent' }] } }),
-      ].join('\n');
+      const transcript = [JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Hello from agent' }] } })].join('\n');
       fs.writeFileSync(path.join(projectDir, 'agent-worker.jsonl'), transcript);
 
       // Listen for the agent_output event which signals polling has completed
@@ -498,10 +456,7 @@ describe('TeamMonitorService', () => {
     it('should still return cached outputs even when transcript file has not grown', (done) => {
       const teamDir = path.join(tmpDir, 'teams', 'cache-team2');
       fs.mkdirSync(teamDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(teamDir, 'config.json'),
-        JSON.stringify({ members: [{ name: 'agent-a', role: 'member' }] })
-      );
+      fs.writeFileSync(path.join(teamDir, 'config.json'), JSON.stringify({ members: [{ name: 'agent-a', role: 'member' }] }));
 
       const projectDir = path.join(tmpDir, 'projects', 'test-proj2', 'subagents');
       fs.mkdirSync(projectDir, { recursive: true });
@@ -549,10 +504,7 @@ describe('TeamMonitorService', () => {
       const projectDir = path.join(tmpDir, 'projects', 'parse-proj', 'subagents');
       fs.mkdirSync(projectDir, { recursive: true });
 
-      const lines = [
-        JSON.stringify({ type: 'human', message: { content: 'User says hi' } }),
-        JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Bot responds' }] } }),
-      ];
+      const lines = [JSON.stringify({ type: 'human', message: { content: 'User says hi' } }), JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Bot responds' }] } })];
       fs.writeFileSync(path.join(projectDir, 'agent-bot.jsonl'), lines.join('\n'));
 
       service.on((event) => {
@@ -579,17 +531,13 @@ describe('TeamMonitorService', () => {
         JSON.stringify({
           type: 'assistant',
           message: {
-            content: [
-              { type: 'tool_use', name: 'read_file', input: { path: '/tmp/test.txt' } },
-            ],
+            content: [{ type: 'tool_use', name: 'read_file', input: { path: '/tmp/test.txt' } }],
           },
         }),
         JSON.stringify({
           type: 'human',
           message: {
-            content: [
-              { type: 'tool_result', content: 'file contents here' },
-            ],
+            content: [{ type: 'tool_result', content: 'file contents here' }],
           },
         }),
       ];

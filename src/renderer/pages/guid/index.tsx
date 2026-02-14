@@ -893,9 +893,7 @@ const Guid: React.FC = () => {
           const lead = customAgent.teamMembers.find((m: { role: string }) => m.role === 'lead');
           const members = customAgent.teamMembers.filter((m: { role: string }) => m.role !== 'lead');
 
-          const memberList = members
-            .map((m: { id: string; name: string }) => `- **${m.name}** (\`${m.id}\`)`)
-            .join('\n');
+          const memberList = members.map((m: { id: string; name: string }) => `- **${m.name}** (\`${m.id}\`)`).join('\n');
 
           // Include the lead's full systemPrompt as team lead instructions
           const leadInstructions = lead?.systemPrompt ? `\n\n## Team Lead Instructions\n\n${lead.systemPrompt}` : '';
@@ -932,10 +930,7 @@ const Guid: React.FC = () => {
           emitter.emit('chat.history.refresh');
 
           // Store the team prompt as initial message for the conversation page to send
-          sessionStorage.setItem(
-            `acp_initial_message_${conversation.id}`,
-            JSON.stringify({ input: teamPrompt, files: files.length > 0 ? files : undefined })
-          );
+          sessionStorage.setItem(`acp_initial_message_${conversation.id}`, JSON.stringify({ input: teamPrompt, files: files.length > 0 ? files : undefined }));
 
           void navigate(`/conversation/${conversation.id}`);
         } catch (error: unknown) {

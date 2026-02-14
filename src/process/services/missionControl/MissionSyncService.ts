@@ -103,11 +103,7 @@ class MissionSyncService {
         }
 
         // Check metadata changes (subject, description, assignee)
-        if (
-          existing.subject !== task.subject ||
-          existing.description !== task.description ||
-          existing.assignee !== task.assignee
-        ) {
+        if (existing.subject !== task.subject || existing.description !== task.description || existing.assignee !== task.assignee) {
           const refreshed = missionStore.getById(existing.id);
           if (refreshed) {
             const patched: Mission = {

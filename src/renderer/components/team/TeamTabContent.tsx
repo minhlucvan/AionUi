@@ -42,7 +42,7 @@ const TeamTabContent: React.FC = () => {
 
   return (
     <div className='flex flex-col h-full overflow-hidden px-12px py-8px'>
-      <AgentPane member={member} output={output} isSelected onSelect={() => setActiveTab(activeTab)} />
+      <AgentPane key={member.agentId || member.name} member={member} output={output} isSelected onSelect={() => setActiveTab(activeTab)} />
     </div>
   );
 };
