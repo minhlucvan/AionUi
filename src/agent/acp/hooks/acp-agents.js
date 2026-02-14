@@ -27,7 +27,12 @@ module.exports = {
     handler: async (context) => {
       const { workspace, assistantPath, utils } = context;
 
-      if (!assistantPath) return;
+      console.log(`[acp-agents] onWorkspaceInit called: workspace=${workspace}, assistantPath=${assistantPath}`);
+
+      if (!assistantPath) {
+        console.log('[acp-agents] No assistantPath provided, skipping agent file copy');
+        return;
+      }
 
       const assistantAgentsDir = path.join(assistantPath, 'agents');
       const hasAgentsDir = await utils.exists(assistantAgentsDir);

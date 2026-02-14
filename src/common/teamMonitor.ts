@@ -54,7 +54,8 @@ export type TranscriptEntry = {
 /** Agent output from transcript reading */
 export type AgentOutput = {
   agentName: string;
-  messages: Array<Record<string, unknown>>; // TMessage[] but avoiding circular dependency
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  messages: any[]; // TMessage[] but avoiding circular dependency
   lastActivity?: number;
 };
 

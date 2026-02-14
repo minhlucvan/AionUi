@@ -18,7 +18,8 @@ const AgentPane: React.FC<{
   onSelect?: () => void;
 }> = ({ output }) => {
   // Each agent gets its own MessageListProvider instance with its own messages
-  const messages = (output?.messages || []) as Array<Record<string, unknown>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const messages = (output?.messages || []) as any[];
 
   return (
     <MessageListProvider value={messages}>

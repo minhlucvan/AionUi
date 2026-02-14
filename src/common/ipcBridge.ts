@@ -621,7 +621,7 @@ import type { AgentOutput, TeamMember, TeamMonitorEvent, TeamState, TeamTask } f
 
 export const teamMonitor = {
   // Lifecycle
-  start: bridge.buildProvider<IBridgeResponse, { conversationId: string; teamName?: string }>('team-monitor.start'),
+  start: bridge.buildProvider<IBridgeResponse, { conversationId: string; workspace?: string; teamName?: string }>('team-monitor.start'),
   stop: bridge.buildProvider<IBridgeResponse, { conversationId: string }>('team-monitor.stop'),
   // Queries
   getState: bridge.buildProvider<IBridgeResponse<TeamState | null>, void>('team-monitor.get-state'),
