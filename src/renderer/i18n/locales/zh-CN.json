@@ -1461,5 +1461,22 @@
       "configureFirst": "请先在设置中配置一个 Agent。",
       "switching": "正在切换 Agent..."
     }
+  },
+  "teamMonitor": {
+    "team": "团队",
+    "agents": "个成员",
+    "chatTab": "对话",
+    "taskList": "任务列表",
+    "agentView": "成员视图",
+    "noTasks": "暂无任务，团队开始工作后将创建任务。",
+    "noAgents": "暂未发现成员，团队负责人即将启动成员。",
+    "completed": "已完成",
+    "waitingForOutput": "等待输出...",
+    "lead": "负责人",
+    "taskState": {
+      "pending": "待处理",
+      "in_progress": "进行中",
+      "completed": "已完成"
+    }
   }
 }

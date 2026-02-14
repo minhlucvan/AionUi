@@ -83,6 +83,18 @@ export function createHookUtils(): HookUtils {
         description: descMatch ? descMatch[1].trim() : '',
       };
     },
+    copyAgentFile: async (agentName, sourceDir, targetDir) => {
+      const fileName = agentName.endsWith('.md') ? agentName : `${agentName}.md`;
+      const sourcePath = path.join(sourceDir, fileName);
+      const targetPath = path.join(targetDir, fileName);
+
+      if (!fs.existsSync(sourcePath)) {
+        throw new Error(`Agent file not found: ${sourcePath}`);
+      }
+
+      await fs.promises.mkdir(targetDir, { recursive: true });
+      await fs.promises.copyFile(sourcePath, targetPath);
+    },
   };
   return utils;
 }

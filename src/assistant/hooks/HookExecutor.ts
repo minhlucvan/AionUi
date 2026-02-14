@@ -38,6 +38,8 @@ export async function executeHooks(event: HookEvent, context: HookContext, hooks
           content: output.content ?? result.content,
           blocked: output.blocked ?? result.blocked,
           blockReason: output.blockReason ?? result.blockReason,
+          isTeam: output.isTeam ?? result.isTeam,
+          customEnv: output.customEnv ? { ...result.customEnv, ...output.customEnv } : result.customEnv,
         };
       }
     } catch (error) {

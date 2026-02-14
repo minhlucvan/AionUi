@@ -182,6 +182,10 @@ export type TChatConversation =
           acpSessionId?: string;
           /** ACP session 最后更新时间 / Last update time of ACP session */
           acpSessionUpdatedAt?: number;
+          /** Custom environment variables passed to the ACP process / 传递给 ACP 子进程的自定义环境变量 */
+          customEnv?: Record<string, string>;
+          /** Whether this is an agent team conversation / 是否为 Agent 团队会话 */
+          isTeam?: boolean;
         }
       >,
       'model'

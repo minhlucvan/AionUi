@@ -77,10 +77,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
   const loadDetectedAgents = useCallback(async () => {
     setLoadingAgents(true);
     try {
-      const [agentsResponse, backendsResponse] = await Promise.all([
-        acpConversation.getAvailableAgents.invoke(),
-        toolRegistryBridge.getAcpBackends.invoke(),
-      ]);
+      const [agentsResponse, backendsResponse] = await Promise.all([acpConversation.getAvailableAgents.invoke(), toolRegistryBridge.getAcpBackends.invoke()]);
       const backends = backendsResponse.success ? backendsResponse.data : {};
       if (agentsResponse.success && agentsResponse.data) {
         // Only show third-party standalone CLIs (goose, auggie, kimi, opencode)

@@ -580,6 +580,14 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
         await copyDirectoryRecursively(hooksSrcDir, hooksTargetDir, { overwrite: true });
         console.log(`[AionUi] Synced hooks for ${preset.id}`);
       }
+
+      // Copy agents/ directory (always overwrite for builtin assistants)
+      const agentsSrcDir = path.join(presetSourceDir, 'agents');
+      if (existsSync(agentsSrcDir)) {
+        const agentsTargetDir = path.join(assistantSubDir, 'agents');
+        await copyDirectoryRecursively(agentsSrcDir, agentsTargetDir, { overwrite: true });
+        console.log(`[AionUi] Synced agents for ${preset.id}`);
+      }
     }
 
     // 复制规则文件 / Copy rule files
@@ -781,6 +789,7 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
             customSkillNames: config.customSkillNames || [],
             assistantPath,
             workspacePath: config.workspacePath,
+            teamMembers: config.teamMembers,
           });
           continue;
         } catch (error) {
@@ -810,6 +819,7 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
           enabledSkills: preset.defaultEnabledSkills || [],
           customSkillNames: [],
           assistantPath,
+          teamMembers: preset.teamMembers,
         });
       } else {
         console.warn(`[AionUi] No assistant.json or preset found for: ${entry.name}`);

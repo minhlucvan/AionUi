@@ -1,0 +1,49 @@
+{
+  "id": "web-dev-team",
+  "name": "Web Development Team",
+  "version": "1.0.0",
+  "description": "Full lifecycle web development: from idea research and product design to frontend, backend, and QA — delivers a working web application.",
+  "author": "AionUi",
+  "tags": ["web-development", "agent-team", "fullstack", "react", "nodejs", "typescript"],
+  "presetAgentType": "claude",
+  "avatar": "🌐",
+  "nameI18n": {
+    "en-US": "Web Development Team",
+    "zh-CN": "Web 开发团队",
+    "zh-TW": "Web 開發團隊",
+    "ja-JP": "Web開発チーム",
+    "ko-KR": "웹 개발 팀"
+  },
+  "descriptionI18n": {
+    "en-US": "Full lifecycle web development: from idea research and product design to frontend, backend, and QA — delivers a working web application.",
+    "zh-CN": "全生命周期 Web 开发：从创意调研、产品设计到前后端开发和质量保证，交付可运行的 Web 应用。",
+    "zh-TW": "全生命週期 Web 開發：從創意調研、產品設計到前後端開發和品質保證，交付可運行的 Web 應用。",
+    "ja-JP": "アイデア調査・製品設計からフロントエンド・バックエンド開発・QAまで、完全なWebアプリケーションを構築するチーム。",
+    "ko-KR": "아이디어 조사, 제품 설계, 프론트엔드·백엔드 개발, QA까지 — 완전한 웹 애플리케이션을 제공하는 팀."
+  },
+  "ruleFiles": {
+    "en-US": "web-dev-team.md",
+    "zh-CN": "web-dev-team.zh-CN.md"
+  },
+  "promptsI18n": {
+    "en-US": ["Build a task management app with user auth, project boards, and real-time updates", "Create a blog platform with markdown editor, tags, and comment system", "Build an e-commerce storefront with product catalog, cart, and checkout"],
+    "zh-CN": ["构建一个带用户认证、项目看板和实时更新的任务管理应用", "创建一个带 Markdown 编辑器、标签和评论系统的博客平台", "构建一个带商品目录、购物车和结账功能的电商前端"]
+  },
+  "teamMembers": [
+    {
+      "id": "designer",
+      "name": "Product Designer",
+      "role": "member"
+    },
+    {
+      "id": "developer",
+      "name": "Developer",
+      "role": "member"
+    },
+    {
+      "id": "qa",
+      "name": "QA Engineer",
+      "role": "member"
+    }
+  ]
+}

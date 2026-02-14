@@ -164,6 +164,29 @@ export class AcpAgent {
   }
 
   /**
+   * Detect team-related tool calls from session updates.
+   * Claude Code agent teams use tools like Task (subagent spawning),
+   * teammate management, and task list management.
+   */
+  private isTeamToolCall(toolName: string): boolean {
+    const name = toolName.toLowerCase();
+    return name.includes('task') || name.includes('teammate') || name.includes('spawn') || name.includes('team') || name.includes('send_message') || name.includes('mailbox');
+  }
+
+  /**
+   * Emit a team_event signal to notify the frontend that agent teams are active.
+   */
+  private emitTeamEvent(toolName: string, toolCallId?: string): void {
+    const message: IResponseMessage = {
+      type: 'team_event',
+      msg_id: toolCallId || uuid(),
+      conversation_id: this.id,
+      data: { toolName },
+    };
+    this.onSignalEvent?.(message);
+  }
+
+  /**
    * Extract URL from navigation tool's permission request data
    * 从导航工具的权限请求数据中提取 URL
    *
@@ -596,12 +619,25 @@ export class AcpAgent {
 
   private handleSessionUpdate(data: AcpSessionUpdate): void {
     try {
+      // Safety check: ensure data.update exists
+      if (!data || !data.update) {
+        console.warn('[ACP] Received session update with missing data.update:', data);
+        return;
+      }
+
       // Intercept chrome-devtools navigation tools from session updates
       // 从会话更新中拦截 chrome-devtools 导航工具
-      if (data.update?.sessionUpdate === 'tool_call') {
+      if (data.update.sessionUpdate === 'tool_call') {
         const toolCallUpdate = data as ToolCallUpdate;
         const toolName = toolCallUpdate.update?.title || '';
         const toolCallId = toolCallUpdate.update?.toolCallId;
+
+        // Detect team-related tool calls (Task spawning, teammate management)
+        // 检测团队相关的工具调用（Task 创建、队友管理等）
+        if (this.isTeamToolCall(toolName)) {
+          this.emitTeamEvent(toolName, toolCallId);
+        }
+
         if (this.isNavigationTool(toolName)) {
           // Track this navigation tool call for result interception
           // 跟踪此导航工具调用以拦截结果

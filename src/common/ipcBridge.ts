@@ -540,6 +540,8 @@ export interface ICreateConversationParams {
     botId?: string;
     /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
     externalChannelId?: string;
+    /** Custom environment variables passed to the spawned ACP process / 传递给 ACP 子进程的自定义环境变量 */
+    customEnv?: Record<string, string>;
   };
 }
 interface IResetConversationParams {
@@ -610,4 +612,37 @@ export const channel = {
   pairingRequested: bridge.buildEmitter<IChannelPairingRequest>('channel.pairing-requested'),
   pluginStatusChanged: bridge.buildEmitter<{ pluginId: string; status: IChannelPluginStatus }>('channel.plugin-status-changed'),
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
+};
+
+// ==================== Team Monitor API ====================
+// Monitors Claude's native agent teams (task list + agent observation)
+
+import type { AgentOutput, TeamMember, TeamMonitorEvent, TeamState, TeamTask } from '@/common/teamMonitor';
+
+export const teamMonitor = {
+  // Lifecycle
+  start: bridge.buildProvider<IBridgeResponse, { conversationId: string; workspace?: string; teamName?: string }>('team-monitor.start'),
+  stop: bridge.buildProvider<IBridgeResponse, { conversationId: string }>('team-monitor.stop'),
+  // Queries
+  getState: bridge.buildProvider<IBridgeResponse<TeamState | null>, void>('team-monitor.get-state'),
+  getAgentOutputs: bridge.buildProvider<IBridgeResponse<AgentOutput[]>, void>('team-monitor.get-agent-outputs'),
+  // Events
+  onTeamConfig: bridge.buildEmitter<{ teamName: string; members: TeamMember[] }>('team-monitor.team-config'),
+  onTaskUpdate: bridge.buildEmitter<{ teamName: string; tasks: TeamTask[] }>('team-monitor.task-update'),
+  onAgentOutput: bridge.buildEmitter<AgentOutput>('team-monitor.agent-output'),
+};
+
+// ==================== Mission Control API ====================
+// Persistent mission tracking synced from Claude's native task files
+
+import type { Mission } from '@process/services/missionControl/types';
+
+export const missionControl = {
+  // Queries
+  getMissions: bridge.buildProvider<IBridgeResponse<Mission[]>, { conversationId: string }>('mission-control.get-missions'),
+  getTeamMissions: bridge.buildProvider<IBridgeResponse<Mission[]>, { conversationId: string; teamName: string }>('mission-control.get-team-missions'),
+  getMission: bridge.buildProvider<IBridgeResponse<Mission | null>, { id: string }>('mission-control.get-mission'),
+  // Events
+  onMissionsSync: bridge.buildEmitter<{ teamName: string; missions: Mission[] }>('mission-control.missions-synced'),
+  onMissionUpdate: bridge.buildEmitter<Mission>('mission-control.mission-updated'),
 };

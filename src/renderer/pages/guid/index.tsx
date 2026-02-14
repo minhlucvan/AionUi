@@ -880,6 +880,67 @@ const Guid: React.FC = () => {
     // 获取启用的 skills 列表 / Get enabled skills list
     const enabledSkills = resolveEnabledSkills(agentInfo);
 
+    // Agent team assistant detection: if the selected assistant has teamMembers,
+    // create a regular ACP conversation with Claude's native agent teams enabled.
+    // Claude handles team spawning, messaging, and task coordination internally.
+    if (isPreset && agentInfo?.customAgentId) {
+      const customAgent = customAgents.find((a: AcpBackendConfig) => a.id === agentInfo.customAgentId);
+      if (customAgent?.teamMembers && customAgent.teamMembers.length >= 2) {
+        try {
+          // Build team prompt that references the generated .claude/agents/*.md subagent files.
+          // Full systemPrompts are in the subagent files — the prompt just needs agent names.
+          const teamName = customAgent.nameI18n?.[resolveLocaleKey(i18n.language)] || customAgent.name;
+          const lead = customAgent.teamMembers.find((m: { role: string }) => m.role === 'lead');
+          const members = customAgent.teamMembers.filter((m: { role: string }) => m.role !== 'lead');
+
+          const memberList = members.map((m: { id: string; name: string }) => `- **${m.name}** (\`${m.id}\`)`).join('\n');
+
+          // Include the lead's full systemPrompt as team lead instructions
+          const leadInstructions = lead?.systemPrompt ? `\n\n## Team Lead Instructions\n\n${lead.systemPrompt}` : '';
+
+          const teamPrompt = `Create an agent team called "${teamName}". Your teammates are defined as subagents in \`.claude/agents/\` — spawn them by name:\n\n${memberList}${leadInstructions}\n\n## Task\n\n${input}`;
+
+          // Create a normal ACP conversation with native team env var
+          const conversation = await ipcBridge.conversation.create.invoke({
+            type: 'acp',
+            name: `[${teamName}] ${input}`,
+            model: currentModel!,
+            extra: {
+              workspace: finalWorkspace,
+              customWorkspace: isCustomWorkspace,
+              backend: 'claude',
+              presetContext: isPreset ? presetRules : undefined,
+              enabledSkills: isPreset ? enabledSkills : undefined,
+              presetAssistantId: agentInfo.customAgentId,
+              // Enable Claude's native agent teams
+              customEnv: { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' },
+            },
+          });
+
+          if (!conversation || !conversation.id) {
+            throw new Error('Failed to create team conversation');
+          }
+
+          if (isCustomWorkspace) {
+            closeAllTabs();
+            updateWorkspaceTime(finalWorkspace);
+            openTab(conversation);
+          }
+
+          emitter.emit('chat.history.refresh');
+
+          // Store the team prompt as initial message for the conversation page to send
+          sessionStorage.setItem(`acp_initial_message_${conversation.id}`, JSON.stringify({ input: teamPrompt, files: files.length > 0 ? files : undefined }));
+
+          void navigate(`/conversation/${conversation.id}`);
+        } catch (error: unknown) {
+          console.error('Failed to create agent team conversation:', error);
+          throw error;
+        }
+        return;
+      }
+    }
+
     // 对于预设助手，当 Main Agent 不可用时自动切换到下一个可用的 Agent
     // 会话类型会随之改变（如 gemini → acp），但 presetAssistantId/rules/skills 保持不变
     // For preset assistants, auto-switch to next available agent when Main Agent is unavailable

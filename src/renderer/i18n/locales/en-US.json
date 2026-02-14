@@ -1461,5 +1461,22 @@
       "configureFirst": "Please configure an agent in Settings first.",
       "switching": "Switching agent..."
     }
+  },
+  "teamMonitor": {
+    "team": "Team",
+    "agents": "agents",
+    "chatTab": "Chat",
+    "taskList": "Tasks",
+    "agentView": "Agents",
+    "noTasks": "No tasks yet. The team will create tasks once work begins.",
+    "noAgents": "No agents discovered yet. The team lead will spawn agents shortly.",
+    "completed": "completed",
+    "waitingForOutput": "Waiting for output...",
+    "lead": "Lead",
+    "taskState": {
+      "pending": "Pending",
+      "in_progress": "In Progress",
+      "completed": "Done"
+    }
   }
 }

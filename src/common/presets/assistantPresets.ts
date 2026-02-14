@@ -1,4 +1,5 @@
 import type { PresetAgentType } from '@/types/acpTypes';
+import type { IAgentTeamMemberDefinition } from '@/common/agentTeam';
 
 export type AssistantPreset = {
   id: string;
@@ -20,6 +21,12 @@ export type AssistantPreset = {
   nameI18n: Record<string, string>;
   descriptionI18n: Record<string, string>;
   promptsI18n?: Record<string, string[]>;
+  /**
+   * Team member definitions for team assistants.
+   * When present, launching this assistant spawns a multi-agent team
+   * instead of a single conversation.
+   */
+  teamMembers?: IAgentTeamMemberDefinition[];
 };
 
 export const ASSISTANT_PRESETS: AssistantPreset[] = [

@@ -48,6 +48,12 @@ export class AcpAdapter {
     const messages: TMessage[] = [];
     const update = sessionUpdate.update;
 
+    // Safety check: ensure update exists and has required properties
+    if (!update || !update.sessionUpdate) {
+      console.warn('[AcpAdapter] Received session update with missing update data:', sessionUpdate);
+      return messages;
+    }
+
     switch (update.sessionUpdate) {
       case 'agent_message_chunk': {
         if (update.content) {

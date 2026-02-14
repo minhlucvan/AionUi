@@ -7,12 +7,11 @@
 /**
  * ACP Skills Integration - Module-Based Hooks
  *
- * This module provides hooks for non-Claude ACP backends (opencode, goose, auggie, etc.) to:
- * 1. Inject preset rules (assistant persona/workflow) on first message
- * 2. Build and inject skills index so the agent knows available skills
- *
- * Claude backend is excluded — it loads skills natively via .claude/skills/ symlinks
- * and has its own handler in claude-skills.js.
+ * Unified skills hook for all ACP backends:
+ * - Claude backend: symlink skills to .claude/skills/ (native loading),
+ *   inject preset rules on first message
+ * - Other backends: inject preset rules + skills index on first message
+ *   so the agent discovers available skills via text instructions
  */
 
 const fs = require('fs');
@@ -20,26 +19,75 @@ const path = require('path');
 
 module.exports = {
   /**
-   * First message hook for non-Claude ACP backends
-   * Injects preset rules + skills index into first message content
+   * Workspace initialization hook
+   * Claude: syncs enabled skills from app data to workspace .claude/skills/ via symlinks
+   * Others: no-op (skills are injected via first message instead)
+   */
+  onWorkspaceInit: {
+    handler: async (context) => {
+      const { workspace, enabledSkills, utils, backend } = context;
+
+      if (backend !== 'claude') return;
+
+      if (!utils || !enabledSkills || enabledSkills.length === 0) {
+        console.log('[acp-skills] No skills to sync');
+        return;
+      }
+
+      try {
+        const claudeSkillsDir = path.join(workspace, '.claude', 'skills');
+        await utils.ensureDir(claudeSkillsDir);
+
+        // Symlink builtin skills (always included)
+        try {
+          await utils.symlinkSkill('_builtin', claudeSkillsDir);
+          console.log('[acp-skills] Synced builtin skills');
+        } catch (error) {
+          console.warn('[acp-skills] Failed to sync builtin skills:', error.message);
+        }
+
+        // Symlink each enabled skill
+        for (const skillName of enabledSkills) {
+          try {
+            await utils.symlinkSkill(skillName, claudeSkillsDir);
+            console.log(`[acp-skills] Synced skill: ${skillName}`);
+          } catch (error) {
+            console.warn(`[acp-skills] Failed to sync skill ${skillName}:`, error.message);
+          }
+        }
+
+        console.log(`[acp-skills] Workspace initialized with ${enabledSkills.length} skills`);
+      } catch (error) {
+        console.error('[acp-skills] Error during workspace initialization:', error);
+      }
+    },
+    priority: 10,
+  },
+
+  /**
+   * First message hook
+   * Claude: inject preset rules only (skills load natively via .claude/skills/)
+   * Others: inject preset rules + skills index text
    */
   onFirstMessage: {
     handler: async (context) => {
-      if (context.backend === 'claude') return {};
+      const isClaude = context.backend === 'claude';
 
       const instructions = [];
 
-      // 1. Add preset rules (assistant persona/workflow)
+      // Preset rules (all backends)
       if (context.presetContext) {
         instructions.push(context.presetContext);
       }
 
-      // 2. Build skills index from builtin + enabled skills
-      const skillsDir = context.skillsSourceDir;
-      if (skillsDir) {
-        const skillsInstruction = await buildSkillsInstruction(skillsDir, context);
-        if (skillsInstruction) {
-          instructions.push(skillsInstruction);
+      // Skills index (non-Claude only — Claude loads skills natively)
+      if (!isClaude) {
+        const skillsDir = context.skillsSourceDir;
+        if (skillsDir) {
+          const skillsInstruction = await buildSkillsInstruction(skillsDir, context);
+          if (skillsInstruction) {
+            instructions.push(skillsInstruction);
+          }
         }
       }
 
@@ -84,7 +132,6 @@ async function discoverSkillsFromDir(dir, filterNames) {
       if (!entry.isDirectory()) continue;
       if (entry.name === '_builtin') continue;
 
-      // If filterNames provided, only include matching skills
       if (filterNames && !filterNames.includes(entry.name)) continue;
 
       const skillFile = path.join(dir, entry.name, 'SKILL.md');
@@ -114,17 +161,14 @@ async function discoverSkillsFromDir(dir, filterNames) {
 async function buildSkillsInstruction(skillsDir, context) {
   const builtinSkillsDir = path.join(skillsDir, '_builtin');
 
-  // Discover builtin skills (always included)
   const builtinSkills = await discoverSkillsFromDir(builtinSkillsDir, null);
 
-  // Discover enabled optional skills
   const enabledSkills = context.enabledSkills || [];
   const optionalSkills = enabledSkills.length > 0 ? await discoverSkillsFromDir(skillsDir, enabledSkills) : [];
 
   const allSkills = [...builtinSkills, ...optionalSkills];
   if (allSkills.length === 0) return null;
 
-  // Build index text
   const lines = allSkills.map((s) => `- ${s.name}: ${s.description}`);
   const indexText = `[Available Skills]
 The following skills are available. When you need detailed instructions for a specific skill,
@@ -132,7 +176,6 @@ you can request it by outputting: [LOAD_SKILL: skill-name]
 
 ${lines.join('\n')}`;
 
-  // Add location instructions
   return `${indexText}
 
 [Skills Location]

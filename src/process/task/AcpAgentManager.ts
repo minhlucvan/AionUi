@@ -20,7 +20,6 @@ import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { stripThinkTags } from './ThinkTagDetector';
-
 interface AcpAgentManagerData {
   workspace?: string;
   backend: AcpBackend;
@@ -37,6 +36,10 @@ interface AcpAgentManagerData {
   acpSessionId?: string;
   /** Last update time of ACP session / ACP session 最后更新时间 */
   acpSessionUpdatedAt?: number;
+  /** Custom environment variables passed to the ACP process / 传递给 ACP 子进程的自定义环境变量 */
+  customEnv?: Record<string, string>;
+  /** Path to the assistant directory for hook loading */
+  assistantPath?: string;
 }
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
@@ -105,6 +108,11 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         // If cliPath is not configured, fallback to default cliCommand from ACP_BACKENDS_ALL
         if (!cliPath && backendConfig?.cliCommand) {
           cliPath = backendConfig.cliCommand;
+        }
+
+        // Merge custom env vars from conversation extra (e.g., agent team env)
+        if (data.customEnv) {
+          customEnv = { ...customEnv, ...data.customEnv };
         }
       } else {
         // backend === 'custom' but no customAgentId - this is an invalid state
@@ -291,6 +299,35 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             presetContext: this.options.presetContext,
             enabledSkills: this.options.enabledSkills,
           });
+        }
+
+        // Run assistant-level onSendMessage hooks (for all messages, including first)
+        // This allows assistants to modify message content before sending
+        const { runHooks } = await import('@/assistant/hooks');
+        const { getAssistantsDir } = await import('@/process/initStorage');
+        const path = await import('path');
+
+        // Derive assistantPath from presetAssistantId if available
+        let assistantPath: string | undefined;
+        const db = getDatabase();
+        const conversationResult = db.getConversation(this.conversation_id);
+        if (conversationResult.success && conversationResult.data?.extra?.presetAssistantId) {
+          assistantPath = path.join(getAssistantsDir(), conversationResult.data.extra.presetAssistantId);
+        }
+
+        const hookResult = await runHooks('onSendMessage', {
+          workspace: this.workspace,
+          assistantPath,
+          conversationId: this.conversation_id,
+          content: contentToSend,
+        });
+        if (hookResult.blocked) {
+          cronBusyGuard.setProcessing(this.conversation_id, false);
+          this.status = 'finished';
+          return { success: false, message: hookResult.blockReason || 'Message blocked by hook' };
+        }
+        if (hookResult.content !== undefined) {
+          contentToSend = hookResult.content;
         }
 
         const userMessage: TMessage = {

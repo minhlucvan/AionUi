@@ -101,6 +101,10 @@ const ChatLayout: React.FC<{
   headerExtra?: React.ReactNode;
   headerLeft?: React.ReactNode;
   workspaceEnabled?: boolean;
+  /** Team tab bar (rendered below ConversationTabs when team mode is active) */
+  teamTabs?: React.ReactNode;
+  /** Team content that replaces the main chat when a non-chat team tab is active */
+  teamContent?: React.ReactNode;
 }> = (props) => {
   // 工作空间面板折叠状态 - 全局持久化
   // Workspace panel collapse state - globally persisted
@@ -404,6 +408,8 @@ const ChatLayout: React.FC<{
           >
             {/* 会话 Tabs 栏 / Conversation tabs bar */}
             <ConversationTabs />
+            {/* Team tabs bar (when team mode is active) */}
+            {props.teamTabs}
             <ArcoLayout.Header className={classNames('h-36px flex items-center justify-between p-16px gap-16px !bg-1 chat-layout-header')}>
               <div>{props.headerLeft}</div>
               <FlexFullContainer className='h-full' containerClassName='flex items-center gap-16px'>
@@ -425,7 +431,7 @@ const ChatLayout: React.FC<{
                 )}
               </div>
             </ArcoLayout.Header>
-            <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>{props.children}</ArcoLayout.Content>
+            <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>{props.teamContent || props.children}</ArcoLayout.Content>
           </ArcoLayout.Content>
 
           {/* 会话右侧拖动手柄：在桌面模式下调节会话和预览的宽度比例 */}

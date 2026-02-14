@@ -1293,5 +1293,22 @@
       "configureFirst": "먼저 설정에서 에이전트를 구성하세요.",
       "switching": "에이전트 전환 중..."
     }
+  },
+  "teamMonitor": {
+    "team": "팀",
+    "agents": "에이전트",
+    "chatTab": "채팅",
+    "taskList": "작업",
+    "agentView": "에이전트",
+    "noTasks": "아직 작업이 없습니다. 작업이 시작되면 생성됩니다.",
+    "noAgents": "아직 에이전트가 발견되지 않았습니다. 리더가 곧 에이전트를 시작합니다.",
+    "completed": "완료",
+    "waitingForOutput": "출력 대기 중...",
+    "lead": "리더",
+    "taskState": {
+      "pending": "대기 중",
+      "in_progress": "진행 중",
+      "completed": "완료"
+    }
   }
 }
