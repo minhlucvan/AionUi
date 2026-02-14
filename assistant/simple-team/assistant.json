@@ -1,0 +1,46 @@
+{
+  "id": "simple-team",
+  "name": "Simple Team",
+  "version": "1.0.0",
+  "description": "Minimal 2-member team: Commander coordinates, Worker executes. Perfect for testing and debugging team features.",
+  "author": "AionUi",
+  "tags": ["team", "debug", "simple", "test"],
+  "presetAgentType": "claude",
+  "avatar": "👥",
+  "nameI18n": {
+    "en-US": "Simple Team (Debug)",
+    "zh-CN": "简单团队（调试）",
+    "zh-TW": "簡單團隊（調試）",
+    "ja-JP": "シンプルチーム（デバッグ）",
+    "ko-KR": "간단한 팀 (디버그)"
+  },
+  "descriptionI18n": {
+    "en-US": "Minimal 2-member team: Commander coordinates, Worker executes. Perfect for testing and debugging team features.",
+    "zh-CN": "最小化 2 人团队：指挥官协调，工作者执行。非常适合测试和调试团队功能。",
+    "zh-TW": "最小化 2 人團隊：指揮官協調，工作者執行。非常適合測試和調試團隊功能。",
+    "ja-JP": "最小限の2人チーム：コマンダーが調整、ワーカーが実行。チーム機能のテストとデバッグに最適。",
+    "ko-KR": "최소 2인 팀: 커맨더가 조율하고 워커가 실행합니다. 팀 기능 테스트 및 디버깅에 적합합니다."
+  },
+  "ruleFiles": {
+    "en-US": "prompt.md"
+  },
+  "promptsI18n": {
+    "en-US": [
+      "Create a hello world function in Python",
+      "Write a simple README file",
+      "Create a basic HTML page with a title"
+    ],
+    "zh-CN": [
+      "创建一个 Python hello world 函数",
+      "编写一个简单的 README 文件",
+      "创建一个带标题的基本 HTML 页面"
+    ]
+  },
+  "teamMembers": [
+    {
+      "id": "worker",
+      "name": "Worker",
+      "role": "member"
+    }
+  ]
+}
