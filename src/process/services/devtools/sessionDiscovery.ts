@@ -17,10 +17,19 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+// Allow tests to override the base path
+let _claudeBasePathOverride: string | null = null;
+
+/** @internal Test-only override for the Claude base path. */
+export function _setClaudeBasePathForTest(basePath: string | null): void {
+  _claudeBasePathOverride = basePath;
+}
+
 /**
  * Get the base Claude directory path.
  */
 export function getClaudeBasePath(): string {
+  if (_claudeBasePathOverride) return _claudeBasePathOverride;
   return path.join(os.homedir(), '.claude');
 }
 
