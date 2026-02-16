@@ -1,0 +1,15 @@
+{
+  "maxIterations": 10,
+  "autoCommit": true,
+  "qualityChecks": {
+    "typecheck": "npm run typecheck",
+    "lint": "npm run lint",
+    "test": "npm test",
+    "build": null
+  },
+  "completionSignal": "<promise>COMPLETE</promise>",
+  "continueSignal": "<promise>CONTINUE</promise>",
+  "iterationDelayMs": 2000,
+  "retryOnFailure": true,
+  "maxRetries": 3
+}

@@ -1,0 +1,47 @@
+{
+  "id": "ralph",
+  "name": "Ralph - Autonomous Task Runner",
+  "version": "1.0.0",
+  "description": "Autonomous AI agent that iteratively implements product requirements. Breaks down complex tasks into user stories, executes them one by one with quality checks, and persists learnings across iterations.",
+  "author": "AionUi",
+  "tags": ["autonomous", "automation", "prd", "agent-loop", "task-runner"],
+  "presetAgentType": "claude",
+  "avatar": "\ud83e\udd16",
+  "workspacePath": "workspace",
+  "nameI18n": {
+    "en-US": "Ralph Autonomous Agent",
+    "zh-CN": "Ralph 自主代理",
+    "zh-TW": "Ralph 自主代理",
+    "ja-JP": "Ralph 自律エージェント",
+    "ko-KR": "Ralph 자율 에이전트"
+  },
+  "descriptionI18n": {
+    "en-US": "Autonomous AI agent that breaks down complex tasks into user stories and implements them iteratively with quality verification",
+    "zh-CN": "自主 AI 代理，将复杂任务分解为用户故事并通过质量验证迭代实现",
+    "zh-TW": "自主 AI 代理，將複雜任務分解為使用者故事並透過品質驗證迭代實現",
+    "ja-JP": "複雑なタスクをユーザーストーリーに分解し、品質検証を行いながら反復的に実装する自律AIエージェント",
+    "ko-KR": "복잡한 작업을 사용자 스토리로 분해하고 품질 검증을 통해 반복적으로 구현하는 자율 AI 에이전트"
+  },
+  "ruleFiles": {
+    "en-US": "ralph.md",
+    "zh-CN": "ralph.zh-CN.md"
+  },
+  "skillFiles": {
+    "en-US": "ralph-skills.md"
+  },
+  "defaultEnabledSkills": ["prd-generator", "prd-converter", "ralph-loop"],
+  "promptsI18n": {
+    "en-US": [
+      "Build a REST API with user authentication and CRUD operations",
+      "Create a React dashboard with charts and data tables",
+      "Implement a CLI tool for managing Docker containers",
+      "Add dark mode support to this existing application"
+    ],
+    "zh-CN": [
+      "构建一个带用户认证和CRUD操作的REST API",
+      "创建一个带图表和数据表的React仪表板",
+      "实现一个管理Docker容器的CLI工具",
+      "为现有应用添加暗色模式支持"
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "project": "MyApp",
+  "branchName": "ralph/feature-name",
+  "description": "Brief description of the feature being built",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add database schema for tasks",
+      "description": "As a developer, I want a tasks table in the database so that task data can be persisted",
+      "acceptanceCriteria": [
+        "Tasks table created with columns: id, title, description, status, priority, created_at, updated_at",
+        "Database migration runs successfully",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create task CRUD API endpoints",
+      "description": "As a developer, I want REST API endpoints for creating, reading, updating, and deleting tasks",
+      "acceptanceCriteria": [
+        "GET /api/tasks returns list of tasks",
+        "POST /api/tasks creates a new task",
+        "PUT /api/tasks/:id updates an existing task",
+        "DELETE /api/tasks/:id deletes a task",
+        "Input validation on create and update",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Build task list UI component",
+      "description": "As a user, I want to see a list of my tasks so that I can track what needs to be done",
+      "acceptanceCriteria": [
+        "Task list component displays tasks from API",
+        "Each task shows title, status, and priority",
+        "Empty state shown when no tasks exist",
+        "Loading state shown while fetching",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

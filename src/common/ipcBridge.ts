@@ -611,3 +611,71 @@ export const channel = {
   pluginStatusChanged: bridge.buildEmitter<{ pluginId: string; status: IChannelPluginStatus }>('channel.plugin-status-changed'),
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
 };
+
+// ==================== Ralph Autonomous Loop API ====================
+
+export type IRalphLoopStatus = 'idle' | 'running' | 'paused' | 'completed' | 'failed' | 'max_iterations_reached';
+
+export interface IRalphLoopState {
+  id: string;
+  conversationId: string;
+  status: IRalphLoopStatus;
+  currentIteration: number;
+  maxIterations: number;
+  totalStories: number;
+  completedStories: number;
+  currentStoryId: string | null;
+  startedAt: number;
+  lastIterationAt: number | null;
+  error: string | null;
+  workspace: string;
+}
+
+export interface IRalphStartParams {
+  conversationId: string;
+  workspace: string;
+  maxIterations?: number;
+}
+
+export interface IRalphProgressEvent {
+  loopId: string;
+  conversationId: string;
+  type: 'iteration_start' | 'iteration_end' | 'story_complete' | 'loop_complete' | 'loop_error' | 'loop_paused';
+  data: {
+    iteration?: number;
+    storyId?: string;
+    storyTitle?: string;
+    completedStories?: number;
+    totalStories?: number;
+    error?: string;
+  };
+}
+
+export interface IRalphPrd {
+  project: string;
+  branchName: string;
+  description: string;
+  userStories: Array<{
+    id: string;
+    title: string;
+    description: string;
+    acceptanceCriteria: string[];
+    priority: number;
+    passes: boolean;
+    notes: string;
+  }>;
+}
+
+export const ralph = {
+  // Loop control
+  start: bridge.buildProvider<IRalphLoopState, IRalphStartParams>('ralph.start'),
+  stop: bridge.buildProvider<IRalphLoopState | null, { loopId: string }>('ralph.stop'),
+  resume: bridge.buildProvider<IRalphLoopState | null, { loopId: string }>('ralph.resume'),
+  // Query
+  getLoop: bridge.buildProvider<IRalphLoopState | null, { loopId: string }>('ralph.get-loop'),
+  getLoopByConversation: bridge.buildProvider<IRalphLoopState | null, { conversationId: string }>('ralph.get-loop-by-conversation'),
+  listLoops: bridge.buildProvider<IRalphLoopState[], void>('ralph.list-loops'),
+  getPrd: bridge.buildProvider<IRalphPrd | null, { workspace: string }>('ralph.get-prd'),
+  // Events
+  onProgress: bridge.buildEmitter<IRalphProgressEvent>('ralph.progress'),
+};
