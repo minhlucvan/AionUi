@@ -1,7 +1,7 @@
 ---
 name: PRD Validator
 description: Specialist for validating PRD structure, story sizing, and dependency ordering
-tools: ["read_file", "list_directory", "bash"]
+tools: ['read_file', 'list_directory', 'bash']
 ---
 
 # PRD Validator Agent
@@ -16,19 +16,20 @@ You are a specialist in validating Product Requirements Documents for autonomous
 
 ## Validation Checklist
 
-Run ALL of the following checks on `prd.json`:
+Run ALL of the following checks on `prd.md`:
 
 ### 1. Structure Validation
 
-- [ ] Valid JSON format (parseable without errors)
-- [ ] `project` field is present and non-empty
-- [ ] `branchName` field is present and follows `ralph/` prefix convention
-- [ ] `description` field is present and non-empty
-- [ ] `userStories` array is present and non-empty
-- [ ] Each story has all required fields: `id`, `title`, `description`, `acceptanceCriteria`, `priority`, `passes`, `notes`
+- [ ] Valid markdown format with correct heading hierarchy
+- [ ] `# PRD: ProjectName` heading is present with a project name
+- [ ] `**Branch**:` field is present and follows `ralph/` prefix convention
+- [ ] `## Description` section is present and non-empty
+- [ ] `## Stories` section is present with at least one story
+- [ ] Each story has the format `### [ ] US-XXX: Title (PN)` or `### [x] US-XXX: Title (PN)`
+- [ ] Each story has a description, `**Acceptance Criteria**` with checkboxes, and optionally `**Notes**`
 - [ ] All story IDs are unique (no duplicates)
 - [ ] Story IDs follow `US-XXX` format
-- [ ] Priority numbers are sequential starting from 1
+- [ ] Priority numbers `(PN)` are sequential starting from 1
 
 ### 2. Size Validation
 

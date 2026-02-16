@@ -8,14 +8,14 @@ Ralph is an autonomous AI system that implements product requirements through it
 
 Ralph uses 6 agents working together:
 
-| Agent | Role | When Used |
-|-------|------|-----------|
+| Agent                 | Role                                                 | When Used                       |
+| --------------------- | ---------------------------------------------------- | ------------------------------- |
 | **@ralph-supervisor** | Orchestrator - reads state, selects tasks, delegates | Every iteration (default agent) |
-| **@prd-creator** | Generates/modifies structured PRDs from descriptions | Setup phase |
-| **@prd-validator** | Validates PRD structure, sizing, dependencies | Before loop starts |
-| **@implementer** | Implements a single user story | Each iteration |
-| **@quality-checker** | Runs typecheck/lint/test/build, fixes failures | After each implementation |
-| **@progress-tracker** | Updates prd.json, progress.txt, commits changes | After quality passes |
+| **@prd-creator**      | Generates/modifies structured PRDs from descriptions | Setup phase                     |
+| **@prd-validator**    | Validates PRD structure, sizing, dependencies        | Before loop starts              |
+| **@implementer**      | Implements a single user story                       | Each iteration                  |
+| **@quality-checker**  | Runs typecheck/lint/test/build, fixes failures       | After each implementation       |
+| **@progress-tracker** | Updates prd.md, progress.txt, commits changes        | After quality passes            |
 
 ### Flow
 
@@ -51,7 +51,7 @@ User Request
 
 1. **Supervisor never implements** - It only reads state, makes decisions, and delegates
 2. **One story per iteration** - Each loop cycle handles exactly one user story
-3. **Fresh context, persistent memory** - State persists through `prd.json`, `progress.txt`, and git history
+3. **Fresh context, persistent memory** - State persists through `prd.md`, `progress.txt`, and git history
 4. **Quality gates are mandatory** - @quality-checker must pass before @progress-tracker runs
 5. **Full context on delegation** - Sub-agents start fresh; supervisor must provide all needed context
 
@@ -59,26 +59,51 @@ User Request
 
 ## State Files
 
-### `prd.json` - Task List
+### `prd.md` - Task List (Markdown Format)
 
-```json
-{
-  "project": "ProjectName",
-  "branchName": "ralph/feature-name",
-  "description": "What we're building",
-  "userStories": [
-    {
-      "id": "US-001",
-      "title": "Story title",
-      "description": "As a [user], I want [capability] so that [benefit]",
-      "acceptanceCriteria": ["Criterion 1", "Typecheck passes", "Tests pass"],
-      "priority": 1,
-      "passes": false,
-      "notes": ""
-    }
-  ]
-}
+```markdown
+# PRD: ProjectName
+
+**Branch**: `ralph/feature-name`
+
+## Description
+
+What we're building
+
+## Stories
+
+### [ ] US-001: Story title (P1)
+
+As a [user], I want [capability] so that [benefit]
+
+**Acceptance Criteria**
+
+- [ ] Criterion 1
+- [ ] Typecheck passes
+- [ ] Tests pass
+
+**Notes**
+
+---
+
+### [x] US-002: Completed story (P2)
+
+As a [user], I want [capability] so that [benefit]
+
+**Acceptance Criteria**
+
+- [x] Criterion 1
+- [x] Tests pass
+
+---
 ```
+
+**Key conventions:**
+
+- `### [ ] US-XXX:` = pending story, `### [x] US-XXX:` = completed
+- `(P1)` suffix = priority number
+- Acceptance criteria use `- [ ]` / `- [x]` checkboxes
+- To mark done: change `[ ]` to `[x]` in the `###` header
 
 ### `progress.txt` - Cumulative Learnings
 
@@ -119,12 +144,12 @@ The system monitors these signals from @ralph-supervisor:
 
 ## Error Handling
 
-| Error | Handler |
-|-------|---------|
-| Quality check fails | @quality-checker fixes and retries (max 3 attempts) |
-| Story blocked by dependency | @ralph-supervisor skips to next story |
-| PRD validation fails | @ralph-supervisor re-delegates to @prd-creator |
-| Max iterations reached | @ralph-supervisor reports remaining stories |
+| Error                       | Handler                                             |
+| --------------------------- | --------------------------------------------------- |
+| Quality check fails         | @quality-checker fixes and retries (max 3 attempts) |
+| Story blocked by dependency | @ralph-supervisor skips to next story               |
+| PRD validation fails        | @ralph-supervisor re-delegates to @prd-creator      |
+| Max iterations reached      | @ralph-supervisor reports remaining stories         |
 
 ---
 

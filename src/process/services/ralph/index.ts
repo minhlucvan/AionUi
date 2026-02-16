@@ -5,12 +5,5 @@
  */
 
 export { ralphService } from './RalphService';
-export type {
-  RalphConfig,
-  RalphLoopState,
-  RalphLoopStatus,
-  RalphPrd,
-  RalphProgressEvent,
-  RalphStartParams,
-  RalphUserStory,
-} from './types';
+export { parsePrdMarkdown, serializePrdMarkdown } from './prdParser';
+export type { RalphConfig, RalphLoopState, RalphLoopStatus, RalphPrd, RalphProgressEvent, RalphStartParams, RalphUserStory } from './types';
