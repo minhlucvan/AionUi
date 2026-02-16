@@ -512,8 +512,8 @@ export class AcpConnection {
 
     return new Promise((resolve, reject) => {
       // Use longer timeout for session/prompt requests as they involve LLM processing
-      // Complex tasks like document processing may need significantly more time
-      const timeoutDuration = method === 'session/prompt' ? 300000 : 60000; // 5 minutes for prompts, 1 minute for others
+      // Complex tasks like document processing and autonomous agents (Ralph) may need significantly more time
+      const timeoutDuration = method === 'session/prompt' ? 1800000 : 60000; // 30 minutes for prompts, 1 minute for others
       const startTime = Date.now();
 
       const createTimeoutHandler = () => {

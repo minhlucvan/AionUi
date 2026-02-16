@@ -8,14 +8,7 @@ import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
 import WorkerManage from '../../WorkerManage';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import type {
-  RalphConfig,
-  RalphLoopState,
-  RalphLoopStatus,
-  RalphPrd,
-  RalphProgressEvent,
-  RalphStartParams,
-} from './types';
+import type { RalphConfig, RalphLoopState, RalphPrd, RalphProgressEvent, RalphStartParams } from './types';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -212,7 +205,7 @@ class RalphService {
   /**
    * Execute a single iteration of the Ralph loop
    */
-  private async executeIteration(loopId: string, config: RalphConfig): Promise<void> {
+  private async executeIteration(loopId: string, _config: RalphConfig): Promise<void> {
     const state = this.loops.get(loopId);
     if (!state || state.status !== 'running') return;
 
@@ -240,9 +233,7 @@ class RalphService {
     // Reload PRD to get current story state
     const prd = this.loadPrd(state.workspace);
     if (prd) {
-      const nextStory = prd.userStories
-        .filter((s) => !s.passes)
-        .sort((a, b) => a.priority - b.priority)[0];
+      const nextStory = prd.userStories.filter((s) => !s.passes).sort((a, b) => a.priority - b.priority)[0];
 
       if (nextStory) {
         state.currentStoryId = nextStory.id;
@@ -269,18 +260,18 @@ class RalphService {
 
     try {
       // Get or build the agent task with yoloMode for autonomous operation
-      const existingTask = WorkerManage.getTaskById(state.conversationId);
-      if (existingTask) {
-        // Kill and recreate with yoloMode
-        WorkerManage.kill(state.conversationId);
-      }
-
-      const task = await WorkerManage.getTaskByIdRollbackBuild(state.conversationId, {
-        yoloMode: true,
-      });
+      // IMPORTANT: Reuse existing task to avoid breaking message queues
+      let task = WorkerManage.getTaskById(state.conversationId);
 
       if (!task) {
-        throw new Error('Could not create agent task for conversation');
+        // Create task only if it doesn't exist
+        task = await WorkerManage.getTaskByIdRollbackBuild(state.conversationId, {
+          yoloMode: true,
+        });
+
+        if (!task) {
+          throw new Error('Could not create agent task for conversation');
+        }
       }
 
       const msgId = uuid();
@@ -320,11 +311,7 @@ class RalphService {
   /**
    * Set up a listener on the response stream to detect completion signals
    */
-  private setupResponseListener(
-    loopId: string,
-    conversationId: string,
-    config: RalphConfig
-  ): void {
+  private setupResponseListener(loopId: string, conversationId: string, config: RalphConfig): void {
     // Clean up any existing listener
     this.cleanupListener(loopId);
 
@@ -413,9 +400,7 @@ class RalphService {
       }
 
       // Find what was just completed
-      const completedStory = prd.userStories.find(
-        (s) => s.id === state.currentStoryId && s.passes
-      );
+      const completedStory = prd.userStories.find((s) => s.id === state.currentStoryId && s.passes);
       if (completedStory) {
         this.emitProgress({
           loopId,

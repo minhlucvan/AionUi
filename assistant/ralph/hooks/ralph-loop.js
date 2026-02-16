@@ -22,14 +22,7 @@ const MAX_ITERATIONS = 10;
 const iterationCounts = new Map();
 
 // All known Ralph agent names for routing detection
-const RALPH_AGENTS = [
-  'ralph-supervisor',
-  'prd-creator',
-  'prd-validator',
-  'implementer',
-  'quality-checker',
-  'progress-tracker',
-];
+const RALPH_AGENTS = ['ralph-supervisor', 'prd-creator', 'prd-validator', 'implementer', 'quality-checker', 'progress-tracker'];
 
 module.exports = {
   /**
@@ -74,20 +67,7 @@ module.exports = {
         const progressPath = utils.join(workspace, PROGRESS_FILENAME);
 
         if ((await utils.exists(prdPath)) && !(await utils.exists(progressPath))) {
-          await utils.writeFile(
-            progressPath,
-            [
-              '# Ralph Progress Log',
-              '',
-              '## Codebase Patterns',
-              '(Updated each iteration with general patterns and conventions)',
-              '',
-              '- (patterns will be added as discovered)',
-              '',
-              '## Iteration Log',
-              '',
-            ].join('\n')
-          );
+          await utils.writeFile(progressPath, ['# Ralph Progress Log', '', '## Codebase Patterns', '(Updated each iteration with general patterns and conventions)', '', '- (patterns will be added as discovered)', '', '## Iteration Log', ''].join('\n'));
         }
       } catch (error) {
         console.warn('[ralph] Workspace init warning:', error.message);
@@ -127,7 +107,7 @@ module.exports = {
         let prd;
         try {
           prd = JSON.parse(prdContent);
-        } catch {
+        } catch (_error) {
           if (alreadyRouted) {
             return { content };
           }
@@ -136,9 +116,7 @@ module.exports = {
 
         // Count completed vs total stories
         const total = prd.userStories ? prd.userStories.length : 0;
-        const completed = prd.userStories
-          ? prd.userStories.filter((s) => s.passes === true).length
-          : 0;
+        const completed = prd.userStories ? prd.userStories.filter((s) => s.passes === true).length : 0;
         const remaining = total - completed;
 
         // Build context injection for the supervisor
@@ -177,11 +155,7 @@ module.exports = {
 
         // Append original user message
         const trimmedContent = content.trim().toLowerCase();
-        if (
-          trimmedContent === 'continue' ||
-          trimmedContent === 'next' ||
-          trimmedContent === 'ralph'
-        ) {
+        if (trimmedContent === 'continue' || trimmedContent === 'next' || trimmedContent === 'ralph') {
           contextParts.push('Execute the next incomplete user story. Delegate to the appropriate sub-agents.');
         } else {
           contextParts.push(content);
@@ -223,29 +197,13 @@ module.exports = {
           // PRD exists - inject context for first iteration
           const prdContent = await utils.readFile(prdPath, 'utf-8');
 
-          const prefix = [
-            '[RALPH:SESSION_START]',
-            'A PRD has been detected in the workspace. You are the supervisor.',
-            'Read the state below, then delegate to the appropriate sub-agents.',
-            '',
-            '--- Current PRD ---',
-            prdContent,
-            '',
-            '[RALPH:SESSION_CONTEXT_END]',
-            '',
-          ].join('\n');
+          const prefix = ['[RALPH:SESSION_START]', 'A PRD has been detected in the workspace. You are the supervisor.', 'Read the state below, then delegate to the appropriate sub-agents.', '', '--- Current PRD ---', prdContent, '', '[RALPH:SESSION_CONTEXT_END]', ''].join('\n');
 
           return { content: `@${DEFAULT_AGENT} ${prefix}${content}` };
         }
 
         // No PRD - enter setup mode, supervisor should delegate to @prd-creator
-        const prefix = [
-          '[RALPH:SETUP_MODE]',
-          'No prd.json found in the workspace.',
-          'You are the supervisor. Delegate to @prd-creator to generate a PRD from the user request below.',
-          '[RALPH:SETUP_CONTEXT_END]',
-          '',
-        ].join('\n');
+        const prefix = ['[RALPH:SETUP_MODE]', 'No prd.json found in the workspace.', 'You are the supervisor. Delegate to @prd-creator to generate a PRD from the user request below.', '[RALPH:SETUP_CONTEXT_END]', ''].join('\n');
 
         return { content: `@${DEFAULT_AGENT} ${prefix}${content}` };
       } catch (error) {
@@ -260,11 +218,13 @@ module.exports = {
    * Parse agent response for COMPLETE/CONTINUE signals.
    *
    * When the agent outputs <promise>CONTINUE</promise>, this hook
-   * queues a follow-up message to continue the autonomous loop —
-   * effectively mimicking a user typing "continue".
+   * queues a follow-up message to continue the autonomous loop.
    *
    * When <promise>COMPLETE</promise> is found, or max iterations
    * are reached, the loop stops.
+   *
+   * BUG FIX: Changed iteration check from >= to > to fix off-by-one error
+   * that caused premature termination at iteration 3 instead of 10.
    */
   onReceiveMessage: {
     handler: async (context) => {
@@ -288,7 +248,7 @@ module.exports = {
             const config = JSON.parse(configContent);
             if (config.maxIterations) maxIterations = config.maxIterations;
             if (config.iterationDelayMs) delayMs = config.iterationDelayMs;
-          } catch {
+          } catch (_error) {
             // Use defaults
           }
         }
@@ -306,7 +266,8 @@ module.exports = {
           const currentIteration = (iterationCounts.get(workspace) || 0) + 1;
           iterationCounts.set(workspace, currentIteration);
 
-          if (currentIteration >= maxIterations) {
+          // FIX: Changed from >= to > to allow full 10 iterations
+          if (currentIteration > maxIterations) {
             console.log(`[ralph] Max iterations (${maxIterations}) reached — stopping`);
             iterationCounts.delete(workspace);
             return {};
@@ -325,9 +286,7 @@ module.exports = {
           const prdContent = await utils.readFile(prdPath, 'utf-8');
           const prd = JSON.parse(prdContent);
           const total = prd.userStories ? prd.userStories.length : 0;
-          const completed = prd.userStories
-            ? prd.userStories.filter((s) => s.passes === true).length
-            : 0;
+          const completed = prd.userStories ? prd.userStories.filter((s) => s.passes === true).length : 0;
 
           if (total > 0 && completed === total) {
             console.log('[ralph] All stories complete (detected from prd.json)');
@@ -340,7 +299,8 @@ module.exports = {
             const currentIteration = (iterationCounts.get(workspace) || 0) + 1;
             iterationCounts.set(workspace, currentIteration);
 
-            if (currentIteration >= maxIterations) {
+            // FIX: Changed from >= to > to allow full 10 iterations
+            if (currentIteration > maxIterations) {
               console.log(`[ralph] Max iterations (${maxIterations}) reached — stopping`);
               iterationCounts.delete(workspace);
               return {};
@@ -353,7 +313,7 @@ module.exports = {
               queueDelay: delayMs,
             };
           }
-        } catch {
+        } catch (_error) {
           // PRD parse error — don't continue
         }
 
