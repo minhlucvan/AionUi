@@ -28,7 +28,7 @@ export const HOOK_PRIORITY = {
 /**
  * Hook events (extensible)
  */
-export type HookEvent = 'onWorkspaceInit' | 'onConversationInit' | 'onSendMessage' | 'onFirstMessage' | 'onBuildSystemInstructions' | 'onError';
+export type HookEvent = 'onWorkspaceInit' | 'onConversationInit' | 'onSendMessage' | 'onFirstMessage' | 'onBuildSystemInstructions' | 'onReceiveMessage' | 'onError';
 
 /**
  * Hook context (same for all hooks)
@@ -53,6 +53,10 @@ export type HookResult = {
   content?: string;
   blocked?: boolean;
   blockReason?: string;
+  /** When returned from onReceiveMessage, queues a follow-up message to the agent */
+  queueMessage?: string;
+  /** Delay in ms before sending the queued message (default: 2000) */
+  queueDelay?: number;
 };
 
 /**
@@ -78,6 +82,7 @@ export type HookModule = {
   onSendMessage?: HookConfig | HookHandler;
   onFirstMessage?: HookConfig | HookHandler;
   onBuildSystemInstructions?: HookConfig | HookHandler;
+  onReceiveMessage?: HookConfig | HookHandler;
   onError?: HookConfig | HookHandler;
   [key: string]: HookConfig | HookHandler | undefined;
 };

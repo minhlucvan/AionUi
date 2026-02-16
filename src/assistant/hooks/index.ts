@@ -13,6 +13,9 @@ export { runHooks } from './HookRunner';
 export { createHookUtils } from './HookRunner';
 export { runAgentHooks, type AgentType } from './AgentHooks';
 
+// Response hook runner (onReceiveMessage support)
+export { initResponseHookRunner, cleanupResponseHookRunner } from './ResponseHookRunner';
+
 // Module loading and execution
 export { loadHookModules } from './ModuleLoader';
 export { executeHooks } from './HookExecutor';

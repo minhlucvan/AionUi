@@ -13,6 +13,14 @@ const PROGRESS_FILENAME = 'progress.txt';
 const RALPH_STATE_DIR = '.ralph';
 const DEFAULT_AGENT = 'ralph-supervisor';
 
+const COMPLETION_SIGNAL = '<promise>COMPLETE</promise>';
+const CONTINUE_SIGNAL = '<promise>CONTINUE</promise>';
+const DEFAULT_ITERATION_DELAY_MS = 2000;
+const MAX_ITERATIONS = 10;
+
+// Track iteration count per workspace to prevent runaway loops
+const iterationCounts = new Map();
+
 // All known Ralph agent names for routing detection
 const RALPH_AGENTS = [
   'ralph-supervisor',
@@ -205,6 +213,9 @@ module.exports = {
       const { workspace, utils, content } = context;
       if (!utils || !content) return {};
 
+      // Reset iteration counter for new sessions
+      iterationCounts.delete(workspace);
+
       try {
         const prdPath = utils.join(workspace, PRD_FILENAME);
 
@@ -243,5 +254,115 @@ module.exports = {
       }
     },
     priority: 25,
+  },
+
+  /**
+   * Parse agent response for COMPLETE/CONTINUE signals.
+   *
+   * When the agent outputs <promise>CONTINUE</promise>, this hook
+   * queues a follow-up message to continue the autonomous loop —
+   * effectively mimicking a user typing "continue".
+   *
+   * When <promise>COMPLETE</promise> is found, or max iterations
+   * are reached, the loop stops.
+   */
+  onReceiveMessage: {
+    handler: async (context) => {
+      const { workspace, utils, content } = context;
+      if (!utils || !content) return {};
+
+      try {
+        // Only run auto-continue if a PRD exists (we're in loop mode)
+        const prdPath = utils.join(workspace, PRD_FILENAME);
+        if (!(await utils.exists(prdPath))) {
+          return {};
+        }
+
+        // Load config for max iterations and delay
+        let maxIterations = MAX_ITERATIONS;
+        let delayMs = DEFAULT_ITERATION_DELAY_MS;
+        const configPath = utils.join(workspace, RALPH_STATE_DIR, 'config.json');
+        if (await utils.exists(configPath)) {
+          try {
+            const configContent = await utils.readFile(configPath, 'utf-8');
+            const config = JSON.parse(configContent);
+            if (config.maxIterations) maxIterations = config.maxIterations;
+            if (config.iterationDelayMs) delayMs = config.iterationDelayMs;
+          } catch {
+            // Use defaults
+          }
+        }
+
+        // Check for completion signal — loop is done
+        if (content.includes(COMPLETION_SIGNAL)) {
+          console.log('[ralph] Loop complete — all stories done');
+          iterationCounts.delete(workspace);
+          return {};
+        }
+
+        // Check for continue signal — queue next iteration
+        if (content.includes(CONTINUE_SIGNAL)) {
+          // Track iteration count
+          const currentIteration = (iterationCounts.get(workspace) || 0) + 1;
+          iterationCounts.set(workspace, currentIteration);
+
+          if (currentIteration >= maxIterations) {
+            console.log(`[ralph] Max iterations (${maxIterations}) reached — stopping`);
+            iterationCounts.delete(workspace);
+            return {};
+          }
+
+          console.log(`[ralph] Continue signal detected — queueing iteration ${currentIteration}/${maxIterations}`);
+
+          return {
+            queueMessage: `[RALPH:ITERATION ${currentIteration}/${maxIterations}] Continue. Execute the next incomplete user story.`,
+            queueDelay: delayMs,
+          };
+        }
+
+        // No signal detected — check PRD directly as fallback
+        try {
+          const prdContent = await utils.readFile(prdPath, 'utf-8');
+          const prd = JSON.parse(prdContent);
+          const total = prd.userStories ? prd.userStories.length : 0;
+          const completed = prd.userStories
+            ? prd.userStories.filter((s) => s.passes === true).length
+            : 0;
+
+          if (total > 0 && completed === total) {
+            console.log('[ralph] All stories complete (detected from prd.json)');
+            iterationCounts.delete(workspace);
+            return {};
+          }
+
+          if (total > 0 && completed < total) {
+            // Stories remain but agent didn't output a signal — continue anyway
+            const currentIteration = (iterationCounts.get(workspace) || 0) + 1;
+            iterationCounts.set(workspace, currentIteration);
+
+            if (currentIteration >= maxIterations) {
+              console.log(`[ralph] Max iterations (${maxIterations}) reached — stopping`);
+              iterationCounts.delete(workspace);
+              return {};
+            }
+
+            console.log(`[ralph] No signal but stories remain — queueing iteration ${currentIteration}/${maxIterations}`);
+
+            return {
+              queueMessage: `[RALPH:ITERATION ${currentIteration}/${maxIterations}] Continue. Execute the next incomplete user story.`,
+              queueDelay: delayMs,
+            };
+          }
+        } catch {
+          // PRD parse error — don't continue
+        }
+
+        return {};
+      } catch (error) {
+        console.warn('[ralph] onReceiveMessage warning:', error.message);
+        return {};
+      }
+    },
+    priority: 30,
   },
 };

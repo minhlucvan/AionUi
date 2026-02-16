@@ -29,6 +29,7 @@ import { initWebuiBridge } from './webuiBridge';
 import { initRalphBridge } from './ralphBridge';
 import { initUtilityToolsBridge } from './utilityToolsBridge';
 import { initWindowControlsBridge } from './windowControlsBridge';
+import { initResponseHookRunner } from '@/assistant/hooks';
 
 /**
  * 初始化所有IPC桥接模块
@@ -59,6 +60,10 @@ export function initAllBridges(): void {
   initCronBridge();
   initRalphBridge();
   initUtilityToolsBridge();
+
+  // Initialize response hook runner for onReceiveMessage support
+  // This listens to agent responses and fires assistant hooks on completion
+  initResponseHookRunner();
 }
 
 /**

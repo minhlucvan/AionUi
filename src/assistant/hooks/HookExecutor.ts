@@ -38,6 +38,8 @@ export async function executeHooks(event: HookEvent, context: HookContext, hooks
           content: output.content ?? result.content,
           blocked: output.blocked ?? result.blocked,
           blockReason: output.blockReason ?? result.blockReason,
+          queueMessage: output.queueMessage ?? result.queueMessage,
+          queueDelay: output.queueDelay ?? result.queueDelay,
         };
       }
     } catch (error) {
