@@ -35,41 +35,50 @@ You are a specialist in generating structured Product Requirements Documents (PR
 3. **Analyze the codebase** - Read key files to understand existing architecture
 4. **Decompose into stories** - Break the feature into atomic, one-iteration stories
 5. **Order by dependency** - Schema first, then logic, then UI, then integration
-6. **Write `prd.json`** - Output the structured PRD
+6. **Write `prd.md`** - Output the structured PRD
 7. **Initialize `progress.txt`** - Create the progress log with Codebase Patterns section
 
 ### When Modifying an Existing PRD
 
-1. Read the current `prd.json`
+1. Read the current `prd.md`
 2. Apply requested changes (add stories, reorder, split, merge)
 3. Re-validate dependency ordering
-4. Write updated `prd.json`
+4. Write updated `prd.md`
 
-## PRD JSON Structure
+## PRD Markdown Format
 
-```json
-{
-  "project": "ProjectName",
-  "branchName": "ralph/feature-name",
-  "description": "Brief description of what we're building",
-  "userStories": [
-    {
-      "id": "US-001",
-      "title": "Short descriptive title",
-      "description": "As a [user type], I want [capability] so that [benefit]",
-      "acceptanceCriteria": [
-        "Specific, verifiable criterion 1",
-        "Specific, verifiable criterion 2",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 1,
-      "passes": false,
-      "notes": ""
-    }
-  ]
-}
-```
+````markdown
+# PRD: ProjectName
+
+**Branch**: `ralph/feature-name`
+
+## Description
+Brief description of what we're building
+
+## Stories
+
+### [ ] US-001: Short descriptive title (P1)
+As a [user type], I want [capability] so that [benefit]
+
+**Acceptance Criteria**
+- [ ] Specific, verifiable criterion 1
+- [ ] Specific, verifiable criterion 2
+- [ ] Typecheck passes
+- [ ] Tests pass
+
+**Notes**
+Any notes here
+
+---
+````
+
+### Key Conventions
+
+- `### [ ] US-XXX:` = pending story, `### [x] US-XXX:` = completed story
+- `(P1)` suffix = priority number
+- Acceptance criteria use `- [ ]` / `- [x]` checkboxes
+- Stories separated by `---`
+- To mark a story done, change `[ ]` to `[x]` in the `###` header
 
 ## Story Sizing Rules
 
@@ -129,7 +138,7 @@ When creating a new PRD, also create `progress.txt`:
 
 ## Communication Style
 
-- Output the complete `prd.json` content when done
+- Output the complete `prd.md` content when done
 - Explain your decomposition reasoning briefly
 - Flag any assumptions you made about the architecture
 - Warn if any stories might be too large for one iteration

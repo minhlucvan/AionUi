@@ -18,6 +18,7 @@ import type {
 } from './types';
 import * as fs from 'fs';
 import * as path from 'path';
+import { parsePrdMarkdown } from './prdParser';
 
 const DEFAULT_CONFIG: RalphConfig = {
   maxIterations: 10,
@@ -70,7 +71,7 @@ class RalphService {
     // Load and validate PRD
     const prd = this.loadPrd(workspace);
     if (!prd) {
-      throw new Error('No prd.json found in workspace. Create a PRD first.');
+      throw new Error('No prd.md found in workspace. Create a PRD first.');
     }
 
     // Load config
@@ -460,13 +461,25 @@ class RalphService {
   }
 
   /**
-   * Load prd.json from workspace
+   * Load PRD from workspace (supports prd.md with prd.json fallback)
    */
   private loadPrd(workspace: string): RalphPrd | null {
-    const prdPath = path.join(workspace, 'prd.json');
+    // Prefer prd.md (markdown format)
+    const mdPath = path.join(workspace, 'prd.md');
     try {
-      if (!fs.existsSync(prdPath)) return null;
-      const content = fs.readFileSync(prdPath, 'utf-8');
+      if (fs.existsSync(mdPath)) {
+        const content = fs.readFileSync(mdPath, 'utf-8');
+        return parsePrdMarkdown(content);
+      }
+    } catch {
+      // Fall through to JSON fallback
+    }
+
+    // Fallback: prd.json (legacy format)
+    const jsonPath = path.join(workspace, 'prd.json');
+    try {
+      if (!fs.existsSync(jsonPath)) return null;
+      const content = fs.readFileSync(jsonPath, 'utf-8');
       return JSON.parse(content) as RalphPrd;
     } catch {
       return null;

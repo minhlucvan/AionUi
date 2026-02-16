@@ -5,6 +5,7 @@
  */
 
 export { ralphService } from './RalphService';
+export { parsePrdMarkdown, serializePrdMarkdown } from './prdParser';
 export type {
   RalphConfig,
   RalphLoopState,

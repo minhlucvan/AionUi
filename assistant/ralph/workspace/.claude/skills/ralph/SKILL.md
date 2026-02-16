@@ -13,7 +13,7 @@ Ralph is a multi-agent autonomous system that implements product requirements th
 | `@prd-validator` | Validates PRD structure, story sizing, dependency ordering |
 | `@implementer` | Implements a single user story with minimal, focused changes |
 | `@quality-checker` | Runs typecheck/lint/test/build and fixes failures |
-| `@progress-tracker` | Updates prd.json status, appends to progress.txt, commits |
+| `@progress-tracker` | Updates prd.md status, appends to progress.txt, commits |
 
 ## Triggers
 
@@ -26,7 +26,7 @@ Ralph is a multi-agent autonomous system that implements product requirements th
 
 Each iteration follows this delegation chain:
 
-1. **@ralph-supervisor** reads `prd.json` and `progress.txt`, selects next story
+1. **@ralph-supervisor** reads `prd.md` and `progress.txt`, selects next story
 2. **@implementer** receives the story and implements it
 3. **@quality-checker** runs all quality gates, fixes any failures
 4. **@progress-tracker** marks the story complete, records learnings, commits
@@ -34,26 +34,38 @@ Each iteration follows this delegation chain:
    - If done: outputs `<promise>COMPLETE</promise>`
    - If remaining: outputs `<promise>CONTINUE</promise>`
 
-## PRD JSON Format
+## PRD Markdown Format
 
-```json
-{
-  "project": "ProjectName",
-  "branchName": "ralph/feature-name",
-  "description": "Brief description",
-  "userStories": [
-    {
-      "id": "US-001",
-      "title": "Story title",
-      "description": "As a [user], I want [capability] so that [benefit]",
-      "acceptanceCriteria": ["Criterion 1", "Typecheck passes", "Tests pass"],
-      "priority": 1,
-      "passes": false,
-      "notes": ""
-    }
-  ]
-}
-```
+````markdown
+# PRD: ProjectName
+
+**Branch**: `ralph/feature-name`
+
+## Description
+Brief description
+
+## Stories
+
+### [ ] US-001: Story title (P1)
+As a [user], I want [capability] so that [benefit]
+
+**Acceptance Criteria**
+- [ ] Criterion 1
+- [ ] Typecheck passes
+- [ ] Tests pass
+
+**Notes**
+
+---
+````
+
+### Key Conventions
+
+- `### [ ] US-XXX:` = pending story, `### [x] US-XXX:` = completed story
+- `(P1)` suffix = priority number
+- Acceptance criteria use `- [ ]` / `- [x]` checkboxes
+- Stories separated by `---`
+- To mark a story done, change `[ ]` to `[x]` in the `###` header
 
 ## Story Sizing Rules
 

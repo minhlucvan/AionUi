@@ -15,7 +15,7 @@ Ralph 使用 6 个协同工作的代理：
 | **@prd-validator** | 验证 PRD 结构、规模、依赖顺序 | 循环开始前 |
 | **@implementer** | 实现单个用户故事 | 每次迭代 |
 | **@quality-checker** | 运行类型检查/lint/测试/构建，修复失败 | 每次实现后 |
-| **@progress-tracker** | 更新 prd.json、progress.txt，提交更改 | 质量检查通过后 |
+| **@progress-tracker** | 更新 prd.md、progress.txt，提交更改 | 质量检查通过后 |
 
 ### 流程
 
@@ -51,7 +51,7 @@ Ralph 使用 6 个协同工作的代理：
 
 1. **监督者从不实现** - 仅读取状态、做决策、委派
 2. **每次迭代一个故事** - 每个循环周期处理一个用户故事
-3. **全新上下文，持久记忆** - 通过 `prd.json`、`progress.txt` 和 git 历史持久化
+3. **全新上下文，持久记忆** - 通过 `prd.md`、`progress.txt` 和 git 历史持久化
 4. **质量检查是强制性的** - @quality-checker 必须通过才能运行 @progress-tracker
 5. **委派时提供完整上下文** - 子代理从零开始；监督者必须提供所有需要的信息
 

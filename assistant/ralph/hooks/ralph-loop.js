@@ -6,9 +6,10 @@
  * - Workspace initialization with Ralph state files
  * - Message preprocessing to inject PRD context for the supervisor
  * - First message handling for setup mode detection
+ * - Response parsing for autonomous loop continuation
  */
 
-const PRD_FILENAME = 'prd.json';
+const PRD_FILENAME = 'prd.md';
 const PROGRESS_FILENAME = 'progress.txt';
 const RALPH_STATE_DIR = '.ralph';
 const DEFAULT_AGENT = 'ralph-supervisor';
@@ -30,6 +31,34 @@ const RALPH_AGENTS = [
   'quality-checker',
   'progress-tracker',
 ];
+
+/**
+ * Count completed/total stories from markdown PRD content.
+ * Stories use ### [x] for done and ### [ ] for pending.
+ */
+function countStories(prdContent) {
+  const storyPattern = /^###\s+\[([ x])\]\s+US-\d+/gm;
+  let total = 0;
+  let completed = 0;
+  let match;
+  while ((match = storyPattern.exec(prdContent)) !== null) {
+    total++;
+    if (match[1] === 'x') completed++;
+  }
+  return { total, completed, remaining: total - completed };
+}
+
+/**
+ * Check if a PRD file exists (prd.md preferred, prd.json as fallback)
+ */
+async function findPrdPath(workspace, utils) {
+  const mdPath = utils.join(workspace, PRD_FILENAME);
+  if (await utils.exists(mdPath)) return mdPath;
+  // Legacy fallback
+  const jsonPath = utils.join(workspace, 'prd.json');
+  if (await utils.exists(jsonPath)) return jsonPath;
+  return null;
+}
 
 module.exports = {
   /**
@@ -69,11 +98,11 @@ module.exports = {
           );
         }
 
-        // Initialize progress.txt if prd.json exists but progress.txt doesn't
-        const prdPath = utils.join(workspace, PRD_FILENAME);
+        // Initialize progress.txt if PRD exists but progress.txt doesn't
+        const prdPath = await findPrdPath(workspace, utils);
         const progressPath = utils.join(workspace, PROGRESS_FILENAME);
 
-        if ((await utils.exists(prdPath)) && !(await utils.exists(progressPath))) {
+        if (prdPath && !(await utils.exists(progressPath))) {
           await utils.writeFile(
             progressPath,
             [
@@ -112,11 +141,11 @@ module.exports = {
       const alreadyRouted = RALPH_AGENTS.some((agent) => content.includes(`@${agent}`));
 
       try {
-        const prdPath = utils.join(workspace, PRD_FILENAME);
+        const prdPath = await findPrdPath(workspace, utils);
         const progressPath = utils.join(workspace, PROGRESS_FILENAME);
 
-        // If no prd.json exists, route to supervisor without context injection
-        if (!(await utils.exists(prdPath))) {
+        // If no PRD exists, route to supervisor without context injection
+        if (!prdPath) {
           if (alreadyRouted) {
             return { content };
           }
@@ -124,22 +153,9 @@ module.exports = {
         }
 
         const prdContent = await utils.readFile(prdPath, 'utf-8');
-        let prd;
-        try {
-          prd = JSON.parse(prdContent);
-        } catch {
-          if (alreadyRouted) {
-            return { content };
-          }
-          return { content: `@${DEFAULT_AGENT} ${content}` };
-        }
 
-        // Count completed vs total stories
-        const total = prd.userStories ? prd.userStories.length : 0;
-        const completed = prd.userStories
-          ? prd.userStories.filter((s) => s.passes === true).length
-          : 0;
-        const remaining = total - completed;
+        // Count completed vs total stories from markdown
+        const { total, completed, remaining } = countStories(prdContent);
 
         // Build context injection for the supervisor
         const contextParts = [];
@@ -148,7 +164,7 @@ module.exports = {
         contextParts.push(`Progress: ${completed}/${total} stories complete (${remaining} remaining)`);
         contextParts.push('');
 
-        // Inject PRD state
+        // Inject PRD state (markdown is directly readable by the agent)
         contextParts.push('--- Current PRD State ---');
         contextParts.push(prdContent);
         contextParts.push('');
@@ -217,9 +233,9 @@ module.exports = {
       iterationCounts.delete(workspace);
 
       try {
-        const prdPath = utils.join(workspace, PRD_FILENAME);
+        const prdPath = await findPrdPath(workspace, utils);
 
-        if (await utils.exists(prdPath)) {
+        if (prdPath) {
           // PRD exists - inject context for first iteration
           const prdContent = await utils.readFile(prdPath, 'utf-8');
 
@@ -241,7 +257,7 @@ module.exports = {
         // No PRD - enter setup mode, supervisor should delegate to @prd-creator
         const prefix = [
           '[RALPH:SETUP_MODE]',
-          'No prd.json found in the workspace.',
+          'No prd.md found in the workspace.',
           'You are the supervisor. Delegate to @prd-creator to generate a PRD from the user request below.',
           '[RALPH:SETUP_CONTEXT_END]',
           '',
@@ -273,8 +289,8 @@ module.exports = {
 
       try {
         // Only run auto-continue if a PRD exists (we're in loop mode)
-        const prdPath = utils.join(workspace, PRD_FILENAME);
-        if (!(await utils.exists(prdPath))) {
+        const prdPath = await findPrdPath(workspace, utils);
+        if (!prdPath) {
           return {};
         }
 
@@ -302,7 +318,6 @@ module.exports = {
 
         // Check for continue signal — queue next iteration
         if (content.includes(CONTINUE_SIGNAL)) {
-          // Track iteration count
           const currentIteration = (iterationCounts.get(workspace) || 0) + 1;
           iterationCounts.set(workspace, currentIteration);
 
@@ -323,20 +338,15 @@ module.exports = {
         // No signal detected — check PRD directly as fallback
         try {
           const prdContent = await utils.readFile(prdPath, 'utf-8');
-          const prd = JSON.parse(prdContent);
-          const total = prd.userStories ? prd.userStories.length : 0;
-          const completed = prd.userStories
-            ? prd.userStories.filter((s) => s.passes === true).length
-            : 0;
+          const { total, completed } = countStories(prdContent);
 
           if (total > 0 && completed === total) {
-            console.log('[ralph] All stories complete (detected from prd.json)');
+            console.log('[ralph] All stories complete (detected from prd.md)');
             iterationCounts.delete(workspace);
             return {};
           }
 
           if (total > 0 && completed < total) {
-            // Stories remain but agent didn't output a signal — continue anyway
             const currentIteration = (iterationCounts.get(workspace) || 0) + 1;
             iterationCounts.set(workspace, currentIteration);
 
