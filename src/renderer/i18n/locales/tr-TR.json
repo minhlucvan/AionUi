@@ -1169,5 +1169,33 @@
     "notFound": "Bot bulunamadı",
     "backToList": "Tüm Botlar",
     "noConversations": "Henüz konuşma yok"
+  },
+  "researchTeam": {
+    "title": "Takım",
+    "agents": "ajan",
+    "active": "Aktif",
+    "taskBoard": "Pano",
+    "feed": "Akış",
+    "emptyFeed": "Henüz etkinlik yok. Ajanlar iletişim kurdukça olaylar burada görünecek.",
+    "noAgents": "Çalışan ajan yok. Başlamak için bir takım oturumu başlatın.",
+    "agentsCompleted": "ajan tamamlandı",
+    "feedbackLoopsDetected": "{{count}} geri bildirim döngüsü aktif",
+    "feedsTo": "Çıkış hedefi",
+    "feedsFrom": "Giriş kaynağı",
+    "received": "alındı",
+    "sent": "gönderildi",
+    "sendMessage": "Mesaj gönder",
+    "messageTo": "{{agent}} için:",
+    "messageInputPlaceholder": "Bir mesaj yazın...",
+    "send": "Gönder",
+    "cancel": "İptal",
+    "agentStatus": {
+      "idle": "Boşta",
+      "starting": "Başlatılıyor",
+      "running": "Çalışıyor",
+      "paused": "Duraklatıldı",
+      "finished": "Tamamlandı",
+      "error": "Hata"
+    }
   }
 }

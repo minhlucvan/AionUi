@@ -5,9 +5,11 @@
  */
 
 import { TEAM_TAB_CHAT, TEAM_TAB_TASKS, useTeamMonitor } from '@/renderer/context/TeamMonitorContext';
+import { useResearchTeamSafe } from '@/renderer/context/ResearchTeamContext';
+import { TEAM_TAB_RESEARCH } from './TeamTabContent';
 import { iconColors } from '@/renderer/theme/colors';
 import { Tag, Tooltip } from '@arco-design/web-react';
-import { Peoples, ListView } from '@icon-park/react';
+import { Peoples, ListView, DataSheet } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -27,6 +29,7 @@ const TAB_OVERFLOW_THRESHOLD = 10;
 const TeamTabs: React.FC = () => {
   const { t } = useTranslation();
   const { teamName, members, tasks, activeTab, setActiveTab } = useTeamMonitor();
+  const researchTeam = useResearchTeamSafe();
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabFadeState, setTabFadeState] = useState<TabFadeState>({ left: false, right: false });
 
@@ -109,6 +112,21 @@ const TeamTabs: React.FC = () => {
               </Tooltip>
             );
           })}
+
+          {/* Research Team tab (shown when research team session is active) */}
+          {researchTeam?.isActive && (
+            <Tooltip content={t('researchTeam.title')} position='bottom'>
+              <div className={tabClass(TEAM_TAB_RESEARCH)} style={{ borderRight: '1px solid var(--border-base)' }} onClick={() => setActiveTab(TEAM_TAB_RESEARCH)}>
+                <DataSheet theme='outline' size='14' fill={activeTab === TEAM_TAB_RESEARCH ? iconColors.primary : iconColors.secondary} />
+                <span className='text-13px whitespace-nowrap overflow-hidden text-ellipsis select-none'>{t('researchTeam.title')}</span>
+                {researchTeam.session && researchTeam.session.agents.filter((a) => a.status === 'running').length > 0 && (
+                  <Tag size='small' color='green' className='shrink-0'>
+                    {researchTeam.session.agents.filter((a) => a.status === 'running').length}
+                  </Tag>
+                )}
+              </div>
+            </Tooltip>
+          )}
 
           {/* Tasks tab (always last) */}
           <Tooltip content={t('teamMonitor.taskList')} position='bottom'>

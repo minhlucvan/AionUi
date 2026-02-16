@@ -1255,5 +1255,33 @@
       "in_progress": "進行中",
       "completed": "完了"
     }
+  },
+  "researchTeam": {
+    "title": "チーム",
+    "agents": "エージェント",
+    "active": "アクティブ",
+    "taskBoard": "ボード",
+    "feed": "フィード",
+    "emptyFeed": "まだアクティビティがありません。エージェントが通信するとイベントがここに表示されます。",
+    "noAgents": "実行中のエージェントがありません。チームセッションを開始してください。",
+    "agentsCompleted": "エージェント完了",
+    "feedbackLoopsDetected": "{{count}} 件のフィードバックループがアクティブ",
+    "feedsTo": "出力先",
+    "feedsFrom": "受信元",
+    "received": "受信",
+    "sent": "送信",
+    "sendMessage": "メッセージを送信",
+    "messageTo": "{{agent}} 宛：",
+    "messageInputPlaceholder": "メッセージを入力...",
+    "send": "送信",
+    "cancel": "キャンセル",
+    "agentStatus": {
+      "idle": "待機中",
+      "starting": "起動中",
+      "running": "実行中",
+      "paused": "一時停止",
+      "finished": "完了",
+      "error": "エラー"
+    }
   }
 }

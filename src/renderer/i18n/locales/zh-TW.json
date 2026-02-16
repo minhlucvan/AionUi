@@ -1243,5 +1243,33 @@
       "in_progress": "進行中",
       "completed": "已完成"
     }
+  },
+  "researchTeam": {
+    "title": "團隊",
+    "agents": "個成員",
+    "active": "活躍",
+    "taskBoard": "看板",
+    "feed": "動態",
+    "emptyFeed": "暫無活動。成員通訊時事件將顯示在此處。",
+    "noAgents": "沒有正在運行的成員。啟動團隊會話以開始。",
+    "agentsCompleted": "個成員已完成",
+    "feedbackLoopsDetected": "{{count}} 個回饋循環活躍中",
+    "feedsTo": "輸出到",
+    "feedsFrom": "接收自",
+    "received": "已接收",
+    "sent": "已發送",
+    "sendMessage": "傳送訊息",
+    "messageTo": "傳送給 {{agent}}：",
+    "messageInputPlaceholder": "輸入訊息...",
+    "send": "傳送",
+    "cancel": "取消",
+    "agentStatus": {
+      "idle": "閒置",
+      "starting": "啟動中",
+      "running": "運行中",
+      "paused": "已暫停",
+      "finished": "已完成",
+      "error": "錯誤"
+    }
   }
 }

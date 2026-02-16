@@ -5,19 +5,35 @@
  */
 
 import { TEAM_TAB_TASKS, useTeamMonitor } from '@/renderer/context/TeamMonitorContext';
+import { useResearchTeamSafe } from '@/renderer/context/ResearchTeamContext';
 import React from 'react';
 import AgentPane from './AgentPane';
+import ResearchTeamPanel from './ResearchTeamPanel';
 import TaskListView from './TaskListView';
+
+/** Tab ID for the research team view */
+export const TEAM_TAB_RESEARCH = 'research';
 
 /**
  * TeamTabContent renders the content for the active team tab.
  * - Tasks tab → full-size TaskListView
+ * - Research tab → ResearchTeamPanel (task board + feed)
  * - Agent tab → full-size AgentPane for the selected agent
  *
  * The "Chat" tab does NOT use this component — it renders the normal chat.
  */
 const TeamTabContent: React.FC = () => {
   const { activeTab, members, tasks, agentOutputs, setActiveTab } = useTeamMonitor();
+  const researchTeam = useResearchTeamSafe();
+
+  // Research team tab — shows task board + feed
+  if (activeTab === TEAM_TAB_RESEARCH && researchTeam) {
+    return (
+      <div className='flex flex-col h-full overflow-hidden'>
+        <ResearchTeamPanel />
+      </div>
+    );
+  }
 
   if (activeTab === TEAM_TAB_TASKS) {
     return (

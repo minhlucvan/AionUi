@@ -1478,5 +1478,33 @@
       "in_progress": "In Progress",
       "completed": "Done"
     }
+  },
+  "researchTeam": {
+    "title": "Team",
+    "agents": "agents",
+    "active": "Active",
+    "taskBoard": "Board",
+    "feed": "Feed",
+    "emptyFeed": "No activity yet. Events will appear here as agents communicate.",
+    "noAgents": "No agents running. Start a team session to begin.",
+    "agentsCompleted": "agents completed",
+    "feedbackLoopsDetected": "{{count}} feedback loop(s) active",
+    "feedsTo": "Feeds to",
+    "feedsFrom": "Receives from",
+    "received": "received",
+    "sent": "sent",
+    "sendMessage": "Send message",
+    "messageTo": "To {{agent}}:",
+    "messageInputPlaceholder": "Type a message...",
+    "send": "Send",
+    "cancel": "Cancel",
+    "agentStatus": {
+      "idle": "Idle",
+      "starting": "Starting",
+      "running": "Running",
+      "paused": "Paused",
+      "finished": "Finished",
+      "error": "Error"
+    }
   }
 }

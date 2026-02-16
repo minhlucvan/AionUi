@@ -10,3 +10,6 @@ export { default as TaskListView } from './TaskListView';
 export { default as TeamPanel } from './TeamPanel';
 export { default as TeamTabs } from './TeamTabs';
 export { default as TeamTabContent } from './TeamTabContent';
+export { default as ResearchTeamPanel } from './ResearchTeamPanel';
+export { default as TeamFeedView } from './TeamFeedView';
+export { default as TeamTaskBoardView } from './TeamTaskBoardView';

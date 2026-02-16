@@ -1478,5 +1478,33 @@
       "in_progress": "进行中",
       "completed": "已完成"
     }
+  },
+  "researchTeam": {
+    "title": "团队",
+    "agents": "个成员",
+    "active": "活跃",
+    "taskBoard": "看板",
+    "feed": "动态",
+    "emptyFeed": "暂无活动。成员通信时事件将显示在此处。",
+    "noAgents": "没有正在运行的成员。启动团队会话以开始。",
+    "agentsCompleted": "个成员已完成",
+    "feedbackLoopsDetected": "{{count}} 个反馈循环活跃中",
+    "feedsTo": "输出到",
+    "feedsFrom": "接收自",
+    "received": "已接收",
+    "sent": "已发送",
+    "sendMessage": "发送消息",
+    "messageTo": "发送给 {{agent}}：",
+    "messageInputPlaceholder": "输入消息...",
+    "send": "发送",
+    "cancel": "取消",
+    "agentStatus": {
+      "idle": "空闲",
+      "starting": "启动中",
+      "running": "运行中",
+      "paused": "已暂停",
+      "finished": "已完成",
+      "error": "错误"
+    }
   }
 }

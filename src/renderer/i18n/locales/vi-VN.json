@@ -1405,5 +1405,33 @@
       "configureFirst": "Vui lòng cấu hình tác nhân trong Cài đặt trước.",
       "switching": "Đang chuyển tác nhân..."
     }
+  },
+  "researchTeam": {
+    "title": "Nhóm",
+    "agents": "tác nhân",
+    "active": "Hoạt động",
+    "taskBoard": "Bảng",
+    "feed": "Hoạt động",
+    "emptyFeed": "Chưa có hoạt động. Sự kiện sẽ xuất hiện tại đây khi các tác nhân giao tiếp.",
+    "noAgents": "Không có tác nhân đang chạy. Bắt đầu phiên nhóm để tiếp tục.",
+    "agentsCompleted": "tác nhân đã hoàn thành",
+    "feedbackLoopsDetected": "{{count}} vòng phản hồi đang hoạt động",
+    "feedsTo": "Đầu ra tới",
+    "feedsFrom": "Nhận từ",
+    "received": "đã nhận",
+    "sent": "đã gửi",
+    "sendMessage": "Gửi tin nhắn",
+    "messageTo": "Gửi tới {{agent}}:",
+    "messageInputPlaceholder": "Nhập tin nhắn...",
+    "send": "Gửi",
+    "cancel": "Hủy",
+    "agentStatus": {
+      "idle": "Rảnh",
+      "starting": "Đang khởi động",
+      "running": "Đang chạy",
+      "paused": "Tạm dừng",
+      "finished": "Hoàn thành",
+      "error": "Lỗi"
+    }
   }
 }
