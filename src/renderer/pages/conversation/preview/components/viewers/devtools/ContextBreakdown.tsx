@@ -17,7 +17,7 @@ import type { MessageContextInfo } from './types';
 import { CONTEXT_TYPE_COLORS, CONTEXT_TYPE_LABELS } from './types';
 
 type ContextBreakdownProps = {
-  contextBreakdown: IDevToolsContextBreakdownSummary;
+  contextBreakdown: IDevToolsContextBreakdownSummary | undefined;
   contextInfoJson: string;
 };
 
@@ -28,17 +28,12 @@ const InjectionBar: React.FC<{ info: MessageContextInfo; maxTokens: number }> = 
 
   return (
     <div className='flex items-center gap-8px mb-2px'>
-      <div className='w-50px text-11px text-t-quaternary text-right flex-shrink-0'>
-        {formatTokens(info.totalTokens)}
-      </div>
+      <div className='w-50px text-11px text-t-quaternary text-right flex-shrink-0'>{formatTokens(info.totalTokens)}</div>
       <div className='flex-1 flex h-14px rd-2px overflow-hidden bg-bg-3'>
         {info.injections.map((inj, i) => {
           const pct = info.totalTokens > 0 ? (inj.tokenEstimate / info.totalTokens) * barWidth : 0;
           return (
-            <Tooltip
-              key={i}
-              content={`${CONTEXT_TYPE_LABELS[inj.type] || inj.type}: ${formatTokens(inj.tokenEstimate)} tokens\n${truncate(inj.preview, 100)}`}
-            >
+            <Tooltip key={i} content={`${CONTEXT_TYPE_LABELS[inj.type] || inj.type}: ${formatTokens(inj.tokenEstimate)} tokens\n${truncate(inj.preview, 100)}`}>
               <div
                 style={{
                   width: `${pct}%`,
@@ -63,6 +58,11 @@ const ContextBreakdown: React.FC<ContextBreakdownProps> = ({ contextBreakdown, c
       return [];
     }
   }, [contextInfoJson]);
+
+  // Handle undefined contextBreakdown gracefully
+  if (!contextBreakdown) {
+    return <div className='text-13px text-t-tertiary p-12px'>No context breakdown data available</div>;
+  }
 
   const { byType, totalTokens, topSources } = contextBreakdown;
 

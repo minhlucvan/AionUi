@@ -20,8 +20,6 @@ import { useTranslation } from 'react-i18next';
 // Sub-components
 import ChatReplay from './devtools/ChatReplay';
 import CommandPalette from './devtools/CommandPalette';
-import ContextBreakdown from './devtools/ContextBreakdown';
-import ProjectDashboard from './devtools/ProjectDashboard';
 import SubagentTree from './devtools/SubagentTree';
 import ToolInspector from './devtools/ToolInspector';
 
@@ -32,7 +30,7 @@ type DevToolsViewerProps = {
 
 type TokenCategory = 'user' | 'assistant' | 'thinking' | 'tool_input' | 'tool_output' | 'system' | 'claude_md';
 
-type TabKey = 'overview' | 'chat' | 'tools' | 'context' | 'subagents' | 'projects';
+type TabKey = 'overview' | 'chat' | 'tools' | 'subagents';
 
 // ==================== Chunk types (deserialized from JSON) ====================
 
@@ -113,9 +111,7 @@ const TAB_CONFIG: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'overview', label: 'Overview', icon: '\uD83D\uDCCA' },
   { key: 'chat', label: 'Chat', icon: '\uD83D\uDCAC' },
   { key: 'tools', label: 'Tools', icon: '\uD83D\uDD27' },
-  { key: 'context', label: 'Context', icon: '\uD83D\uDCE6' },
   { key: 'subagents', label: 'Agents', icon: '\uD83E\uDD16' },
-  { key: 'projects', label: 'Projects', icon: '\uD83D\uDCC1' },
 ];
 
 // ==================== Helpers ====================
@@ -161,12 +157,7 @@ const MetricsOverview: React.FC<{ analysis: IDevToolsSessionAnalysis }> = ({ ana
         <Statistic title='Messages' value={messageCount} groupSeparator=',' />
       </div>
       <div className='p-12px bg-bg-2 rd-8px'>
-        <Statistic
-          title='Model'
-          value={model || 'Unknown'}
-          groupSeparator=''
-          valueStyle={{ fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-        />
+        <Statistic title='Model' value={model || 'Unknown'} groupSeparator='' valueStyle={{ fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} />
       </div>
       {metrics.cacheReadTokens > 0 && (
         <div className='p-12px bg-bg-2 rd-8px'>
@@ -190,9 +181,7 @@ const TokenAttribution: React.FC<{ attribution: IDevToolsSessionAnalysis['tokenA
 
   if (total === 0) return null;
 
-  const categories = (Object.entries(attribution) as [TokenCategory, number][])
-    .filter(([, v]) => v > 0)
-    .sort(([, a], [, b]) => b - a);
+  const categories = (Object.entries(attribution) as [TokenCategory, number][]).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
 
   return (
     <div className='mb-20px'>
@@ -310,10 +299,7 @@ const StepRow: React.FC<{ step: SemanticStep }> = ({ step }) => {
 
   return (
     <div className='mb-2px'>
-      <div
-        className='flex items-start gap-8px py-4px px-8px rd-4px hover:bg-bg-2 cursor-pointer text-13px'
-        onClick={() => hasDetail && setExpanded(!expanded)}
-      >
+      <div className='flex items-start gap-8px py-4px px-8px rd-4px hover:bg-bg-2 cursor-pointer text-13px' onClick={() => hasDetail && setExpanded(!expanded)}>
         <span className='flex-shrink-0 w-20px text-center select-none'>{icon}</span>
         <Tag size='small' style={{ backgroundColor: color + '20', color, borderColor: color + '40' }}>
           {label}
@@ -321,16 +307,8 @@ const StepRow: React.FC<{ step: SemanticStep }> = ({ step }) => {
         <span className='flex-1 text-t-secondary font-mono text-12px truncate' title={step.content}>
           {preview}
         </span>
-        {tokens > 0 && (
-          <span className='flex-shrink-0 text-11px text-t-quaternary'>
-            {formatTokens(tokens)}
-          </span>
-        )}
-        {hasDetail && (
-          <span className='flex-shrink-0 text-t-quaternary text-11px select-none'>
-            {expanded ? '\u25BC' : '\u25B6'}
-          </span>
-        )}
+        {tokens > 0 && <span className='flex-shrink-0 text-11px text-t-quaternary'>{formatTokens(tokens)}</span>}
+        {hasDetail && <span className='flex-shrink-0 text-t-quaternary text-11px select-none'>{expanded ? '\u25BC' : '\u25B6'}</span>}
       </div>
 
       {expanded && step.content && (
@@ -357,9 +335,7 @@ const ChunkItem: React.FC<{ chunk: Chunk }> = ({ chunk }) => {
           <span className='text-11px text-t-quaternary'>{formatTime(chunk.startTime)}</span>
         </div>
         <div className='ml-11px pl-12px border-l-1px border-l-solid border-l-border-2'>
-          <div className='text-13px text-t-secondary bg-bg-2 p-8px rd-6px'>
-            {truncate(userChunk.text || '', 300)}
-          </div>
+          <div className='text-13px text-t-secondary bg-bg-2 p-8px rd-6px'>{truncate(userChunk.text || '', 300)}</div>
         </div>
       </div>
     );
@@ -377,19 +353,17 @@ const ChunkItem: React.FC<{ chunk: Chunk }> = ({ chunk }) => {
           <span className='text-13px font-600 text-t-primary'>Assistant</span>
           <span className='text-11px text-t-quaternary'>{formatTime(chunk.startTime)}</span>
           {toolCount > 0 && (
-            <Tag size='small' color='purple'>{toolCount} tool{toolCount !== 1 ? 's' : ''}</Tag>
+            <Tag size='small' color='purple'>
+              {toolCount} tool{toolCount !== 1 ? 's' : ''}
+            </Tag>
           )}
           {(aiChunk.subagentIds || []).length > 0 && (
-            <Tag size='small' color='blue'>{aiChunk.subagentIds.length} subagent{aiChunk.subagentIds.length !== 1 ? 's' : ''}</Tag>
+            <Tag size='small' color='blue'>
+              {aiChunk.subagentIds.length} subagent{aiChunk.subagentIds.length !== 1 ? 's' : ''}
+            </Tag>
           )}
         </div>
-        <div className='ml-11px pl-12px border-l-1px border-l-solid border-l-border-2'>
-          {steps.length > 0 ? (
-            steps.map((step) => <StepRow key={step.id} step={step} />)
-          ) : (
-            <div className='text-12px text-t-tertiary py-4px px-8px'>No steps recorded</div>
-          )}
-        </div>
+        <div className='ml-11px pl-12px border-l-1px border-l-solid border-l-border-2'>{steps.length > 0 ? steps.map((step) => <StepRow key={step.id} step={step} />) : <div className='text-12px text-t-tertiary py-4px px-8px'>No steps recorded</div>}</div>
       </div>
     );
   }
@@ -403,7 +377,9 @@ const ChunkItem: React.FC<{ chunk: Chunk }> = ({ chunk }) => {
           <span className='text-13px text-t-tertiary font-600'>Context Compaction</span>
           <span className='text-11px text-t-quaternary'>{formatTime(chunk.startTime)}</span>
           {compactChunk.tokenDelta && (
-            <Tag size='small' color='orange'>{formatTokens(compactChunk.tokenDelta)} tokens saved</Tag>
+            <Tag size='small' color='orange'>
+              {formatTokens(compactChunk.tokenDelta)} tokens saved
+            </Tag>
           )}
         </div>
       </div>
@@ -420,9 +396,7 @@ const ChunkItem: React.FC<{ chunk: Chunk }> = ({ chunk }) => {
           <span className='text-11px text-t-quaternary'>{formatTime(chunk.startTime)}</span>
         </div>
         <div className='ml-11px pl-12px border-l-1px border-l-solid border-l-border-2'>
-          <div className='text-12px text-t-tertiary font-mono bg-bg-3 p-8px rd-4px max-h-100px overflow-auto'>
-            {truncate(systemChunk.text || '', 200)}
-          </div>
+          <div className='text-12px text-t-tertiary font-mono bg-bg-3 p-8px rd-4px max-h-100px overflow-auto'>{truncate(systemChunk.text || '', 200)}</div>
         </div>
       </div>
     );
@@ -492,7 +466,8 @@ const CompactionSummary: React.FC<{ events: IDevToolsCompactionEvent[] }> = ({ e
               <div key={event.index} className='flex items-center gap-8px text-12px py-2px'>
                 <span className='text-t-quaternary w-70px flex-shrink-0'>{formatTime(event.timestamp)}</span>
                 <Tag size='small' color={event.delta < 0 ? 'red' : 'green'}>
-                  {event.delta < 0 ? '' : '+'}{formatTokens(event.delta)}
+                  {event.delta < 0 ? '' : '+'}
+                  {formatTokens(event.delta)}
                 </Tag>
                 <span className='text-t-tertiary'>
                   {formatTokens(event.tokensBefore)} \u2192 {formatTokens(event.tokensAfter)}
@@ -570,25 +545,15 @@ const TabBar: React.FC<{
         const isActive = activeTab === key;
         const badge = key === 'subagents' && subagentCount > 0 ? subagentCount : null;
         return (
-          <div
-            key={key}
-            className={`flex items-center gap-4px px-10px py-5px rd-4px cursor-pointer text-12px transition-colors select-none ${isActive ? 'bg-bg-1 text-t-primary font-600 shadow-sm' : 'text-t-tertiary hover:text-t-secondary hover:bg-bg-3'}`}
-            onClick={() => onTabChange(key)}
-          >
+          <div key={key} className={`flex items-center gap-4px px-10px py-5px rd-4px cursor-pointer text-12px transition-colors select-none ${isActive ? 'bg-bg-1 text-t-primary font-600 shadow-sm' : 'text-t-tertiary hover:text-t-secondary hover:bg-bg-3'}`} onClick={() => onTabChange(key)}>
             <span>{icon}</span>
             <span>{label}</span>
-            {badge != null && (
-              <span className='text-10px bg-primary-1 text-primary px-4px rd-full'>{badge}</span>
-            )}
+            {badge != null && <span className='text-10px bg-primary-1 text-primary px-4px rd-full'>{badge}</span>}
           </div>
         );
       })}
       <div className='ml-auto'>
-        <div
-          className='flex items-center gap-4px px-10px py-5px rd-4px cursor-pointer text-12px text-t-tertiary hover:text-t-secondary hover:bg-bg-3 transition-colors select-none'
-          onClick={onSearch}
-          title='Search (Cmd+K)'
-        >
+        <div className='flex items-center gap-4px px-10px py-5px rd-4px cursor-pointer text-12px text-t-tertiary hover:text-t-secondary hover:bg-bg-3 transition-colors select-none' onClick={onSearch} title='Search (Cmd+K)'>
           <span>{'\uD83D\uDD0D'}</span>
           <span>Search</span>
           <kbd className='text-10px px-4px py-1px bg-bg-3 rd-2px text-t-quaternary ml-4px'>{'\u2318'}K</kbd>
@@ -734,35 +699,18 @@ const DevToolsViewer: React.FC<DevToolsViewerProps> = ({ content }) => {
       </div>
 
       {/* Tab bar */}
-      <TabBar
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        subagentCount={analysis.subagents?.length || 0}
-        onSearch={() => setShowSearch(true)}
-      />
+      <TabBar activeTab={activeTab} onTabChange={setActiveTab} subagentCount={analysis.subagents?.length || 0} onSearch={() => setShowSearch(true)} />
 
       {/* Tab content */}
       <div className='flex-1 min-h-0'>
         {activeTab === 'overview' && <OverviewTab analysis={analysis} />}
         {activeTab === 'chat' && <ChatReplay messagesJson={analysis.messages} />}
         {activeTab === 'tools' && <ToolInspector chunksJson={analysis.chunks} />}
-        {activeTab === 'context' && (
-          <ContextBreakdown contextBreakdown={analysis.contextBreakdown} contextInfoJson={analysis.contextInfo} />
-        )}
-        {activeTab === 'subagents' && (
-          <SubagentTree subagents={analysis.subagents || []} totalMetrics={analysis.metrics} />
-        )}
-        {activeTab === 'projects' && <ProjectDashboard onOpenSession={handleOpenSession} />}
+        {activeTab === 'subagents' && <SubagentTree subagents={analysis.subagents || []} totalMetrics={analysis.metrics} />}
       </div>
 
       {/* Command palette overlay */}
-      {showSearch && (
-        <CommandPalette
-          messagesJson={analysis.messages}
-          chunksJson={analysis.chunks}
-          onClose={() => setShowSearch(false)}
-        />
-      )}
+      {showSearch && <CommandPalette messagesJson={analysis.messages} chunksJson={analysis.chunks} onClose={() => setShowSearch(false)} />}
     </div>
   );
 };
