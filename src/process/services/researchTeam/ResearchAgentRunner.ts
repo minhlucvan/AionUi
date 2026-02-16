@@ -7,6 +7,9 @@
 import type { IResponseMessage } from '@/common/ipcBridge';
 import type { AcpBackend } from '@/types/acpTypes';
 import { researchEventBus } from './ResearchEventBus';
+import { StreamingToolParser } from './TeamToolParser';
+import { TeamToolExecutor } from './TeamToolExecutor';
+import { buildTeamToolsPrompt } from './TeamToolDefinitions';
 import type { ResearchAgentRole, ResearchCommand } from './types';
 
 /**
@@ -14,10 +17,11 @@ import type { ResearchAgentRole, ResearchCommand } from './types';
  *
  * Unlike TeamAgentRunner (which runs prompt→finish in a loop),
  * ResearchAgentRunner runs continuously in the background:
- * 1. Starts with an initial objective
+ * 1. Starts with an initial objective (with team tools injected)
  * 2. Streams output and publishes events to the feed
- * 3. Listens for incoming commands from other agents
- * 4. Can receive follow-up messages at any time
+ * 3. Intercepts team tool calls from output and routes them
+ * 4. Listens for incoming commands from other agents
+ * 5. Can receive follow-up messages at any time
  *
  * AcpAgent is loaded lazily to avoid pulling Electron at import time.
  */
@@ -31,6 +35,11 @@ export class ResearchAgentRunner {
   private output = '';
   private running = false;
   private commandUnsubscribe: (() => void) | null = null;
+  private toolParser = new StreamingToolParser();
+  private toolExecutor: TeamToolExecutor | null = null;
+
+  /** Teammates info — set by the manager before sending objective */
+  private teammates: Array<{ id: string; name: string; role: string; status: string }> = [];
 
   constructor(
     private readonly config: {
@@ -47,6 +56,22 @@ export class ResearchAgentRunner {
     this.name = config.name;
     this.role = config.role;
     this.sessionId = config.sessionId;
+  }
+
+  /** Set teammates so the runner can resolve agent names and inject tool prompts */
+  setTeammates(teammates: Array<{ id: string; name: string; role: string; status: string }>): void {
+    this.teammates = teammates;
+
+    // (Re)create tool executor with updated agent lookup
+    this.toolExecutor = new TeamToolExecutor(this.sessionId, {
+      resolveAgentId: (name: string) => {
+        const agent = this.teammates.find(
+          (t) => t.name.toLowerCase() === name.toLowerCase() || t.id === name
+        );
+        return agent?.id ?? null;
+      },
+      getAgents: () => this.teammates,
+    });
   }
 
   /** Start the agent process and begin listening for commands */
@@ -166,13 +191,52 @@ export class ResearchAgentRunner {
         agentId: this.id,
         data: { chunk: data.data, role: this.role, name: this.name },
       });
+
+      // Parse any team tool calls from the output stream
+      this.processToolCalls(data.data);
     } else if (data.type === 'finish') {
       this.running = false;
+      this.toolParser.reset();
       researchEventBus.emitEvent('agent_finished', this.sessionId, {
         agentId: this.id,
         summary: `${this.name} finished`,
         data: { outputLength: this.output.length },
       });
+    }
+  }
+
+  /**
+   * Feed output chunk to the streaming tool parser.
+   * Any complete tool calls are executed and results sent back to the agent.
+   */
+  private processToolCalls(chunk: string): void {
+    if (!this.toolExecutor) return;
+
+    const calls = this.toolParser.feed(chunk);
+    if (calls.length === 0) return;
+
+    for (const call of calls) {
+      const result = this.toolExecutor.execute(call, this.id);
+
+      // Emit tool call event to the feed
+      researchEventBus.emitEvent('agent_output', this.sessionId, {
+        agentId: this.id,
+        summary: `${this.name} called tool: ${call.name}${call.target ? ` → ${call.target}` : ''}`,
+        data: {
+          toolCall: true,
+          toolName: call.name,
+          target: call.target,
+          success: result.success,
+          resultMessage: result.message,
+        },
+      });
+
+      // Send the result back to the agent as a follow-up message
+      // (async, don't block the stream)
+      if (result.message) {
+        const resultText = `[TOOL RESULT: ${call.name}] ${result.message}`;
+        this.sendMessage(resultText).catch(() => {});
+      }
     }
   }
 
@@ -207,32 +271,43 @@ export class ResearchAgentRunner {
   private buildPrompt(objective: string): string {
     const roleInstructions: Record<ResearchAgentRole, string> = {
       researcher: `You are a Research Agent. Your job is to investigate, explore, and gather information autonomously.
-When you discover important findings, clearly state them.
-Work independently — you will receive commands from other agents via messages.`,
+When you discover important findings, use the report_finding tool to share them.
+Collaborate with your teammates using the team tools provided below.`,
 
       analyst: `You are an Analyst Agent. Your job is to analyze data, code, or information provided to you.
 Provide structured analysis with clear conclusions.
-Work independently — you will receive commands from other agents via messages.`,
+Collaborate with your teammates using the team tools provided below.`,
 
       reviewer: `You are a Review Agent. Your job is to review work done by other agents.
 Check for correctness, completeness, and quality. Provide actionable feedback.
-Work independently — you will receive commands from other agents via messages.`,
+Collaborate with your teammates using the team tools provided below.`,
 
       custom: `You are a team agent working on a collaborative research task.
-Work independently and communicate your findings clearly.`,
+Collaborate with your teammates using the team tools provided below.`,
     };
+
+    // Build team tools prompt with teammate information
+    const teammateInfo = this.teammates
+      .filter((t) => t.id !== this.id) // exclude self
+      .map((t) => ({ name: t.name, role: t.role }));
+
+    const teamToolsPrompt = buildTeamToolsPrompt(this.name, teammateInfo);
 
     return `[TEAM ROLE: ${this.name} — ${this.role}]
 
 ${roleInstructions[this.role]}
+
+${teamToolsPrompt}
 
 ## Your Objective
 ${objective}
 
 ## Instructions
 - Work autonomously to complete your objective
+- Use team tools to communicate with teammates and report findings
 - Be thorough and report your findings clearly
-- You may receive follow-up messages or commands from teammates
-- Provide clear summaries of your progress and findings`;
+- You will receive follow-up messages from teammates and tool results
+- Provide clear summaries of your progress and findings
+- When you need another agent's input, use send_message or request_review`;
   }
 }

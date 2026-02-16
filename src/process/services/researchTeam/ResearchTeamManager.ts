@@ -52,8 +52,10 @@ export class ResearchTeamManager {
       },
     });
 
-    // Spawn all agents in parallel
-    const spawnPromises = config.agents.map(async (agentConfig) => {
+    // Phase 1: Create all agents and runners
+    const agentConfigs: Array<{ agentId: string; agentConfig: (typeof config.agents)[0]; agent: ResearchAgent; runner: ResearchAgentRunner }> = [];
+
+    for (const agentConfig of config.agents) {
       const agentId = agentConfig.id ?? randomUUID();
 
       const agent: ResearchAgent = {
@@ -80,12 +82,22 @@ export class ResearchTeamManager {
       });
 
       this.runners.set(agentId, runner);
+      agentConfigs.push({ agentId, agentConfig, agent, runner });
+    }
 
+    // Phase 2: Wire up teammates on all runners so they know about each other
+    const teammates = session.agents.map((a) => ({ id: a.id, name: a.name, role: a.role, status: a.status }));
+    for (const { runner } of agentConfigs) {
+      runner.setTeammates(teammates);
+    }
+
+    // Phase 3: Start all agents and send objectives
+    const spawnPromises = agentConfigs.map(async ({ agentId, agentConfig, agent, runner }) => {
       try {
         await runner.start();
         agent.status = 'running';
 
-        // Send objective — agent works independently from here
+        // Send objective with team tools injected — agent works independently from here
         runner.sendObjective(agentConfig.objective).catch((err) => {
           agent.status = 'error';
           agent.error = err instanceof Error ? err.message : String(err);
@@ -146,6 +158,18 @@ export class ResearchTeamManager {
     });
 
     this.runners.set(agentId, runner);
+
+    // Wire up teammates (including the new agent)
+    const teammates = session.agents.map((a) => ({ id: a.id, name: a.name, role: a.role, status: a.status }));
+    runner.setTeammates(teammates);
+
+    // Also update teammates on existing runners so they know about the new agent
+    for (const existingAgent of session.agents) {
+      if (existingAgent.id !== agentId) {
+        const existingRunner = this.runners.get(existingAgent.id);
+        existingRunner?.setTeammates(teammates);
+      }
+    }
 
     try {
       await runner.start();

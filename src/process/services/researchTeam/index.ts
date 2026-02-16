@@ -20,7 +20,12 @@
 
 export type { FeedEntry, FeedEntryKind, ResearchAgent, ResearchAgentConfig, ResearchAgentRole, ResearchAgentStatus, ResearchCommand, ResearchCommandType, ResearchEvent, ResearchEventType, ResearchSession, ResearchSessionConfig, ResearchSessionStatus } from './types';
 
+export type { TeamToolCall, TeamToolResult, TeamToolName } from './TeamToolDefinitions';
+
 export { researchEventBus } from './ResearchEventBus';
 export { ResearchAgentRunner } from './ResearchAgentRunner';
 export { researchTeamManager } from './ResearchTeamManager';
 export { feedStore } from './FeedStore';
+export { TEAM_TOOLS, buildTeamToolsPrompt } from './TeamToolDefinitions';
+export { StreamingToolParser, parseToolCalls } from './TeamToolParser';
+export { TeamToolExecutor } from './TeamToolExecutor';
