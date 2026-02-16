@@ -12,7 +12,7 @@
 
 import { ipcBridge } from '@/common';
 import type { IDevToolsSessionAnalysis, IDevToolsCompactionEvent, IDevToolsToolSummary } from '@/common/ipcBridge';
-import { Progress, Spin, Statistic, Tag, Timeline, Tooltip, Typography, Empty } from '@arco-design/web-react';
+import { Collapse, Progress, Spin, Statistic, Tag, Tooltip, Typography, Empty } from '@arco-design/web-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -22,6 +22,45 @@ type DevToolsViewerProps = {
 };
 
 type TokenCategory = 'user' | 'assistant' | 'thinking' | 'tool_input' | 'tool_output' | 'system' | 'claude_md';
+
+// ==================== Chunk types (deserialized from JSON) ====================
+
+type SemanticStep = {
+  id: string;
+  type: 'thinking' | 'tool_call' | 'tool_result' | 'output' | 'subagent';
+  content: string;
+  startTime: number;
+  tokens: { input: number; output: number };
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
+  isError?: boolean;
+  subagentDescription?: string;
+};
+
+type ToolExecution = {
+  id: string;
+  toolName: string;
+  input: Record<string, unknown>;
+  result?: string;
+  isError: boolean;
+  startTime: number;
+  summary: string;
+};
+
+type ChunkBase = {
+  id: string;
+  chunkType: 'user' | 'ai' | 'system' | 'compact';
+  startTime: number;
+  endTime: number;
+};
+
+type UserChunk = ChunkBase & { chunkType: 'user'; text: string };
+type AIChunk = ChunkBase & { chunkType: 'ai'; semanticSteps: SemanticStep[]; toolExecutions: ToolExecution[]; subagentIds: string[] };
+type SystemChunk = ChunkBase & { chunkType: 'system'; text: string };
+type CompactChunk = ChunkBase & { chunkType: 'compact'; text: string; tokenDelta?: number };
+type Chunk = UserChunk | AIChunk | SystemChunk | CompactChunk;
+
+// ==================== Constants ====================
 
 const TOKEN_COLORS: Record<TokenCategory, string> = {
   user: '#3491FA',
@@ -43,6 +82,24 @@ const TOKEN_LABELS: Record<TokenCategory, string> = {
   claude_md: 'CLAUDE.md',
 };
 
+const STEP_ICONS: Record<SemanticStep['type'], string> = {
+  thinking: '💭',
+  tool_call: '🔧',
+  tool_result: '📋',
+  output: '💬',
+  subagent: '🤖',
+};
+
+const STEP_COLORS: Record<SemanticStep['type'], string> = {
+  thinking: '#F7BA1E',
+  tool_call: '#722ED1',
+  tool_result: '#9FDB1D',
+  output: '#0FC6C2',
+  subagent: '#3491FA',
+};
+
+// ==================== Helpers ====================
+
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
@@ -59,6 +116,11 @@ function formatDuration(ms: number): string {
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString();
+}
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max) + '…';
 }
 
 // ==================== Sub-components ====================
@@ -149,42 +211,6 @@ const TokenAttribution: React.FC<{ attribution: IDevToolsSessionAnalysis['tokenA
   );
 };
 
-/** Compaction events timeline */
-const CompactionTimeline: React.FC<{ events: IDevToolsCompactionEvent[] }> = ({ events }) => {
-  if (events.length === 0) return null;
-
-  return (
-    <div className='mb-20px'>
-      <Typography.Title heading={6} className='mb-12px'>
-        Compaction Events ({events.length})
-      </Typography.Title>
-
-      <Timeline>
-        {events.map((event) => (
-          <Timeline.Item
-            key={event.index}
-            label={formatTime(event.timestamp)}
-            dotColor={event.delta < 0 ? '#F53F3F' : '#00B42A'}
-          >
-            <div className='text-13px'>
-              <div className='flex items-center gap-8px mb-4px'>
-                <Tag size='small' color={event.delta < 0 ? 'red' : 'green'}>
-                  {event.delta < 0 ? '' : '+'}
-                  {formatTokens(event.delta)} tokens
-                </Tag>
-                <span className='text-t-tertiary'>
-                  {formatTokens(event.tokensBefore)} → {formatTokens(event.tokensAfter)}
-                </span>
-              </div>
-              <div className='text-t-secondary text-12px line-clamp-2'>{event.text}</div>
-            </div>
-          </Timeline.Item>
-        ))}
-      </Timeline>
-    </div>
-  );
-};
-
 /** Tool usage summary table */
 const ToolUsageSummary: React.FC<{ tools: IDevToolsToolSummary[] }> = ({ tools }) => {
   if (tools.length === 0) return null;
@@ -221,6 +247,254 @@ const ToolUsageSummary: React.FC<{ tools: IDevToolsToolSummary[] }> = ({ tools }
           );
         })}
       </div>
+    </div>
+  );
+};
+
+/** Single semantic step row inside the timeline */
+const StepRow: React.FC<{ step: SemanticStep }> = ({ step }) => {
+  const [expanded, setExpanded] = useState(false);
+  const icon = STEP_ICONS[step.type];
+  const color = STEP_COLORS[step.type];
+  const tokens = step.tokens.input + step.tokens.output;
+
+  const label = useMemo(() => {
+    switch (step.type) {
+      case 'thinking':
+        return 'Thinking';
+      case 'tool_call':
+        return step.toolName || 'Tool Call';
+      case 'tool_result':
+        return step.isError ? 'Error' : 'Result';
+      case 'output':
+        return 'Output';
+      case 'subagent':
+        return 'Subagent';
+    }
+  }, [step]);
+
+  const preview = useMemo(() => {
+    if (step.type === 'tool_call' && step.toolInput) {
+      const input = step.toolInput;
+      // Show a concise summary based on tool type
+      if (input.file_path) return String(input.file_path);
+      if (input.command) return truncate(String(input.command), 80);
+      if (input.pattern) return String(input.pattern);
+      if (input.query) return String(input.query);
+      if (input.url) return String(input.url);
+      return truncate(JSON.stringify(input), 80);
+    }
+    return truncate(step.content || '', 120);
+  }, [step]);
+
+  const hasDetail = step.content && step.content.length > 120;
+
+  return (
+    <div className='mb-2px'>
+      <div
+        className='flex items-start gap-8px py-4px px-8px rd-4px hover:bg-bg-2 cursor-pointer text-13px'
+        onClick={() => hasDetail && setExpanded(!expanded)}
+      >
+        {/* Icon + color dot */}
+        <span className='flex-shrink-0 w-20px text-center select-none'>{icon}</span>
+
+        {/* Label */}
+        <Tag size='small' style={{ backgroundColor: color + '20', color, borderColor: color + '40' }}>
+          {label}
+        </Tag>
+
+        {/* Preview content */}
+        <span className='flex-1 text-t-secondary font-mono text-12px truncate' title={step.content}>
+          {preview}
+        </span>
+
+        {/* Token badge */}
+        {tokens > 0 && (
+          <span className='flex-shrink-0 text-11px text-t-quaternary'>
+            {formatTokens(tokens)}
+          </span>
+        )}
+
+        {/* Expand indicator */}
+        {hasDetail && (
+          <span className='flex-shrink-0 text-t-quaternary text-11px select-none'>
+            {expanded ? '▼' : '▶'}
+          </span>
+        )}
+      </div>
+
+      {/* Expanded content */}
+      {expanded && step.content && (
+        <div className='ml-28px mr-8px mb-4px'>
+          <pre className='text-12px text-t-secondary font-mono bg-bg-3 p-8px rd-4px overflow-auto max-h-200px whitespace-pre-wrap break-all'>
+            {step.content.slice(0, 2000)}
+            {step.content.length > 2000 && '\n… (truncated)'}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** Single chunk in the event timeline */
+const ChunkItem: React.FC<{ chunk: Chunk }> = ({ chunk }) => {
+  if (chunk.chunkType === 'user') {
+    const userChunk = chunk as UserChunk;
+    return (
+      <div className='mb-12px'>
+        <div className='flex items-center gap-8px mb-4px'>
+          <div className='w-3px h-16px rd-2px bg-#3491FA' />
+          <span className='text-13px font-600 text-t-primary'>User</span>
+          <span className='text-11px text-t-quaternary'>{formatTime(chunk.startTime)}</span>
+        </div>
+        <div className='ml-11px pl-12px border-l-1px border-l-solid border-l-border-2'>
+          <div className='text-13px text-t-secondary bg-bg-2 p-8px rd-6px'>
+            {truncate(userChunk.text || '', 300)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (chunk.chunkType === 'ai') {
+    const aiChunk = chunk as AIChunk;
+    const steps = aiChunk.semanticSteps || [];
+    const toolCount = (aiChunk.toolExecutions || []).length;
+
+    return (
+      <div className='mb-12px'>
+        <div className='flex items-center gap-8px mb-4px'>
+          <div className='w-3px h-16px rd-2px bg-#0FC6C2' />
+          <span className='text-13px font-600 text-t-primary'>Assistant</span>
+          <span className='text-11px text-t-quaternary'>{formatTime(chunk.startTime)}</span>
+          {toolCount > 0 && (
+            <Tag size='small' color='purple'>{toolCount} tool{toolCount !== 1 ? 's' : ''}</Tag>
+          )}
+          {(aiChunk.subagentIds || []).length > 0 && (
+            <Tag size='small' color='blue'>{aiChunk.subagentIds.length} subagent{aiChunk.subagentIds.length !== 1 ? 's' : ''}</Tag>
+          )}
+        </div>
+        <div className='ml-11px pl-12px border-l-1px border-l-solid border-l-border-2'>
+          {steps.length > 0 ? (
+            steps.map((step) => <StepRow key={step.id} step={step} />)
+          ) : (
+            <div className='text-12px text-t-tertiary py-4px px-8px'>No steps recorded</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (chunk.chunkType === 'compact') {
+    const compactChunk = chunk as CompactChunk;
+    return (
+      <div className='mb-12px'>
+        <div className='flex items-center gap-8px py-6px px-12px bg-bg-3 rd-6px border-1px border-solid border-border-2'>
+          <span className='text-14px select-none'>📦</span>
+          <span className='text-13px text-t-tertiary font-600'>Context Compaction</span>
+          <span className='text-11px text-t-quaternary'>{formatTime(chunk.startTime)}</span>
+          {compactChunk.tokenDelta && (
+            <Tag size='small' color='orange'>{formatTokens(compactChunk.tokenDelta)} tokens saved</Tag>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (chunk.chunkType === 'system') {
+    const systemChunk = chunk as SystemChunk;
+    return (
+      <div className='mb-12px'>
+        <div className='flex items-center gap-8px mb-4px'>
+          <div className='w-3px h-16px rd-2px bg-#86909C' />
+          <span className='text-13px font-600 text-t-tertiary'>System</span>
+          <span className='text-11px text-t-quaternary'>{formatTime(chunk.startTime)}</span>
+        </div>
+        <div className='ml-11px pl-12px border-l-1px border-l-solid border-l-border-2'>
+          <div className='text-12px text-t-tertiary font-mono bg-bg-3 p-8px rd-4px max-h-100px overflow-auto'>
+            {truncate(systemChunk.text || '', 200)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+/** Event timeline showing conversation flow with semantic steps */
+const EventTimeline: React.FC<{ chunksJson: string }> = ({ chunksJson }) => {
+  const chunks = useMemo<Chunk[]>(() => {
+    try {
+      return JSON.parse(chunksJson) as Chunk[];
+    } catch {
+      return [];
+    }
+  }, [chunksJson]);
+
+  if (chunks.length === 0) return null;
+
+  // Count steps for the header
+  const totalSteps = chunks.reduce((sum, c) => {
+    if (c.chunkType === 'ai') return sum + ((c as AIChunk).semanticSteps || []).length;
+    return sum + 1;
+  }, 0);
+
+  return (
+    <div className='mb-20px'>
+      <Collapse bordered={false} defaultActiveKey={['timeline']}>
+        <Collapse.Item
+          name='timeline'
+          header={
+            <Typography.Title heading={6} style={{ margin: 0 }}>
+              Event Timeline ({chunks.length} turns, {totalSteps} steps)
+            </Typography.Title>
+          }
+        >
+          <div className='pt-8px'>
+            {chunks.map((chunk) => (
+              <ChunkItem key={chunk.id} chunk={chunk} />
+            ))}
+          </div>
+        </Collapse.Item>
+      </Collapse>
+    </div>
+  );
+};
+
+/** Compaction events summary */
+const CompactionSummary: React.FC<{ events: IDevToolsCompactionEvent[] }> = ({ events }) => {
+  if (events.length === 0) return null;
+
+  const totalSaved = events.reduce((sum, e) => sum + Math.abs(e.delta), 0);
+
+  return (
+    <div className='mb-20px'>
+      <Collapse bordered={false}>
+        <Collapse.Item
+          name='compaction'
+          header={
+            <Typography.Title heading={6} style={{ margin: 0 }}>
+              Compaction Events ({events.length}, {formatTokens(totalSaved)} tokens recycled)
+            </Typography.Title>
+          }
+        >
+          <div className='pt-8px space-y-4px'>
+            {events.map((event) => (
+              <div key={event.index} className='flex items-center gap-8px text-12px py-2px'>
+                <span className='text-t-quaternary w-70px flex-shrink-0'>{formatTime(event.timestamp)}</span>
+                <Tag size='small' color={event.delta < 0 ? 'red' : 'green'}>
+                  {event.delta < 0 ? '' : '+'}{formatTokens(event.delta)}
+                </Tag>
+                <span className='text-t-tertiary'>
+                  {formatTokens(event.tokensBefore)} → {formatTokens(event.tokensAfter)}
+                </span>
+                <span className='text-t-quaternary truncate flex-1'>{truncate(event.text, 60)}</span>
+              </div>
+            ))}
+          </div>
+        </Collapse.Item>
+      </Collapse>
     </div>
   );
 };
@@ -354,8 +628,9 @@ const DevToolsViewer: React.FC<DevToolsViewerProps> = ({ content }) => {
 
         <MetricsOverview analysis={analysis} />
         <TokenAttribution attribution={analysis.tokenAttribution} />
+        <EventTimeline chunksJson={analysis.chunks} />
         <ToolUsageSummary tools={analysis.toolExecutionSummary} />
-        <CompactionTimeline events={analysis.compactionEvents} />
+        <CompactionSummary events={analysis.compactionEvents} />
         <SessionTiming analysis={analysis} />
       </div>
     </div>
