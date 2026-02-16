@@ -8,6 +8,7 @@
   "presetAgentType": "claude",
   "avatar": "\ud83e\udd16",
   "workspacePath": "workspace",
+  "defaultAgent": "ralph-supervisor",
   "nameI18n": {
     "en-US": "Ralph Autonomous Agent",
     "zh-CN": "Ralph 自主代理",

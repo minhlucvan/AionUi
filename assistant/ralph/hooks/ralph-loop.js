@@ -1,23 +1,32 @@
 /**
- * Ralph Autonomous Loop Hooks
+ * Ralph Multi-Agent Autonomous Loop Hooks
  *
  * Manages the Ralph autonomous agent lifecycle within AionUi:
+ * - Routes all messages through @ralph-supervisor (default agent)
  * - Workspace initialization with Ralph state files
- * - Message preprocessing to inject PRD context
+ * - Message preprocessing to inject PRD context for the supervisor
  * - First message handling for setup mode detection
- * - System instruction building with Ralph directives
  */
-
-const path = require('path');
 
 const PRD_FILENAME = 'prd.json';
 const PROGRESS_FILENAME = 'progress.txt';
 const RALPH_STATE_DIR = '.ralph';
+const DEFAULT_AGENT = 'ralph-supervisor';
 
-/**
- * Initialize workspace with Ralph state directory and template files
- */
+// All known Ralph agent names for routing detection
+const RALPH_AGENTS = [
+  'ralph-supervisor',
+  'prd-creator',
+  'prd-validator',
+  'implementer',
+  'quality-checker',
+  'progress-tracker',
+];
+
 module.exports = {
+  /**
+   * Initialize workspace with Ralph state directory and template files
+   */
   onWorkspaceInit: {
     handler: async (context) => {
       const { workspace, utils } = context;
@@ -82,21 +91,28 @@ module.exports = {
   },
 
   /**
-   * Inject PRD context into every message sent to the agent
-   * This ensures each fresh iteration has access to current state
+   * Route all messages through @ralph-supervisor by default.
+   * If the user (or the supervisor) already addressed a specific agent, skip routing.
+   * Also injects PRD context so the supervisor has full state awareness.
    */
   onSendMessage: {
     handler: async (context) => {
       const { workspace, utils, content } = context;
       if (!utils || !content) return {};
 
+      // Check if message already targets a specific Ralph agent
+      const alreadyRouted = RALPH_AGENTS.some((agent) => content.includes(`@${agent}`));
+
       try {
         const prdPath = utils.join(workspace, PRD_FILENAME);
         const progressPath = utils.join(workspace, PROGRESS_FILENAME);
 
-        // If no prd.json exists, let the agent handle setup mode
+        // If no prd.json exists, route to supervisor without context injection
         if (!(await utils.exists(prdPath))) {
-          return { content };
+          if (alreadyRouted) {
+            return { content };
+          }
+          return { content: `@${DEFAULT_AGENT} ${content}` };
         }
 
         const prdContent = await utils.readFile(prdPath, 'utf-8');
@@ -104,7 +120,10 @@ module.exports = {
         try {
           prd = JSON.parse(prdContent);
         } catch {
-          return { content };
+          if (alreadyRouted) {
+            return { content };
+          }
+          return { content: `@${DEFAULT_AGENT} ${content}` };
         }
 
         // Count completed vs total stories
@@ -114,7 +133,7 @@ module.exports = {
           : 0;
         const remaining = total - completed;
 
-        // Build context injection
+        // Build context injection for the supervisor
         const contextParts = [];
 
         contextParts.push(`[RALPH:ITERATION_START]`);
@@ -147,26 +166,39 @@ module.exports = {
 
         contextParts.push('[RALPH:CONTEXT_END]');
         contextParts.push('');
-        contextParts.push('Execute the next incomplete user story following the Ralph workflow.');
-        contextParts.push('');
 
-        // Append original user message if it's not just "continue"
+        // Append original user message
         const trimmedContent = content.trim().toLowerCase();
-        if (trimmedContent !== 'continue' && trimmedContent !== 'next' && trimmedContent !== 'ralph') {
-          contextParts.push('Additional context from user: ' + content);
+        if (
+          trimmedContent === 'continue' ||
+          trimmedContent === 'next' ||
+          trimmedContent === 'ralph'
+        ) {
+          contextParts.push('Execute the next incomplete user story. Delegate to the appropriate sub-agents.');
+        } else {
+          contextParts.push(content);
         }
 
-        return { content: contextParts.join('\n') };
+        const fullMessage = contextParts.join('\n');
+
+        // Route to supervisor if not already targeted
+        if (alreadyRouted) {
+          return { content: fullMessage };
+        }
+        return { content: `@${DEFAULT_AGENT} ${fullMessage}` };
       } catch (error) {
         console.warn('[ralph] onSendMessage warning:', error.message);
-        return { content };
+        if (alreadyRouted) {
+          return { content };
+        }
+        return { content: `@${DEFAULT_AGENT} ${content}` };
       }
     },
     priority: 30,
   },
 
   /**
-   * Handle first message - detect if we need setup mode or can start iteration
+   * Handle first message - detect setup mode and route to supervisor
    */
   onFirstMessage: {
     handler: async (context) => {
@@ -182,32 +214,32 @@ module.exports = {
 
           const prefix = [
             '[RALPH:SESSION_START]',
-            'A PRD has been detected in the workspace. Beginning autonomous execution.',
+            'A PRD has been detected in the workspace. You are the supervisor.',
+            'Read the state below, then delegate to the appropriate sub-agents.',
             '',
             '--- Current PRD ---',
             prdContent,
             '',
-            'Please start with the highest-priority incomplete user story.',
             '[RALPH:SESSION_CONTEXT_END]',
             '',
           ].join('\n');
 
-          return { content: prefix + content };
+          return { content: `@${DEFAULT_AGENT} ${prefix}${content}` };
         }
 
-        // No PRD - enter setup mode
+        // No PRD - enter setup mode, supervisor should delegate to @prd-creator
         const prefix = [
           '[RALPH:SETUP_MODE]',
-          'No prd.json found in the workspace. Entering Setup Mode.',
-          'Help the user create a structured PRD with properly sized and ordered user stories.',
+          'No prd.json found in the workspace.',
+          'You are the supervisor. Delegate to @prd-creator to generate a PRD from the user request below.',
           '[RALPH:SETUP_CONTEXT_END]',
           '',
         ].join('\n');
 
-        return { content: prefix + content };
+        return { content: `@${DEFAULT_AGENT} ${prefix}${content}` };
       } catch (error) {
         console.warn('[ralph] onFirstMessage warning:', error.message);
-        return {};
+        return { content: `@${DEFAULT_AGENT} ${content}` };
       }
     },
     priority: 25,

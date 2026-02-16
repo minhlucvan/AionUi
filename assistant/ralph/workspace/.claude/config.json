@@ -1,0 +1,14 @@
+{
+  "name": "Ralph Autonomous Task Runner",
+  "description": "Autonomous AI agent system that breaks down complex tasks into user stories and implements them iteratively with quality verification using a multi-agent architecture",
+  "version": "1.0.0",
+  "skills": ["ralph"],
+  "agents": [
+    "ralph-supervisor",
+    "prd-creator",
+    "prd-validator",
+    "implementer",
+    "quality-checker",
+    "progress-tracker"
+  ]
+}
