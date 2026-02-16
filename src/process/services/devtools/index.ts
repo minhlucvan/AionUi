@@ -10,4 +10,6 @@ export { parseJsonlFile, calculateMetrics, extractTextContent, countTokens } fro
 export { classifyMessages } from './messageClassifier';
 export { buildChunks } from './chunkBuilder';
 export { buildToolExecutions, buildToolExecutionSummary, getToolSummary } from './toolAnalysis';
-export type { SessionAnalysis, SessionMetrics, TokenAttribution, CompactionEvent, ToolExecutionSummary, Chunk, UserChunk, AIChunk, SystemChunk, CompactChunk, SemanticStep, ToolExecution, ParsedMessage } from './types';
+export { classifyContextInjections, summarizeContextBreakdown } from './contextClassifier';
+export type { SessionAnalysis, SessionMetrics, TokenAttribution, CompactionEvent, ToolExecutionSummary, Chunk, UserChunk, AIChunk, SystemChunk, CompactChunk, SemanticStep, ToolExecution, ParsedMessage, SubagentInfo } from './types';
+export type { ContextInjection, MessageContextInfo, ContextBreakdownSummary, ContextInjectionType } from './contextClassifier';

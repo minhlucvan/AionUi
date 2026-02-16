@@ -213,5 +213,78 @@ describe('sessionAnalyzer', () => {
 
       expect(analysis.projectPath).toBe('/analyzer/workspace');
     });
+
+    it('should include full messages in analysis', async () => {
+      const filePath = path.join(tmpDir, '.claude', 'projects', '-analyzer-workspace', 'test-session.jsonl');
+      const analysis = await analyzeSessionFile(filePath, 'test-session');
+
+      expect(analysis.messages).toBeDefined();
+      expect(analysis.messages.length).toBeGreaterThanOrEqual(4);
+      const types = analysis.messages.map((m) => m.type);
+      expect(types).toContain('user');
+      expect(types).toContain('assistant');
+    });
+
+    it('should have empty subagents for session without agents', async () => {
+      const filePath = path.join(tmpDir, '.claude', 'projects', '-analyzer-workspace', 'test-session.jsonl');
+      const analysis = await analyzeSessionFile(filePath, 'test-session');
+
+      expect(analysis.subagents).toBeDefined();
+      expect(analysis.subagents).toHaveLength(0);
+    });
+
+    it('should extract subagents from session with agent messages', async () => {
+      const sessionLines = [
+        JSON.stringify({
+          type: 'user',
+          message: { role: 'user', content: 'Search for something' },
+          uuid: 'su1',
+          timestamp: '2025-06-01T12:00:00Z',
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'task-1', name: 'Task', input: { description: 'Search codebase', prompt: 'Find files', subagent_type: 'Explore' } },
+            ],
+            usage: { input_tokens: 200, output_tokens: 50 },
+          },
+          uuid: 'sa1',
+          parentUuid: 'su1',
+          timestamp: '2025-06-01T12:00:01Z',
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Found 3 files' }],
+            usage: { input_tokens: 100, output_tokens: 25 },
+          },
+          uuid: 'agent-a1',
+          agentId: 'task-1',
+          timestamp: '2025-06-01T12:00:02Z',
+        }),
+        JSON.stringify({
+          type: 'user',
+          message: { role: 'user', content: '' },
+          uuid: 'str1',
+          parentUuid: 'sa1',
+          timestamp: '2025-06-01T12:00:03Z',
+          toolUseResult: { toolUseId: 'task-1', content: 'Search complete', isError: false },
+        }),
+      ];
+
+      const projectsDir = path.join(tmpDir, '.claude', 'projects', '-analyzer-workspace');
+      fs.writeFileSync(path.join(projectsDir, 'subagent-session.jsonl'), sessionLines.join('\n'));
+
+      const filePath = path.join(projectsDir, 'subagent-session.jsonl');
+      const analysis = await analyzeSessionFile(filePath, 'subagent-session');
+
+      expect(analysis.subagents.length).toBeGreaterThanOrEqual(1);
+      expect(analysis.subagents[0].agentId).toBe('task-1');
+      expect(analysis.subagents[0].description).toBe('Search codebase');
+      expect(analysis.subagents[0].messageCount).toBe(1);
+    });
   });
 });

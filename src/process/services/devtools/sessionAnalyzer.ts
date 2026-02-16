@@ -13,7 +13,7 @@ import { buildChunks } from './chunkBuilder';
 import { parseJsonlFile, calculateMetrics, extractTextContent, countTokens } from './jsonlParser';
 import { findSessionFile } from './sessionDiscovery';
 import { buildToolExecutions, buildToolExecutionSummary } from './toolAnalysis';
-import type { CompactionEvent, ContentBlock, ParsedMessage, SessionAnalysis, TokenAttribution, TokenCategory } from './types';
+import type { CompactionEvent, ContentBlock, ParsedMessage, SessionAnalysis, SubagentInfo, TokenAttribution, TokenCategory } from './types';
 
 /**
  * Compute token attribution across categories for all messages.
@@ -125,6 +125,65 @@ function detectCompactionEvents(messages: ParsedMessage[]): CompactionEvent[] {
 }
 
 /**
+ * Extract subagent information from all messages.
+ * Groups messages by agentId and builds SubagentInfo records.
+ */
+function extractSubagents(allMessages: ParsedMessage[], mainMessages: ParsedMessage[]): SubagentInfo[] {
+  // Build a map of agentId → messages
+  const agentMap = new Map<string, ParsedMessage[]>();
+  for (const msg of allMessages) {
+    if (msg.agentId) {
+      const existing = agentMap.get(msg.agentId);
+      if (existing) {
+        existing.push(msg);
+      } else {
+        agentMap.set(msg.agentId, [msg]);
+      }
+    }
+  }
+
+  // Match subagent IDs to their Task tool call descriptions
+  const taskDescriptions = new Map<string, string>();
+  for (const msg of mainMessages) {
+    for (const call of msg.toolCalls) {
+      if (call.isTask) {
+        taskDescriptions.set(call.id, call.taskDescription || 'Subagent task');
+      }
+    }
+  }
+
+  const subagents: SubagentInfo[] = [];
+
+  for (const [agentId, msgs] of agentMap) {
+    const metrics = calculateMetrics(msgs);
+    const toolNames = [...new Set(msgs.flatMap((m) => m.toolCalls.map((c) => c.name)))];
+    const timestamps = msgs.map((m) => m.timestamp).filter((t) => t > 0);
+
+    // Try to find the description from the Task call that spawned this agent
+    const description = taskDescriptions.get(agentId) || `Agent ${agentId.slice(0, 8)}`;
+
+    // Find the sourceToolUseID that links this agent to its parent
+    const firstAgentMsg = msgs.find((m) => m.sourceToolUseID);
+    const parentToolUseId = firstAgentMsg?.sourceToolUseID;
+
+    subagents.push({
+      agentId,
+      description,
+      parentToolUseId,
+      metrics,
+      messageCount: msgs.length,
+      toolNames,
+      startTime: timestamps.length > 0 ? Math.min(...timestamps) : 0,
+      endTime: timestamps.length > 0 ? Math.max(...timestamps) : 0,
+    });
+  }
+
+  // Sort by start time
+  subagents.sort((a, b) => a.startTime - b.startTime);
+  return subagents;
+}
+
+/**
  * Analyze a Claude Code session by session ID and workspace.
  * Returns a complete SessionAnalysis or null if session not found.
  */
@@ -150,6 +209,7 @@ export async function analyzeSessionFile(filePath: string, sessionId: string): P
   const compactionEvents = detectCompactionEvents(mainMessages);
   const toolExecutions = buildToolExecutions(mainMessages);
   const toolExecutionSummary = buildToolExecutionSummary(toolExecutions);
+  const subagents = extractSubagents(messages, mainMessages);
 
   // Extract model from first assistant message
   const model = mainMessages.find((m) => m.type === 'assistant' && m.model)?.model;
@@ -169,9 +229,11 @@ export async function analyzeSessionFile(filePath: string, sessionId: string): P
     projectPath,
     metrics,
     chunks,
+    messages: mainMessages,
     tokenAttribution,
     compactionEvents,
     toolExecutionSummary,
+    subagents,
     messageCount: mainMessages.length,
     model,
     startTime,

@@ -209,6 +209,19 @@ export type CompactionEvent = {
   text: string;
 };
 
+// ==================== Subagent Analysis ====================
+
+export type SubagentInfo = {
+  agentId: string;
+  description: string;
+  parentToolUseId?: string;
+  metrics: SessionMetrics;
+  messageCount: number;
+  toolNames: string[];
+  startTime: number;
+  endTime: number;
+};
+
 // ==================== Session Analysis (top-level result) ====================
 
 export type SessionAnalysis = {
@@ -216,9 +229,11 @@ export type SessionAnalysis = {
   projectPath: string;
   metrics: SessionMetrics;
   chunks: Chunk[];
+  messages: ParsedMessage[];
   tokenAttribution: TokenAttribution;
   compactionEvents: CompactionEvent[];
   toolExecutionSummary: ToolExecutionSummary[];
+  subagents: SubagentInfo[];
   messageCount: number;
   model?: string;
   startTime: number;
