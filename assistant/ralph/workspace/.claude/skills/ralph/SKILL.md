@@ -1,12 +1,18 @@
----
-id: prd-generator
-name: PRD Generator
-triggers: generate prd, create prd, plan feature, plan task, new project
+# Ralph — Autonomous Task Execution Skill
+
+## Overview
+
+Ralph is an autonomous AI agent skill that systematically implements product requirements through iterative execution. It breaks down complex tasks into user stories, executes them one by one with quality verification, and persists learnings across iterations.
+
 ---
 
-**Description**: Generates a structured Product Requirements Document from a feature description through interactive clarification.
+## PRD Generator
 
-**Workflow**:
+**Triggers**: generate prd, create prd, plan feature, plan task, new project
+
+Generates a structured Product Requirements Document from a feature description through interactive clarification.
+
+### Workflow
 
 1. When the user describes a feature or project, ask 3-5 clarifying questions:
    - What is the primary goal?
@@ -19,13 +25,13 @@ triggers: generate prd, create prd, plan feature, plan task, new project
 
 3. Write the PRD to `prd.json` in the workspace
 
-**Story Sizing Rules**:
+### Story Sizing Rules
 - Each story must be completable in ONE iteration (one AI context window)
 - If a story seems too large, split it into 2-3 smaller stories
 - Dependencies flow forward: schema -> backend -> frontend -> integration
 - Always include quality checks in acceptance criteria
 
-**Priority Ordering**:
+### Priority Ordering
 - Priority 1 = most urgent, execute first
 - Infrastructure/schema stories come first
 - Core logic stories follow
@@ -34,21 +40,19 @@ triggers: generate prd, create prd, plan feature, plan task, new project
 
 ---
 
----
-id: prd-converter
-name: PRD Converter
-triggers: convert prd, prd to json, import requirements, parse requirements
----
+## PRD Converter
 
-**Description**: Converts markdown PRD documents or plain text requirements into the structured `prd.json` format.
+**Triggers**: convert prd, prd to json, import requirements, parse requirements
 
-**Input Formats Supported**:
+Converts markdown PRD documents or plain text requirements into the structured `prd.json` format.
+
+### Input Formats Supported
 - Markdown PRD documents
 - Plain text feature descriptions
 - Bullet-point requirement lists
 - User story lists (As a... I want... So that...)
 
-**Conversion Rules**:
+### Conversion Rules
 
 1. Extract individual requirements/features
 2. Convert each to a user story with:
@@ -65,22 +69,20 @@ triggers: convert prd, prd to json, import requirements, parse requirements
 
 ---
 
----
-id: ralph-loop
-name: Ralph Autonomous Loop
-triggers: start ralph, run ralph, begin autonomous, execute prd, run loop
----
+## Ralph Autonomous Loop
 
-**Description**: Manages the autonomous execution loop that iterates through user stories until all are complete.
+**Triggers**: start ralph, run ralph, begin autonomous, execute prd, run loop
 
-**Activation**:
+Manages the autonomous execution loop that iterates through user stories until all are complete.
+
+### Activation
 When the user says "start ralph", "run ralph", "begin autonomous execution", or similar:
 
 1. Verify `prd.json` exists in the workspace
 2. Verify the workspace has quality check commands available
 3. Begin the iteration loop
 
-**Loop Behavior**:
+### Loop Behavior
 
 Each iteration follows the strict 10-step workflow defined in the Ralph rules:
 1. Read prd.json
@@ -94,16 +96,16 @@ Each iteration follows the strict 10-step workflow defined in the Ralph rules:
 9. Mark story as complete in prd.json
 10. Append progress entry
 
-**Completion Signal**:
+### Completion Signal
 - Output `<promise>COMPLETE</promise>` when all stories pass
 - Output `<promise>CONTINUE</promise>` when stories remain
 
-**Error Recovery**:
+### Error Recovery
 - If quality checks fail: fix and retry (up to 3 attempts)
 - If blocked: skip to next available story, note the blocker
 - If max iterations reached: report remaining stories
 
-**Integration with AionUi**:
+### Integration with AionUi
 The loop leverages AionUi's cron system for scheduled iteration execution:
 - Each iteration is a separate message to the conversation
 - The Ralph service monitors responses for completion/continue signals
@@ -112,15 +114,13 @@ The loop leverages AionUi's cron system for scheduled iteration execution:
 
 ---
 
----
-id: story-validator
-name: Story Validator
-triggers: validate stories, check prd, verify stories, audit prd
----
+## Story Validator
 
-**Description**: Validates the current `prd.json` for correctness, proper sizing, and dependency ordering.
+**Triggers**: validate stories, check prd, verify stories, audit prd
 
-**Validation Checks**:
+Validates the current `prd.json` for correctness, proper sizing, and dependency ordering.
+
+### Validation Checks
 
 1. **Structure Validation**
    - All required fields present

@@ -26,10 +26,7 @@
     "en-US": "ralph.md",
     "zh-CN": "ralph.zh-CN.md"
   },
-  "skillFiles": {
-    "en-US": "ralph-skills.md"
-  },
-  "defaultEnabledSkills": ["prd-generator", "prd-converter", "ralph-loop"],
+  "defaultEnabledSkills": ["ralph"],
   "promptsI18n": {
     "en-US": [
       "Build a REST API with user authentication and CRUD operations",
