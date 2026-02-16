@@ -10,18 +10,19 @@ import { researchEventBus } from './ResearchEventBus';
 import { StreamingToolParser } from './TeamToolParser';
 import { TeamToolExecutor } from './TeamToolExecutor';
 import { buildTeamToolsPrompt } from './TeamToolDefinitions';
+import type { BoardManager } from './BoardManager';
 import type { ResearchAgentRole, ResearchCommand } from './types';
 
 /**
- * ResearchAgentRunner — Manages a single independent research agent.
+ * ResearchAgentRunner — Manages a single independent team agent.
  *
- * Unlike TeamAgentRunner (which runs prompt→finish in a loop),
- * ResearchAgentRunner runs continuously in the background:
- * 1. Starts with an initial objective (with team tools injected)
- * 2. Streams output and publishes events to the feed
- * 3. Intercepts team tool calls from output and routes them
- * 4. Listens for incoming commands from other agents
- * 5. Can receive follow-up messages at any time
+ * Follows a Kanban-style workflow:
+ * 1. Starts with an initial objective (with 3 team tools injected)
+ * 2. Agent works autonomously using native file tools
+ * 3. Agent writes artifacts to .team/artifacts/
+ * 4. Agent uses board_update to report progress
+ * 5. Agent uses notify to signal teammates
+ * 6. Agent uses board_read to check team state
  *
  * AcpAgent is loaded lazily to avoid pulling Electron at import time.
  */
@@ -40,6 +41,7 @@ export class ResearchAgentRunner {
 
   /** Teammates info — set by the manager before sending objective */
   private teammates: Array<{ id: string; name: string; role: string; status: string }> = [];
+  private board: BoardManager | null = null;
 
   constructor(
     private readonly config: {
@@ -58,20 +60,23 @@ export class ResearchAgentRunner {
     this.sessionId = config.sessionId;
   }
 
-  /** Set teammates so the runner can resolve agent names and inject tool prompts */
-  setTeammates(teammates: Array<{ id: string; name: string; role: string; status: string }>): void {
+  /** Set teammates and board so the runner can resolve agent names and manage the board */
+  setTeammates(teammates: Array<{ id: string; name: string; role: string; status: string }>, board: BoardManager): void {
     this.teammates = teammates;
+    this.board = board;
 
-    // (Re)create tool executor with updated agent lookup
-    this.toolExecutor = new TeamToolExecutor(this.sessionId, {
-      resolveAgentId: (name: string) => {
-        const agent = this.teammates.find(
-          (t) => t.name.toLowerCase() === name.toLowerCase() || t.id === name
-        );
-        return agent?.id ?? null;
+    // (Re)create tool executor with updated agent lookup and board
+    this.toolExecutor = new TeamToolExecutor(
+      this.sessionId,
+      {
+        resolveAgentId: (name: string) => {
+          const agent = this.teammates.find((t) => t.name.toLowerCase() === name.toLowerCase() || t.id === name);
+          return agent?.id ?? null;
+        },
+        getAgents: () => this.teammates,
       },
-      getAgents: () => this.teammates,
-    });
+      board
+    );
   }
 
   /** Start the agent process and begin listening for commands */
@@ -165,6 +170,9 @@ export class ResearchAgentRunner {
       this.agent = null;
     }
 
+    // Update board status to done
+    this.board?.updateAgent(this.id, { status: 'done', message: 'Agent stopped' });
+
     researchEventBus.emitEvent('agent_finished', this.sessionId, {
       agentId: this.id,
       summary: `${this.name} stopped`,
@@ -197,6 +205,10 @@ export class ResearchAgentRunner {
     } else if (data.type === 'finish') {
       this.running = false;
       this.toolParser.reset();
+
+      // Mark done on the board
+      this.board?.updateAgent(this.id, { status: 'done', message: 'Finished working' });
+
       researchEventBus.emitEvent('agent_finished', this.sessionId, {
         agentId: this.id,
         summary: `${this.name} finished`,
@@ -271,29 +283,29 @@ export class ResearchAgentRunner {
   private buildPrompt(objective: string): string {
     const roleInstructions: Record<ResearchAgentRole, string> = {
       researcher: `You are a Research Agent. Your job is to investigate, explore, and gather information autonomously.
-When you discover important findings, use the report_finding tool to share them.
-Collaborate with your teammates using the team tools provided below.`,
+Write your findings as artifact files. Update the board as you make progress.`,
 
-      analyst: `You are an Analyst Agent. Your job is to analyze data, code, or information provided to you.
-Provide structured analysis with clear conclusions.
-Collaborate with your teammates using the team tools provided below.`,
+      analyst: `You are an Analyst Agent. Your job is to analyze data, code, or information.
+Write structured analysis as artifact files. Update the board with conclusions.`,
 
-      reviewer: `You are a Review Agent. Your job is to review work done by other agents.
-Check for correctness, completeness, and quality. Provide actionable feedback.
-Collaborate with your teammates using the team tools provided below.`,
+      reviewer: `You are a Review Agent. Your job is to review work produced by other agents.
+Read their artifacts, assess quality, and write review notes as your own artifacts.`,
 
-      custom: `You are a team agent working on a collaborative research task.
-Collaborate with your teammates using the team tools provided below.`,
+      custom: `You are a team agent working on a collaborative task.
+Write your work output as artifact files and coordinate via the board.`,
     };
 
-    // Build team tools prompt with teammate information
+    // Build team tools prompt with teammate information and workspace paths
     const teammateInfo = this.teammates
-      .filter((t) => t.id !== this.id) // exclude self
+      .filter((t) => t.id !== this.id)
       .map((t) => ({ name: t.name, role: t.role }));
 
-    const teamToolsPrompt = buildTeamToolsPrompt(this.name, teammateInfo);
+    const boardPath = this.board?.getBoardFilePath() ?? `${this.config.workingDir}/.team/board.md`;
+    const artifactsDir = this.board?.getArtifactsDir() ?? `${this.config.workingDir}/.team/artifacts`;
 
-    return `[TEAM ROLE: ${this.name} — ${this.role}]
+    const teamToolsPrompt = buildTeamToolsPrompt(this.name, teammateInfo, boardPath, artifactsDir);
+
+    return `[TEAM AGENT: ${this.name} — ${this.role}]
 
 ${roleInstructions[this.role]}
 
@@ -302,12 +314,12 @@ ${teamToolsPrompt}
 ## Your Objective
 ${objective}
 
-## Instructions
-- Work autonomously to complete your objective
-- Use team tools to communicate with teammates and report findings
-- Be thorough and report your findings clearly
-- You will receive follow-up messages from teammates and tool results
-- Provide clear summaries of your progress and findings
-- When you need another agent's input, use send_message or request_review`;
+## Workflow
+1. Start by reading the board to check team state
+2. Work on your objective using your native tools (Read, Write, Edit, Bash, Grep, Glob)
+3. Write any shareable output to ${artifactsDir}/<descriptive-name>.md
+4. Update the board with your progress (board_update)
+5. Notify relevant teammates when they need to act (notify)
+6. When done, update the board with status: done`;
   }
 }

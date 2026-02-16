@@ -5,22 +5,23 @@
  */
 
 /**
- * TeamToolExecutor — Executes team tool calls by routing through the event bus.
+ * TeamToolExecutor — Executes the 3 team coordination tools.
  *
- * When an agent outputs a `<team_tool>` block, the parser extracts it and
- * the executor handles it:
- * - send_message → sends a command to the target agent
- * - broadcast → sends a command to all agents
- * - assign_task → sends an assign_task command
- * - report_finding → emits a finding_reported event
- * - request_review → sends a review request command
- * - share_context → sends a share_context command
- * - get_status → returns current agent statuses
+ * Tools:
+ *   board_update → Updates the agent's entry on the shared board file
+ *   board_read   → Returns the current board state as markdown
+ *   notify       → Sends a notification to a specific agent or broadcasts
+ *
+ * The executor works with BoardManager for board operations and
+ * routes notifications through the ResearchEventBus.
  */
 
-import type { ResearchSession } from './types';
 import type { TeamToolCall, TeamToolResult } from './TeamToolDefinitions';
+import { parseBoardUpdateContent } from './TeamToolDefinitions';
+import type { BoardManager, AgentBoardStatus } from './BoardManager';
 import { researchEventBus } from './ResearchEventBus';
+
+const VALID_STATUSES = new Set<string>(['working', 'blocked', 'reviewing', 'done', 'idle']);
 
 type AgentLookup = {
   /** Resolve agent name → agent ID */
@@ -32,135 +33,100 @@ type AgentLookup = {
 export class TeamToolExecutor {
   constructor(
     private readonly sessionId: string,
-    private readonly agentLookup: AgentLookup
+    private readonly agentLookup: AgentLookup,
+    private readonly board: BoardManager
   ) {}
 
   /** Execute a parsed tool call and return the result */
   execute(call: TeamToolCall, sourceAgentId: string): TeamToolResult {
     switch (call.name) {
-      case 'send_message':
-        return this.handleSendMessage(call, sourceAgentId);
-      case 'broadcast':
-        return this.handleBroadcast(call, sourceAgentId);
-      case 'assign_task':
-        return this.handleAssignTask(call, sourceAgentId);
-      case 'report_finding':
-        return this.handleReportFinding(call, sourceAgentId);
-      case 'request_review':
-        return this.handleRequestReview(call, sourceAgentId);
-      case 'share_context':
-        return this.handleShareContext(call, sourceAgentId);
-      case 'get_status':
-        return this.handleGetStatus();
+      case 'board_update':
+        return this.handleBoardUpdate(call, sourceAgentId);
+      case 'board_read':
+        return this.handleBoardRead();
+      case 'notify':
+        return this.handleNotify(call, sourceAgentId);
       default:
         return { success: false, message: `Unknown tool: ${call.name}` };
     }
   }
 
-  private handleSendMessage(call: TeamToolCall, sourceAgentId: string): TeamToolResult {
-    if (!call.target) {
-      return { success: false, message: 'send_message requires a target agent name' };
+  private handleBoardUpdate(call: TeamToolCall, sourceAgentId: string): TeamToolResult {
+    const parsed = parseBoardUpdateContent(call.content);
+
+    // Validate status if provided
+    if (parsed.status && !VALID_STATUSES.has(parsed.status)) {
+      return {
+        success: false,
+        message: `Invalid status "${parsed.status}". Use: working, blocked, reviewing, done, idle`,
+      };
     }
 
-    const targetId = this.agentLookup.resolveAgentId(call.target);
-    if (!targetId) {
-      return { success: false, message: `Agent "${call.target}" not found` };
-    }
-
-    researchEventBus.emitCommand('send_message', this.sessionId, {
-      sourceAgentId,
-      targetAgentId: targetId,
-      data: { content: call.content },
-      summary: `Message from ${this.getAgentName(sourceAgentId)} to ${call.target}`,
+    this.board.updateAgent(sourceAgentId, {
+      status: parsed.status as AgentBoardStatus | undefined,
+      message: parsed.message,
+      artifacts: parsed.artifacts,
     });
 
-    return { success: true, message: `Message sent to ${call.target}` };
-  }
-
-  private handleBroadcast(call: TeamToolCall, sourceAgentId: string): TeamToolResult {
-    researchEventBus.emitCommand('send_message', this.sessionId, {
-      sourceAgentId,
-      targetAgentId: null, // broadcast
-      data: { content: call.content },
-      summary: `Broadcast from ${this.getAgentName(sourceAgentId)}`,
-    });
-
-    return { success: true, message: 'Message broadcast to all agents' };
-  }
-
-  private handleAssignTask(call: TeamToolCall, sourceAgentId: string): TeamToolResult {
-    if (!call.target) {
-      return { success: false, message: 'assign_task requires a target agent name' };
-    }
-
-    const targetId = this.agentLookup.resolveAgentId(call.target);
-    if (!targetId) {
-      return { success: false, message: `Agent "${call.target}" not found` };
-    }
-
-    researchEventBus.emitCommand('assign_task', this.sessionId, {
-      sourceAgentId,
-      targetAgentId: targetId,
-      data: { task: call.content },
-      summary: `Task assigned to ${call.target}: ${call.content.slice(0, 100)}`,
-    });
-
-    return { success: true, message: `Task assigned to ${call.target}` };
-  }
-
-  private handleReportFinding(call: TeamToolCall, sourceAgentId: string): TeamToolResult {
-    researchEventBus.emitEvent('finding_reported', this.sessionId, {
+    // Emit event for feed observability
+    const agentName = this.getAgentName(sourceAgentId);
+    researchEventBus.emitEvent('progress_updated', this.sessionId, {
       agentId: sourceAgentId,
-      data: { finding: call.content },
-      summary: `Finding from ${this.getAgentName(sourceAgentId)}: ${call.content.slice(0, 200)}`,
+      summary: `${agentName} updated board: ${parsed.message?.slice(0, 100) ?? parsed.status ?? 'update'}`,
+      data: {
+        status: parsed.status,
+        message: parsed.message,
+        artifacts: parsed.artifacts,
+      },
     });
 
-    return { success: true, message: 'Finding reported to team feed' };
-  }
-
-  private handleRequestReview(call: TeamToolCall, sourceAgentId: string): TeamToolResult {
-    if (!call.target) {
-      return { success: false, message: 'request_review requires a target agent name' };
-    }
-
-    const targetId = this.agentLookup.resolveAgentId(call.target);
-    if (!targetId) {
-      return { success: false, message: `Agent "${call.target}" not found` };
-    }
-
-    researchEventBus.emitCommand('request_review', this.sessionId, {
-      sourceAgentId,
-      targetAgentId: targetId,
-      data: { content: call.content },
-      summary: `Review requested from ${call.target} by ${this.getAgentName(sourceAgentId)}`,
-    });
-
-    return { success: true, message: `Review request sent to ${call.target}` };
-  }
-
-  private handleShareContext(call: TeamToolCall, sourceAgentId: string): TeamToolResult {
-    const targetId = call.target ? this.agentLookup.resolveAgentId(call.target) : null;
-
-    researchEventBus.emitCommand('share_context', this.sessionId, {
-      sourceAgentId,
-      targetAgentId: targetId,
-      data: { context: call.content },
-      summary: `Context shared by ${this.getAgentName(sourceAgentId)}${call.target ? ` with ${call.target}` : ' (team-wide)'}`,
-    });
-
-    return { success: true, message: call.target ? `Context shared with ${call.target}` : 'Context shared with team' };
-  }
-
-  private handleGetStatus(): TeamToolResult {
-    const agents = this.agentLookup.getAgents();
-    const statusLines = agents.map((a) => `- ${a.name} (${a.role}): ${a.status}`);
-    const statusText = statusLines.join('\n');
+    const parts = [];
+    if (parsed.status) parts.push(`status → ${parsed.status}`);
+    if (parsed.artifacts?.length) parts.push(`${parsed.artifacts.length} artifact(s) registered`);
 
     return {
       success: true,
-      message: `Team status:\n${statusText}`,
-      data: agents,
+      message: `Board updated. ${parts.join(', ')}. Board file: ${this.board.getBoardFilePath()}`,
     };
+  }
+
+  private handleBoardRead(): TeamToolResult {
+    const boardContent = this.board.readBoard();
+    return {
+      success: true,
+      message: boardContent,
+    };
+  }
+
+  private handleNotify(call: TeamToolCall, sourceAgentId: string): TeamToolResult {
+    const agentName = this.getAgentName(sourceAgentId);
+
+    if (call.target) {
+      // Directed notification
+      const targetId = this.agentLookup.resolveAgentId(call.target);
+      if (!targetId) {
+        return { success: false, message: `Agent "${call.target}" not found` };
+      }
+
+      researchEventBus.emitCommand('send_message', this.sessionId, {
+        sourceAgentId,
+        targetAgentId: targetId,
+        data: { content: `[Notification from ${agentName}] ${call.content}` },
+        summary: `${agentName} → ${call.target}: ${call.content.slice(0, 100)}`,
+      });
+
+      return { success: true, message: `Notification sent to ${call.target}` };
+    } else {
+      // Broadcast notification
+      researchEventBus.emitCommand('send_message', this.sessionId, {
+        sourceAgentId,
+        targetAgentId: null,
+        data: { content: `[Notification from ${agentName}] ${call.content}` },
+        summary: `${agentName} (broadcast): ${call.content.slice(0, 100)}`,
+      });
+
+      return { success: true, message: 'Notification broadcast to all teammates' };
+    }
   }
 
   private getAgentName(agentId: string): string {

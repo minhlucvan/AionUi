@@ -5,17 +5,14 @@
  */
 
 /**
- * Research Team Module
+ * Research Team Module — Kanban-style multi-agent collaboration.
  *
- * Independent agents that run in the background and communicate
- * through events (broadcasts) and commands (directed messages).
+ * Agents run concurrently and coordinate through:
+ * - A shared board file (.team/board.md) for status and artifacts index
+ * - Artifact files (.team/artifacts/) for substantive content sharing
+ * - 3 team tools: board_update, board_read, notify
+ *
  * All activity flows into a unified feed for observability.
- *
- * Key differences from Team Control:
- * - Agents run concurrently, not sequentially
- * - No built-in validation loop — agents collaborate freely
- * - Communication via events/commands, not fixed prompts
- * - Feed provides full observability of all activity
  */
 
 export type { FeedEntry, FeedEntryKind, ResearchAgent, ResearchAgentConfig, ResearchAgentRole, ResearchAgentStatus, ResearchCommand, ResearchCommandType, ResearchEvent, ResearchEventType, ResearchSession, ResearchSessionConfig, ResearchSessionStatus } from './types';
@@ -26,6 +23,7 @@ export { researchEventBus } from './ResearchEventBus';
 export { ResearchAgentRunner } from './ResearchAgentRunner';
 export { researchTeamManager } from './ResearchTeamManager';
 export { feedStore } from './FeedStore';
-export { TEAM_TOOLS, buildTeamToolsPrompt } from './TeamToolDefinitions';
+export { BoardManager } from './BoardManager';
+export { TEAM_TOOLS, buildTeamToolsPrompt, parseBoardUpdateContent } from './TeamToolDefinitions';
 export { StreamingToolParser, parseToolCalls } from './TeamToolParser';
 export { TeamToolExecutor } from './TeamToolExecutor';

@@ -9,9 +9,12 @@
  *
  * Agents call team tools by outputting XML-like blocks:
  *
- *   <team_tool name="send_message" target="reviewer">
- *   Please check my analysis.
+ *   <team_tool name="board_update">
+ *   status: working
+ *   message: Completed analysis
  *   </team_tool>
+ *
+ * 3 recognized tools: board_update, board_read, notify
  *
  * The parser handles:
  * - Streaming: accumulates chunks until a complete tool call is found
@@ -22,24 +25,15 @@
 
 import type { TeamToolCall, TeamToolName } from './TeamToolDefinitions';
 
-const VALID_TOOL_NAMES = new Set<string>([
-  'send_message',
-  'broadcast',
-  'assign_task',
-  'report_finding',
-  'request_review',
-  'share_context',
-  'get_status',
-]);
+const VALID_TOOL_NAMES = new Set<string>(['board_update', 'board_read', 'notify']);
 
 /**
  * Regex to match a complete team_tool block.
  * Captures: name, optional target, and body content.
  *
  * Group 1: tool name
- * Group 2: full target attribute (optional)
- * Group 3: target value (optional)
- * Group 4: body content
+ * Group 2: target value (optional)
+ * Group 3: body content
  */
 const TOOL_CALL_REGEX = /<team_tool\s+name="([^"]+)"(?:\s+target="([^"]*)")?\s*>([\s\S]*?)<\/team_tool>/g;
 

@@ -7,25 +7,23 @@
 import { randomUUID } from 'crypto';
 import { researchEventBus } from './ResearchEventBus';
 import { ResearchAgentRunner } from './ResearchAgentRunner';
+import { BoardManager } from './BoardManager';
 import type { FeedEntry, ResearchAgent, ResearchSession, ResearchSessionConfig, ResearchSessionStatus } from './types';
 
 /**
- * ResearchTeamManager — Manages research team sessions.
+ * ResearchTeamManager — Manages team sessions with a Kanban-style board.
  *
- * Unlike TeamOrchestrator (sequential worker→validator loop),
- * ResearchTeamManager spawns agents that run independently in parallel.
- * Agents communicate through the ResearchEventBus and all activity
- * flows into the unified feed.
- *
- * Key differences from TeamControl:
- * - Agents run concurrently, not sequentially
- * - No built-in validation loop — agents collaborate freely
- * - Communication via events/commands, not prompts
- * - Feed provides full observability of all activity
+ * Key design:
+ * - Agents run concurrently and independently
+ * - A shared BoardManager provides the team board file (.team/board.md)
+ * - Agents write artifacts to .team/artifacts/ using native file tools
+ * - 3 team tools (board_update, board_read, notify) handle coordination
+ * - All activity flows into the unified feed for observability
  */
 export class ResearchTeamManager {
   private sessions = new Map<string, ResearchSession>();
   private runners = new Map<string, ResearchAgentRunner>();
+  private boards = new Map<string, BoardManager>();
 
   /** Start a new research session with multiple independent agents */
   async startSession(config: ResearchSessionConfig): Promise<ResearchSession> {
@@ -44,11 +42,17 @@ export class ResearchTeamManager {
 
     this.sessions.set(sessionId, session);
 
+    // Create the shared board for this session
+    const board = new BoardManager(config.workingDir, sessionId, config.objective);
+    this.boards.set(sessionId, board);
+
     researchEventBus.emitEvent('session_started', sessionId, {
-      summary: `Research session started: ${config.objective.slice(0, 100)}`,
+      summary: `Team session started: ${config.objective.slice(0, 100)}`,
       data: {
         objective: config.objective,
         agentCount: config.agents.length,
+        boardPath: board.getBoardFilePath(),
+        artifactsDir: board.getArtifactsDir(),
       },
     });
 
@@ -71,6 +75,9 @@ export class ResearchTeamManager {
 
       session.agents.push(agent);
 
+      // Register agent on the board
+      board.registerAgent(agentId, agentConfig.name, agentConfig.role);
+
       const runner = new ResearchAgentRunner({
         id: agentId,
         name: agentConfig.name,
@@ -85,10 +92,10 @@ export class ResearchTeamManager {
       agentConfigs.push({ agentId, agentConfig, agent, runner });
     }
 
-    // Phase 2: Wire up teammates on all runners so they know about each other
+    // Phase 2: Wire up teammates + board on all runners
     const teammates = session.agents.map((a) => ({ id: a.id, name: a.name, role: a.role, status: a.status }));
     for (const { runner } of agentConfigs) {
-      runner.setTeammates(teammates);
+      runner.setTeammates(teammates, board);
     }
 
     // Phase 3: Start all agents and send objectives
@@ -96,11 +103,13 @@ export class ResearchTeamManager {
       try {
         await runner.start();
         agent.status = 'running';
+        board.updateAgent(agentId, { status: 'working', message: agentConfig.objective.slice(0, 100) });
 
-        // Send objective with team tools injected — agent works independently from here
+        // Send objective — agent works independently from here
         runner.sendObjective(agentConfig.objective).catch((err) => {
           agent.status = 'error';
           agent.error = err instanceof Error ? err.message : String(err);
+          board.updateAgent(agentId, { status: 'blocked', message: `Error: ${agent.error}` });
           researchEventBus.emitEvent('agent_error', sessionId, {
             agentId,
             summary: `${agentConfig.name} failed to start objective`,
@@ -110,6 +119,7 @@ export class ResearchTeamManager {
       } catch (err) {
         agent.status = 'error';
         agent.error = err instanceof Error ? err.message : String(err);
+        board.updateAgent(agentId, { status: 'blocked', message: `Error: ${agent.error}` });
         researchEventBus.emitEvent('agent_error', sessionId, {
           agentId,
           summary: `${agentConfig.name} failed to start`,
@@ -130,7 +140,8 @@ export class ResearchTeamManager {
   /** Add a new agent to a running session */
   async addAgent(sessionId: string, agentConfig: ResearchSessionConfig['agents'][0]): Promise<ResearchAgent | null> {
     const session = this.sessions.get(sessionId);
-    if (!session || session.status !== 'running') return null;
+    const board = this.boards.get(sessionId);
+    if (!session || !board || session.status !== 'running') return null;
 
     const agentId = agentConfig.id ?? randomUUID();
 
@@ -146,6 +157,7 @@ export class ResearchTeamManager {
     };
 
     session.agents.push(agent);
+    board.registerAgent(agentId, agentConfig.name, agentConfig.role);
 
     const runner = new ResearchAgentRunner({
       id: agentId,
@@ -159,25 +171,27 @@ export class ResearchTeamManager {
 
     this.runners.set(agentId, runner);
 
-    // Wire up teammates (including the new agent)
+    // Wire up teammates + board (including the new agent)
     const teammates = session.agents.map((a) => ({ id: a.id, name: a.name, role: a.role, status: a.status }));
-    runner.setTeammates(teammates);
+    runner.setTeammates(teammates, board);
 
     // Also update teammates on existing runners so they know about the new agent
     for (const existingAgent of session.agents) {
       if (existingAgent.id !== agentId) {
         const existingRunner = this.runners.get(existingAgent.id);
-        existingRunner?.setTeammates(teammates);
+        existingRunner?.setTeammates(teammates, board);
       }
     }
 
     try {
       await runner.start();
       agent.status = 'running';
+      board.updateAgent(agentId, { status: 'working', message: agentConfig.objective.slice(0, 100) });
       runner.sendObjective(agentConfig.objective).catch(() => {});
     } catch (err) {
       agent.status = 'error';
       agent.error = err instanceof Error ? err.message : String(err);
+      board.updateAgent(agentId, { status: 'blocked', message: `Error: ${agent.error}` });
     }
 
     session.updatedAt = Date.now();
@@ -201,7 +215,7 @@ export class ResearchTeamManager {
   }
 
   /** Send a command between agents */
-  sendAgentCommand(sessionId: string, sourceAgentId: string | null, targetAgentId: string | null, type: ResearchSessionConfig extends never ? never : 'send_message' | 'assign_task' | 'request_review' | 'share_context', data?: unknown, summary?: string): void {
+  sendAgentCommand(sessionId: string, sourceAgentId: string | null, targetAgentId: string | null, type: 'send_message' | 'assign_task' | 'request_review' | 'share_context', data?: unknown, summary?: string): void {
     researchEventBus.emitCommand(type, sessionId, {
       sourceAgentId,
       targetAgentId,
@@ -242,7 +256,7 @@ export class ResearchTeamManager {
     this.updateSessionStatus(sessionId, 'completed');
 
     researchEventBus.emitEvent('session_completed', sessionId, {
-      summary: 'Research session ended',
+      summary: 'Team session ended',
       data: {
         agentCount: session.agents.length,
         feedSize: researchEventBus.getFeed(sessionId).length,
@@ -262,6 +276,10 @@ export class ResearchTeamManager {
 
   getActiveSessions(): ResearchSession[] {
     return Array.from(this.sessions.values()).filter((s) => s.status === 'running');
+  }
+
+  getBoard(sessionId: string): BoardManager | null {
+    return this.boards.get(sessionId) ?? null;
   }
 
   getFeed(sessionId: string): FeedEntry[] {
@@ -311,7 +329,7 @@ export class ResearchTeamManager {
         unsubscribe();
         this.updateSessionStatus(sessionId, 'completed');
         researchEventBus.emitEvent('session_completed', sessionId, {
-          summary: 'All research agents completed',
+          summary: 'All team agents completed',
           data: {
             agentCount: session.agents.length,
             feedSize: researchEventBus.getFeed(sessionId).length,

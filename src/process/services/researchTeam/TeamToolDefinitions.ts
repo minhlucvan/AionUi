@@ -5,25 +5,31 @@
  */
 
 /**
- * Team Tool Definitions
+ * Team Tool Definitions — 3 general-purpose coordination tools.
  *
- * Defines the structured tools that research team agents can invoke
- * to collaborate with each other. Agents call these tools by outputting
- * structured XML-like blocks in their response. The runner parses
- * these blocks and routes them through the ResearchEventBus.
+ * Design philosophy (Scrum/Kanban for agents):
+ * - Agents already have native file tools (Read, Write, Edit, Bash, Grep, Glob)
+ * - Team tools handle ONLY coordination that file ops can't do
+ * - All substantive content goes through files (artifacts)
+ * - The board is the single source of truth
  *
- * Tool call format:
+ * Tools:
+ *   1. board_update — Post status and progress to the shared team board
+ *   2. board_read  — Read the current team board state
+ *   3. notify      — Signal a teammate (or all) to take action
+ *
+ * Tool call format (unchanged XML blocks for streaming parser):
  *   <team_tool name="tool_name" target="agent-name">
  *   payload content
  *   </team_tool>
  */
 
-export type TeamToolName = 'send_message' | 'broadcast' | 'assign_task' | 'report_finding' | 'request_review' | 'get_status' | 'share_context';
+export type TeamToolName = 'board_update' | 'board_read' | 'notify';
 
 export type TeamToolCall = {
   /** Which tool is being called */
   name: TeamToolName;
-  /** Target agent name (null for broadcasts/system calls) */
+  /** Target agent name (for notify; null for board tools) */
   target: string | null;
   /** Payload content (the body of the tool call) */
   content: string;
@@ -51,80 +57,105 @@ type TeamToolDefinition = {
 
 export const TEAM_TOOLS: TeamToolDefinition[] = [
   {
-    name: 'send_message',
-    description: 'Send a direct message to another agent. Use this to ask questions, provide feedback, or share information with a specific teammate.',
-    requiresTarget: true,
-    example: `<team_tool name="send_message" target="reviewer">
-I found 3 potential issues in the authentication module. Can you verify my findings?
-</team_tool>`,
-  },
-  {
-    name: 'broadcast',
-    description: 'Send a message to ALL agents in the team. Use sparingly for important announcements or coordination.',
+    name: 'board_update',
+    description:
+      'Update the shared team board with your current status and progress. ' +
+      'Use this after completing work, when blocked, or to register artifacts you produced. ' +
+      'The board is visible to all teammates and serves as the single source of truth.',
     requiresTarget: false,
-    example: `<team_tool name="broadcast">
-I've completed the initial analysis. The main issue is in the database layer.
+    example: `<team_tool name="board_update">
+status: working
+message: Analyzed the authentication module. Found 3 issues. See .team/artifacts/auth-analysis.md
+artifacts: .team/artifacts/auth-analysis.md
 </team_tool>`,
   },
   {
-    name: 'assign_task',
-    description: 'Assign a specific task to another agent. The target agent will receive the task as a message.',
-    requiresTarget: true,
-    example: `<team_tool name="assign_task" target="analyst">
-Please analyze the performance metrics in src/utils/cache.ts and identify bottlenecks.
-</team_tool>`,
-  },
-  {
-    name: 'report_finding',
-    description: 'Report an important finding to the team feed. All agents and the user can see reported findings.',
+    name: 'board_read',
+    description: 'Read the current team board to see what all teammates are working on, their status, and produced artifacts. Use this before starting work or when you need to coordinate.',
     requiresTarget: false,
-    example: `<team_tool name="report_finding">
-FINDING: The rate limiter in api/middleware.ts has a race condition that allows burst traffic to bypass limits under high concurrency.
+    example: `<team_tool name="board_read">
 </team_tool>`,
   },
   {
-    name: 'request_review',
-    description: 'Ask another agent to review your work or analysis. Include the content you want reviewed.',
-    requiresTarget: true,
-    example: `<team_tool name="request_review" target="reviewer">
-Please review my proposed fix for the race condition:
-- Add mutex lock around the counter increment
-- Use atomic compare-and-swap for the rate check
-</team_tool>`,
-  },
-  {
-    name: 'share_context',
-    description: 'Share relevant context, code snippets, or information with another agent or the whole team.',
-    requiresTarget: false,
-    example: `<team_tool name="share_context" target="researcher">
-Here is the relevant code from auth.ts that you should look at:
-\`\`\`typescript
-export function validateToken(token: string): boolean {
-  // This is where the vulnerability exists
-  return jwt.verify(token, SECRET, { algorithms: ['HS256'] });
-}
-\`\`\`
-</team_tool>`,
-  },
-  {
-    name: 'get_status',
-    description: 'Get the current status of all agents in the team. Returns who is running, idle, or finished.',
-    requiresTarget: false,
-    example: `<team_tool name="get_status">
+    name: 'notify',
+    description:
+      'Send a notification to a specific teammate (or all teammates if no target). ' +
+      'Use this to signal that an artifact is ready for review, you need input, or to coordinate next steps. ' +
+      'Keep notifications brief — put detailed content in artifact files that teammates can read.',
+    requiresTarget: false, // target is optional (null = broadcast)
+    example: `<team_tool name="notify" target="reviewer">
+Artifact ready: .team/artifacts/auth-analysis.md — please review the 3 issues I found.
 </team_tool>`,
   },
 ];
 
 /**
+ * Parse a board_update tool call body into structured fields.
+ *
+ * Expected format (flexible key: value lines):
+ *   status: working|blocked|reviewing|done
+ *   message: Free-form text about current work
+ *   artifacts: comma-separated file paths (optional)
+ */
+export function parseBoardUpdateContent(content: string): {
+  status?: string;
+  message?: string;
+  artifacts?: string[];
+} {
+  const lines = content.split('\n');
+  const result: { status?: string; message?: string; artifacts?: string[] } = {};
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx === -1) {
+      // No key: value format — treat entire content as message
+      if (!result.message) result.message = trimmed;
+      continue;
+    }
+
+    const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
+    const value = trimmed.slice(colonIdx + 1).trim();
+
+    switch (key) {
+      case 'status':
+        result.status = value.toLowerCase();
+        break;
+      case 'message':
+        result.message = value;
+        break;
+      case 'artifacts':
+      case 'artifact':
+      case 'files':
+        result.artifacts = value
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        break;
+      default:
+        // Unknown key — append to message
+        if (!result.message) {
+          result.message = trimmed;
+        }
+        break;
+    }
+  }
+
+  return result;
+}
+
+/**
  * Generate the prompt instructions that teach agents how to use team tools.
  * This gets injected into the agent's initial objective prompt.
  */
-export function buildTeamToolsPrompt(agentName: string, teammates: Array<{ name: string; role: string }>): string {
+export function buildTeamToolsPrompt(agentName: string, teammates: Array<{ name: string; role: string }>, boardPath: string, artifactsDir: string): string {
   const toolDocs = TEAM_TOOLS.map(
     (tool) =>
       `### ${tool.name}
 ${tool.description}
-${tool.requiresTarget ? 'Requires target agent.' : 'No target needed (or optional).'}
+${tool.requiresTarget ? 'Requires target agent.' : 'Target is optional.'}
 
 Example:
 ${tool.example}`
@@ -132,35 +163,34 @@ ${tool.example}`
 
   const teammateList = teammates.map((t) => `- **${t.name}** (${t.role})`).join('\n');
 
-  return `## Team Collaboration Tools
+  return `## Team Collaboration
 
-You are **${agentName}** working as part of a team. You can use the following tools to communicate and coordinate with your teammates.
+You are **${agentName}** working as part of a team. Your workflow follows a Kanban-style process:
 
-### How to Call Tools
-Output a structured block in your response:
-\`\`\`
-<team_tool name="TOOL_NAME" target="AGENT_NAME">
-Your message or content here
-</team_tool>
-\`\`\`
+### How It Works
+1. **Read the board** to understand team state and what others are doing
+2. **Do your work** using your native tools (Read, Write, Edit, Bash, Grep, Glob)
+3. **Write artifacts** to \`${artifactsDir}\` for anything you want to share (findings, analysis, code, etc.)
+4. **Update the board** to report your progress and reference your artifacts
+5. **Notify teammates** when they need to act (review your work, unblock you, etc.)
 
-The system will intercept these blocks, route them to the appropriate agent, and you will receive responses as follow-up messages.
+### Shared Workspace
+- **Board file**: \`${boardPath}\` (auto-managed, use board_read/board_update tools)
+- **Artifacts dir**: \`${artifactsDir}\` (write files here with your native Write tool)
+- All teammates can read your artifacts — this is how you share context
 
 ### Your Teammates
 ${teammateList}
 
-### Available Tools
+### Tools (use XML blocks in your output)
 
 ${toolDocs}
 
 ### Guidelines
-- Use **send_message** for direct 1:1 communication
-- Use **report_finding** to log important discoveries visible to everyone
-- Use **request_review** when you want another agent to validate your work
-- Use **assign_task** to delegate specific subtasks
-- Use **broadcast** sparingly — only for team-wide announcements
-- You will receive messages from other agents as follow-up prompts
-- Always identify yourself when communicating: start messages with your role/purpose
-- Be concise but thorough in your communications
+- **Write artifacts first, then update the board** — content goes in files, not in tool calls
+- **Keep notifications brief** — say what and where, not the full content
+- **Check the board before starting** — avoid duplicate work
+- **Use native file tools for everything else** — Read, Write, Edit, Bash, Grep, Glob are all available
+- When producing work output, write it to \`${artifactsDir}/<descriptive-name>.md\`
 `;
 }
