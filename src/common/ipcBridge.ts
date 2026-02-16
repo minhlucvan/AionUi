@@ -646,3 +646,19 @@ export const missionControl = {
   onMissionsSync: bridge.buildEmitter<{ teamName: string; missions: Mission[] }>('mission-control.missions-synced'),
   onMissionUpdate: bridge.buildEmitter<Mission>('mission-control.mission-updated'),
 };
+
+// ==================== Team Control API ====================
+// Manager-Worker agent team orchestration
+
+import type { TeamSession, TeamEvent, TeamConfig } from '@process/services/teamControl/types';
+
+export const teamControl = {
+  // Lifecycle
+  startSession: bridge.buildProvider<IBridgeResponse<TeamSession>, TeamConfig>('team-control.start-session'),
+  stopSession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('team-control.stop-session'),
+  // Queries
+  getSession: bridge.buildProvider<IBridgeResponse<TeamSession | null>, { sessionId: string }>('team-control.get-session'),
+  getSessions: bridge.buildProvider<IBridgeResponse<TeamSession[]>, { conversationId: string }>('team-control.get-sessions'),
+  // Events
+  onSessionEvent: bridge.buildEmitter<TeamEvent>('team-control.session-event'),
+};
