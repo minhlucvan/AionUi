@@ -868,13 +868,51 @@ const migration_v17: IMigration = {
 };
 
 /**
+ * Migration v17 -> v18: Add research_feed table for Research Team feed
+ * Stores the chronological feed of events and commands from research team sessions.
+ */
+const migration_v18: IMigration = {
+  version: 18,
+  name: 'Add research_feed table',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS research_feed (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        type TEXT NOT NULL,
+        source_agent_id TEXT,
+        target_agent_id TEXT,
+        data TEXT,
+        summary TEXT,
+        timestamp INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_research_feed_session ON research_feed(session_id);
+      CREATE INDEX IF NOT EXISTS idx_research_feed_kind ON research_feed(kind);
+      CREATE INDEX IF NOT EXISTS idx_research_feed_timestamp ON research_feed(session_id, timestamp);
+    `);
+    console.log('[Migration v18] Added research_feed table');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_research_feed_timestamp;
+      DROP INDEX IF EXISTS idx_research_feed_kind;
+      DROP INDEX IF EXISTS idx_research_feed_session;
+      DROP TABLE IF EXISTS research_feed;
+    `);
+    console.log('[Migration v18] Rolled back: Removed research_feed table');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14, migration_v15, migration_v16, migration_v17,
+  migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
 ];
 
 /**

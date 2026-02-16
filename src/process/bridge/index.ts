@@ -29,6 +29,7 @@ import { initWebuiBridge } from './webuiBridge';
 import { initTeamMonitorBridge } from './teamMonitorBridge';
 import { initMissionControlBridge } from './missionControlBridge';
 import { initTeamControlBridge } from './teamControlBridge';
+import { initResearchTeamBridge } from './researchTeamBridge';
 import { initUtilityToolsBridge } from './utilityToolsBridge';
 import { initWindowControlsBridge } from './windowControlsBridge';
 
@@ -63,6 +64,7 @@ export function initAllBridges(): void {
   initTeamMonitorBridge();
   initMissionControlBridge();
   initTeamControlBridge();
+  initResearchTeamBridge();
 }
 
 /**
@@ -77,7 +79,7 @@ export async function initializeAcpDetector(): Promise<void> {
 }
 
 // 导出初始化函数供单独使用
-export { initAcpConversationBridge, initApplicationBridge, initAuthBridge, initBedrockBridge, initChannelBridge, initCodexConversationBridge, initConversationBridge, initCronBridge, initDatabaseBridge, initDialogBridge, initDocumentBridge, initFsBridge, initGeminiBridge, initGeminiConversationBridge, initMcpBridge, initMissionControlBridge, initModelBridge, initPreviewHistoryBridge, initShellBridge, initTeamControlBridge, initTeamMonitorBridge, initUpdateBridge, initUtilityToolsBridge, initWebuiBridge, initWindowControlsBridge };
+export { initAcpConversationBridge, initApplicationBridge, initAuthBridge, initBedrockBridge, initChannelBridge, initCodexConversationBridge, initConversationBridge, initCronBridge, initDatabaseBridge, initDialogBridge, initDocumentBridge, initFsBridge, initGeminiBridge, initGeminiConversationBridge, initMcpBridge, initMissionControlBridge, initModelBridge, initPreviewHistoryBridge, initResearchTeamBridge, initShellBridge, initTeamControlBridge, initTeamMonitorBridge, initUpdateBridge, initUtilityToolsBridge, initWebuiBridge, initWindowControlsBridge };
 
 // 导出窗口控制相关工具函数
 export { registerWindowMaximizeListeners } from './windowControlsBridge';

@@ -662,3 +662,27 @@ export const teamControl = {
   // Events
   onSessionEvent: bridge.buildEmitter<TeamEvent>('team-control.session-event'),
 };
+
+// ==================== Research Team API ====================
+// Independent agents that run in background, communicate via events/commands feed
+
+import type { FeedEntry, FeedEntryKind, ResearchAgentConfig, ResearchSession, ResearchSessionConfig } from '@process/services/researchTeam/types';
+
+export type { FeedEntry, ResearchSession, ResearchSessionConfig, ResearchAgentConfig };
+
+export const researchTeam = {
+  // Session lifecycle
+  startSession: bridge.buildProvider<IBridgeResponse<ResearchSession>, ResearchSessionConfig>('research-team.start-session'),
+  stopSession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('research-team.stop-session'),
+  // Agent management
+  addAgent: bridge.buildProvider<IBridgeResponse<import('@process/services/researchTeam/types').ResearchAgent | null>, { sessionId: string; agent: ResearchAgentConfig }>('research-team.add-agent'),
+  stopAgent: bridge.buildProvider<IBridgeResponse, { sessionId: string; agentId: string }>('research-team.stop-agent'),
+  sendMessageToAgent: bridge.buildProvider<IBridgeResponse, { sessionId: string; agentId: string; content: string }>('research-team.send-message'),
+  // Queries
+  getSession: bridge.buildProvider<IBridgeResponse<ResearchSession | null>, { sessionId: string }>('research-team.get-session'),
+  getSessions: bridge.buildProvider<IBridgeResponse<ResearchSession[]>, { conversationId: string }>('research-team.get-sessions'),
+  // Feed
+  getFeed: bridge.buildProvider<IBridgeResponse<FeedEntry[]>, { sessionId: string; filters?: { kind?: FeedEntryKind; agentId?: string; limit?: number } }>('research-team.get-feed'),
+  // Events (streamed to renderer)
+  onFeedEntry: bridge.buildEmitter<FeedEntry>('research-team.feed-entry'),
+};
