@@ -21,6 +21,7 @@ export const mainConfig: Configuration = {
     codex: './src/worker/codex.ts',
     'openclaw-gateway': './src/worker/openclaw-gateway.ts',
     nanobot: './src/worker/nanobot.ts',
+    commander: './src/worker/commander.ts',
   },
   output: {
     filename: '[name].js',

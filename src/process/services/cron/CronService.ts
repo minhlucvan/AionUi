@@ -369,7 +369,7 @@ class CronService {
 
       // Call sendMessage directly on the task
       // Different agents use different parameter names: Gemini uses 'input', ACP/Codex use 'content'
-      if (task.type === 'codex' || task.type === 'acp') {
+      if (task.type === 'codex' || task.type === 'acp' || task.type === 'commander') {
         await task.sendMessage({ content: messageText, msg_id: msgId, files: workspaceFiles });
       } else {
         await task.sendMessage({ input: messageText, msg_id: msgId, files: workspaceFiles });

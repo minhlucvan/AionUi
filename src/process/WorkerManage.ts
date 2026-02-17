@@ -6,6 +6,7 @@
 
 import type { TChatConversation } from '@/common/storage';
 import AcpAgentManager from './task/AcpAgentManager';
+import CommanderAgentManager from './task/CommanderAgentManager';
 import { CodexAgentManager } from '@/agent/codex';
 import NanoBotAgentManager from './task/NanoBotAgentManager';
 import OpenClawAgentManager from './task/OpenClawAgentManager';
@@ -109,6 +110,17 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         ...conversation.extra,
         conversation_id: conversation.id,
         yoloMode: options?.yoloMode,
+      });
+      if (!options?.skipCache) {
+        taskList.push({ id: conversation.id, task });
+      }
+      return task;
+    }
+    case 'commander': {
+      const task = new CommanderAgentManager({
+        ...conversation.extra,
+        conversation_id: conversation.id,
+        yoloMode: options?.yoloMode ?? true, // Commander defaults to auto-approve
       });
       if (!options?.skipCache) {
         taskList.push({ id: conversation.id, task });

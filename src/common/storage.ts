@@ -253,6 +253,26 @@ export type TChatConversation =
         }
       >,
       'model'
+    >
+  | Omit<
+      IChatConversation<
+        'commander',
+        {
+          workspace?: string;
+          backend: AcpBackend;
+          cliPath?: string;
+          customWorkspace?: boolean;
+          customAgentId?: string;
+          presetContext?: string;
+          enabledSkills?: string[];
+          presetAssistantId?: string;
+          /** ACP session ID for resume support */
+          acpSessionId?: string;
+          /** ACP session last update time */
+          acpSessionUpdatedAt?: number;
+        }
+      >,
+      'model'
     >;
 
 export type IChatConversationRefer = {

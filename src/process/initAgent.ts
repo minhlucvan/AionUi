@@ -285,6 +285,33 @@ export const createNanobotAgent = async (options: ICreateConversationParams): Pr
   };
 };
 
+export const createCommanderAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
+  const { extra } = options;
+  const backend = extra.backend || 'claude';
+  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`commander-${backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
+
+  const conversationExtra: any = {
+    workspace: workspace,
+    customWorkspace,
+    backend: backend,
+    cliPath: extra.cliPath,
+  };
+
+  if (extra.customAgentId !== undefined) conversationExtra.customAgentId = extra.customAgentId;
+  if (extra.presetContext !== undefined) conversationExtra.presetContext = extra.presetContext;
+  if (extra.enabledSkills !== undefined) conversationExtra.enabledSkills = extra.enabledSkills;
+  if (extra.presetAssistantId !== undefined) conversationExtra.presetAssistantId = extra.presetAssistantId;
+
+  return {
+    type: 'commander' as const,
+    extra: conversationExtra,
+    createTime: Date.now(),
+    modifyTime: Date.now(),
+    name: workspace,
+    id: uuid(),
+  };
+};
+
 export const createOpenClawAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`openclaw-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
