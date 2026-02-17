@@ -34,3 +34,26 @@ export async function prepareFirstMessageWithSkillsIndex(
 
   return result.content ?? content;
 }
+
+/**
+ * Run onQueueInit hooks to collect messages that should be auto-queued.
+ * Returns an array of messages to enqueue into the agent's message queue.
+ */
+export async function runQueueInitHooks(options: {
+  workspace?: string;
+  backend?: string;
+  conversationId?: string;
+  enabledSkills?: string[];
+  presetContext?: string;
+}): Promise<Array<{ content: string; files?: string[]; priority?: 'normal' | 'high'; source?: 'hook' | 'cron' | 'system' }>> {
+  const result = await runAgentHooks('onQueueInit', {
+    agentType: 'acp',
+    workspace: options.workspace || '',
+    backend: options.backend,
+    enabledSkills: options.enabledSkills || [],
+    conversationId: options.conversationId,
+    presetContext: options.presetContext,
+  });
+
+  return result.queueMessages || [];
+}

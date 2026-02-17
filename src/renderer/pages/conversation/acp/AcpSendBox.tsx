@@ -30,6 +30,11 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   uploadFile: [],
 });
 
+export type QueueStatusInfo = {
+  status: 'idle' | 'processing' | 'paused';
+  queueLength: number;
+};
+
 const useAcpMessage = (conversation_id: string) => {
   const addOrUpdateMessage = useAddOrUpdateMessage();
   const [running, setRunning] = useState(false);
@@ -39,6 +44,7 @@ const useAcpMessage = (conversation_id: string) => {
   });
   const [acpStatus, setAcpStatus] = useState<'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error' | null>(null);
   const [aiProcessing, setAiProcessing] = useState(false); // New loading state for AI response
+  const [queueStatus, setQueueStatus] = useState<QueueStatusInfo>({ status: 'idle', queueLength: 0 });
 
   // Use refs to sync state for immediate access in event handlers
   // 使用 ref 同步状态，以便在事件处理程序中立即访问
@@ -189,6 +195,14 @@ const useAcpMessage = (conversation_id: string) => {
           }
           addOrUpdateMessage(transformedMessage);
           break;
+        case 'queue_status': {
+          const queueData = message.data as { eventType: string; queueLength: number };
+          setQueueStatus({
+            status: queueData.eventType === 'pause' ? 'paused' : queueData.queueLength > 0 ? 'processing' : 'idle',
+            queueLength: queueData.queueLength,
+          });
+          break;
+        }
         case 'error':
           // Stop AI processing state when error occurs
           setAiProcessing(false);
@@ -260,7 +274,7 @@ const useAcpMessage = (conversation_id: string) => {
     hasContentInTurnRef.current = false;
   }, []);
 
-  return { thought, setThought, running, acpStatus, aiProcessing, setAiProcessing, resetState };
+  return { thought, setThought, running, acpStatus, aiProcessing, setAiProcessing, resetState, queueStatus };
 };
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
@@ -302,7 +316,7 @@ const AcpSendBox: React.FC<{
   conversation_id: string;
   backend: AcpBackend;
 }> = ({ conversation_id, backend }) => {
-  const { thought, running, aiProcessing, setAiProcessing, resetState } = useAcpMessage(conversation_id);
+  const { thought, running, aiProcessing, setAiProcessing, resetState, queueStatus } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
@@ -500,9 +514,43 @@ const AcpSendBox: React.FC<{
     }
   };
 
+  const handlePauseQueue = useCallback(() => {
+    void ipcBridge.acpConversation.pauseQueue.invoke({ conversation_id });
+  }, [conversation_id]);
+
+  const handleResumeQueue = useCallback(() => {
+    void ipcBridge.acpConversation.resumeQueue.invoke({ conversation_id });
+  }, [conversation_id]);
+
+  const handleClearQueue = useCallback(() => {
+    void ipcBridge.acpConversation.clearQueue.invoke({ conversation_id });
+  }, [conversation_id]);
+
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
       <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} />
+
+      {queueStatus.queueLength > 0 && (
+        <div className='flex items-center gap-8px mb-8px px-4px'>
+          <Tag color={queueStatus.status === 'paused' ? 'orangered' : 'arcoblue'}>
+            {queueStatus.status === 'paused'
+              ? t('acp.queue.paused', { defaultValue: 'Queue paused' })
+              : t('acp.queue.pending', { count: queueStatus.queueLength, defaultValue: '{{count}} messages queued' })}
+          </Tag>
+          {queueStatus.status === 'paused' ? (
+            <Button type='text' size='mini' onClick={handleResumeQueue}>
+              {t('acp.queue.resume', { defaultValue: 'Resume' })}
+            </Button>
+          ) : (
+            <Button type='text' size='mini' onClick={handlePauseQueue}>
+              {t('acp.queue.pause', { defaultValue: 'Pause' })}
+            </Button>
+          )}
+          <Button type='text' size='mini' status='danger' onClick={handleClearQueue}>
+            {t('acp.queue.clear', { defaultValue: 'Clear' })}
+          </Button>
+        </div>
+      )}
 
       <SendBox
         value={content}
