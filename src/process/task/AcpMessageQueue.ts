@@ -60,6 +60,8 @@ export class AcpMessageQueue {
   private sender: MessageSender | null = null;
   private processing = false;
   private maxQueueSize = 100;
+  /** Resolves when the agent emits its 'finish' signal for the current turn */
+  private turnFinishResolve: (() => void) | null = null;
 
   /**
    * Set the message sender function.
@@ -116,16 +118,19 @@ export class AcpMessageQueue {
 
   /**
    * Notify the queue that the agent has finished responding.
-   * This triggers processing of the next message.
+   * If processNext() is waiting for the turn to finish, this unblocks it.
+   * Otherwise it triggers processing of the next pending message.
    */
   onAgentFinished(): void {
-    if (this.processing) {
-      // The processNext loop handles continuation;
-      // this flag is checked after sendMessage resolves
+    // Unblock processNext() which is awaiting the turn-finish promise
+    if (this.turnFinishResolve) {
+      const resolve = this.turnFinishResolve;
+      this.turnFinishResolve = null;
+      resolve();
       return;
     }
-    // If there are pending messages, start processing
-    if (this.queue.length > 0 && this.status !== 'paused') {
+    // If there are pending messages and we're not already processing, start
+    if (this.queue.length > 0 && this.status !== 'paused' && !this.processing) {
       void this.processNext();
     }
   }
@@ -220,13 +225,25 @@ export class AcpMessageQueue {
     this.emit({ type: 'start', message, queueLength: this.queue.length });
 
     try {
+      // Create a promise that resolves when onAgentFinished() is called
+      const turnFinished = new Promise<void>((resolve) => {
+        this.turnFinishResolve = resolve;
+      });
+
       await this.sender({
         content: message.content,
         files: message.files,
         msg_id: message.msg_id,
       });
+
+      // Wait for the agent to finish the turn (finish signal from ACP)
+      // This ensures the next queued message is only sent after Claude responds
+      await turnFinished;
+
       this.emit({ type: 'finish', message, queueLength: this.queue.length });
     } catch (error) {
+      // Clear the turn-finish resolver on error to avoid a dangling promise
+      this.turnFinishResolve = null;
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error(`[AcpMessageQueue] Failed to send message ${message.id}:`, errorMsg);
       this.emit({ type: 'error', message, queueLength: this.queue.length, error: errorMsg });

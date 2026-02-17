@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs';
 import { AcpAgent } from '@/agent/acp';
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chatLib';
@@ -12,6 +13,7 @@ import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { findSessionFile } from '@process/services/devtools/sessionDiscovery';
 import { prepareFirstMessageWithSkillsIndex, runQueueInitHooks } from './agentUtils';
 import { AcpMessageQueue, type QueuedMessageSource, type QueuedMessagePriority, type QueueEvent } from './AcpMessageQueue';
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
@@ -38,6 +40,8 @@ interface AcpAgentManagerData {
   acpSessionId?: string;
   /** Last update time of ACP session / ACP session 最后更新时间 */
   acpSessionUpdatedAt?: number;
+  /** Path to assistant hooks directory for onQueueInit and other runtime hooks */
+  assistantHooksPath?: string;
 }
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
@@ -49,6 +53,10 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   // Track current message for cron detection (accumulated from streaming chunks)
   private currentMsgId: string | null = null;
   private currentMsgContent: string = '';
+  // Track the ACP session ID in memory so we can write JSONL entries for devtools
+  private currentAcpSessionId: string | null = null;
+  // Pending hook messages to write to JSONL once the session ID is known
+  private pendingQueueOpsToWrite: Array<{ content: string }> | null = null;
 
   /** Message queue for sequential auto-prompting */
   readonly messageQueue: AcpMessageQueue;
@@ -156,7 +164,14 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         onSessionIdUpdate: (sessionId: string) => {
           // Save ACP session ID to database for resume support
           // 保存 ACP session ID 到数据库以支持会话恢复
+          this.currentAcpSessionId = sessionId; // Track in memory for JSONL writes
           this.saveAcpSessionId(sessionId);
+          // Flush any hook messages that were enqueued before the session ID was known
+          if (this.pendingQueueOpsToWrite) {
+            const pending = this.pendingQueueOpsToWrite;
+            this.pendingQueueOpsToWrite = null;
+            void this.writeQueueOperationsToSession(pending);
+          }
         },
         onStreamEvent: (message) => {
           const pipelineStart = Date.now();
@@ -488,13 +503,48 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         conversationId: this.conversation_id,
         enabledSkills: this.options.enabledSkills,
         presetContext: this.options.presetContext,
+        assistantHooksPath: this.options.assistantHooksPath,
       });
       if (messages.length > 0) {
         console.log(`[AcpAgentManager] onQueueInit hook returned ${messages.length} messages to enqueue`);
         this.enqueueMessages(messages);
+        void this.writeQueueOperationsToSession(messages); // Write to JSONL for devtools
       }
     } catch (error) {
       console.warn('[AcpAgentManager] onQueueInit hooks failed:', error);
+    }
+  }
+
+  /**
+   * Write queue-operation JSONL entries for hook-queued messages so the devtools
+   * session analyzer can surface them as user messages.
+   * If the session ID isn't known yet, stores the messages to be flushed when it arrives.
+   */
+  private async writeQueueOperationsToSession(messages: Array<{ content: string }>): Promise<void> {
+    if (!this.currentAcpSessionId) {
+      // Session ID not yet known — store for later flush in onSessionIdUpdate
+      this.pendingQueueOpsToWrite = messages;
+      return;
+    }
+    const sessionFile = findSessionFile(this.currentAcpSessionId, this.workspace);
+    if (!sessionFile) return;
+
+    const ts = new Date().toISOString();
+    const entries = messages.map((msg) =>
+      JSON.stringify({
+        type: 'queue-operation',
+        operation: 'enqueue',
+        timestamp: ts,
+        sessionId: this.currentAcpSessionId,
+        content: msg.content,
+        source: 'hook',
+      })
+    );
+
+    try {
+      await fs.appendFile(sessionFile, entries.join('\n') + '\n', 'utf-8');
+    } catch (error) {
+      console.warn('[AcpAgentManager] Failed to write queue-operation entries to JSONL:', error);
     }
   }
 

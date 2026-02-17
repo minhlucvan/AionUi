@@ -110,10 +110,12 @@ const useAcpMessage = (conversation_id: string) => {
         return;
       }
 
-      // Cancel pending finish timeout if new message arrives
-      // 如果新消息到达，取消待处理的 finish timeout
+      // Cancel pending finish timeout if new message arrives (but not for status-only events
+      // that don't represent actual agent activity, to avoid indefinite processing state)
+      // 如果新消息到达，取消待处理的 finish timeout（但不包括仅状态事件）
       const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
-      if (pendingTimeout && message.type !== 'finish') {
+      const isStatusOnlyEvent = message.type === 'queue_status' || message.type === 'user_content';
+      if (pendingTimeout && message.type !== 'finish' && !isStatusOnlyEvent) {
         clearTimeout(pendingTimeout);
         (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
       }
@@ -201,6 +203,20 @@ const useAcpMessage = (conversation_id: string) => {
             status: queueData.eventType === 'pause' ? 'paused' : queueData.queueLength > 0 ? 'processing' : 'idle',
             queueLength: queueData.queueLength,
           });
+          // When queue drains (all queued messages processed), clear any pending finish timeout
+          // and ensure the running state is cleared — the session is truly done.
+          if (queueData.eventType === 'drain') {
+            const drainTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+            if (drainTimeout) {
+              clearTimeout(drainTimeout);
+              (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+            }
+            setRunning(false);
+            runningRef.current = false;
+            setAiProcessing(false);
+            aiProcessingRef.current = false;
+            setThought({ subject: '', description: '' });
+          }
           break;
         }
         case 'error':
@@ -532,11 +548,7 @@ const AcpSendBox: React.FC<{
 
       {queueStatus.queueLength > 0 && (
         <div className='flex items-center gap-8px mb-8px px-4px'>
-          <Tag color={queueStatus.status === 'paused' ? 'orangered' : 'arcoblue'}>
-            {queueStatus.status === 'paused'
-              ? t('acp.queue.paused', { defaultValue: 'Queue paused' })
-              : t('acp.queue.pending', { count: queueStatus.queueLength, defaultValue: '{{count}} messages queued' })}
-          </Tag>
+          <Tag color={queueStatus.status === 'paused' ? 'orangered' : 'arcoblue'}>{queueStatus.status === 'paused' ? t('acp.queue.paused', { defaultValue: 'Queue paused' }) : t('acp.queue.pending', { count: queueStatus.queueLength, defaultValue: '{{count}} messages queued' })}</Tag>
           {queueStatus.status === 'paused' ? (
             <Button type='text' size='mini' onClick={handleResumeQueue}>
               {t('acp.queue.resume', { defaultValue: 'Resume' })}
