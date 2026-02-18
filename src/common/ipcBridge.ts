@@ -453,6 +453,32 @@ export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
 };
 
+// App Platform - AI-powered mini-apps running in isolated iframes
+export const app = {
+  /** List available apps (bundled + workspace) */
+  list: bridge.buildProvider<import('./types/app').AppInfo[], void>('app.list'),
+  /** Open a resource in an app → returns session with URL */
+  open: bridge.buildProvider<import('./types/app').AppSession, { appName: string; resource?: import('./types/app').AppResource }>('app.open'),
+  /** Close an app session */
+  close: bridge.buildProvider<void, { sessionId: string }>('app.close'),
+  /** Call a tool on an app session */
+  callTool: bridge.buildProvider<unknown, { sessionId: string; tool: string; params: Record<string, unknown> }>('app.call-tool'),
+  /** @deprecated Use callTool */
+  execute: bridge.buildProvider<unknown, { sessionId: string; capability: string; params: Record<string, unknown> }>('app.execute'),
+  /** Event: app content changed */
+  contentChanged: bridge.buildEmitter<{ sessionId: string; content: string; isDirty: boolean }>('app.content-changed'),
+  /** Event: app emitted a custom event */
+  event: bridge.buildEmitter<{ sessionId: string; event: string; data?: Record<string, unknown> }>('app.event'),
+  /** Open workspace app (.aionui/app.json) */
+  openWorkspace: bridge.buildProvider<import('./types/app').AppSession, { workspace: string }>('app.open-workspace'),
+  /** Read workspace app config (.aionui/app.json) */
+  getWorkspaceConfig: bridge.buildProvider<import('./types/app').WorkspaceAppConfig | null, { workspace: string }>('app.workspace-config'),
+  /** Get app session state (structured data published by the app) */
+  getState: bridge.buildProvider<import('./types/app').AppState, { sessionId: string }>('app.get-state'),
+  /** Event: app state updated */
+  stateUpdated: bridge.buildEmitter<{ sessionId: string; state: import('./types/app').AppState }>('app.state-updated'),
+};
+
 // 窗口控制相关接口 / Window controls API
 export const windowControls = {
   minimize: bridge.buildProvider<void, void>('window-controls:minimize'),

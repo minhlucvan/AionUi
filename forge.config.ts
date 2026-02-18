@@ -225,6 +225,8 @@ module.exports = {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          // Allow AppServer iframes (http://127.0.0.1:*) in development
+          'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; frame-src http://127.0.0.1:* http://localhost:*; connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:*; img-src * data: blob:;",
         },
         client: {
           overlay: {

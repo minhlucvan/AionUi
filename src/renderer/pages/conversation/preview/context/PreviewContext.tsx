@@ -27,6 +27,11 @@ export interface PreviewMetadata {
   filePath?: string; // 工作空间文件的绝对路径 / Absolute file path in workspace
   workspace?: string; // 工作空间根目录 / Workspace root directory
   editable?: boolean; // 是否可编辑 / Whether editable
+  // Preview App metadata (used when contentType === 'app')
+  appId?: string; // Preview app manifest ID
+  appInstanceId?: string; // Running instance ID
+  appUrl?: string; // URL of the app's server (e.g., http://127.0.0.1:PORT)
+  appName?: string; // Display name of the app
 }
 
 export interface PreviewTab {

@@ -24,6 +24,9 @@ export const plugins: WebpackPluginInstance[] = [
       // tools 目录：包含工具定义 (tool.json) 和关联的技能文件
       // tools directory: contains tool manifests (tool.json) and associated skill files
       { from: path.resolve(__dirname, '../../tools'), to: 'tools', noErrorOnMissing: true },
+      // apps 目录：包含可扩展的预览应用（独立 HTML/JS 应用，通过 iframe 显示）
+      // apps directory: extensible preview apps (standalone HTML/JS apps displayed in iframes)
+      { from: path.resolve(__dirname, '../../src/apps'), to: 'apps', noErrorOnMissing: true },
       // agent hooks 目录：包含各 agent 类型的钩子脚本
       // agent hooks directories: contains hook scripts for each agent type
       { from: path.resolve(__dirname, '../../src/agent/acp/hooks'), to: 'agent/acp/hooks', noErrorOnMissing: true },

@@ -15,3 +15,5 @@ export * from './useTabOverflow';
 export * from './useScrollSync';
 export * from './useScrollSyncHelpers';
 export * from './usePreviewHistory';
+export * from './usePreviewApps';
+export * from './useWorkspacePreview';
