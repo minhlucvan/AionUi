@@ -74,15 +74,9 @@ next_prompt = highest_leverage_action(
 
 ## Progress Log
 
-Append to `.ouroboros/progress.log` after each turn:
+Progress is logged **automatically by the system hook** after each turn. The hook extracts summary, files changed, and next action from your output and appends structured entries to `.ouroboros/progress.log`.
 
-```
-## Iteration N — [Step Title]
-- What was done
-- Files modified
-- Delta toward goal (what % closer?)
-- Key decisions
-```
+You don't maintain this file. Read it if you need to review past iterations.
 
 ## Quality Gates
 

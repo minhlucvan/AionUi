@@ -11,7 +11,7 @@
  * - FEEDING:  <next>...</next> tag parsed from agent output (primary)
  *             state.json nextPrompt field (fallback)
  * - MEMORY:   state.json — plan, progress, iteration count
- * - LOG:      progress.log — append-only record of each turn
+ * - LOG:      progress.log — auto-logged by hook after each turn (not agent's job)
  *
  * Compound Engineering:
  * Each <next> prompt is not free-form rambling — it's a precision instrument.
@@ -22,16 +22,19 @@
  * 1. User sends: "Build feature X"
  * 2. onQueueInit → saves prompt.md (raw intent) → queues initialization
  * 3. Turn 1: Agent reads prompt.md, enriches it, creates plan, starts work
- * 4. onAgentResponse: parses <next> from output → queues it
+ * 4. onAgentResponse: auto-logs progress → parses <next> → queues it
  * 5. Turn 2+: Agent reads prompt.md + state.json → executes → writes <next>
- * 6. ...converges until <done/> — each step tighter than the last
+ * 6. onAgentResponse: auto-logs progress → parses <next> → queues it
+ * 7. ...converges until <done/> — each step tighter than the last
  */
 
 const DEFAULT_MAX_ITERATIONS = 20;
+const PROGRESS_SEPARATOR = '\n\n---\n\n';
+
+// ─── Output Parsing Helpers ─────────────────────────────────────────────
 
 /**
  * Parse <next>...</next> tag from agent response.
- * Returns the content inside the tag, or null if not found.
  * Supports multiline content.
  */
 function parseNextTag(content) {
@@ -47,6 +50,124 @@ function isDoneSignal(content) {
   if (!content) return false;
   return /<done\s*\/?>/.test(content) || /<ouroboros>\s*COMPLETE\s*<\/ouroboros>/.test(content);
 }
+
+// ─── Progress Logging (auto, like Ralph) ────────────────────────────────
+
+/**
+ * Extract a brief summary from agent output.
+ * Tries explicit summary sections, then falls back to first paragraph.
+ */
+function extractSummary(output) {
+  if (!output) return 'Iteration completed.';
+
+  // Try explicit summary sections
+  const patterns = [
+    /##?\s*Summary\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*Files|$)/i,
+    /##?\s*What I (?:did|implemented)\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*Files|$)/i,
+    /##?\s*Changes?\s*(?:Made|Summary)\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*Files|$)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = output.match(pattern);
+    if (match && match[1].trim()) {
+      return match[1].trim().slice(0, 500);
+    }
+  }
+
+  // Fallback: first substantive paragraph (skip headers, code blocks, short lines)
+  const paragraphs = output
+    .split('\n\n')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 30 && !p.startsWith('#') && !p.startsWith('```') && !p.startsWith('<'));
+
+  return paragraphs[0]?.slice(0, 500) || 'Iteration completed.';
+}
+
+/**
+ * Extract file paths mentioned in agent output.
+ * Looks for file list sections and git-style file references.
+ */
+function extractFilesChanged(output) {
+  if (!output) return [];
+  const files = [];
+
+  // Explicit file list sections
+  const filePatterns = [
+    /##?\s*Files?\s*Changed\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*|$)/i,
+    /\*\*Files?\s*(?:Changed|Modified)\*\*:?\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*|$)/i,
+  ];
+
+  for (const pattern of filePatterns) {
+    const match = output.match(pattern);
+    if (match) {
+      const listItems = match[1].match(/[-*]\s+`?([^\n`]+)`?/g);
+      if (listItems) {
+        for (const item of listItems) {
+          const cleaned = item.replace(/^[-*]\s+`?/, '').replace(/`?\s*$/, '').trim();
+          if (cleaned && !files.includes(cleaned)) files.push(cleaned);
+        }
+      }
+    }
+  }
+
+  // Git-style references: "modified: path/to/file"
+  const gitPattern = /(?:modified|created|added|deleted|renamed):\s+(\S+)/gi;
+  let gitMatch;
+  while ((gitMatch = gitPattern.exec(output)) !== null) {
+    const file = gitMatch[1].trim();
+    if (file && !files.includes(file)) files.push(file);
+  }
+
+  return files;
+}
+
+/**
+ * Format and append a progress entry to progress.log.
+ * Called automatically by the hook — agent doesn't need to do this.
+ */
+function appendProgressLog(fs, logPath, entry) {
+  const lines = [];
+  lines.push(`## Iteration ${entry.iteration} — ${entry.stepTitle}`);
+  lines.push(`**Time:** ${new Date().toISOString()}`);
+  lines.push('');
+
+  lines.push('### Summary');
+  lines.push(entry.summary);
+  lines.push('');
+
+  if (entry.filesChanged.length > 0) {
+    lines.push('### Files Changed');
+    for (const f of entry.filesChanged) {
+      lines.push(`- ${f}`);
+    }
+    lines.push('');
+  }
+
+  if (entry.nextAction) {
+    lines.push('### Next Action');
+    lines.push(entry.nextAction.slice(0, 200));
+    lines.push('');
+  }
+
+  const formatted = lines.join('\n');
+
+  try {
+    let existing = '';
+    if (fs.existsSync(logPath)) {
+      existing = fs.readFileSync(logPath, 'utf-8');
+    }
+
+    if (!existing || existing.trim() === '') {
+      fs.writeFileSync(logPath, `# Ouroboros Progress Log\n${PROGRESS_SEPARATOR}${formatted}`, 'utf-8');
+    } else {
+      fs.writeFileSync(logPath, `${existing.trimEnd()}${PROGRESS_SEPARATOR}${formatted}`, 'utf-8');
+    }
+  } catch {
+    // Non-fatal — progress logging should never break the loop
+  }
+}
+
+// ─── Hook Exports ───────────────────────────────────────────────────────
 
 module.exports = {
   /**
@@ -120,6 +241,8 @@ module.exports = {
         '',
         'When all work is done, output `<done/>` instead.',
         '',
+        'Progress is logged automatically — you don\'t need to maintain progress.log.',
+        '',
         'You are the serpent and the tail. Begin.',
       ].join('\n');
 
@@ -137,16 +260,17 @@ module.exports = {
   },
 
   /**
-   * onAgentResponse — The self-feeding mechanism
+   * onAgentResponse — The self-feeding mechanism + auto progress logging
    *
    * After each agent turn:
-   * 1. Check for <done/> signal → stop
-   * 2. Parse <next>...</next> from agent output → queue it (primary)
-   * 3. If no <next> tag, read state.json nextPrompt → queue it (fallback)
-   * 4. If neither exists → stop
+   * 1. Auto-log progress (extract summary + files from output)
+   * 2. Check for <done/> signal → stop
+   * 3. Parse <next>...</next> from agent output → queue it (primary)
+   * 4. If no <next> tag, read state.json nextPrompt → queue it (fallback)
+   * 5. If neither exists → stop
    *
-   * Each queued message includes a convergence reminder:
-   * re-read prompt.md, maximize delta, minimize effort.
+   * Progress is a system concern, not the agent's burden.
+   * The agent focuses on convergence; the hook handles bookkeeping.
    */
   onAgentResponse: {
     handler: async (context) => {
@@ -158,9 +282,7 @@ module.exports = {
       const stateDir = path.join(context.workspace, '.ouroboros');
       const statePath = path.join(stateDir, 'state.json');
       const promptPath = path.join(stateDir, 'prompt.md');
-
-      // Check for explicit done signal in output
-      if (isDoneSignal(agentOutput)) return {};
+      const logPath = path.join(stateDir, 'progress.log');
 
       // Read state for metadata (iteration count, plan progress, max iterations)
       let state = null;
@@ -172,12 +294,40 @@ module.exports = {
         }
       }
 
-      // Task is done via state file
+      const currentIter = (state && state.iteration) || 0;
+      const maxIter = (state && state.maxIterations) || DEFAULT_MAX_ITERATIONS;
+
+      // Determine current step title from state plan
+      let currentStepTitle = 'Unknown';
+      if (state && state.plan) {
+        const inProgress = state.plan.find((s) => s.status === 'in_progress');
+        const lastDone = [...(state.plan || [])].reverse().find((s) => s.status === 'done');
+        currentStepTitle = (inProgress && inProgress.title) || (lastDone && lastDone.title) || 'Planning';
+      }
+
+      // ── Auto-log progress ──
+      // Extract summary and files from agent output, append to progress.log
+      // This is a system concern — the agent never needs to think about logging
+      if (agentOutput && state) {
+        const nextPromptForLog = parseNextTag(agentOutput);
+        appendProgressLog(fs, logPath, {
+          iteration: currentIter,
+          stepTitle: currentStepTitle,
+          summary: extractSummary(agentOutput),
+          filesChanged: extractFilesChanged(agentOutput),
+          nextAction: nextPromptForLog || (isDoneSignal(agentOutput) ? 'DONE' : null),
+        });
+      }
+
+      // ── Check termination conditions ──
+
+      // Done via output signal
+      if (isDoneSignal(agentOutput)) return {};
+
+      // Done via state file
       if (state && state.status === 'done') return {};
 
       // Safety valve — max iterations reached
-      const maxIter = (state && state.maxIterations) || DEFAULT_MAX_ITERATIONS;
-      const currentIter = (state && state.iteration) || 0;
       if (currentIter >= maxIter) {
         return {
           queueMessages: [
@@ -201,6 +351,8 @@ module.exports = {
         };
       }
 
+      // ── Self-feeding: parse next prompt ──
+
       // PRIMARY: Parse <next> tag from agent output
       let nextPrompt = parseNextTag(agentOutput);
 
@@ -209,7 +361,7 @@ module.exports = {
         nextPrompt = (state.nextPrompt || '').trim();
       }
 
-      // No follow-up found anywhere — the loop ends
+      // No follow-up found — the loop ends
       if (!nextPrompt) return {};
 
       // Build context header from state metadata
@@ -225,7 +377,7 @@ module.exports = {
         '',
         '---',
         hasPrompt ? '_Re-read `.ouroboros/prompt.md` to stay aligned with the original intent._' : '',
-        '_Read `.ouroboros/state.json` for plan and progress. Update both when done._',
+        '_Update `.ouroboros/state.json` when done. Progress is logged automatically._',
         '_Compound: maximize delta toward goal, minimize effort. Then `<next>` or `<done/>`._',
       ]
         .filter(Boolean)

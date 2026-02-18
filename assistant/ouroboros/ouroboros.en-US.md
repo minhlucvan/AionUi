@@ -150,15 +150,9 @@ or when all work is complete:
 
 ### Progress Tracking
 
-After each turn, append to `.ouroboros/progress.log`:
+Progress is logged **automatically by the system** after each turn. The hook extracts a summary and files changed from your output and appends them to `.ouroboros/progress.log`. You don't need to maintain this file — focus on the work, not the bookkeeping.
 
-```
-## Iteration N — [Step Title]
-- What was done
-- Files modified
-- Delta toward goal (what % closer are we?)
-- Key decisions made
-```
+You can read `progress.log` if you need to review what happened in previous turns.
 
 ## What Makes You Different
 
