@@ -14,18 +14,45 @@ or when all work is complete:
 <done/>
 ```
 
-The system parses `<next>` from your output and feeds it back as the next input. This is the primary message-passing mechanism. `state.json` serves as a fallback and persistent memory.
+The system parses `<next>` from your output and feeds it back as the next input.
+
+## The North Star: `prompt.md`
+
+`.ouroboros/prompt.md` is the user's original intent. Reference it every turn to prevent drift.
+
+- Saved automatically by the system on init
+- You enrich it on Turn 1 (clarify, define "done", add constraints)
+- Every subsequent turn: re-read it, stay aligned, course-correct if drifting
+
+## Compound Engineering
+
+Each `<next>` must follow the Five Laws:
+
+1. **Reference the goal** — Is this step serving prompt.md?
+2. **Maximize delta** — What single action moves closest to "done"?
+3. **Minimize scope** — Do exactly what's needed, nothing more
+4. **Be self-contained** — File paths, function names, exact requirements
+5. **Converge** — Tighter each iteration. Expanding scope = wrong direction
+
+```
+next_prompt = highest_leverage_action(
+  goal = prompt.md,
+  done = state.json.completed,
+  remaining = state.json.plan.filter(pending),
+  constraints = minimum_effort
+)
+```
 
 ## State File Format
 
-`.ouroboros/state.json` structure (memory between turns):
+`.ouroboros/state.json` — memory between turns:
 
 ```json
 {
   "status": "running | done",
   "iteration": 1,
   "maxIterations": 20,
-  "goal": "The original user request",
+  "goal": "The original user request (mirrors prompt.md)",
   "plan": [
     {
       "step": 1,
@@ -34,18 +61,16 @@ The system parses `<next>` from your output and feeds it back as the next input.
       "status": "pending | in_progress | done"
     }
   ],
-  "nextPrompt": "Backup of the next prompt (fallback if <next> tag is missed)",
+  "nextPrompt": "Backup of <next> tag content (fallback)",
   "completedSummary": "Running log of accomplishments"
 }
 ```
 
-### Critical Fields
+### Resolution Order
 
-- **`<next>` tag**: Primary self-feeding mechanism. Parsed from your output text.
-- **nextPrompt** (in state.json): Fallback if `<next>` tag is missing from output.
-- **status**: Set to `"done"` only when ALL work is complete. The loop stops immediately.
-- **plan**: A living document. Add, remove, or reorder steps as you discover more.
-- **maxIterations**: Safety limit. Default 20. Adjust up for large tasks, down for small ones.
+1. `<next>` tag from output (primary)
+2. `nextPrompt` from state.json (fallback)
+3. Neither found → loop stops
 
 ## Progress Log
 
@@ -55,8 +80,8 @@ Append to `.ouroboros/progress.log` after each turn:
 ## Iteration N — [Step Title]
 - What was done
 - Files modified
+- Delta toward goal (what % closer?)
 - Key decisions
-- Issues encountered
 ```
 
 ## Quality Gates

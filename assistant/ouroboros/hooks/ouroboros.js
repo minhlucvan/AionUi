@@ -1,30 +1,30 @@
 /**
- * Ouroboros hooks — self-feeding agent loop
+ * Ouroboros hooks — self-feeding agent loop with compound engineering
  *
  * The serpent that eats its own tail: the agent's output becomes its own input.
+ * Each iteration is a precision-engineered prompt that converges on the target.
  *
- * Hybrid approach:
- * - PRIMARY: Parse <next>...</next> tag from the agent's response text
- *   → the output literally becomes the input (true ouroboros)
- * - FALLBACK: Read nextPrompt from .ouroboros/state.json
- *   → safety net if the agent forgets the tag
- * - MEMORY: state.json stores plan, progress, iteration count
- *   → persistent state between turns, not the message-passing mechanism
+ * Architecture:
+ * - INTENT:   .ouroboros/prompt.md — the user's original intent (North Star)
+ *             Written by the hook on init, enriched by the agent on Turn 1.
+ *             Every iteration references this to prevent drift.
+ * - FEEDING:  <next>...</next> tag parsed from agent output (primary)
+ *             state.json nextPrompt field (fallback)
+ * - MEMORY:   state.json — plan, progress, iteration count
+ * - LOG:      progress.log — append-only record of each turn
+ *
+ * Compound Engineering:
+ * Each <next> prompt is not free-form rambling — it's a precision instrument.
+ * The agent must engineer each follow-up to maximize delta toward the goal
+ * with minimum effort. Like gradient descent: always converging, never diverging.
  *
  * Flow:
  * 1. User sends: "Build feature X"
- * 2. onQueueInit → queues the request with planning instructions
- * 3. Turn 1: Agent analyzes, creates plan, writes state.json, ends with <next>...</next>
- * 4. onAgentResponse: parses <next> from output → queues it as next message
- * 5. Turn 2: Agent executes step, updates state.json, ends with <next>...</next>
- * 6. onAgentResponse: parses <next> from output → queues it again
- * 7. ...continues until <done/> tag or state.json status: "done"
- * 8. Loop terminates — the serpent rests
- *
- * Key difference from Ralph:
- * - Ralph uses a rigid 3-phase state machine (enrich → PRD → implement stories)
- * - Ouroboros lets the agent write its OWN follow-up prompts — fully self-directing
- * - The hook is dumb; the agent is smart. The hook just ferries messages.
+ * 2. onQueueInit → saves prompt.md (raw intent) → queues initialization
+ * 3. Turn 1: Agent reads prompt.md, enriches it, creates plan, starts work
+ * 4. onAgentResponse: parses <next> from output → queues it
+ * 5. Turn 2+: Agent reads prompt.md + state.json → executes → writes <next>
+ * 6. ...converges until <done/> — each step tighter than the last
  */
 
 const DEFAULT_MAX_ITERATIONS = 20;
@@ -50,10 +50,11 @@ function isDoneSignal(content) {
 
 module.exports = {
   /**
-   * onQueueInit — Seed the first turn
+   * onQueueInit — Save intent & seed the first turn
    *
-   * Takes the user's initial request and queues it with instructions
-   * to analyze, plan, and write the first state.json.
+   * 1. Persists the user's raw request to .ouroboros/prompt.md (North Star)
+   * 2. Queues the initialization prompt that instructs the agent to
+   *    enrich the intent, create a convergent plan, and begin
    */
   onQueueInit: {
     handler: async (context) => {
@@ -62,27 +63,61 @@ module.exports = {
       const userRequest = (context.content || '').trim();
       if (!userRequest) return {};
 
+      // Persist user intent as the North Star
+      const fs = require('fs');
+      const path = require('path');
+      const ouroDir = path.join(context.workspace, '.ouroboros');
+
+      try {
+        if (!fs.existsSync(ouroDir)) {
+          fs.mkdirSync(ouroDir, { recursive: true });
+        }
+        fs.writeFileSync(
+          path.join(ouroDir, 'prompt.md'),
+          [
+            '# Original Intent',
+            '',
+            userRequest,
+            '',
+            '---',
+            `*Captured: ${new Date().toISOString()}*`,
+          ].join('\n'),
+          'utf-8'
+        );
+      } catch {
+        // Non-fatal — agent can still work without it
+      }
+
       const seedPrompt = [
         '## Ouroboros — Initialization',
         '',
-        'You have received a new task. Analyze it, break it into steps, and begin.',
+        'A new task has been captured in `.ouroboros/prompt.md`. Your job:',
         '',
-        '**Task:**',
-        userRequest,
-        '',
-        '**Instructions:**',
-        '1. Analyze the task and understand what needs to be done',
-        '2. Break it down into concrete, ordered steps',
-        '3. Write `.ouroboros/state.json` with your plan (see workspace CLAUDE.md for format)',
-        '4. Execute the first step if feasible',
-        '5. Update state.json and progress.log with results',
-        '6. End your response with a `<next>` tag containing the follow-up prompt:',
+        '1. **Read** `.ouroboros/prompt.md` — this is the user\'s original intent (your North Star)',
+        '2. **Enrich** it — rewrite prompt.md with a refined understanding:',
+        '   - Clarify ambiguities, infer implicit requirements',
+        '   - Define what "done" looks like (acceptance criteria)',
+        '   - Identify constraints and boundaries',
+        '3. **Plan** — write `.ouroboros/state.json` with a convergent plan:',
+        '   - Each step should be the highest-leverage action remaining',
+        '   - Order by impact: do the thing that unblocks the most first',
+        '   - Keep steps small and verifiable',
+        '4. **Execute** the first step if feasible',
+        '5. **End with `<next>`** — engineer a prompt that maximizes progress:',
         '',
         '```',
-        '<next>Your specific, actionable prompt for the next turn goes here</next>',
+        '<next>Precise, self-contained prompt for the next highest-leverage step</next>',
         '```',
         '',
-        'The system will parse your `<next>` tag and feed it back as your next input.',
+        '### Compound Engineering Rules',
+        '',
+        'Each `<next>` prompt you write must:',
+        '- **Reference the goal** — re-read prompt.md, stay aligned',
+        '- **Maximize delta** — what single action moves us closest to done?',
+        '- **Minimize scope** — do exactly what\'s needed, nothing more',
+        '- **Be self-contained** — include file paths, function names, exact requirements',
+        '- **Converge** — each iteration should be tighter than the last',
+        '',
         'When all work is done, output `<done/>` instead.',
         '',
         'You are the serpent and the tail. Begin.',
@@ -110,7 +145,8 @@ module.exports = {
    * 3. If no <next> tag, read state.json nextPrompt → queue it (fallback)
    * 4. If neither exists → stop
    *
-   * The serpent consumes its own tail.
+   * Each queued message includes a convergence reminder:
+   * re-read prompt.md, maximize delta, minimize effort.
    */
   onAgentResponse: {
     handler: async (context) => {
@@ -121,6 +157,7 @@ module.exports = {
       const path = require('path');
       const stateDir = path.join(context.workspace, '.ouroboros');
       const statePath = path.join(stateDir, 'state.json');
+      const promptPath = path.join(stateDir, 'prompt.md');
 
       // Check for explicit done signal in output
       if (isDoneSignal(agentOutput)) return {};
@@ -151,10 +188,11 @@ module.exports = {
                 `You have reached the iteration limit (${maxIter}).`,
                 'Please wrap up your current work:',
                 '',
-                '1. Commit any pending changes',
-                '2. Update `.ouroboros/state.json` with `status: "done"`',
-                '3. Write a final summary of what was accomplished and what remains',
-                '4. Output `<done/>`',
+                '1. Re-read `.ouroboros/prompt.md` — verify how close we are to the original intent',
+                '2. Commit any pending changes',
+                '3. Update `.ouroboros/state.json` with `status: "done"`',
+                '4. Write a final summary: what was accomplished vs. the original intent',
+                '5. Output `<done/>`',
               ].join('\n'),
               priority: 'normal',
               source: 'system',
@@ -178,6 +216,7 @@ module.exports = {
       const iteration = currentIter + 1;
       const totalSteps = state ? (state.plan || []).length : '?';
       const doneSteps = state ? (state.plan || []).filter((s) => s.status === 'done').length : '?';
+      const hasPrompt = fs.existsSync(promptPath);
 
       const wrappedPrompt = [
         `## Ouroboros — Iteration ${iteration}/${maxIter} (${doneSteps}/${totalSteps} steps done)`,
@@ -185,9 +224,12 @@ module.exports = {
         nextPrompt,
         '',
         '---',
-        '_Read `.ouroboros/state.json` for full context. Update it when done._',
-        '_End your response with `<next>prompt</next>` or `<done/>` if finished._',
-      ].join('\n');
+        hasPrompt ? '_Re-read `.ouroboros/prompt.md` to stay aligned with the original intent._' : '',
+        '_Read `.ouroboros/state.json` for plan and progress. Update both when done._',
+        '_Compound: maximize delta toward goal, minimize effort. Then `<next>` or `<done/>`._',
+      ]
+        .filter(Boolean)
+        .join('\n');
 
       return {
         queueMessages: [
