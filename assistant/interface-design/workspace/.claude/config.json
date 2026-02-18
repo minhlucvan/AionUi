@@ -1,0 +1,7 @@
+{
+  "name": "Interface Design Assistant",
+  "description": "Design engineering workspace for crafting consistent UI interfaces with craft, memory, and consistency",
+  "version": "1.0.2",
+  "skills": ["interface-design"],
+  "commands": ["init", "audit", "status", "extract", "critique"]
+}

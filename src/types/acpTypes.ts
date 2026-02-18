@@ -18,7 +18,7 @@
  * 预设助手的主 Agent 类型，用于决定创建哪种类型的对话
  * The primary agent type for preset assistants, used to determine which conversation type to create.
  */
-export type PresetAgentType = 'gemini' | 'claude' | 'codex' | 'opencode';
+export type PresetAgentType = 'gemini' | 'claude' | 'codex' | 'codebuddy' | 'opencode';
 
 /**
  * 使用 ACP 协议的预设 Agent 类型（需要通过 ACP 后端路由）
@@ -27,7 +27,7 @@ export type PresetAgentType = 'gemini' | 'claude' | 'codex' | 'opencode';
  * 这些类型会在创建对话时使用对应的 ACP 后端，而不是 Gemini 原生对话
  * These types will use corresponding ACP backend when creating conversation, instead of native Gemini
  */
-export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'opencode'] as const;
+export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'codebuddy', 'opencode'] as const;
 
 /**
  * 检查预设 Agent 类型是否需要通过 ACP 后端路由
@@ -44,6 +44,7 @@ export type AcpBackendAll =
   | 'qwen' // Qwen Code ACP
   | 'iflow' // iFlow CLI ACP
   | 'codex' // OpenAI Codex MCP
+  | 'codebuddy' // Tencent CodeBuddy Code CLI
   | 'droid' // Factory Droid CLI (ACP via `droid exec --output-format acp`)
   | 'goose' // Block's Goose CLI
   | 'auggie' // Augment Code CLI
@@ -52,6 +53,8 @@ export type AcpBackendAll =
   | 'copilot' // GitHub Copilot CLI
   | 'qoder' // Qoder CLI
   | 'openclaw-gateway' // OpenClaw Gateway WebSocket
+  | 'vibe' // Mistral Vibe CLI
+  | 'nanobot' // nanobot CLI
   | 'custom'; // User-configured custom ACP agent
 
 /**
@@ -74,6 +77,62 @@ export interface PotentialAcpCli {
   backendId: AcpBackendAll;
 }
 
+/** 默认的 ACP 启动参数 / Default ACP launch arguments */
+const DEFAULT_ACP_ARGS = ['--experimental-acp'];
+
+/**
+ * 从 ACP_BACKENDS_ALL 生成可检测的 CLI 列表
+ * 仅包含有 cliCommand 且已启用的后端（排除 gemini 和 custom）
+ * Generate detectable CLI list from ACP_BACKENDS_ALL
+ * Only includes enabled backends with cliCommand (excludes gemini and custom)
+ */
+function generatePotentialAcpClis(): PotentialAcpCli[] {
+  // 需要在 ACP_BACKENDS_ALL 定义之后调用，所以使用延迟初始化
+  // Must be called after ACP_BACKENDS_ALL is defined, so use lazy initialization
+  return Object.entries(ACP_BACKENDS_ALL)
+    .filter(([id, config]) => {
+      // 排除没有 CLI 命令的后端（gemini 内置，custom 用户配置）
+      // Exclude backends without CLI command (gemini is built-in, custom is user-configured)
+      if (!config.cliCommand) return false;
+      if (id === 'gemini' || id === 'custom') return false;
+      return config.enabled;
+    })
+    .map(([id, config]) => ({
+      cmd: config.cliCommand!,
+      args: config.acpArgs || DEFAULT_ACP_ARGS,
+      name: config.name,
+      backendId: id as AcpBackendAll,
+    }));
+}
+
+// 延迟初始化，避免循环依赖 / Lazy initialization to avoid circular dependency
+let _potentialAcpClis: PotentialAcpCli[] | null = null;
+
+/**
+ * 已知支持 ACP 协议的 CLI 工具列表
+ * 检测时会遍历此列表，用 `which` 命令检查是否安装
+ * 从 ACP_BACKENDS_ALL 自动生成，避免数据冗余
+ */
+export const POTENTIAL_ACP_CLIS: PotentialAcpCli[] = new Proxy([] as PotentialAcpCli[], {
+  get(_target, prop) {
+    if (_potentialAcpClis === null) {
+      _potentialAcpClis = generatePotentialAcpClis();
+    }
+    if (prop === 'length') return _potentialAcpClis.length;
+    if (typeof prop === 'string' && !isNaN(Number(prop))) {
+      return _potentialAcpClis[Number(prop)];
+    }
+    if (prop === Symbol.iterator) {
+      return function* () {
+        yield* _potentialAcpClis!;
+      };
+    }
+    if (prop === 'map') return _potentialAcpClis.map.bind(_potentialAcpClis);
+    if (prop === 'filter') return _potentialAcpClis.filter.bind(_potentialAcpClis);
+    if (prop === 'forEach') return _potentialAcpClis.forEach.bind(_potentialAcpClis);
+    return Reflect.get(_potentialAcpClis, prop);
+  },
+});
 
 /**
  * ACP 后端 Agent 配置
@@ -88,9 +147,6 @@ export interface AcpBackendConfig {
 
   /** UI 显示名称 / Display name shown in the UI (e.g., 'Goose', 'Claude Code') */
   name: string;
-
-  /** 助手版本号（用于检测配置更新）/ Assistant version (used to detect configuration updates) */
-  version?: string;
 
   /** 本地化名称 / Localized names (e.g., { 'zh-CN': '...', 'en-US': '...' }) */
   nameI18n?: Record<string, string>;
@@ -163,24 +219,6 @@ export interface AcpBackendConfig {
    */
   acpArgs?: string[];
 
-  /**
-   * Command to install the CLI tool.
-   * Example: 'npm install -g @anthropic-ai/claude-code'
-   */
-  installCommand?: string;
-
-  /**
-   * Command to verify the CLI tool after installation.
-   * Example: 'claude --version'
-   */
-  setupCommand?: string;
-
-  /**
-   * URL for manual installation guide / documentation.
-   * Example: 'https://docs.anthropic.com/en/docs/claude-code'
-   */
-  installUrl?: string;
-
   /** 是否为基于提示词的预设（无需 CLI 二进制文件）/ Whether this is a prompt-based preset (no CLI binary required) */
   isPreset?: boolean;
 
@@ -225,6 +263,24 @@ export interface AcpBackendConfig {
   /** 是否为内置助手（不可编辑/删除）/ Whether this is a built-in assistant (cannot be edited/deleted) */
   isBuiltin?: boolean;
 
+  /** 版本号，用于检测更新 / Version string for detecting updates */
+  version?: string;
+
+  /** CLI 安装命令 / Command to install the CLI tool */
+  installCommand?: string;
+
+  /** CLI 安装文档 URL / URL for manual installation guide */
+  installUrl?: string;
+
+  /** CLI 安装后的验证/设置命令 / Command to verify/setup after installation */
+  setupCommand?: string;
+
+  /** 助手规则文件的路径 / Path to the assistant rules directory */
+  assistantPath?: string;
+
+  /** 工作空间路径 / Workspace directory path */
+  workspacePath?: string;
+
   /**
    * 此助手启用的 skills 列表（仅 isPreset=true 时生效）
    * 如果未指定或为空数组，将加载所有可用 skills
@@ -242,41 +298,192 @@ export interface AcpBackendConfig {
    * These skills will be displayed in the Custom Skills section even after being imported.
    */
   customSkillNames?: string[];
-
-  /**
-   * 助手目录的完整路径（所有助手）
-   * 包含 assistant.json、workspace/、hooks/ 等
-   *
-   * Full path to the assistant directory (all assistants).
-   * Contains assistant.json, workspace/, hooks/, etc.
-   * Example (built-in): ~/.../assistants/video-generator/
-   * Example (custom): ~/.../assistants/1770594679706/video-generator/
-   */
-  assistantPath?: string;
-
-  /**
-   * 导入的助手包解压路径（仅自定义助手）
-   * @deprecated Use assistantPath instead. This field is kept for backward compatibility.
-   *
-   * Extracted path for imported assistant package (custom assistants only).
-   * @deprecated Use assistantPath instead. This field is kept for backward compatibility.
-   */
-  extractedPath?: string;
-
-  /**
-   * 用户指定的持久化 workspace 目录路径（可选）
-   * 如果未指定，将使用临时 workspace 并通过 hooks 初始化
-   *
-   * User-specified persistent workspace directory path (optional).
-   * If not specified, a temporary workspace will be used and initialized via hooks.
-   * Example: ~/my-projects/video-editing/
-   */
-  workspacePath?: string;
 }
 
-// Backend type aliases
-export type AcpBackend = AcpBackendAll;
-export type AcpBackendId = AcpBackend; // Backward compatibility
+// 所有后端配置 - 包括暂时禁用的 / All backend configurations - including temporarily disabled ones
+export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
+  claude: {
+    id: 'claude',
+    name: 'Claude Code',
+    cliCommand: 'claude',
+    authRequired: true,
+    enabled: true,
+    supportsStreaming: false,
+  },
+  gemini: {
+    id: 'gemini',
+    name: 'Google CLI',
+    cliCommand: 'gemini',
+    authRequired: true,
+    enabled: false,
+    supportsStreaming: true,
+  },
+  qwen: {
+    id: 'qwen',
+    name: 'Qwen Code',
+    cliCommand: 'qwen',
+    defaultCliPath: 'npx @qwen-code/qwen-code',
+    authRequired: true,
+    enabled: true, // ✅ 已验证支持：Qwen CLI v0.0.10+ 支持 --acp
+    supportsStreaming: true,
+    acpArgs: ['--acp'], // Use --acp instead of deprecated --experimental-acp
+  },
+  iflow: {
+    id: 'iflow',
+    name: 'iFlow CLI',
+    cliCommand: 'iflow',
+    authRequired: true,
+    enabled: true,
+    supportsStreaming: false,
+  },
+  codex: {
+    id: 'codex',
+    name: 'Codex ',
+    cliCommand: 'codex',
+    authRequired: false,
+    enabled: true, // ✅ 已验证支持：Codex CLI v0.4.0+ 支持 acp 模式
+    supportsStreaming: false,
+  },
+  codebuddy: {
+    id: 'codebuddy',
+    name: 'CodeBuddy',
+    cliCommand: 'codebuddy',
+    defaultCliPath: 'npx @tencent-ai/codebuddy-code',
+    authRequired: true,
+    enabled: true, // ✅ Tencent CodeBuddy Code CLI，使用 `codebuddy --acp` 启动
+    supportsStreaming: false,
+    acpArgs: ['--acp'], // codebuddy 使用 --acp flag
+  },
+  goose: {
+    id: 'goose',
+    name: 'Goose',
+    cliCommand: 'goose',
+    authRequired: false,
+    enabled: true, // ✅ Block's Goose CLI，使用 `goose acp` 启动
+    supportsStreaming: false,
+    acpArgs: ['acp'], // goose 使用子命令而非 flag
+  },
+  auggie: {
+    id: 'auggie',
+    name: 'Augment Code',
+    cliCommand: 'auggie',
+    authRequired: false,
+    enabled: true, // ✅ Augment Code CLI，使用 `auggie --acp` 启动
+    supportsStreaming: false,
+    acpArgs: ['--acp'], // auggie 使用 --acp flag
+  },
+  kimi: {
+    id: 'kimi',
+    name: 'Kimi CLI',
+    cliCommand: 'kimi',
+    authRequired: false,
+    enabled: true, // ✅ Kimi CLI (Moonshot)，使用 `kimi acp` 启动
+    supportsStreaming: false,
+    acpArgs: ['acp'], // kimi 使用 acp 子命令
+  },
+  opencode: {
+    id: 'opencode',
+    name: 'OpenCode',
+    cliCommand: 'opencode',
+    authRequired: false,
+    enabled: true, // ✅ OpenCode CLI，使用 `opencode acp` 启动
+    supportsStreaming: false,
+    acpArgs: ['acp'], // opencode 使用 acp 子命令
+  },
+  droid: {
+    id: 'droid',
+    name: 'Factory Droid',
+    cliCommand: 'droid',
+    // Droid uses FACTORY_API_KEY from environment, not an interactive auth flow.
+    authRequired: false,
+    enabled: true, // ✅ Factory docs: `droid exec --output-format acp` (JetBrains/Zed ACP integration)
+    supportsStreaming: false,
+    acpArgs: ['exec', '--output-format', 'acp'],
+  },
+  copilot: {
+    id: 'copilot',
+    name: 'GitHub Copilot',
+    cliCommand: 'copilot',
+    authRequired: false,
+    enabled: true, // ✅ GitHub Copilot CLI，使用 `copilot --acp --stdio` 启动
+    supportsStreaming: false,
+    acpArgs: ['--acp', '--stdio'], // copilot 使用 --acp --stdio 启动 ACP mode
+  },
+  qoder: {
+    id: 'qoder',
+    name: 'Qoder CLI',
+    cliCommand: 'qodercli',
+    authRequired: false,
+    enabled: true, // ✅ Qoder CLI，使用 `qodercli --acp` 启动
+    supportsStreaming: false,
+    acpArgs: ['--acp'], // qoder 使用 --acp flag
+  },
+  vibe: {
+    id: 'vibe',
+    name: 'Mistral Vibe',
+    cliCommand: 'vibe-acp',
+    authRequired: false,
+    enabled: true, // ✅ Mistral Vibe CLI，使用 `vibe-acp` 启动
+    supportsStreaming: false,
+    acpArgs: [],
+  },
+  'openclaw-gateway': {
+    id: 'openclaw-gateway',
+    name: 'OpenClaw',
+    cliCommand: 'openclaw',
+    authRequired: false,
+    enabled: true, // ✅ OpenClaw Gateway WebSocket mode
+    supportsStreaming: true,
+    acpArgs: ['gateway'], // openclaw gateway command (for detection)
+  },
+  nanobot: {
+    id: 'nanobot',
+    name: 'Nano Bot',
+    cliCommand: 'nanobot',
+    authRequired: false,
+    enabled: true,
+    supportsStreaming: false,
+  },
+  custom: {
+    id: 'custom',
+    name: 'Custom Agent',
+    cliCommand: undefined, // User-configured via settings
+    authRequired: false,
+    enabled: true,
+    supportsStreaming: false,
+  },
+};
+
+// 仅启用的后端配置 / Enabled backends only
+export const ACP_ENABLED_BACKENDS: Record<string, AcpBackendConfig> = Object.fromEntries(Object.entries(ACP_BACKENDS_ALL).filter(([_, config]) => config.enabled));
+
+// 当前启用的后端类型 / Currently enabled backend types
+export type AcpBackend = keyof typeof ACP_BACKENDS_ALL;
+export type AcpBackendId = AcpBackend; // 向后兼容 / Backward compatibility
+
+// 工具函数 / Utility functions
+export function isValidAcpBackend(backend: string): backend is AcpBackend {
+  return backend in ACP_ENABLED_BACKENDS;
+}
+
+export function getAcpBackendConfig(backend: AcpBackend): AcpBackendConfig {
+  return ACP_ENABLED_BACKENDS[backend];
+}
+
+// 获取所有启用的后端配置 / Get all enabled backend configurations
+export function getEnabledAcpBackends(): AcpBackendConfig[] {
+  return Object.values(ACP_ENABLED_BACKENDS);
+}
+
+// 获取所有后端配置（包括禁用的）/ Get all backend configurations (including disabled ones)
+export function getAllAcpBackends(): AcpBackendConfig[] {
+  return Object.values(ACP_BACKENDS_ALL);
+}
+
+// 检查后端是否启用 / Check if a backend is enabled
+export function isAcpBackendEnabled(backend: AcpBackendAll): boolean {
+  return ACP_BACKENDS_ALL[backend]?.enabled ?? false;
+}
 
 // ACP 错误类型系统 - 优雅的错误处理 / ACP Error Type System - Elegant error handling
 export enum AcpErrorType {
@@ -460,18 +667,8 @@ export interface UserMessageChunkUpdate extends BaseSessionUpdate {
   };
 }
 
-// 当前模式更新 / Current mode update
-export interface CurrentModeUpdate extends BaseSessionUpdate {
-  update: {
-    sessionUpdate: 'current_mode_update';
-    mode: string;
-    description?: string;
-  };
-}
-
 // 所有会话更新的联合类型 / Union type for all session updates
 export type AcpSessionUpdate = AgentMessageChunkUpdate | AgentThoughtChunkUpdate | ToolCallUpdate | ToolCallUpdateStatus | PlanUpdate | AvailableCommandsUpdate | UserMessageChunkUpdate;
-// | CurrentModeUpdate;
 
 // 当前的 ACP 权限请求接口 / Current ACP permission request interface
 export interface AcpPermissionOption {

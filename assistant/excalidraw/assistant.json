@@ -1,7 +1,7 @@
 {
   "id": "excalidraw",
   "name": "Diagram Creation Assistant",
-  "version": "2.0.0",
+  "version": "3.0.1",
   "description": "Professional diagram creation assistant with design database search, semantic color palettes, quality analysis, and file-based workflow",
   "author": "AionUi",
   "tags": ["diagram", "architecture", "visualization", "excalidraw", "design"],

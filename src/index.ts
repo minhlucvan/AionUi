@@ -5,15 +5,17 @@
  */
 
 import './utils/configureChromium';
-import { app, BrowserWindow, nativeImage, screen } from 'electron';
+import { app, BrowserWindow, nativeImage, powerMonitor, screen } from 'electron';
 import fixPath from 'fix-path';
 import * as fs from 'fs';
 import * as path from 'path';
 import { initMainAdapterWithWindow } from './adapter/main';
 import { ipcBridge } from './common';
 import { initializeProcess } from './process';
+import { loadShellEnvironmentAsync } from './process/utils/shellEnv';
 import { initializeAcpDetector } from './process/bridge';
 import { registerWindowMaximizeListeners } from './process/bridge/windowControlsBridge';
+import { destroyTray, initTray, interceptWindowClose, setQuitting } from './process/services/TrayService';
 import WorkerManage from './process/WorkerManage';
 import { setupApplicationMenu } from './utils/appMenu';
 import { startWebServer } from './webserver';
@@ -55,6 +57,21 @@ if (process.platform === 'darwin' || process.platform === 'linux') {
 // Handle Squirrel startup events (Windows installer)
 if (electronSquirrelStartup) {
   app.quit();
+}
+
+// Enforce single instance: if another instance is already running,
+// focus its window instead of launching a duplicate.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (!mainWindow.isVisible()) mainWindow.show();
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
 }
 
 // 主进程全局错误处理器
@@ -221,6 +238,7 @@ const createWindow = (): void => {
   setupApplicationMenu();
   void applyZoomToWindow(mainWindow);
   registerWindowMaximizeListeners(mainWindow);
+  interceptWindowClose(mainWindow);
 
   // and load the index.html of the app.
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY).catch((_error) => {
@@ -296,12 +314,27 @@ const handleAppReady = async (): Promise<void> => {
     await startWebServer(resolvedPort, allowRemote);
   } else {
     createWindow();
+    initTray(() => mainWindow);
   }
 
   // 启动时初始化ACP检测器 (skip in --resetpass mode)
   if (!isResetPasswordMode) {
     await initializeAcpDetector();
+    // Preload shell environment in background for faster ACP connections
+    void loadShellEnvironmentAsync();
   }
+
+  // Listen for system resume (wake from sleep/hibernate) to recover missed cron jobs
+  powerMonitor.on('resume', () => {
+    console.log('[App] System resumed from sleep, triggering cron recovery');
+    import('@process/services/cron/CronService')
+      .then(({ cronService }) => {
+        void cronService.handleSystemResume();
+      })
+      .catch((error) => {
+        console.error('[App] Failed to handle system resume for cron:', error);
+      });
+  });
 };
 
 // Ensure we don't miss the ready event when running in CLI/WebUI mode
@@ -313,25 +346,33 @@ void app
     app.quit();
   });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// Don't quit when all windows are closed — the app stays alive in the
+// system tray so background services (workers, cron, channels) keep running.
+// The user can quit explicitly via the tray menu or Cmd+Q / Alt+F4 after
+// the "Quit" action sets the isQuitting flag.
 app.on('window-all-closed', () => {
-  // In WebUI mode, don't quit when windows are closed since we're running a web server
-  if (!isWebUIMode && process.platform !== 'darwin') {
-    app.quit();
-  }
+  // No-op: app stays alive in tray
 });
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (!isWebUIMode && app.isReady() && BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+  // On macOS, clicking the dock icon should show the existing hidden window
+  // or re-create one if it was fully destroyed.
+  if (!isWebUIMode) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    } else if (app.isReady() && BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+      initTray(() => mainWindow);
+    }
   }
 });
 
 app.on('before-quit', async () => {
+  // Mark as quitting so the window close interceptor allows destruction
+  setQuitting(true);
+  destroyTray();
+
   // 在应用退出前清理工作进程
   WorkerManage.clear();
 

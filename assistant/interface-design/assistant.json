@@ -1,9 +1,10 @@
 {
   "id": "interface-design",
   "name": "Interface Design Assistant",
-  "version": "1.0.2",
-  "description": "Design engineering assistant for crafting consistent UI interfaces with design memory and enforcement",
+  "version": "1.1.0",
+  "description": "Design engineering assistant for crafting consistent UI interfaces with craft, memory, and consistency",
   "author": "AionUi",
+  "workspacePath": "./workspace",
   "tags": ["design", "ui", "design-system", "interface", "craft", "tokens", "consistency"],
   "presetAgentType": "claude",
   "avatar": "📐",
@@ -12,12 +13,22 @@
     "zh-CN": "界面设计助手"
   },
   "descriptionI18n": {
-    "en-US": "Design engineering assistant for crafting consistent UI interfaces with design memory and enforcement.",
+    "en-US": "Design engineering assistant for crafting consistent UI interfaces with craft, memory, and consistency.",
     "zh-CN": "设计工程助手，用于构建一致的 UI 界面，支持设计记忆与规范执行。"
   },
   "promptsI18n": {
-    "en-US": ["Initialize a design system for my project", "Audit my components for design consistency"],
-    "zh-CN": ["为我的项目初始化设计系统", "审查组件的设计一致性"]
+    "en-US": [
+      "Initialize a design system for my project",
+      "Audit my components for design consistency",
+      "Extract design patterns from existing code",
+      "Critique my UI build for craft"
+    ],
+    "zh-CN": [
+      "为我的项目初始化设计系统",
+      "审查组件的设计一致性",
+      "从现有代码提取设计模式",
+      "评审我的 UI 构建的工艺质量"
+    ]
   },
   "defaultEnabledSkills": ["interface-design"]
 }

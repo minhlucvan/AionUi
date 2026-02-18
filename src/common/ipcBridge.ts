@@ -194,8 +194,13 @@ export const gemini = {
   subscriptionStatus: bridge.buildProvider<IBridgeResponse<{ isSubscriber: boolean; tier?: string; lastChecked: number; message?: string }>, { proxy?: string }>('gemini.subscription-status'),
 };
 
+// AWS Bedrock 相关接口 / AWS Bedrock interfaces
+export const bedrock = {
+  testConnection: bridge.buildProvider<IBridgeResponse<{ msg?: string }>, { bedrockConfig: { authMethod: 'accessKey' | 'profile'; region: string; accessKeyId?: string; secretAccessKey?: string; profile?: string } }>('bedrock.test-connection'),
+};
+
 export const mode = {
-  fetchModelList: bridge.buildProvider<IBridgeResponse<{ mode: Array<string>; fix_base_url?: string }>, { base_url?: string; api_key: string; try_fix?: boolean; platform?: string }>('mode.get-model-list'),
+  fetchModelList: bridge.buildProvider<IBridgeResponse<{ mode: Array<string | { id: string; name: string }>; fix_base_url?: string }>, { base_url?: string; api_key: string; try_fix?: boolean; platform?: string; bedrockConfig?: { authMethod: 'accessKey' | 'profile'; region: string; accessKeyId?: string; secretAccessKey?: string; profile?: string } }>('mode.get-model-list'),
   saveModelConfig: bridge.buildProvider<IBridgeResponse, IProvider[]>('mode.save-model-config'),
   getModelConfig: bridge.buildProvider<IProvider[], void>('mode.get-model-config'),
   /** 协议检测接口 - 自动检测 API 端点使用的协议类型 / Protocol detection - auto-detect API protocol type */
@@ -206,6 +211,34 @@ export const mode = {
 export const acpConversation = {
   sendMessage: conversation.sendMessage,
   responseStream: conversation.responseStream,
+  /** Enqueue messages into the agent's message queue for sequential auto-prompting */
+  enqueueMessages: bridge.buildProvider<
+    IBridgeResponse<{ messageIds: string[] }>,
+    {
+      conversation_id: string;
+      messages: Array<{
+        content: string;
+        files?: string[];
+        priority?: 'normal' | 'high';
+        source?: 'user' | 'hook' | 'cron' | 'system';
+      }>;
+    }
+  >('acp.queue.enqueue'),
+  /** Get current message queue status */
+  getQueueStatus: bridge.buildProvider<
+    IBridgeResponse<{
+      status: 'idle' | 'processing' | 'paused';
+      queueLength: number;
+      messages: Array<{ id: string; content: string; source: string; priority: string; enqueuedAt: number }>;
+    }>,
+    { conversation_id: string }
+  >('acp.queue.status'),
+  /** Pause queue processing */
+  pauseQueue: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('acp.queue.pause'),
+  /** Resume queue processing */
+  resumeQueue: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('acp.queue.resume'),
+  /** Clear all pending messages from the queue */
+  clearQueue: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('acp.queue.clear'),
   detectCliPath: bridge.buildProvider<IBridgeResponse<{ path?: string }>, { backend: AcpBackend }>('acp.detect-cli-path'),
   getAvailableAgents: bridge.buildProvider<
     IBridgeResponse<
@@ -263,6 +296,12 @@ export const acpConversation = {
   >('acp.check-cli-tool-status'),
   installCli: bridge.buildProvider<IBridgeResponse<{ output: string }>, { backend: AcpBackendAll }>('acp.install-cli'),
   setupCli: bridge.buildProvider<IBridgeResponse<{ output: string }>, { backend: AcpBackendAll }>('acp.setup-cli'),
+  // Set session mode for ACP agents (claude, qwen, etc.)
+  // 设置 ACP 代理的会话模式（claude、qwen 等）
+  setMode: bridge.buildProvider<IBridgeResponse<{ mode: string }>, { conversationId: string; mode: string }>('acp.set-mode'),
+  // Get current session mode for ACP agents
+  // 获取 ACP 代理的当前会话模式
+  getMode: bridge.buildProvider<IBridgeResponse<{ mode: string; initialized: boolean }>, { conversationId: string }>('acp.get-mode'),
 };
 
 // MCP 服务相关接口
@@ -357,6 +396,32 @@ export const codexConversation = {
 export const openclawConversation = {
   sendMessage: conversation.sendMessage,
   responseStream: bridge.buildEmitter<IResponseMessage>('openclaw.response.stream'),
+  getRuntime: bridge.buildProvider<
+    IBridgeResponse<{
+      conversationId: string;
+      runtime: {
+        workspace?: string;
+        backend?: string;
+        agentName?: string;
+        cliPath?: string;
+        model?: string;
+        sessionKey?: string | null;
+        isConnected?: boolean;
+        hasActiveSession?: boolean;
+        identityHash?: string | null;
+      };
+      expected?: {
+        expectedWorkspace?: string;
+        expectedBackend?: string;
+        expectedAgentName?: string;
+        expectedCliPath?: string;
+        expectedModel?: string;
+        expectedIdentityHash?: string | null;
+        switchedAt?: number;
+      };
+    }>,
+    { conversation_id: string }
+  >('openclaw.get-runtime'),
 };
 
 // Database operations
@@ -471,7 +536,7 @@ export const cron = {
   onJobCreated: bridge.buildEmitter<ICronJob>('cron.job-created'),
   onJobUpdated: bridge.buildEmitter<ICronJob>('cron.job-updated'),
   onJobRemoved: bridge.buildEmitter<{ jobId: string }>('cron.job-removed'),
-  onJobExecuted: bridge.buildEmitter<{ jobId: string; status: 'ok' | 'error' | 'skipped'; error?: string }>('cron.job-executed'),
+  onJobExecuted: bridge.buildEmitter<{ jobId: string; status: 'ok' | 'error' | 'skipped' | 'missed'; error?: string }>('cron.job-executed'),
 };
 
 // Cron job types for IPC
@@ -494,7 +559,7 @@ export interface ICronJob {
   state: {
     nextRunAtMs?: number;
     lastRunAtMs?: number;
-    lastStatus?: 'ok' | 'error' | 'skipped';
+    lastStatus?: 'ok' | 'error' | 'skipped' | 'missed';
     lastError?: string;
     runCount: number;
     retryCount: number;
@@ -529,7 +594,7 @@ export interface IConfirmMessageParams {
 }
 
 export interface ICreateConversationParams {
-  type: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway';
+  type: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway' | 'nanobot';
   id?: string;
   name?: string;
   model: TProviderWithModel;
@@ -537,7 +602,7 @@ export interface ICreateConversationParams {
     workspace?: string;
     customWorkspace?: boolean;
     defaultFiles?: string[];
-    backend?: AcpBackend;
+    backend?: AcpBackendAll;
     cliPath?: string;
     webSearchEngine?: 'google' | 'default';
     agentName?: string;
@@ -561,6 +626,18 @@ export interface ICreateConversationParams {
     botId?: string;
     /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
     externalChannelId?: string;
+    /** Initial session mode selected on Guid page (from AgentModeSelector) */
+    sessionMode?: string;
+    /** Runtime validation snapshot used for post-switch strong checks (OpenClaw) */
+    runtimeValidation?: {
+      expectedWorkspace?: string;
+      expectedBackend?: string;
+      expectedAgentName?: string;
+      expectedCliPath?: string;
+      expectedModel?: string;
+      expectedIdentityHash?: string | null;
+      switchedAt?: number;
+    };
   };
 }
 interface IResetConversationParams {
@@ -604,6 +681,106 @@ interface IBridgeResponse<D = {}> {
   msg?: string;
 }
 
+// ==================== DevTools API ====================
+// Session analysis for Claude Code JSONL logs (inspired by claude-devtools)
+
+export type IDevToolsTokenAttribution = Record<'user' | 'assistant' | 'thinking' | 'tool_input' | 'tool_output' | 'system' | 'claude_md', number>;
+
+export interface IDevToolsCompactionEvent {
+  index: number;
+  timestamp: number;
+  tokensBefore: number;
+  tokensAfter: number;
+  delta: number;
+  text: string;
+}
+
+export interface IDevToolsToolSummary {
+  toolName: string;
+  count: number;
+  totalDurationMs: number;
+  errorCount: number;
+}
+
+export interface IDevToolsSessionMetrics {
+  durationMs: number;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  messageCount: number;
+  costUsd?: number;
+}
+
+export interface IDevToolsSubagentInfo {
+  agentId: string;
+  description: string;
+  parentToolUseId?: string;
+  metrics: IDevToolsSessionMetrics;
+  messageCount: number;
+  toolNames: string[];
+  startTime: number;
+  endTime: number;
+}
+
+export interface IDevToolsContextInjection {
+  type: string;
+  source: string;
+  tokenEstimate: number;
+  preview: string;
+}
+
+export interface IDevToolsContextBreakdownSummary {
+  byType: Record<string, { count: number; totalTokens: number }>;
+  totalTokens: number;
+  topSources: Array<{ source: string; type: string; totalTokens: number; count: number }>;
+}
+
+export interface IDevToolsSessionAnalysis {
+  sessionId: string;
+  projectPath: string;
+  metrics: IDevToolsSessionMetrics;
+  tokenAttribution: IDevToolsTokenAttribution;
+  compactionEvents: IDevToolsCompactionEvent[];
+  toolExecutionSummary: IDevToolsToolSummary[];
+  subagents: IDevToolsSubagentInfo[];
+  contextBreakdown: IDevToolsContextBreakdownSummary;
+  messageCount: number;
+  model?: string;
+  startTime: number;
+  endTime: number;
+  /** Serialized chunks (kept as JSON to avoid complex cross-process types) */
+  chunks: string;
+  /** Serialized messages (kept as JSON for chat replay) */
+  messages: string;
+  /** Per-message context injection info (serialized as JSON) */
+  contextInfo: string;
+}
+
+export interface IDevToolsSessionListItem {
+  sessionId: string;
+  filePath: string;
+  modifiedAt: number;
+}
+
+export interface IDevToolsProjectInfo {
+  projectPath: string;
+  encodedPath: string;
+  sessionCount: number;
+  latestSessionAt: number;
+  sessions: IDevToolsSessionListItem[];
+}
+
+export const devtools = {
+  /** Analyze a Claude Code session by its session ID */
+  analyzeSession: bridge.buildProvider<IBridgeResponse<IDevToolsSessionAnalysis>, { sessionId: string; workspace?: string }>('devtools.analyze-session'),
+  /** List available session files for a workspace */
+  listSessions: bridge.buildProvider<IBridgeResponse<IDevToolsSessionListItem[]>, { workspace?: string }>('devtools.list-sessions'),
+  /** List all projects with their sessions */
+  listProjects: bridge.buildProvider<IBridgeResponse<IDevToolsProjectInfo[]>, void>('devtools.list-projects'),
+};
+
 // ==================== Channel API ====================
 
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser } from '@/channels/types';
@@ -626,6 +803,9 @@ export const channel = {
 
   // Session Management (MVP: read-only view)
   getActiveSessions: bridge.buildProvider<IBridgeResponse<IChannelSession[]>, void>('channel.get-active-sessions'),
+
+  // Settings Sync
+  syncChannelSettings: bridge.buildProvider<IBridgeResponse, { platform: 'telegram' | 'lark' | 'dingtalk'; agent: { backend: string; customAgentId?: string; name?: string }; model?: { id: string; useModel: string } }>('channel.sync-channel-settings'),
 
   // Events
   pairingRequested: bridge.buildEmitter<IChannelPairingRequest>('channel.pairing-requested'),

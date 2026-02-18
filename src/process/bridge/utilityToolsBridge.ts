@@ -144,7 +144,7 @@ export function initUtilityToolsBridge(): void {
     let loggedIn: boolean | undefined;
     let loginUser: string | undefined;
 
-    if (installed) {
+    if (installed && manifest.type === 'utility') {
       version = getCliVersion(cliPath!, manifest.versionCommand);
 
       if (manifest.loginStatusCommand) {
@@ -154,7 +154,7 @@ export function initUtilityToolsBridge(): void {
       }
     }
 
-    const firstSkill = manifest.skills?.[0];
+    const firstSkill = manifest.type === 'utility' ? manifest.skills?.[0] : undefined;
     const skillInstalled = firstSkill ? isSkillInstalled(firstSkill) : false;
 
     return Promise.resolve({

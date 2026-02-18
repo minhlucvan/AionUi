@@ -114,11 +114,11 @@ node scripts/excalidraw.js export-excalidraw --file architecture.excalidraw -o a
 cd skills/excalidraw
 
 # Search for diagram patterns first
-python3 scripts/search.py "microservices architecture"
+node scripts/search.js "microservices architecture"
 # Output: layout=radial-hub, spacing=80px, components=[gateway, services, database]
 
 # Search for component specs
-python3 scripts/search.py "API gateway component"
+node scripts/search.js "API gateway component"
 # Output: width=180, height=100, palette=backend, semantic_meaning="Processing logic"
 
 # Use search results to create diagram
@@ -253,26 +253,26 @@ Query CSV database for patterns, components, spacing, and best practices:
 cd skills/excalidraw
 
 # Search patterns
-python3 scripts/search.py "microservices architecture"
-python3 scripts/search.py "flowchart decision"
-python3 scripts/search.py "sequence diagram"
+node scripts/search.js "microservices architecture"
+node scripts/search.js "flowchart decision"
+node scripts/search.js "sequence diagram"
 
 # Search components
-python3 scripts/search.py "API gateway"
-python3 scripts/search.py "SQL database"
-python3 scripts/search.py "message queue"
+node scripts/search.js "API gateway"
+node scripts/search.js "SQL database"
+node scripts/search.js "message queue"
 
 # Search colors
-python3 scripts/search.py "frontend color"
-python3 scripts/search.py "database palette"
+node scripts/search.js "frontend color"
+node scripts/search.js "database palette"
 
 # Search spacing rules
-python3 scripts/search.py "spacing between layers"
-python3 scripts/search.py "component horizontal spacing"
+node scripts/search.js "spacing between layers"
+node scripts/search.js "component horizontal spacing"
 
 # Search best practices
-python3 scripts/search.py "spacing consistency"
-python3 scripts/search.py "color semantic"
+node scripts/search.js "spacing consistency"
+node scripts/search.js "color semantic"
 ```
 
 Returns top 3 results with exact specs (dimensions, colors, spacing).
@@ -287,14 +287,6 @@ bash tests/test_export_simple.sh
 
 # Run all unit tests
 bash tests/run_tests.sh
-
-# Individual test suites
-python3 tests/test_analyzer.py     # Quality analysis (23 tests)
-python3 tests/test_search.py       # BM25 search (26 tests)
-
-# Browser integration tests (requires manual interaction)
-python3 tests/test_browser_integration.py
-python3 tests/test_export.py
 ```
 
 ## Tips for Effective Diagrams

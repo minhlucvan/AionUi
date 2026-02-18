@@ -27,6 +27,11 @@ export const plugins: WebpackPluginInstance[] = [
       // apps 目录：包含可扩展的预览应用（独立 HTML/JS 应用，通过 iframe 显示）
       // apps directory: extensible preview apps (standalone HTML/JS apps displayed in iframes)
       { from: path.resolve(__dirname, '../../src/apps'), to: 'apps', noErrorOnMissing: true },
+      // agent hooks 目录：包含各 agent 类型的钩子脚本
+      // agent hooks directories: contains hook scripts for each agent type
+      { from: path.resolve(__dirname, '../../src/agent/acp/hooks'), to: 'agent/acp/hooks', noErrorOnMissing: true },
+      { from: path.resolve(__dirname, '../../src/agent/codex/hooks'), to: 'agent/codex/hooks', noErrorOnMissing: true },
+      { from: path.resolve(__dirname, '../../src/agent/gemini/hooks'), to: 'agent/gemini/hooks', noErrorOnMissing: true },
       // logos 目录：包含应用 logo 等图片资源，使用 CopyPlugin 确保二进制文件不被错误编码
       // logos directory: contains app logo images, use CopyPlugin to ensure binary files are not incorrectly encoded
       // force: true 强制覆盖 webpack asset/resource 输出的损坏文件

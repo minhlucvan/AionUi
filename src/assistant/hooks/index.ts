@@ -11,7 +11,7 @@
 // Main hooks runner
 export { runHooks } from './HookRunner';
 export { createHookUtils } from './HookRunner';
-export { runAgentHooks } from './AgentHooks';
+export { runAgentHooks, type AgentType } from './AgentHooks';
 
 // Module loading and execution
 export { loadHookModules } from './ModuleLoader';

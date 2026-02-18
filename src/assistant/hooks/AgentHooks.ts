@@ -11,35 +11,41 @@ import { loadHookModules } from '@/assistant/hooks/ModuleLoader';
 import { executeHooks } from '@/assistant/hooks/HookExecutor';
 import { createHookUtils } from '@/assistant/hooks/HookRunner';
 import type { HookEvent, HookContext, HookResult } from '@/assistant/hooks/types';
-import type { AcpBackend } from '@/types/acpTypes';
 
 /**
- * Run agent-level hooks for ACP (Claude Code)
+ * Supported agent types for hook loading
+ */
+export type AgentType = 'acp' | 'codex' | 'gemini' | 'openclaw';
+
+/**
+ * Run agent-level hooks for a specific agent type
  *
- * Hook modules are loaded from: src/agent/acp/hooks/*.js
+ * Hook modules are loaded from: src/agent/{agentType}/hooks/*.js
  *
  * Each module exports an object with event handlers:
  *   module.exports = {
  *     onWorkspaceInit: { handler: async (ctx) => {...}, priority: 10 },
- *     onSendMessage: (ctx) => {...}  // Shorthand
+ *     onFirstMessage: (ctx) => {...}  // Shorthand
  *   };
  *
- * @param event - The hook event (e.g., 'onWorkspaceInit')
+ * @param event - The hook event (e.g., 'onWorkspaceInit', 'onFirstMessage')
  * @param context - Hook context object
  * @returns HookResult with transformed content
  */
 export async function runAgentHooks(
   event: HookEvent,
   context: {
+    agentType?: AgentType;
     workspace: string;
-    backend: AcpBackend;
+    backend?: string;
     content?: string;
     enabledSkills?: string[];
     conversationId?: string;
+    presetContext?: string;
   }
 ): Promise<HookResult> {
-  // Agent hooks are in src/agent/acp/hooks/ (only for Claude Code ACP backend)
-  const hooksDir = path.join(__dirname, '..', '..', 'agent', 'acp', 'hooks');
+  const agentType = context.agentType || 'acp';
+  const hooksDir = path.join(__dirname, 'agent', agentType, 'hooks');
 
   if (!fs.existsSync(hooksDir)) {
     return { content: context.content };
@@ -58,6 +64,7 @@ export async function runAgentHooks(
     enabledSkills: context.enabledSkills || [],
     conversationId: context.conversationId,
     skillsSourceDir: getSkillsDir(),
+    presetContext: context.presetContext,
     utils: createHookUtils(),
   };
 

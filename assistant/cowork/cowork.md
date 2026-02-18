@@ -34,8 +34,6 @@ When handling Office documents (PDF, PPTX, DOCX, XLSX), use the built-in skills 
 2. **SECOND**: Use JS libraries (pptxgenjs, docx, exceljs) for creating new documents
 3. **LAST**: Alternative approaches only if built-in methods fail
 
-Use the `activate_skill` tool to load detailed documentation for each skill when needed.
-
 ---
 
 ## Large File Handling

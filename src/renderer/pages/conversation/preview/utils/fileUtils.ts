@@ -23,6 +23,7 @@ export const FILE_EXTENSION_MAP: Record<PreviewContentType, readonly string[]> =
   diff: [], // diff 类型通常通过其他方式判断 / diff type is usually determined by other means
   url: [], // url 类型用于网页预览，无扩展名映射 / url type for web preview, no extension mapping
   app: [], // app 类型用于独立预览应用，无扩展名映射 / app type for independent preview apps, no extension mapping
+  devtools: [], // devtools type is determined by context, no extension mapping
 };
 
 /**

@@ -14,6 +14,7 @@ import { runHooks } from '@/assistant/hooks';
 import { ConfigStorage } from '@/common/storage';
 import { getAssistantsDir } from './migrations/assistantMigration';
 import { copyDirectoryRecursively } from './utils';
+import { computeOpenClawIdentityHash } from './utils/openclawUtils';
 
 // Regex to match AionUI timestamp suffix pattern
 const AIONUI_TIMESTAMP_REGEX = /^(.+?)_aionui_\d+(\.[^.]+)$/;
@@ -68,6 +69,7 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   // Initialize workspace via on-conversation-init hook if presetAssistantId is provided
   // Skip if workspace was loaded from assistant (already has the template)
   let defaultAgent: string | undefined;
+  let assistantHooksPath: string | undefined;
   if (presetAssistantId) {
     try {
       // Reuse customAgents loaded earlier (no second ConfigStorage call)
@@ -92,6 +94,11 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
           .access(hooksPath)
           .then(() => true)
           .catch(() => false);
+
+        // Track hooks path for runtime hook execution (e.g., onQueueInit)
+        if (hasHooks) {
+          assistantHooksPath = hooksPath;
+        }
 
         if (hasWorkspaceTemplate || hasHooks) {
           console.log(`[AionUi] Detected workspace features for ${presetAssistantId}: workspace=${hasWorkspaceTemplate}, hooks=${hasHooks}`);
@@ -176,10 +183,10 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   // that may have hooks already in place.
   await runHooks('onConversationInit', { workspace });
 
-  return { workspace, customWorkspace, defaultAgent };
+  return { workspace, customWorkspace, defaultAgent, assistantHooksPath };
 };
 
-export const createGeminiAgent = async (model: TProviderWithModel, workspace?: string, defaultFiles?: string[], webSearchEngine?: 'google' | 'default', customWorkspace?: boolean, contextFileName?: string, presetRules?: string, enabledSkills?: string[], presetAssistantId?: string): Promise<TChatConversation> => {
+export const createGeminiAgent = async (model: TProviderWithModel, workspace?: string, defaultFiles?: string[], webSearchEngine?: 'google' | 'default', customWorkspace?: boolean, contextFileName?: string, presetRules?: string, enabledSkills?: string[], presetAssistantId?: string, sessionMode?: string): Promise<TChatConversation> => {
   // Use presetAssistantId as workspace template source (resolves automatically)
   const { workspace: newWorkspace, customWorkspace: finalCustomWorkspace } = await buildWorkspaceWidthFiles(`gemini-temp-${Date.now()}`, workspace, defaultFiles, customWorkspace, presetAssistantId);
 
@@ -200,6 +207,8 @@ export const createGeminiAgent = async (model: TProviderWithModel, workspace?: s
       // 预设助手 ID，用于在会话面板显示助手名称和头像，同时用于复制工作空间模板
       // Preset assistant ID for displaying name and avatar in conversation panel, also used for workspace template
       presetAssistantId,
+      // Initial session mode from Guid page mode selector
+      sessionMode,
     },
     desc: finalCustomWorkspace ? newWorkspace : '',
     createTime: Date.now(),
@@ -212,7 +221,7 @@ export const createGeminiAgent = async (model: TProviderWithModel, workspace?: s
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   // Use presetAssistantId as workspace template source (resolves automatically)
-  const { workspace, customWorkspace, defaultAgent } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
+  const { workspace, customWorkspace, defaultAgent, assistantHooksPath } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace, extra.presetAssistantId);
 
   // Build extra object, only including defined fields to prevent undefined values from being JSON.stringify'd
   const conversationExtra: any = {
@@ -231,6 +240,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
   if (extra.botId !== undefined) conversationExtra.botId = extra.botId;
   if (extra.externalChannelId !== undefined) conversationExtra.externalChannelId = extra.externalChannelId;
   if (defaultAgent !== undefined) conversationExtra.defaultAgent = defaultAgent;
+  if (assistantHooksPath !== undefined) conversationExtra.assistantHooksPath = assistantHooksPath;
 
   return {
     type: 'acp' as const,
@@ -259,6 +269,26 @@ export const createCodexAgent = async (options: ICreateConversationParams): Prom
       // 预设助手 ID，用于在会话面板显示助手名称和头像
       // Preset assistant ID for displaying name and avatar in conversation panel
       presetAssistantId: extra.presetAssistantId,
+      // Initial session mode selected on Guid page (from AgentModeSelector)
+      sessionMode: extra.sessionMode,
+    },
+    createTime: Date.now(),
+    modifyTime: Date.now(),
+    name: workspace,
+    id: uuid(),
+  };
+};
+
+export const createNanobotAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
+  const { extra } = options;
+  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`nanobot-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  return {
+    type: 'nanobot',
+    extra: {
+      workspace: workspace,
+      customWorkspace,
+      enabledSkills: extra.enabledSkills,
+      presetAssistantId: extra.presetAssistantId,
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
@@ -270,13 +300,26 @@ export const createCodexAgent = async (options: ICreateConversationParams): Prom
 export const createOpenClawAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`openclaw-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  const expectedIdentityHash = await computeOpenClawIdentityHash(workspace);
   return {
     type: 'openclaw-gateway',
     extra: {
       workspace: workspace,
+      backend: extra.backend,
+      agentName: extra.agentName,
       customWorkspace,
       gateway: {
         cliPath: extra.cliPath,
+      },
+      runtimeValidation: {
+        expectedWorkspace: workspace,
+        expectedBackend: extra.backend,
+        expectedAgentName: extra.agentName,
+        expectedCliPath: extra.cliPath,
+        // Note: model is not used by openclaw-gateway, so skip expectedModel to avoid
+        // validation mismatch (conversation object doesn't store model for this type)
+        expectedIdentityHash,
+        switchedAt: extra.runtimeValidation?.switchedAt ?? Date.now(),
       },
       // Enabled skills list (loaded via SkillManager)
       enabledSkills: extra.enabledSkills,

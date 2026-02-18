@@ -13,6 +13,10 @@ import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { toolRegistry } from '../services/toolRegistry';
+import WorkerManage from '@/process/WorkerManage';
+import AcpAgentManager from '@/process/task/AcpAgentManager';
+import CodexAgentManager from '@/process/task/CodexAgentManager';
+import { GeminiAgentManager } from '@/process/task/GeminiAgentManager';
 import { ipcBridge } from '../../common';
 import * as os from 'os';
 
@@ -75,8 +79,8 @@ export function initAcpConversationBridge(): void {
     const agents = acpDetector.getDetectedAgents();
     const agent = agents.find((a) => a.backend === backend);
 
-    // Skip CLI check for claude (uses npx) and codex (has its own detection)
-    if (!agent?.cliPath && backend !== 'claude' && backend !== 'codex') {
+    // Skip CLI check for claude/codebuddy (uses npx) and codex (has its own detection)
+    if (!agent?.cliPath && backend !== 'claude' && backend !== 'codebuddy' && backend !== 'codex') {
       return {
         success: false,
         msg: `${backend} CLI not found`,
@@ -219,7 +223,7 @@ export function initAcpConversationBridge(): void {
           stdio: 'pipe',
           timeout: 5000,
         }).trim();
-        const versionMatch = output.match(/v?(\d+\.\d+[\.\d]*[-\w]*)/);
+        const versionMatch = output.match(/v?(\d+\.\d+[.\d]*[-\w]*)/);
         version = versionMatch ? versionMatch[0] : output.split('\n')[0].trim();
       } catch {
         version = undefined;
@@ -253,7 +257,7 @@ export function initAcpConversationBridge(): void {
               timeout: 5000,
             }).trim();
             // Extract version from output - often contains extra text
-            const versionMatch = output.match(/v?(\d+\.\d+[\.\d]*[-\w]*)/);
+            const versionMatch = output.match(/v?(\d+\.\d+[.\d]*[-\w]*)/);
             version = versionMatch ? versionMatch[0] : output.split('\n')[0].trim();
           } catch {
             // Version command failed - CLI may not support --version
@@ -346,6 +350,123 @@ export function initAcpConversationBridge(): void {
         msg: `Setup failed: ${errorMsg}`,
         data: { output: errorMsg },
       };
+    }
+  });
+
+  // --- Message Queue Operations ---
+
+  // Enqueue messages into the agent's message queue
+  ipcBridge.acpConversation.enqueueMessages.provider(async ({ conversation_id, messages }) => {
+    const task = WorkerManage.getTaskById(conversation_id) as AcpAgentManager | undefined;
+    if (!task || task.type !== 'acp') {
+      return { success: false, msg: 'ACP conversation not found' };
+    }
+    const messageIds = task.enqueueMessages(messages);
+    return { success: true, data: { messageIds } };
+  });
+
+  // Get current message queue status
+  ipcBridge.acpConversation.getQueueStatus.provider(async ({ conversation_id }) => {
+    const task = WorkerManage.getTaskById(conversation_id) as AcpAgentManager | undefined;
+    if (!task || task.type !== 'acp') {
+      return { success: false, msg: 'ACP conversation not found' };
+    }
+    const status = task.messageQueue.getStatus();
+    return {
+      success: true,
+      data: {
+        status: status.status,
+        queueLength: status.queueLength,
+        messages: status.messages.map((m) => ({
+          id: m.id,
+          content: m.content.substring(0, 200),
+          source: m.source,
+          priority: m.priority,
+          enqueuedAt: m.enqueuedAt,
+        })),
+      },
+    };
+  });
+
+  // Pause queue processing
+  ipcBridge.acpConversation.pauseQueue.provider(async ({ conversation_id }) => {
+    const task = WorkerManage.getTaskById(conversation_id) as AcpAgentManager | undefined;
+    if (!task || task.type !== 'acp') {
+      return { success: false, msg: 'ACP conversation not found' };
+    }
+    task.messageQueue.pause();
+    return { success: true };
+  });
+
+  // Resume queue processing
+  ipcBridge.acpConversation.resumeQueue.provider(async ({ conversation_id }) => {
+    const task = WorkerManage.getTaskById(conversation_id) as AcpAgentManager | undefined;
+    if (!task || task.type !== 'acp') {
+      return { success: false, msg: 'ACP conversation not found' };
+    }
+    task.messageQueue.resume();
+    return { success: true };
+  });
+
+  // Clear all pending messages from the queue
+  ipcBridge.acpConversation.clearQueue.provider(async ({ conversation_id }) => {
+    const task = WorkerManage.getTaskById(conversation_id) as AcpAgentManager | undefined;
+    if (!task || task.type !== 'acp') {
+      return { success: false, msg: 'ACP conversation not found' };
+    }
+    task.messageQueue.clear();
+    return { success: true };
+  });
+
+  // Get current session mode for ACP/Gemini agents
+  // 获取 ACP/Gemini 代理的当前会话模式
+  ipcBridge.acpConversation.getMode.provider(async ({ conversationId }) => {
+    console.log(`[acpConversationBridge] getMode called: conversationId=${conversationId}`);
+    try {
+      const task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);
+      console.log(`[acpConversationBridge] getMode task: type=${task?.type}, isAcp=${task instanceof AcpAgentManager}, isGemini=${task instanceof GeminiAgentManager}, isCodex=${task instanceof CodexAgentManager}`);
+      if (!task || !(task instanceof AcpAgentManager || task instanceof GeminiAgentManager || task instanceof CodexAgentManager)) {
+        console.log(`[acpConversationBridge] getMode: task not ACP/Gemini/Codex, returning default`);
+        return { success: true, data: { mode: 'default', initialized: false } };
+      }
+      const result = task.getMode();
+      console.log(`[acpConversationBridge] getMode result:`, result);
+      return { success: true, data: result };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('[acpConversationBridge] getMode error:', errorMsg);
+      return { success: true, data: { mode: 'default', initialized: false } };
+    }
+  });
+
+  // Set session mode for ACP/Gemini agents (claude, qwen, gemini, etc.)
+  // 设置 ACP/Gemini 代理的会话模式（claude、qwen、gemini 等）
+  ipcBridge.acpConversation.setMode.provider(async ({ conversationId, mode }) => {
+    console.log(`[acpConversationBridge] setMode called: conversationId=${conversationId}, mode=${mode}`);
+    try {
+      // Use getTaskByIdRollbackBuild to load task from database if not in memory
+      // 使用 getTaskByIdRollbackBuild 从数据库加载 task（如果不在内存中）
+      const task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);
+      console.log(`[acpConversationBridge] Task found: type=${task?.type}`);
+
+      if (!task) {
+        return { success: false, msg: 'Conversation not found' };
+      }
+
+      // Only ACP and Gemini agents support mode switching
+      console.log(`[acpConversationBridge] setMode: isAcp=${task instanceof AcpAgentManager}, isGemini=${task instanceof GeminiAgentManager}, isCodex=${task instanceof CodexAgentManager}`);
+      if (!(task instanceof AcpAgentManager || task instanceof GeminiAgentManager || task instanceof CodexAgentManager)) {
+        console.log(`[acpConversationBridge] setMode: task not ACP/Gemini/Codex, rejecting`);
+        return { success: false, msg: 'Mode switching not supported for this agent type' };
+      }
+
+      const result = await task.setMode(mode);
+      console.log(`[acpConversationBridge] setMode result:`, result);
+      return result;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('[acpConversationBridge] setMode error:', errorMsg);
+      return { success: false, msg: errorMsg };
     }
   });
 }
