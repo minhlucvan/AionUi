@@ -9,57 +9,85 @@ import { useTranslation } from 'react-i18next';
 import { Loading, CloseOne, Refresh } from '@icon-park/react';
 
 type AppViewerProps = {
-  /** The URL of the preview app server (e.g., http://127.0.0.1:PORT) */
   url: string;
-  /** Instance ID for tracking */
   instanceId: string;
-  /** App display name */
   appName?: string;
-  /** Whether to show the loading overlay */
   showLoading?: boolean;
-  /** Callback when the app reports content changed */
   onContentChanged?: (content: string, isDirty: boolean) => void;
-  /** Callback when the iframe loads */
   onLoad?: () => void;
-  /** Callback when the iframe encounters an error */
   onError?: (error: string) => void;
 };
 
 /**
- * AppViewer - Renders a preview app in an isolated iframe.
- *
- * This is the universal container for all preview apps in the new architecture.
- * Each preview app runs on its own server and is displayed in this iframe.
- * Communication between the host and the app happens via:
- * 1. WebSocket (app ↔ backend, for tools, events, and file ops)
- * 2. postMessage (iframe ↔ host, for UI coordination like theme, focus)
+ * AppViewer - Renders a preview app in an Electron <webview>.
+ * Uses webview instead of iframe to bypass CSP restrictions on http://127.0.0.1:* origins.
  */
 const AppViewer: React.FC<AppViewerProps> = ({ url, instanceId, appName, showLoading = true, onContentChanged, onLoad, onError }) => {
   const { t } = useTranslation();
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const onContentChangedRef = useRef(onContentChanged);
+  const onLoadRef = useRef(onLoad);
+  const onErrorRef = useRef(onError);
+  onContentChangedRef.current = onContentChanged;
+  onLoadRef.current = onLoad;
+  onErrorRef.current = onError;
 
-  // Handle postMessage from the iframe
+  const sendTheme = useCallback((webview: HTMLElement) => {
+    const isDark = document.documentElement.getAttribute('arco-theme') === 'dark';
+    const theme = isDark ? 'dark' : 'light';
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (webview as any)
+        .executeJavaScript(
+          `
+        window.dispatchEvent(new MessageEvent('message', {
+          data: { type: 'host:theme', payload: { theme: '${theme}' } },
+          origin: window.location.origin
+        }));
+      `
+        )
+        .catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // Only accept messages from our app's origin
-      if (!url) return;
-      try {
-        const appOrigin = new URL(url).origin;
-        if (event.origin !== appOrigin) return;
-      } catch {
-        return;
-      }
+    const container = containerRef.current;
+    if (!container) return;
 
-      const { type, payload } = event.data || {};
+    // Create webview imperatively to attach events before it starts loading
+    const webview = document.createElement('webview') as HTMLElement;
+    webview.setAttribute('src', url);
+    webview.setAttribute('data-instance-id', instanceId);
+    webview.setAttribute('allowpopups', 'true');
+    webview.style.cssText = 'width:100%;height:100%;border:0;flex:1;display:flex;';
 
-      switch (type) {
+    const handleFinishLoad = () => {
+      setIsLoading(false);
+      setHasError(false);
+      sendTheme(webview);
+      onLoadRef.current?.();
+    };
+
+    const handleFailLoad = () => {
+      setIsLoading(false);
+      setHasError(true);
+      setErrorMessage(t('preview.app.loadFailed', { defaultValue: 'Failed to load preview app' }));
+      onErrorRef.current?.('webview load error');
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleIpcMessage = (event: any) => {
+      if (event.channel !== 'app-message') return;
+      const msg = event.args?.[0];
+      if (!msg?.type) return;
+      switch (msg.type) {
         case 'app:content-changed':
-          if (onContentChanged && payload) {
-            onContentChanged(payload.content, payload.isDirty);
-          }
+          if (msg.payload) onContentChangedRef.current?.(msg.payload.content ?? '', msg.payload.isDirty ?? false);
           break;
         case 'app:ready':
           setIsLoading(false);
@@ -67,74 +95,44 @@ const AppViewer: React.FC<AppViewerProps> = ({ url, instanceId, appName, showLoa
           break;
         case 'app:error':
           setHasError(true);
-          setErrorMessage(payload?.message || 'Unknown error');
-          onError?.(payload?.message || 'Unknown error');
+          setErrorMessage(msg.payload?.message || 'Unknown error');
+          onErrorRef.current?.(msg.payload?.message || 'Unknown error');
           break;
       }
     };
 
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [url, onContentChanged, onError]);
+    webview.addEventListener('did-finish-load', handleFinishLoad);
+    webview.addEventListener('did-fail-load', handleFailLoad);
+    webview.addEventListener('ipc-message', handleIpcMessage);
 
-  // Send theme info to the iframe when it loads
-  const sendThemeToIframe = useCallback(() => {
-    if (!iframeRef.current?.contentWindow) return;
+    container.appendChild(webview);
 
-    const isDark = document.documentElement.getAttribute('arco-theme') === 'dark';
-    try {
-      const appOrigin = new URL(url).origin;
-      iframeRef.current.contentWindow.postMessage(
-        {
-          type: 'host:theme',
-          payload: { theme: isDark ? 'dark' : 'light' },
-        },
-        appOrigin
-      );
-    } catch {
-      // Ignore if origin parsing fails
-    }
+    // Observe theme changes
+    const observer = new MutationObserver(() => sendTheme(webview));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['arco-theme'] });
+
+    return () => {
+      webview.removeEventListener('did-finish-load', handleFinishLoad);
+      webview.removeEventListener('did-fail-load', handleFailLoad);
+      webview.removeEventListener('ipc-message', handleIpcMessage);
+      observer.disconnect();
+      container.removeChild(webview);
+    };
   }, [url]);
-
-  const handleIframeLoad = useCallback(() => {
-    setIsLoading(false);
-    sendThemeToIframe();
-    onLoad?.();
-  }, [sendThemeToIframe, onLoad]);
-
-  const handleIframeError = useCallback(() => {
-    setIsLoading(false);
-    setHasError(true);
-    setErrorMessage(t('preview.app.loadFailed', { defaultValue: 'Failed to load preview app' }));
-    onError?.('iframe load error');
-  }, [t, onError]);
 
   const handleRefresh = useCallback(() => {
     setIsLoading(true);
     setHasError(false);
     setErrorMessage('');
-    if (iframeRef.current) {
-      iframeRef.current.src = url;
+    const webview = containerRef.current?.querySelector('webview') as HTMLElement | null;
+    if (webview) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (webview as any).reload();
     }
-  }, [url]);
-
-  // Observe theme changes and forward to iframe
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      sendThemeToIframe();
-    });
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['arco-theme'],
-    });
-
-    return () => observer.disconnect();
-  }, [sendThemeToIframe]);
+  }, []);
 
   return (
     <div className='relative h-full w-full flex flex-col'>
-      {/* Loading overlay */}
       {showLoading && isLoading && (
         <div className='absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg-1'>
           <Loading theme='outline' size={24} className='animate-spin text-primary mb-8px' />
@@ -142,7 +140,6 @@ const AppViewer: React.FC<AppViewerProps> = ({ url, instanceId, appName, showLoa
         </div>
       )}
 
-      {/* Error overlay */}
       {hasError && (
         <div className='absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg-1'>
           <CloseOne theme='outline' size={24} className='text-danger mb-8px' />
@@ -154,18 +151,8 @@ const AppViewer: React.FC<AppViewerProps> = ({ url, instanceId, appName, showLoa
         </div>
       )}
 
-      {/* The iframe */}
-      <iframe
-        ref={iframeRef}
-        src={url}
-        data-instance-id={instanceId}
-        className='w-full h-full border-0'
-        sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-modals'
-        allow='clipboard-read; clipboard-write'
-        onLoad={handleIframeLoad}
-        onError={handleIframeError}
-        title={appName || 'Preview App'}
-      />
+      {/* webview is injected imperatively so events are attached before load */}
+      <div ref={containerRef} className='w-full flex-1 flex' />
     </div>
   );
 };
