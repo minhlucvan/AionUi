@@ -14,7 +14,7 @@ import { appServer } from '../services/appServer';
  */
 export function initAppBridge(): void {
   // List available apps
-  ipcBridge.app.list.provider(() => {
+  ipcBridge.app.list.provider(async () => {
     return appServer.listApps();
   });
 
@@ -27,7 +27,7 @@ export function initAppBridge(): void {
   });
 
   // Close a session
-  ipcBridge.app.close.provider(({ sessionId }: { sessionId: string }) => {
+  ipcBridge.app.close.provider(async ({ sessionId }: { sessionId: string }) => {
     appServer.close(sessionId);
   });
 
@@ -42,7 +42,7 @@ export function initAppBridge(): void {
   });
 
   // Read workspace app config (.aionui/app.json)
-  ipcBridge.app.getWorkspaceConfig.provider(({ workspace }: { workspace: string }) => {
+  ipcBridge.app.getWorkspaceConfig.provider(async ({ workspace }: { workspace: string }) => {
     return appServer.getWorkspaceConfig(workspace);
   });
 
@@ -55,7 +55,7 @@ export function initAppBridge(): void {
   });
 
   // Get app session state
-  ipcBridge.app.getState.provider(({ sessionId }: { sessionId: string }) => {
+  ipcBridge.app.getState.provider(async ({ sessionId }: { sessionId: string }) => {
     return appServer.getState(sessionId);
   });
 

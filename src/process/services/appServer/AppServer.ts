@@ -61,16 +61,7 @@ function resolveTools(config: AppConfig): AppTool[] {
 /** Resolve the apps/ directory for both dev and production builds */
 function resolveAppsDir(): string {
   const appPath = electronApp.getAppPath();
-  const candidates = electronApp.isPackaged
-    ? [path.join(appPath.replace('app.asar', 'app.asar.unpacked'), 'apps'), path.join(appPath, 'apps')]
-    : [
-        path.join(appPath, 'apps'),
-        path.join(appPath, '..', 'apps'),
-        path.join(appPath, '..', '..', 'apps'),
-        path.join(appPath, '..', '..', '..', 'apps'),
-        path.join(process.cwd(), 'src', 'apps'),
-        path.join(process.cwd(), 'apps'),
-      ];
+  const candidates = electronApp.isPackaged ? [path.join(appPath.replace('app.asar', 'app.asar.unpacked'), 'apps'), path.join(appPath, 'apps')] : [path.join(appPath, 'apps'), path.join(appPath, '..', 'apps'), path.join(appPath, '..', '..', 'apps'), path.join(appPath, '..', '..', '..', 'apps'), path.join(process.cwd(), 'src', 'apps'), path.join(process.cwd(), 'apps')];
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
@@ -287,7 +278,7 @@ class AppServer {
 
       const appDir = path.join(this.appsDir, appName);
       this.expressApp.use(`/${appName}`, express.static(appDir));
-      this.expressApp.get(`/${appName}/*`, (_req, res) => {
+      this.expressApp.get(`/${appName}/*path`, (_req, res) => {
         res.sendFile(path.join(appDir, 'index.html'), (err) => {
           if (err) res.status(404).send('Not Found');
         });
@@ -405,7 +396,7 @@ class AppServer {
     const existing = this.processes.get(appName);
     if (existing && existing.ready) return existing;
 
-    const port = config.port || await findFreePort();
+    const port = config.port || (await findFreePort());
     const command = config.command.replace(/\{port\}/g, String(port));
     const appDir = this.workspaceDirs.get(appName) || path.join(this.appsDir, appName);
 
@@ -486,7 +477,11 @@ class AppServer {
     this.processes.delete(appName);
 
     setTimeout(() => {
-      try { proc.process.kill('SIGKILL'); } catch { /* already dead */ }
+      try {
+        proc.process.kill('SIGKILL');
+      } catch {
+        /* already dead */
+      }
     }, 5000);
   }
 
@@ -547,10 +542,7 @@ class AppServer {
   /** Read .aionui/app.json from a workspace (falls back to .aionui/preview.json) */
   getWorkspaceConfig(workspace: string): WorkspaceAppConfig | null {
     // Try app.json first, then legacy preview.json
-    const candidates = [
-      path.join(workspace, '.aionui', 'app.json'),
-      path.join(workspace, '.aionui', 'preview.json'),
-    ];
+    const candidates = [path.join(workspace, '.aionui', 'app.json'), path.join(workspace, '.aionui', 'preview.json')];
 
     for (const configPath of candidates) {
       if (!fs.existsSync(configPath)) continue;
@@ -782,15 +774,23 @@ class AppServer {
   private handleFileRead(requestId: string, payload: { filePath: string }, ws: WebSocket): void {
     try {
       const content = fs.readFileSync(payload.filePath, 'utf-8');
-      ws.send(JSON.stringify({
-        id: crypto.randomUUID(), ts: Date.now(), type: 'backend:response',
-        payload: { requestId, success: true, data: content },
-      }));
+      ws.send(
+        JSON.stringify({
+          id: crypto.randomUUID(),
+          ts: Date.now(),
+          type: 'backend:response',
+          payload: { requestId, success: true, data: content },
+        })
+      );
     } catch (err) {
-      ws.send(JSON.stringify({
-        id: crypto.randomUUID(), ts: Date.now(), type: 'backend:response',
-        payload: { requestId, success: false, error: err instanceof Error ? err.message : 'Read failed' },
-      }));
+      ws.send(
+        JSON.stringify({
+          id: crypto.randomUUID(),
+          ts: Date.now(),
+          type: 'backend:response',
+          payload: { requestId, success: false, error: err instanceof Error ? err.message : 'Read failed' },
+        })
+      );
     }
   }
 
@@ -800,15 +800,23 @@ class AppServer {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(payload.filePath, payload.content, 'utf-8');
 
-      ws.send(JSON.stringify({
-        id: crypto.randomUUID(), ts: Date.now(), type: 'backend:response',
-        payload: { requestId, success: true },
-      }));
+      ws.send(
+        JSON.stringify({
+          id: crypto.randomUUID(),
+          ts: Date.now(),
+          type: 'backend:response',
+          payload: { requestId, success: true },
+        })
+      );
     } catch (err) {
-      ws.send(JSON.stringify({
-        id: crypto.randomUUID(), ts: Date.now(), type: 'backend:response',
-        payload: { requestId, success: false, error: err instanceof Error ? err.message : 'Write failed' },
-      }));
+      ws.send(
+        JSON.stringify({
+          id: crypto.randomUUID(),
+          ts: Date.now(),
+          type: 'backend:response',
+          payload: { requestId, success: false, error: err instanceof Error ? err.message : 'Write failed' },
+        })
+      );
     }
   }
 }
