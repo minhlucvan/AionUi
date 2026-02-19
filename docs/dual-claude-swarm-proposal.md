@@ -1,6 +1,6 @@
 # Proposal: Dual-Claude Swarm — Multi-Agent Collaborative Sessions
 
-> **Status**: Draft v2
+> **Status**: Draft v3
 > **Date**: 2026-02-19
 > **Inspired by**: [anthropics/claude-quickstarts/autonomous-coding](https://github.com/anthropics/claude-quickstarts/tree/main/autonomous-coding), AionUi's Ralph & Ouroboros assistants
 
@@ -23,7 +23,8 @@ Ralph and Ouroboros use `onAgentResponse` — a generic hook event fired after a
 
 ### Design Principles
 
-- **Simple but effective** — reuse existing hook system, message queue, and assistant framework
+- **Reuse, don't reimplement** — each swarm agent is spawned via the existing `ConversationService` → `createAcpAgent` → `AcpAgentManager` pipeline; the swarm is only a thin orchestrator on top (~410 new lines)
+- **Each agent = a regular conversation** — spawned the same way as Ralph or Ouroboros; all backend resolution, CLI management, message queuing, and session persistence is inherited for free
 - **File-based coordination** — `.swarm/feed.jsonl` as the message bus (inspectable, debuggable, crash-recoverable)
 - **Dedicated swarm events** — new hook events for feed-aware coordination, separate from generic `onAgentResponse`
 - **Cross-backend agents** — each agent in the swarm can use a different backend (Claude, Codex, Gemini, Qwen, etc.)
@@ -449,52 +450,178 @@ class SwarmFeedManager {
 - **Inspectable** — Humans can `cat .swarm/feed.jsonl` to see the full conversation history between agents.
 - **Crash-recoverable** — On restart, read the file, find max seq, rebuild cursors.
 
-### 4.3 `SwarmSessionManager` — Agent Orchestration
+### 4.3 `SwarmSessionManager` — Thin Orchestrator (Reuses Existing Pipeline)
 
-Manages the lifecycle of multiple agent sessions within a single conversation.
+The swarm manager does **not** create its own agent processes. Instead, it spawns each agent as a regular AionUi conversation using the existing `ConversationService.createConversation()` → `WorkerManage.buildConversation()` → `AcpAgentManager` pipeline — the same code path used for Ralph, Ouroboros, or any other assistant.
+
+**Key principle:** Each `swarm/[agent]/` directory is treated as a **mini-assistant**. The swarm manager resolves the agent's config, builds `ICreateConversationParams`, and calls the standard creation flow. It then coordinates the agents via feed events and the message queue — nothing more.
 
 ```typescript
-// src/agent/swarm/SwarmSessionManager.ts
+// src/agent/swarm/SwarmSessionManager.ts — thin orchestrator
 
-class SwarmSessionManager {
+import { ConversationService } from '@/process/services/conversationService';
+import { WorkerManage } from '@/process/WorkerManage';
+import { SwarmFeedManager } from './SwarmFeedManager';
+import { SwarmTurnController } from './SwarmTurnController';
+import { runSwarmHooks } from './SwarmHookRunner';
+import type { SwarmConfig, SwarmAgentConfig } from './types';
+import type { AcpAgentManager } from '@/process/task/AcpAgentManager';
+
+type SwarmAgentHandle = {
+  role: string;
+  config: SwarmAgentConfig;
+  backend: string;               // resolved: agent.presetAgentType || assistant.presetAgentType
+  conversationId: string;        // the spawned conversation's ID
+  manager: AcpAgentManager;      // reference to the existing AcpAgentManager instance
+  hooksPath: string;             // swarm/[agent]/hooks/
+  systemPromptPath: string;      // swarm/[agent]/{role}.md
+};
+
+export class SwarmSessionManager {
   private feedManager: SwarmFeedManager;
-  private agents: Map<string, SwarmAgentSession>;
   private turnController: SwarmTurnController;
-  private conversationId: string;
+  private agents: Map<string, SwarmAgentHandle> = new Map();
+  private config: SwarmConfig;
+  private parentConversationId: string;
+  private defaultBackend: string;
+  private workspace: string;
+  private assistantId: string;
+  private assistantDir: string;
 
-  constructor(config: SwarmConfig, conversationId: string);
+  constructor(config: SwarmConfig, parentConversationId: string, workspace: string, defaultBackend: string, assistantId: string, assistantDir: string) {
+    this.config = config;
+    this.parentConversationId = parentConversationId;
+    this.workspace = workspace;
+    this.defaultBackend = defaultBackend;
+    this.assistantId = assistantId;
+    this.assistantDir = assistantDir;
+    this.feedManager = new SwarmFeedManager(workspace, config.feedPath);
+    this.turnController = new SwarmTurnController(
+      config.turnStrategy,
+      config.agents,
+      config.maxTurns
+    );
+  }
 
-  /** Initialize all agent sessions and the feed */
-  async init(userMessage: string): Promise<void>;
+  /**
+   * Initialize: spawn each agent as a regular conversation via existing pipeline.
+   */
+  async init(userMessage: string): Promise<void> {
+    this.feedManager.init();
+
+    for (const agentName of this.config.agents) {
+      const agentDir = path.join(this.assistantDir, 'swarm', agentName);
+      const agentConfig: SwarmAgentConfig = readJson(path.join(agentDir, 'agent.json'));
+      const resolvedBackend = agentConfig.presetAgentType || this.defaultBackend;
+      const systemPrompt = readPromptMd(agentDir, agentConfig.role);
+      const hooksPath = path.join(agentDir, 'hooks');
+
+      // ── Reuse existing pipeline: spawn as a regular conversation ──
+      const result = await ConversationService.createConversation({
+        type: 'acp',
+        model: resolveModelForBackend(resolvedBackend),
+        extra: {
+          workspace: this.workspace,        // shared workspace (agents see same files)
+          backend: resolvedBackend,          // claude, codex, qwen, etc.
+          presetAssistantId: this.assistantId,
+          presetContext: systemPrompt,       // injected from {role}.md
+          enabledSkills: agentConfig.defaultEnabledSkills || [],
+          agentName: agentConfig.name,
+          // hooks are loaded from the agent's own hooks/ dir
+        },
+        name: `${this.assistantId}/${agentConfig.role}`,
+        source: 'swarm',
+      });
+
+      if (!result.success || !result.conversation) {
+        throw new Error(`Failed to spawn swarm agent "${agentConfig.role}": ${result.error}`);
+      }
+
+      // Get the AcpAgentManager that WorkerManage already created and cached
+      const manager = WorkerManage.getTaskById(result.conversation.id) as AcpAgentManager;
+
+      this.agents.set(agentConfig.role, {
+        role: agentConfig.role,
+        config: agentConfig,
+        backend: resolvedBackend,
+        conversationId: result.conversation.id,
+        manager,
+        hooksPath,
+        systemPromptPath: path.join(agentDir, `${agentConfig.role}.md`),
+      });
+
+      // ── Wire agent finish events to swarm coordination ──
+      // When this agent's turn finishes, the swarm routes the output
+      manager.onTurnFinished((output: string) => {
+        void this.onAgentFinished(agentConfig.role, output);
+      });
+    }
+
+    // Fire onSwarmInit for each agent → collects seed queueMessages
+    for (const [role, handle] of this.agents) {
+      const result = await runSwarmHooks('onSwarmInit', {
+        role,
+        agentConfig: handle.config,
+        feedManager: this.feedManager,
+        turnNumber: 0,
+        maxTurns: this.config.maxTurns,
+        turnStrategy: this.config.turnStrategy,
+        peers: this.getPeers(role),
+        workspace: this.workspace,
+        assistantHooksPath: handle.hooksPath,
+        content: userMessage,
+      });
+
+      // Enqueue seed messages into the agent's existing AcpMessageQueue
+      if (result.queueMessages?.length) {
+        handle.manager.messageQueue.enqueueAll(result.queueMessages);
+      }
+    }
+
+    // Start the first agent's turn
+    const firstRole = this.turnController.next();
+    await this.startTurn(firstRole);
+  }
 
   /** Route a feed entry to the target agent's message queue */
   routeToAgent(entry: SwarmFeedEntry): void;
 
-  /** Handle agent response — write to feed, trigger next agent */
-  async onAgentResponse(role: string, content: string): Promise<void>;
+  /** Pause/resume/terminate delegate to each agent's AcpAgentManager */
+  pause(): void { for (const h of this.agents.values()) h.manager.messageQueue.pause(); }
+  resume(): void { for (const h of this.agents.values()) h.manager.messageQueue.resume(); }
+  terminate(): void { for (const h of this.agents.values()) h.manager.stop(); }
+  isDone(): boolean { return this.feedManager.isDone() || this.turnController.isExhausted(); }
 
-  /** Pause all agents */
-  pause(): void;
-
-  /** Resume all agents */
-  resume(): void;
-
-  /** Terminate the swarm session */
-  terminate(): void;
-
-  /** Check if the task is complete */
-  isDone(): boolean;
+  private getPeers(role: string): string[] {
+    return [...this.agents.keys()].filter(r => r !== role);
+  }
 }
 ```
+
+**What the swarm manager does NOT do:**
+- Does NOT create AcpAgent instances — `AcpAgentManager.initAgent()` handles that (lazy)
+- Does NOT resolve CLI paths or backend config — `AcpAgentManager.initAgent()` handles that
+- Does NOT manage message queues — uses each agent's existing `AcpMessageQueue`
+- Does NOT run `onConversationInit` hooks — `buildWorkspaceWidthFiles()` handles that
+- Does NOT copy workspace templates — `buildWorkspaceWidthFiles()` handles that
+
+**What the swarm manager DOES do:**
+- Reads `assistant.json` swarm config and each `agent.json`
+- Calls `ConversationService.createConversation()` per agent (standard pipeline)
+- Wires agent finish events to swarm coordination (feed routing)
+- Fires `onSwarm*` hook events at the right lifecycle points
+- Manages turn-taking via `SwarmTurnController`
+- Manages the shared feed via `SwarmFeedManager`
 
 **Lifecycle:**
 
 1. User sends message → `SwarmSessionManager.init(userMessage)`
-2. Write `{from: "user", to: "all", type: "directive", content: userMessage}` to feed
-3. Seed Navigator first (it plans), then Driver (it waits for direction)
-4. Navigator responds → `onAgentResponse("navigator", content)` → write to feed → route to Driver
-5. Driver responds → `onAgentResponse("driver", content)` → write to feed → route to Navigator
-6. Repeat until `done` signal or `maxTurns` reached
+2. For each agent: `ConversationService.createConversation()` → spawns as regular conversation
+3. `onSwarmInit` per agent → seed messages enqueued into each agent's `AcpMessageQueue`
+4. Navigator turn starts → its `AcpMessageQueue` processes the seed message → `AcpAgentManager.sendMessage()` → lazy `initAgent()` → CLI spawned
+5. Navigator finishes → `onTurnFinished` callback → `onSwarmTurnEnd` → writes to feed → routes to Driver
+6. Driver turn starts → same flow via its own `AcpAgentManager`
+7. Repeat until `done` signal or `maxTurns` reached
 
 ### 4.4 `SwarmTurnController` — Turn-Taking Strategy
 
@@ -959,111 +1086,28 @@ export async function runSwarmHooks(
 
 **Key design: hooks never touch the filesystem directly.** They use `context.swarm.feed.append()` which delegates to `SwarmFeedManager`. This means the same hooks work regardless of backend — a Codex agent's hooks produce the same feed entries as a Claude agent's hooks.
 
-### 4.6 `SwarmSessionManager` — Core Implementation (Cross-Backend Aware)
+### 4.6 `SwarmSessionManager` — Core Orchestration Logic
 
-The SwarmSessionManager is the orchestrator. It lives in the main process and coordinates N agent sessions, each potentially using a different backend.
+Since each agent is spawned as a regular conversation (§4.3), the core orchestration is just **event wiring** — listening for agent finish events and routing through the feed. This is the `onAgentFinished` and `startTurn` logic:
 
 ```typescript
-// src/agent/swarm/SwarmSessionManager.ts — simplified pseudocode
+// src/agent/swarm/SwarmSessionManager.ts — continued from §4.3
 
-import { SwarmFeedManager } from './SwarmFeedManager';
-import { SwarmTurnController } from './SwarmTurnController';
-import { runSwarmHooks } from './SwarmHookRunner';
-import type { SwarmConfig, SwarmAgentConfig } from './types';
-
-type SwarmAgentSession = {
-  role: string;
-  config: SwarmAgentConfig;
-  backend: string;            // resolved backend (per-agent or fallback)
-  systemPrompt: string;       // loaded from {role}.md file
-  queue: AcpMessageQueue;     // each agent gets its own queue
-  hooksPath: string;          // role-specific hooks directory
-};
-
-export class SwarmSessionManager {
-  private feedManager: SwarmFeedManager;
-  private turnController: SwarmTurnController;
-  private agents: Map<string, SwarmAgentSession> = new Map();
-  private config: SwarmConfig;
-  private defaultBackend: string;
-  private workspace: string;
-
-  constructor(config: SwarmConfig, workspace: string, defaultBackend: string) {
-    this.config = config;
-    this.workspace = workspace;
-    this.defaultBackend = defaultBackend;
-    this.feedManager = new SwarmFeedManager(workspace, config.feedPath);
-    this.turnController = new SwarmTurnController(
-      config.turnStrategy,
-      config.agents.map(a => a.role),
-      config.maxTurns
-    );
-  }
-
-  async init(userMessage: string): Promise<void> {
-    // 1. Initialize feed
-    this.feedManager.init();
-
-    // 2. Initialize each agent session with its resolved backend
-    //    - Reads agent.json for config
-    //    - Reads {role}.md for system prompt (supports i18n: {role}.{locale}.md)
-    //    - Resolves backend: agent.presetAgentType || assistant.presetAgentType
-    for (const agentDir of this.config.agentDirs) {
-      const agentConfig = readJson(path.join(agentDir, 'agent.json'));
-      const systemPrompt = readPromptMd(agentDir, agentConfig.role); // driver.md or driver.en-US.md
-      const resolvedBackend = agentConfig.presetAgentType || this.defaultBackend;
-      const session: SwarmAgentSession = {
-        role: agentConfig.role,
-        config: agentConfig,
-        backend: resolvedBackend,
-        systemPrompt, // loaded from {role}.md, NOT from agent.json
-        queue: new AcpMessageQueue(/* sender for this backend type */),
-        hooksPath: path.join(agentDir, 'hooks'),
-      };
-      this.agents.set(agentConfig.role, session);
-    }
-
-    // 3. Fire onSwarmInit for each agent — collects seed queueMessages
-    for (const [role, session] of this.agents) {
-      const result = await runSwarmHooks('onSwarmInit', {
-        role,
-        agentConfig: session.config,
-        feedManager: this.feedManager,
-        turnNumber: 0,
-        maxTurns: this.config.maxTurns,
-        turnStrategy: this.config.turnStrategy,
-        peers: this.getPeers(role),
-        workspace: this.workspace,
-        assistantHooksPath: session.hooksPath,
-        content: userMessage,
-      });
-
-      // Enqueue seed messages
-      if (result.queueMessages?.length) {
-        session.queue.enqueueAll(result.queueMessages);
-      }
-    }
-
-    // 4. Start the first agent's turn
-    const firstRole = this.turnController.next();
-    await this.startTurn(firstRole);
-  }
-
-  /** Called when an agent finishes its turn */
+  /** Called when an agent finishes its turn (via onTurnFinished callback) */
   async onAgentFinished(role: string, output: string): Promise<void> {
-    const session = this.agents.get(role)!;
+    const handle = this.agents.get(role)!;
 
     // 1. Fire onSwarmTurnEnd — hook writes to feed, detects done
     const turnEndResult = await runSwarmHooks('onSwarmTurnEnd', {
       role,
-      agentConfig: session.config,
+      agentConfig: handle.config,
       feedManager: this.feedManager,
       turnNumber: this.turnController.getTurnCount(),
       maxTurns: this.config.maxTurns,
       turnStrategy: this.config.turnStrategy,
       peers: this.getPeers(role),
       workspace: this.workspace,
-      assistantHooksPath: session.hooksPath,
+      assistantHooksPath: handle.hooksPath,
       agentOutput: output,
     });
 
@@ -1075,7 +1119,7 @@ export class SwarmSessionManager {
 
     // 3. Determine next agent
     const nextRole = turnEndResult.nextAgent || this.turnController.next();
-    const nextSession = this.agents.get(nextRole)!;
+    const nextHandle = this.agents.get(nextRole)!;
 
     // 4. Read new feed entries for the next agent
     const newEntries = this.feedManager.readNewFor(nextRole);
@@ -1083,82 +1127,84 @@ export class SwarmSessionManager {
     // 5. Fire onSwarmFeedMessage for the next agent
     const feedResult = await runSwarmHooks('onSwarmFeedMessage', {
       role: nextRole,
-      agentConfig: nextSession.config,
+      agentConfig: nextHandle.config,
       feedManager: this.feedManager,
       turnNumber: this.turnController.getTurnCount(),
       maxTurns: this.config.maxTurns,
       turnStrategy: this.config.turnStrategy,
       peers: this.getPeers(nextRole),
       workspace: this.workspace,
-      assistantHooksPath: nextSession.hooksPath,
+      assistantHooksPath: nextHandle.hooksPath,
       feedEntries: newEntries,
     });
 
-    // 6. Enqueue messages and start next turn
+    // 6. Enqueue messages into the agent's existing AcpMessageQueue
     if (feedResult.queueMessages?.length) {
-      nextSession.queue.enqueueAll(feedResult.queueMessages);
+      nextHandle.manager.messageQueue.enqueueAll(feedResult.queueMessages);
     }
 
     await this.startTurn(nextRole);
   }
 
   private async startTurn(role: string): Promise<void> {
-    const session = this.agents.get(role)!;
+    const handle = this.agents.get(role)!;
 
     // Fire onSwarmTurnStart
     await runSwarmHooks('onSwarmTurnStart', {
       role,
-      agentConfig: session.config,
+      agentConfig: handle.config,
       feedManager: this.feedManager,
       turnNumber: this.turnController.getTurnCount(),
       maxTurns: this.config.maxTurns,
       turnStrategy: this.config.turnStrategy,
       peers: this.getPeers(role),
       workspace: this.workspace,
-      assistantHooksPath: session.hooksPath,
+      assistantHooksPath: handle.hooksPath,
     });
 
-    // Start processing this agent's queue
-    session.queue.start();
+    // The agent's AcpMessageQueue auto-processes when messages are enqueued.
+    // AcpAgentManager.initAgent() is called lazily on first sendMessage() —
+    // we don't need to start anything here, the queue handles it.
   }
-
-  private getPeers(role: string): string[] {
-    return [...this.agents.keys()].filter(r => r !== role);
-  }
-
-  terminate(): void { /* stop all queues, emit done event to UI */ }
-  pause(): void { /* pause all queues */ }
-  resume(): void { /* resume all queues */ }
-}
 ```
 
 **Cross-backend lifecycle example (Codex driver + Claude navigator):**
 
 ```
 1. init("Build REST API with auth")
-   ├─ Create SwarmAgentSession("driver", backend="codex")
-   ├─ Create SwarmAgentSession("navigator", backend="claude")
-   ├─ onSwarmInit(driver) → seeds driver queue (Codex process)
-   └─ onSwarmInit(navigator) → seeds navigator queue (Claude process)
+   ├─ ConversationService.createConversation(type:"acp", backend:"codex") → driver
+   ├─ ConversationService.createConversation(type:"acp", backend:"claude") → navigator
+   │   Each creates: DB row + AcpAgentManager (cached in WorkerManage)
+   │   CLI process NOT started yet (lazy init on first sendMessage)
+   ├─ onSwarmInit(driver) → seeds driver's AcpMessageQueue
+   └─ onSwarmInit(navigator) → seeds navigator's AcpMessageQueue
 
 2. Navigator turn (Claude process):
-   ├─ onSwarmTurnStart(navigator)
+   ├─ AcpMessageQueue dequeues seed → AcpAgentManager.sendMessage()
+   │   → initAgent() (lazy) → resolves cliPath from acp.config["claude"]
+   │   → AcpAgent.start() → spawns Claude CLI process
    ├─ Claude analyzes task, outputs plan
-   ├─ onSwarmTurnEnd(navigator) → writes directive to feed (backend: "claude")
-   └─ onSwarmFeedMessage(driver) → queues directive for Codex
+   ├─ AcpAgent finish signal → onTurnFinished callback → swarm.onAgentFinished()
+   ├─ onSwarmTurnEnd(navigator) → hook writes directive to feed (backend: "claude")
+   └─ onSwarmFeedMessage(driver) → queues directive into driver's AcpMessageQueue
 
 3. Driver turn (Codex process):
-   ├─ onSwarmTurnStart(driver)
-   ├─ Codex reads directive, writes code fast
-   ├─ onSwarmTurnEnd(driver) → writes action report to feed (backend: "codex")
-   └─ onSwarmFeedMessage(navigator) → queues report for Claude review
+   ├─ AcpMessageQueue dequeues → AcpAgentManager.sendMessage()
+   │   → initAgent() (lazy) → resolves cliPath from acp.config["codex"]
+   │   → AcpAgent.start() → spawns Codex CLI process
+   ├─ Codex reads directive, writes code
+   ├─ AcpAgent finish signal → onTurnFinished callback → swarm.onAgentFinished()
+   ├─ onSwarmTurnEnd(driver) → hook writes action report to feed (backend: "codex")
+   └─ onSwarmFeedMessage(navigator) → queues report into navigator's AcpMessageQueue
 
 4. Repeat until <done/> or maxTurns
 ```
 
+**Why this works:** Each swarm agent is a real AionUi conversation with its own `AcpAgentManager`, `AcpMessageQueue`, and `AcpAgent` (CLI process). The swarm manager just coordinates **when** each agent's queue gets new messages and **what** those messages contain (via feed routing). All the heavy lifting — backend resolution, CLI spawning, mode management, session persistence — is handled by the existing pipeline.
+
 ### 4.7 Integration with Existing Systems
 
-The swarm integrates into the existing AionUi architecture at three points:
+The swarm integrates into the existing AionUi architecture with **minimal changes** — the key insight is that each swarm agent is just a regular conversation.
 
 #### 4.7.1 Assistant Loading (`src/common/presets/assistantPresets.ts`)
 
@@ -1177,23 +1223,79 @@ Register the new assistant:
 
 #### 4.7.2 Agent Initialization (`src/process/initAgent.ts`)
 
-When `assistant.mode === 'swarm'`:
+When `assistant.mode === 'swarm'`, the existing `createAcpAgent()` flow is extended:
 
-1. Read `swarm` config from `assistant.json`
-2. Resolve each agent's backend: `agent.presetAgentType || assistant.presetAgentType`
-3. Create `SwarmSessionManager` instead of single agent manager
-4. For each agent: load hooks from its `hooksDir`, create backend-specific process
-5. Initialize the feed workspace
+```typescript
+// In initAgent.ts or a new swarm integration module
 
-#### 4.7.3 Message Queue Integration (`src/process/task/AcpAgentManager.ts`)
+export async function createSwarmConversation(params: ICreateConversationParams): Promise<TChatConversation> {
+  // 1. Create the parent conversation (the swarm itself — for UI grouping)
+  const parentConversation = await createAcpAgent(params);
 
-The swarm manager replaces the generic `runQueueInitHooks`/`runAgentResponseHooks` pipeline with swarm-specific event firing:
+  // 2. Read assistant.json to get swarm config
+  const assistantDir = path.join(getAssistantsDir(), params.extra.presetAssistantId);
+  const assistantJson = readJson(path.join(assistantDir, 'assistant.json'));
 
-- Each agent role gets its own `AcpMessageQueue` instance
-- **Instead of** `runQueueInitHooks()` → fires `onSwarmInit` per agent
-- **Instead of** `runAgentResponseHooks()` → fires `onSwarmTurnEnd` + `onSwarmFeedMessage`
-- Each queue's `sendMessageDirect` is wired to the agent's resolved backend process (Claude, Codex, Gemini, etc.)
+  // 3. Create SwarmSessionManager — it will spawn child conversations via
+  //    ConversationService.createConversation() using the SAME pipeline
+  const swarmManager = new SwarmSessionManager(
+    assistantJson.swarm,
+    parentConversation.id,
+    parentConversation.extra.workspace,
+    assistantJson.presetAgentType,
+    assistantJson.id,
+    assistantDir,
+  );
+
+  // 4. Register the swarm manager (NOT an AcpAgentManager — it's a coordinator)
+  WorkerManage.registerSwarm(parentConversation.id, swarmManager);
+
+  return parentConversation;
+}
+```
+
+**Key:** The parent conversation exists for UI grouping and user interaction. Each agent inside is a real child conversation created via the standard `ConversationService.createConversation()` → `createAcpAgent()` → `buildWorkspaceWidthFiles()` → `WorkerManage.buildConversation()` pipeline.
+
+#### 4.7.3 Existing Pipeline Reuse Map
+
+| Existing Code | What It Does For Swarm | Where Called |
+|---------------|----------------------|-------------|
+| `ConversationService.createConversation()` | Spawns each agent as a regular conversation | `SwarmSessionManager.init()` per agent |
+| `createAcpAgent()` | Builds workspace, resolves hooks path | Called by ConversationService |
+| `buildWorkspaceWidthFiles()` | Copies workspace template, runs `onConversationInit` | Called by createAcpAgent |
+| `WorkerManage.buildConversation()` | Creates `AcpAgentManager`, caches in taskList | Called by ConversationService |
+| `AcpAgentManager.initAgent()` | Resolves backend CLI path, spawns process | Lazy — on first `sendMessage()` |
+| `AcpAgentManager.sendMessage()` | Routes to message queue | Called when swarm hooks enqueue messages |
+| `AcpMessageQueue` | Sequential message processing, auto-start | Each agent gets its own (from AcpAgentManager) |
+| `AcpAgent.start()` | Spawns CLI process (Claude, Codex, etc.) | Lazy — via `initAgent()` |
+
+#### 4.7.4 What's New vs. Reused
+
+| Component | New or Reused | Notes |
+|-----------|--------------|-------|
+| `SwarmSessionManager` | **New** | Thin orchestrator — ~200 lines |
+| `SwarmFeedManager` | **New** | JSONL message bus — ~100 lines |
+| `SwarmTurnController` | **New** | Round-robin logic — ~50 lines |
+| `SwarmHookRunner` | **New** | Wraps `runHooks()` with swarm context — ~60 lines |
+| `ConversationService.createConversation()` | **Reused** | Unchanged — spawns each agent |
+| `createAcpAgent()` + `buildWorkspaceWidthFiles()` | **Reused** | Unchanged — sets up workspace + hooks |
+| `AcpAgentManager` | **Reused** | Unchanged — manages each agent's lifecycle |
+| `AcpMessageQueue` | **Reused** | Unchanged — handles sequential messaging |
+| `AcpAgent` | **Reused** | Unchanged — spawns CLI processes |
+| `WorkerManage` | **Small addition** | Add `registerSwarm()` + `getTaskById()` support |
+
+#### 4.7.5 Message Queue Integration
+
+The swarm hooks use each agent's existing `AcpMessageQueue` (from its `AcpAgentManager`):
+
+- **Instead of** `runQueueInitHooks()` → `onSwarmInit` enqueues seed messages via `handle.manager.messageQueue.enqueueAll()`
+- **Instead of** `runAgentResponseHooks()` → `onSwarmTurnEnd` + `onSwarmFeedMessage` enqueue follow-up messages
+- Each queue's `sendMessageDirect` is already wired to the agent's `AcpAgent` (which uses the resolved backend CLI)
 - The existing `onAgentResponse` event is **not fired** for swarm agents — zero regression risk for Ralph/Ouroboros
+
+#### 4.7.6 Shared Workspace
+
+All agents in a swarm share the **same workspace directory**. This is intentional — they're pair-programming on the same codebase. The `buildWorkspaceWidthFiles()` call sets up the workspace once (for the first agent), and subsequent agents receive the same path. The feed file (`.swarm/feed.jsonl`) lives inside this shared workspace.
 
 ### 4.8 UI Changes
 
@@ -1575,38 +1677,41 @@ describe('Cross-backend swarm hooks', () => {
 
 ### Minimal Implementation Checklist
 
-| # | Task | Files | Scope |
-|---|------|-------|-------|
-| 1 | Add `mode` field + swarm types to assistant types | `src/common/presets/assistantPresets.ts`, type defs | Small |
-| 2 | Create `src/agent/swarm/types.ts` | New file (SwarmConfig, SwarmFeedEntry, SwarmHookContext, etc.) | Small |
-| 3 | Add swarm hook events to `HookEvent` union | `src/assistant/hooks/types.ts` | Small |
-| 4 | Create `SwarmFeedManager` | `src/agent/swarm/SwarmFeedManager.ts` | Medium |
-| 5 | Create `SwarmTurnController` | `src/agent/swarm/SwarmTurnController.ts` | Small |
-| 6 | Create `SwarmHookRunner` | `src/agent/swarm/SwarmHookRunner.ts` (wraps `runHooks` with swarm context) | Medium |
-| 7 | Create `SwarmSessionManager` | `src/agent/swarm/SwarmSessionManager.ts` (cross-backend aware) | Medium |
-| 8 | Create `dual-claude` assistant config | `assistant/dual-claude/assistant.json` + per-agent `agent.json` | Medium |
-| 9 | Create driver hooks | `assistant/dual-claude/swarm/driver/hooks/driver-hooks.js` (onSwarm* events) | Medium |
-| 10 | Create navigator hooks | `assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js` (onSwarm* events) | Medium |
-| 11 | Integrate swarm mode in agent init | `src/process/initAgent.ts` (detect `mode: "swarm"`, resolve per-agent backends) | Medium |
-| 12 | Add `agentMeta` to message model | `src/common/chatLib.ts`, `src/process/database/types.ts` | Small |
-| 13 | Add `agent_meta` DB column | `src/process/database/schema.ts` migration | Small |
-| 14 | Create `SwarmAgentBadge` UI component | `src/renderer/components/SwarmAgentBadge.tsx` | Small |
-| 15 | Update `MessageList` to render agent badges | `src/renderer/messages/MessageList.tsx` | Small |
-| 16 | Unit tests | `tests/unit/swarm/*.test.ts` | Medium |
+| # | Task | Files | Scope | New vs Reuse |
+|---|------|-------|-------|-------------|
+| 1 | Add `mode` field + swarm types to assistant types | `src/common/presets/assistantPresets.ts`, type defs | Small | Extend |
+| 2 | Create `src/agent/swarm/types.ts` | New file (SwarmConfig, SwarmFeedEntry, SwarmHookContext, etc.) | Small | New |
+| 3 | Add swarm hook events to `HookEvent` union | `src/assistant/hooks/types.ts` | Small | Extend |
+| 4 | Create `SwarmFeedManager` | `src/agent/swarm/SwarmFeedManager.ts` (~100 lines) | Medium | New |
+| 5 | Create `SwarmTurnController` | `src/agent/swarm/SwarmTurnController.ts` (~50 lines) | Small | New |
+| 6 | Create `SwarmHookRunner` | `src/agent/swarm/SwarmHookRunner.ts` (wraps existing `runHooks()`, ~60 lines) | Small | Wraps existing |
+| 7 | Create `SwarmSessionManager` | `src/agent/swarm/SwarmSessionManager.ts` — thin orchestrator (~200 lines) | Medium | New (but delegates to existing pipeline) |
+| 8 | Add `registerSwarm()` to `WorkerManage` | `src/process/WorkerManage.ts` | Small | Extend |
+| 9 | Add `createSwarmConversation()` | `src/process/initAgent.ts` — detects `mode: "swarm"`, creates swarm manager | Small | Extend |
+| 10 | Create `dual-claude` assistant config | `assistant/dual-claude/assistant.json` + per-agent `agent.json` + `.md` prompts | Medium | New |
+| 11 | Create driver hooks | `assistant/dual-claude/swarm/driver/hooks/driver-hooks.js` (onSwarm* events) | Medium | New |
+| 12 | Create navigator hooks | `assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js` (onSwarm* events) | Medium | New |
+| 13 | Add `agentMeta` to message model | `src/common/chatLib.ts`, `src/process/database/types.ts` | Small | Extend |
+| 14 | Add `agent_meta` DB column | `src/process/database/schema.ts` migration | Small | Extend |
+| 15 | Create `SwarmAgentBadge` UI component | `src/renderer/components/SwarmAgentBadge.tsx` | Small | New |
+| 16 | Update `MessageList` to render agent badges | `src/renderer/messages/MessageList.tsx` | Small | Extend |
+| 17 | Unit tests | `tests/unit/swarm/*.test.ts` | Medium | New |
+
+**Code reuse summary:** ~410 new lines across 4 new files (SwarmSessionManager, SwarmFeedManager, SwarmTurnController, SwarmHookRunner). All agent spawning, backend resolution, CLI management, and message queuing is handled by the existing `ConversationService` → `createAcpAgent` → `AcpAgentManager` → `AcpAgent` pipeline — unchanged.
 
 ### Implementation Order
 
 **Phase 1 — Core (get it working):**
-Tasks 1–7, 11: Types, swarm hook events, feed manager, turn controller, hook runner, session manager, agent init
+Tasks 1–9: Types, swarm hook events, feed manager, turn controller, hook runner, session manager, WorkerManage extension, initAgent integration
 
 **Phase 2 — Assistant & Hooks (make it autonomous):**
-Tasks 8–10: dual-claude assistant + per-agent configs + swarm event hooks
+Tasks 10–12: dual-claude assistant + per-agent configs + system prompt .md files + swarm event hooks
 
 **Phase 3 — UI (make it visible):**
-Tasks 12–15: Message model extension, DB migration, agent badge component
+Tasks 13–16: Message model extension, DB migration, agent badge component
 
 **Phase 4 — Tests (make it reliable):**
-Task 16: Unit tests for feed, turn controller, hooks, and cross-backend scenarios
+Task 17: Unit tests for feed, turn controller, hooks, and cross-backend scenarios
 
 ## 8. Future Extensions
 
