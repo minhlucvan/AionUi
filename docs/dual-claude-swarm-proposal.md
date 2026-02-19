@@ -1,72 +1,111 @@
 # Proposal: Dual-Claude Swarm — Multi-Agent Collaborative Sessions
 
-> **Status**: Draft
+> **Status**: Draft v2
 > **Date**: 2026-02-19
 > **Inspired by**: [anthropics/claude-quickstarts/autonomous-coding](https://github.com/anthropics/claude-quickstarts/tree/main/autonomous-coding), AionUi's Ralph & Ouroboros assistants
 
 ## 1. Overview
 
-Implement a **multi-agent swarm** system where two (or more) Claude Code sessions collaborate within a single AionUi conversation. One agent acts as the **Driver** (executes code, writes files) and the other as the **Navigator** (reviews, plans, directs). They communicate through a shared message feed, coordinated by hooks, and appear in the UI as distinct participants in the same conversation.
+Implement a **multi-agent swarm** system where two (or more) AI agent sessions collaborate within a single AionUi conversation. One agent acts as the **Driver** (executes code, writes files) and the other as the **Navigator** (reviews, plans, directs). They communicate through a shared message feed, coordinated by **dedicated swarm hook events**, and appear in the UI as distinct participants in the same conversation.
 
 ### Key Difference from Anthropic's Quickstart
 
 The Anthropic `autonomous-coding` demo runs sessions **sequentially** (one finishes, next starts, filesystem is the shared state). Our design runs agents **concurrently** within a single conversation, communicating through a real-time message feed — closer to pair programming than relay racing.
 
+### Key Difference from Ralph/Ouroboros
+
+Ralph and Ouroboros use `onAgentResponse` — a generic hook event fired after any agent turn. The swarm system introduces **dedicated feed-aware hook events** (`onSwarmFeedMessage`, `onSwarmTurnStart`, `onSwarmTurnEnd`, `onSwarmInit`) so that:
+
+- Hooks receive **structured feed entries** (not raw agent output strings)
+- Hooks know **which agent role** they belong to (via `swarmContext`)
+- The swarm can orchestrate **cross-backend agents** (e.g., Codex as Driver + Claude as Navigator) where each agent has its own `presetAgentType`
+- Existing `onAgentResponse` hooks remain untouched — no regressions for Ralph/Ouroboros
+
 ### Design Principles
 
 - **Simple but effective** — reuse existing hook system, message queue, and assistant framework
 - **File-based coordination** — `.swarm/feed.jsonl` as the message bus (inspectable, debuggable, crash-recoverable)
+- **Dedicated swarm events** — new hook events for feed-aware coordination, separate from generic `onAgentResponse`
+- **Cross-backend agents** — each agent in the swarm can use a different backend (Claude, Codex, Gemini, Qwen, etc.)
 - **Minimal UI changes** — extend existing message model with agent identity metadata
 - **Extensible** — start with 2 agents (driver/navigator), architecture supports N agents
 
 ## 2. Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    AionUi Conversation              │
-│                                                     │
-│  ┌──────────────┐    .swarm/feed.jsonl    ┌──────────────┐
-│  │   Driver      │ ◄──────────────────► │   Navigator    │
-│  │   (Claude)    │    shared message bus │   (Claude)     │
-│  │               │                      │                │
-│  │  Executes     │                      │  Reviews       │
-│  │  Writes code  │                      │  Plans         │
-│  │  Runs tests   │                      │  Directs       │
-│  └──────┬───────┘                      └──────┬───────┘
-│         │                                      │
-│         │  hooks/driver-hooks.js               │  hooks/navigator-hooks.js
-│         │  - onAgentResponse: write to feed     │  - onAgentResponse: write to feed
-│         │  - poll feed for navigator messages   │  - poll feed for driver messages
-│         │                                      │
-│  ┌──────┴──────────────────────────────────────┴───────┐
-│  │              SwarmSessionManager                     │
-│  │  - Spawns & manages agent sessions                  │
-│  │  - Routes feed events to correct agent queue        │
-│  │  - Handles lifecycle (start, pause, terminate)      │
-│  └──────────────────────────────────────────────────────┘
-│                          │
-│  ┌───────────────────────┴───────────────────────────┐
-│  │              Message Feed (.swarm/feed.jsonl)       │
-│  │  - Append-only JSONL file                          │
-│  │  - Each line: {from, to, type, content, ts}        │
-│  │  - Agents read from last-seen offset               │
-│  └───────────────────────────────────────────────────┘
-│                          │
-│  ┌───────────────────────┴───────────────────────────┐
-│  │                   UI Layer                         │
-│  │  - Messages show agent avatar + name               │
-│  │  - Driver messages: blue avatar, left-aligned      │
-│  │  - Navigator messages: green avatar, left-aligned  │
-│  │  - User messages: right-aligned (as before)        │
-│  └───────────────────────────────────────────────────┘
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                       AionUi Conversation                        │
+│                                                                  │
+│  dual-claude/swarm/driver/              dual-claude/swarm/navigator/
+│  ┌──────────────────────┐               ┌──────────────────────┐ │
+│  │  agent.json           │               │  agent.json           │ │
+│  │  presetAgentType:codex│               │  presetAgentType:claude│
+│  │  avatar: ⚡            │               │  avatar: 🧭            │
+│  │                       │               │                       │ │
+│  │  hooks/               │               │  hooks/               │ │
+│  │  └─driver-hooks.js   │               │  └─navigator-hooks.js│ │
+│  │    onSwarmInit        │               │    onSwarmInit        │ │
+│  │    onSwarmTurnStart   │  .swarm/      │    onSwarmTurnStart   │ │
+│  │    onSwarmTurnEnd     │  feed.jsonl   │    onSwarmTurnEnd     │ │
+│  │    onSwarmFeedMessage │◄────────────►│    onSwarmFeedMessage │ │
+│  └──────────┬───────────┘               └──────────┬───────────┘ │
+│             │                                       │             │
+│  ┌──────────┴───────────────────────────────────────┴──────────┐ │
+│  │                  SwarmSessionManager                         │ │
+│  │  - Reads each agent.json → resolves backend per agent       │ │
+│  │  - Spawns backend-specific processes (Claude, Codex, etc.)  │ │
+│  │  - Fires onSwarm* hook events with SwarmHookContext          │ │
+│  │  - Routes feed entries to correct agent queue               │ │
+│  │  - Handles lifecycle (start, pause, terminate)              │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+│                          │                                       │
+│  ┌───────────────────────┴─────────────────────────────────────┐ │
+│  │               Message Feed (.swarm/feed.jsonl)               │ │
+│  │  - Append-only JSONL file                                   │ │
+│  │  - Each line: {from, to, type, content, ts, backend}        │ │
+│  │  - Agents read from last-seen offset                        │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+│                          │                                       │
+│  ┌───────────────────────┴─────────────────────────────────────┐ │
+│  │                      UI Layer                                │ │
+│  │  - Messages show agent avatar + name + backend badge         │ │
+│  │  - Driver messages: blue avatar, left-aligned                │ │
+│  │  - Navigator messages: green avatar, left-aligned            │ │
+│  │  - User messages: right-aligned (as before)                  │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────┘
 ```
+
+### Key Structural Principle: `swarm/[agent]/agent.json`
+
+Each agent in the swarm has its own directory under `swarm/`, mirroring the top-level `assistant.json` pattern:
+
+```
+assistant/dual-claude/
+├── assistant.json              ← swarm-level config (mode, feedPath, agents list)
+└── swarm/
+    ├── driver/
+    │   ├── agent.json          ← agent-level config (role, backend, avatar, systemPrompt)
+    │   └── hooks/
+    │       └── driver-hooks.js ← swarm event handlers for this agent
+    └── navigator/
+        ├── agent.json          ← agent-level config
+        └── hooks/
+            └── navigator-hooks.js
+```
+
+This mirrors how `assistant.json` + `hooks/` works at the assistant level, but scoped per agent. Benefits:
+- Each agent is self-contained — easy to copy/swap/customize
+- Adding a new agent to a swarm = adding a new directory
+- `agent.json` follows the same schema conventions as `assistant.json`
 
 ## 3. Data Structures
 
-### 3.1 assistant.json — New `mode` Field
+### 3.1 assistant.json + agent.json — Swarm Configuration
 
-Add a `mode` field to `assistant.json` to indicate multi-agent behavior:
+The swarm uses a **two-level config** pattern: `assistant.json` at the swarm level, and `agent.json` per agent (mirroring the `assistant.json` schema).
+
+#### 3.1.1 `assistant.json` — Swarm-Level Config
 
 ```jsonc
 // assistant/dual-claude/assistant.json
@@ -76,47 +115,137 @@ Add a `mode` field to `assistant.json` to indicate multi-agent behavior:
   "version": "1.0.0",
   "description": "Two Claude Code agents collaborating: one drives (writes code), one navigates (reviews & plans).",
   "author": "AionUi",
-  "presetAgentType": "claude",
+  "presetAgentType": "claude",  // default backend (used when agent.json doesn't specify its own)
   "avatar": "🤝",
   "workspacePath": "./workspace",
   "tags": ["autonomous", "multi-agent", "swarm", "pair-programming", "claude-code"],
 
-  // NEW: multi-agent mode configuration
+  // NEW: multi-agent mode
   "mode": "swarm",
   "swarm": {
     "feedPath": ".swarm/feed.jsonl",
-    "agents": [
-      {
-        "role": "driver",
-        "name": "Driver",
-        "avatar": "🔧",
-        "description": "Executes code, writes files, runs tests. Takes direction from Navigator.",
-        "hooksDir": "swarm/driver/hooks",
-        "systemPrompt": "You are the DRIVER in a pair-programming session. You write code, run commands, and implement features. The Navigator will review your work and give you direction via messages in the feed. After each action, report what you did and wait for the Navigator's input. Focus on execution, not planning."
-      },
-      {
-        "role": "navigator",
-        "name": "Navigator",
-        "avatar": "🧭",
-        "description": "Reviews code, plans architecture, gives direction to Driver.",
-        "hooksDir": "swarm/navigator/hooks",
-        "systemPrompt": "You are the NAVIGATOR in a pair-programming session. You review the Driver's code, plan the architecture, catch bugs, and give clear direction. Read the feed to see what the Driver has done, then provide your next instruction or review. Focus on strategy and quality, not writing code directly."
-      }
-    ],
+    // Agent directories under swarm/ — each has its own agent.json + hooks/
+    "agents": ["driver", "navigator"],
     "maxTurns": 30,
     "turnStrategy": "round-robin"
   },
 
   "defaultEnabledSkills": [],
   "queuedMessages": {
-    "description": "Swarm: onQueueInit seeds both agents, onAgentResponse routes via feed",
+    "description": "Swarm: onSwarmInit seeds both agents, onSwarmTurnEnd routes via feed",
     "phases": [
-      { "trigger": "onQueueInit", "messages": 2, "purpose": "Seed driver and navigator with initial context" },
-      { "trigger": "onAgentResponse", "messages": "N (feed-driven)", "purpose": "Route agent outputs through feed to the other agent" }
+      { "trigger": "onSwarmInit", "messages": 2, "purpose": "Seed driver and navigator with initial context" },
+      { "trigger": "onSwarmTurnEnd", "messages": "N (feed-driven)", "purpose": "Route agent outputs through feed to the other agent" }
     ]
   }
 }
 ```
+
+#### 3.1.2 `agent.json` — Per-Agent Config
+
+Each agent directory contains an `agent.json` that follows the same conventions as `assistant.json`:
+
+```jsonc
+// assistant/dual-claude/swarm/driver/agent.json
+{
+  "role": "driver",
+  "name": "Driver",
+  "avatar": "🔧",
+  "description": "Executes code, writes files, runs tests. Takes direction from Navigator.",
+  // Per-agent backend — omit to inherit from top-level assistant.json presetAgentType
+  // "presetAgentType": "codex",  // ← uncomment to make Driver use Codex
+  "systemPrompt": "You are the DRIVER in a pair-programming session. You write code, run commands, and implement features. The Navigator will review your work and give you direction via messages in the feed. After each action, report what you did and wait for the Navigator's input. Focus on execution, not planning.",
+  "nameI18n": {
+    "en-US": "Driver",
+    "zh-CN": "执行者"
+  }
+}
+```
+
+```jsonc
+// assistant/dual-claude/swarm/navigator/agent.json
+{
+  "role": "navigator",
+  "name": "Navigator",
+  "avatar": "🧭",
+  "description": "Reviews code, plans architecture, gives direction to Driver.",
+  // "presetAgentType": "claude",  // ← explicitly Claude for planning/review
+  "systemPrompt": "You are the NAVIGATOR in a pair-programming session. You review the Driver's code, plan the architecture, catch bugs, and give clear direction. Read the feed to see what the Driver has done, then provide your next instruction or review. Focus on strategy and quality, not writing code directly.",
+  "nameI18n": {
+    "en-US": "Navigator",
+    "zh-CN": "导航者"
+  }
+}
+```
+
+#### 3.1.3 `agent.json` Schema
+
+```typescript
+// src/agent/swarm/types.ts
+
+type SwarmAgentConfig = {
+  /** Unique role identifier within the swarm */
+  role: string;
+  /** Display name */
+  name: string;
+  /** Avatar emoji or image path */
+  avatar: string;
+  /** Description of this agent's purpose */
+  description: string;
+  /** Backend override — omit to inherit from assistant.json presetAgentType */
+  presetAgentType?: string;
+  /** System prompt injected into this agent's conversation */
+  systemPrompt?: string;
+  /** Internationalized names */
+  nameI18n?: Record<string, string>;
+  /** Per-agent enabled skills */
+  defaultEnabledSkills?: string[];
+};
+```
+
+**Backend resolution order:**
+1. `swarm/[agent]/agent.json → presetAgentType` — per-agent override (highest priority)
+2. `assistant.json → presetAgentType` — assistant default (fallback)
+
+#### 3.1.4 Cross-Backend Example: Codex Driver + Claude Navigator
+
+```
+assistant/codex-claude-swarm/
+├── assistant.json                    ← mode: "swarm", presetAgentType: "claude" (fallback)
+└── swarm/
+    ├── driver/
+    │   ├── agent.json                ← presetAgentType: "codex" (override!)
+    │   └── hooks/
+    │       └── driver-hooks.js
+    └── navigator/
+        ├── agent.json                ← presetAgentType: "claude" (or omit to inherit)
+        └── hooks/
+            └── navigator-hooks.js
+```
+
+```jsonc
+// assistant/codex-claude-swarm/swarm/driver/agent.json
+{
+  "role": "driver",
+  "name": "Codex Driver",
+  "avatar": "⚡",
+  "presetAgentType": "codex",    // ← Codex backend for fast code execution
+  "systemPrompt": "You are a fast code execution engine. Read directives from the Navigator, implement them precisely, and report results."
+}
+```
+
+```jsonc
+// assistant/codex-claude-swarm/swarm/navigator/agent.json
+{
+  "role": "navigator",
+  "name": "Claude Navigator",
+  "avatar": "🧭",
+  "presetAgentType": "claude",   // ← Claude backend for planning/review
+  "systemPrompt": "You are the architect. Plan the approach, review the Codex Driver's output, catch bugs, and provide clear step-by-step directives."
+}
+```
+
+This enables any combination: Claude+Claude, Codex+Claude, Gemini+Claude, Qwen+Codex, etc. Swapping a backend is a one-line change in `agent.json`.
 
 ### 3.2 Feed Message Format (`.swarm/feed.jsonl`)
 
@@ -140,18 +269,20 @@ type SwarmFeedEntry = {
   content: string;
   /** Files referenced or changed */
   files?: string[];
+  /** Backend that produced this entry (for cross-backend swarms) */
+  backend?: string;        // "claude" | "codex" | "gemini" | "qwen" | ...
   /** ISO timestamp */
   ts: string;
 };
 ```
 
-Example `.swarm/feed.jsonl`:
+Example `.swarm/feed.jsonl` (cross-backend: Codex driver + Claude navigator):
 
 ```jsonl
 {"id":"f001","seq":1,"from":"system","to":"all","type":"directive","content":"Task: Build a REST API with user authentication","ts":"2026-02-19T10:00:00Z"}
-{"id":"f002","seq":2,"from":"navigator","to":"driver","type":"directive","content":"Start by creating the Express server scaffold in src/server.ts with health check endpoint. Use TypeScript.","ts":"2026-02-19T10:00:05Z"}
-{"id":"f003","seq":3,"from":"driver","to":"navigator","type":"action","content":"Created src/server.ts with Express setup and /health endpoint. Running on port 3000.","files":["src/server.ts"],"ts":"2026-02-19T10:01:30Z"}
-{"id":"f004","seq":4,"from":"navigator","to":"driver","type":"review","content":"Looks good. Now add the auth middleware. Use JWT with bcrypt for password hashing. Create src/middleware/auth.ts.","ts":"2026-02-19T10:01:35Z"}
+{"id":"f002","seq":2,"from":"navigator","to":"driver","type":"directive","content":"Start by creating the Express server scaffold in src/server.ts with health check endpoint. Use TypeScript.","backend":"claude","ts":"2026-02-19T10:00:05Z"}
+{"id":"f003","seq":3,"from":"driver","to":"navigator","type":"action","content":"Created src/server.ts with Express setup and /health endpoint. Running on port 3000.","files":["src/server.ts"],"backend":"codex","ts":"2026-02-19T10:01:30Z"}
+{"id":"f004","seq":4,"from":"navigator","to":"driver","type":"review","content":"Looks good. Now add the auth middleware. Use JWT with bcrypt for password hashing. Create src/middleware/auth.ts.","backend":"claude","ts":"2026-02-19T10:01:35Z"}
 ```
 
 ### 3.3 Message Model Extension
@@ -192,21 +323,24 @@ interface IMessage<T extends TMessageType, Content extends Record<string, any>> 
 
 ```
 src/agent/swarm/
-├── types.ts                    # SwarmConfig, SwarmFeedEntry, SwarmAgentConfig types
-├── SwarmSessionManager.ts      # Manages multiple agent sessions within one conversation
+├── types.ts                    # SwarmConfig, SwarmFeedEntry, SwarmAgentConfig, SwarmHookContext
+├── SwarmSessionManager.ts      # Manages multiple agent sessions (cross-backend)
 ├── SwarmFeedManager.ts         # Read/write/watch .swarm/feed.jsonl
 ├── SwarmTurnController.ts      # Turn-taking strategy (round-robin, on-demand)
+├── SwarmHookRunner.ts          # Wraps runHooks() with SwarmHookContext injection
 └── index.ts                    # Public API
 
 assistant/dual-claude/
-├── assistant.json              # Configuration (see §3.1)
+├── assistant.json              # Swarm-level config (see §3.1.1)
 ├── swarm/
 │   ├── driver/
+│   │   ├── agent.json              # Driver agent config (see §3.1.2)
 │   │   └── hooks/
-│   │       └── driver-hooks.js     # Driver agent hooks
+│   │       └── driver-hooks.js     # onSwarm* event handlers
 │   └── navigator/
+│       ├── agent.json              # Navigator agent config (see §3.1.2)
 │       └── hooks/
-│           └── navigator-hooks.js  # Navigator agent hooks
+│           └── navigator-hooks.js  # onSwarm* event handlers
 ├── workspace/                  # Template workspace
 └── dual-claude.en-US.md        # Preset prompt/rules
 
@@ -336,9 +470,145 @@ class SwarmTurnController {
 - **`round-robin`** (default): Navigator → Driver → Navigator → Driver → ...
 - **`on-demand`**: Agent specifies who should go next via `to` field in feed (more flexible, less predictable)
 
-### 4.5 Hooks Implementation
+### 4.5 Swarm Hook Events — Dedicated Feed-Aware Event System
 
-#### 4.5.1 Driver Hooks
+#### 4.5.1 Why Not Reuse `onAgentResponse`?
+
+Ralph and Ouroboros use `onAgentResponse` — a generic event fired after any agent turn. It receives raw `content` (the agent's text output) and returns `queueMessages`. This works for single-agent loops but has limitations for multi-agent swarms:
+
+| Concern | `onAgentResponse` (generic) | Swarm events (dedicated) |
+|---------|---------------------------|--------------------------|
+| Context | Raw string `content` | Structured `SwarmFeedEntry[]` + `SwarmHookContext` |
+| Agent identity | Hook must parse/infer role | `context.swarm.role` provided automatically |
+| Backend awareness | Single `backend` string | `context.swarm.agentBackend` per agent |
+| Feed operations | Hook does raw `fs.appendFileSync` | `context.swarm.feed.append()` helper |
+| Turn coordination | Hook polls feed manually | `SwarmSessionManager` fires events at correct points |
+| Cross-backend | Not designed for it | Each agent resolves its own backend type |
+| Regression risk | Changes affect Ralph/Ouroboros | Zero impact on existing assistants |
+
+#### 4.5.2 New Hook Events
+
+Add four new events to the `HookEvent` union type:
+
+```typescript
+// Addition to src/assistant/hooks/types.ts
+
+export type HookEvent =
+  // ... existing events ...
+  | 'onWorkspaceInit'
+  | 'onConversationInit'
+  | 'onSendMessage'
+  | 'onFirstMessage'
+  | 'onBuildSystemInstructions'
+  | 'onError'
+  | 'onQueueInit'
+  | 'onAgentResponse'
+  // NEW: Swarm-specific events
+  | 'onSwarmInit'
+  | 'onSwarmTurnStart'
+  | 'onSwarmTurnEnd'
+  | 'onSwarmFeedMessage';
+```
+
+**Event lifecycle in a swarm turn:**
+
+```
+User sends task
+  │
+  ├─► onSwarmInit (both agents)         — seed each agent with role context
+  │     fired once per swarm session
+  │
+  ├─► onSwarmTurnStart (navigator)      — navigator's turn begins
+  │     │
+  │     │   [navigator agent runs...]
+  │     │
+  │     └─► onSwarmTurnEnd (navigator)  — navigator finished, output → feed
+  │           │
+  │           └─► onSwarmFeedMessage (driver)  — driver receives feed entry
+  │                 │
+  │                 └─► onSwarmTurnStart (driver) — driver's turn begins
+  │                       │
+  │                       │   [driver agent runs...]
+  │                       │
+  │                       └─► onSwarmTurnEnd (driver) — driver finished, output → feed
+  │                             │
+  │                             └─► onSwarmFeedMessage (navigator) — navigator receives
+  │                                   │
+  │                                   └─► ... round-robin continues ...
+  │
+  └─► (done signal or maxTurns) → swarm terminates
+```
+
+#### 4.5.3 `SwarmHookContext` — Extended Context for Swarm Hooks
+
+```typescript
+// Addition to src/agent/swarm/types.ts
+
+/** Swarm-specific context passed to swarm hook events */
+type SwarmHookContext = {
+  /** This agent's role in the swarm */
+  role: string;                     // "driver" | "navigator"
+  /** This agent's display name */
+  name: string;                     // "Driver" | "Codex Driver"
+  /** This agent's resolved backend type */
+  agentBackend: string;             // "claude" | "codex" | "gemini" | "qwen"
+  /** The counterpart's role(s) */
+  peers: string[];                  // ["navigator"] or ["driver"]
+  /** Current turn number */
+  turnNumber: number;
+  /** Max turns before auto-terminate */
+  maxTurns: number;
+  /** Turn strategy */
+  turnStrategy: TurnStrategy;
+  /** Feed helper — hooks use this instead of raw fs operations */
+  feed: {
+    /** Append an entry to the feed (auto-fills id, seq, ts, backend) */
+    append: (entry: { to: string; type: string; content: string; files?: string[] }) => SwarmFeedEntry;
+    /** Read new entries addressed to this agent's role */
+    readNew: () => SwarmFeedEntry[];
+    /** Read all entries */
+    readAll: () => SwarmFeedEntry[];
+    /** Check if any agent signaled done */
+    isDone: () => boolean;
+  };
+};
+
+/** Full context passed to swarm hook handlers */
+type SwarmFullHookContext = HookContext & {
+  /** Swarm-specific context — only present for onSwarm* events */
+  swarm: SwarmHookContext;
+  /** The feed entries that triggered this event (for onSwarmFeedMessage) */
+  feedEntries?: SwarmFeedEntry[];
+  /** The agent's raw output (for onSwarmTurnEnd) */
+  agentOutput?: string;
+};
+```
+
+#### 4.5.4 `SwarmHookResult` — Extended Result
+
+```typescript
+// Addition to src/agent/swarm/types.ts
+
+type SwarmHookResult = HookResult & {
+  /** Feed entries to write (alternative to using context.swarm.feed.append) */
+  feedEntries?: Array<{ to: string; type: string; content: string; files?: string[] }>;
+  /** Signal that the swarm task is done */
+  done?: boolean;
+  /** Override which agent goes next (for on-demand turn strategy) */
+  nextAgent?: string;
+};
+```
+
+#### 4.5.5 Event Details
+
+| Event | When Fired | Context Includes | Expected Hook Behavior |
+|-------|-----------|------------------|----------------------|
+| `onSwarmInit` | Once when swarm starts, per agent | `swarm.role`, `content` (user task) | Return seed `queueMessages` for the agent |
+| `onSwarmTurnStart` | Before an agent's turn begins | `swarm.role`, `feedEntries` (new messages for this agent) | Transform/filter feed entries into the agent's prompt |
+| `onSwarmTurnEnd` | After an agent finishes its turn | `swarm.role`, `agentOutput` (raw output) | Parse output, write to feed, detect `<done/>`, return `feedEntries` |
+| `onSwarmFeedMessage` | When a new feed entry targets this agent | `swarm.role`, `feedEntries` (the new entries) | Decide whether to queue a message to wake the agent |
+
+#### 4.5.6 Driver Hooks (Using Swarm Events)
 
 ```javascript
 // assistant/dual-claude/swarm/driver/hooks/driver-hooks.js
@@ -347,37 +617,22 @@ const ROLE = 'driver';
 
 module.exports = {
   /**
-   * onQueueInit — Seed the driver with initial context
+   * onSwarmInit — Seed the driver with initial context.
    * The driver waits for the navigator's first directive before acting.
    */
-  onQueueInit: {
+  onSwarmInit: {
     handler: async (context) => {
-      if (!context.backend || !context.workspace) return {};
-
-      const fs = require('fs');
-      const path = require('path');
-      const feedPath = path.join(context.workspace, '.swarm', 'feed.jsonl');
-
-      // Read the user's task from the feed (system already wrote it)
-      let taskDescription = context.content || 'No task specified.';
-      if (fs.existsSync(feedPath)) {
-        const lines = fs.readFileSync(feedPath, 'utf-8').trim().split('\n');
-        for (const line of lines) {
-          try {
-            const entry = JSON.parse(line);
-            if (entry.from === 'user' || entry.from === 'system') {
-              taskDescription = entry.content;
-            }
-          } catch { /* skip malformed */ }
-        }
-      }
+      const { swarm } = context;
+      const userTask = context.content || 'No task specified.';
 
       return {
         queueMessages: [{
           content: [
             '## Swarm — Driver Session',
             '',
-            `**Task:** ${taskDescription}`,
+            `**Task:** ${userTask}`,
+            `**Your backend:** ${swarm.agentBackend}`,
+            `**Your role:** ${swarm.role}`,
             '',
             'You are the **Driver** in a pair-programming swarm.',
             'The Navigator will review your work and provide direction.',
@@ -399,110 +654,67 @@ module.exports = {
   },
 
   /**
-   * onAgentResponse — Driver completed an action
-   * Write the result to the feed and wait for navigator's review.
+   * onSwarmTurnEnd — Driver completed an action.
+   * Parse output, write to feed, detect done signal.
    */
-  onAgentResponse: {
+  onSwarmTurnEnd: {
     handler: async (context) => {
-      if (!context.backend || !context.workspace) return {};
-
-      const fs = require('fs');
-      const path = require('path');
-      const swarmDir = path.join(context.workspace, '.swarm');
-      const feedPath = path.join(swarmDir, 'feed.jsonl');
-      const agentOutput = context.content || '';
+      const { swarm, agentOutput = '' } = context;
 
       // Check for done signal
       if (/<done\s*\/?>/.test(agentOutput)) {
-        const doneEntry = JSON.stringify({
-          id: `f-${Date.now()}`,
-          seq: getNextSeq(feedPath, fs),
-          from: ROLE,
+        swarm.feed.append({
           to: 'all',
           type: 'done',
           content: 'Driver signals task completion.',
-          ts: new Date().toISOString(),
         });
-        fs.appendFileSync(feedPath, doneEntry + '\n', 'utf-8');
-        return {};
+        return { done: true };
       }
 
-      // Write driver's output to feed
-      if (!fs.existsSync(swarmDir)) fs.mkdirSync(swarmDir, { recursive: true });
-
-      const entry = JSON.stringify({
-        id: `f-${Date.now()}`,
-        seq: getNextSeq(feedPath, fs),
-        from: ROLE,
+      // Write driver's action report to feed
+      swarm.feed.append({
         to: 'navigator',
         type: 'action',
-        content: agentOutput.slice(0, 4000), // Truncate for feed readability
-        ts: new Date().toISOString(),
+        content: agentOutput.slice(0, 4000),
       });
-      fs.appendFileSync(feedPath, entry + '\n', 'utf-8');
 
-      // Read navigator's latest message (if any new ones)
-      const navigatorMessages = readNewMessagesFor(ROLE, feedPath, fs, context);
-      if (navigatorMessages.length > 0) {
-        const latest = navigatorMessages[navigatorMessages.length - 1];
-        return {
-          queueMessages: [{
-            content: [
-              '## Navigator says:',
-              '',
-              latest.content,
-              '',
-              '---',
-              '_Read `.swarm/feed.jsonl` for full context. Execute the directive above._',
-            ].join('\n'),
-            priority: 'normal',
-            source: 'hook',
-          }],
-        };
-      }
-
-      // No new navigator messages yet — will be routed by SwarmSessionManager
       return {};
     },
     priority: 50,
   },
+
+  /**
+   * onSwarmFeedMessage — Navigator posted a directive for the driver.
+   * Queue a message to wake the driver with the directive.
+   */
+  onSwarmFeedMessage: {
+    handler: async (context) => {
+      const { feedEntries = [] } = context;
+      if (feedEntries.length === 0) return {};
+
+      const latest = feedEntries[feedEntries.length - 1];
+
+      return {
+        queueMessages: [{
+          content: [
+            `## Navigator says: (turn ${context.swarm.turnNumber}/${context.swarm.maxTurns})`,
+            '',
+            latest.content,
+            '',
+            '---',
+            '_Read `.swarm/feed.jsonl` for full context. Execute the directive above._',
+          ].join('\n'),
+          priority: 'normal',
+          source: 'hook',
+        }],
+      };
+    },
+    priority: 50,
+  },
 };
-
-// ─── Helpers ───
-
-function getNextSeq(feedPath, fs) {
-  if (!fs.existsSync(feedPath)) return 1;
-  const lines = fs.readFileSync(feedPath, 'utf-8').trim().split('\n').filter(Boolean);
-  let maxSeq = 0;
-  for (const line of lines) {
-    try { maxSeq = Math.max(maxSeq, JSON.parse(line).seq || 0); } catch { /* skip */ }
-  }
-  return maxSeq + 1;
-}
-
-function readNewMessagesFor(role, feedPath, fs, context) {
-  if (!fs.existsSync(feedPath)) return [];
-  const cursorKey = `__swarm_cursor_${role}`;
-  const cursor = context[cursorKey] || 0;
-  const lines = fs.readFileSync(feedPath, 'utf-8').trim().split('\n').filter(Boolean);
-  const newMessages = [];
-  for (const line of lines) {
-    try {
-      const entry = JSON.parse(line);
-      if (entry.seq > cursor && entry.from !== role && (entry.to === role || entry.to === 'all')) {
-        newMessages.push(entry);
-      }
-    } catch { /* skip */ }
-  }
-  // Update cursor
-  if (newMessages.length > 0) {
-    context[cursorKey] = newMessages[newMessages.length - 1].seq;
-  }
-  return newMessages;
-}
 ```
 
-#### 4.5.2 Navigator Hooks
+#### 4.5.7 Navigator Hooks (Using Swarm Events)
 
 ```javascript
 // assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js
@@ -511,34 +723,20 @@ const ROLE = 'navigator';
 
 module.exports = {
   /**
-   * onQueueInit — Navigator seeds the collaboration
-   * Reads the task, creates an initial plan, and writes the first directive.
+   * onSwarmInit — Navigator seeds the collaboration.
+   * Writes user task to feed and receives planning prompt.
    */
-  onQueueInit: {
+  onSwarmInit: {
     handler: async (context) => {
-      if (!context.backend || !context.workspace) return {};
-
-      const fs = require('fs');
-      const path = require('path');
-      const swarmDir = path.join(context.workspace, '.swarm');
-      const feedPath = path.join(swarmDir, 'feed.jsonl');
-
-      // Ensure feed directory exists
-      if (!fs.existsSync(swarmDir)) fs.mkdirSync(swarmDir, { recursive: true });
-
+      const { swarm } = context;
       const userRequest = (context.content || '').trim();
 
-      // Write user task to feed as system message
-      const systemEntry = JSON.stringify({
-        id: `f-${Date.now()}`,
-        seq: 1,
-        from: 'user',
+      // Write user task to feed as the seed directive
+      swarm.feed.append({
         to: 'all',
         type: 'directive',
         content: userRequest,
-        ts: new Date().toISOString(),
       });
-      fs.appendFileSync(feedPath, systemEntry + '\n', 'utf-8');
 
       return {
         queueMessages: [{
@@ -546,6 +744,9 @@ module.exports = {
             '## Swarm — Navigator Session',
             '',
             `**Task:** ${userRequest}`,
+            `**Your backend:** ${swarm.agentBackend}`,
+            `**Your role:** ${swarm.role}`,
+            `**Driver backend:** ${context.swarm.peers.join(', ')}`,
             '',
             'You are the **Navigator** in a pair-programming swarm.',
             'The Driver will execute your directives and report back.',
@@ -561,7 +762,6 @@ module.exports = {
             '- Give ONE clear directive at a time (not a list of 10 things)',
             '- Be specific: include file paths, function names, exact requirements',
             '- Review the Driver\'s output critically — catch bugs and design issues',
-            '- Write your directives to `.swarm/feed.jsonl` (the Driver reads this)',
             '',
             'Begin by analyzing the task and writing your first directive.',
           ].join('\n'),
@@ -574,126 +774,165 @@ module.exports = {
   },
 
   /**
-   * onAgentResponse — Navigator provided a review or directive
-   * Write to feed and wait for driver's next action report.
+   * onSwarmTurnEnd — Navigator provided a review or directive.
+   * Write to feed. Detect done signal.
    */
-  onAgentResponse: {
+  onSwarmTurnEnd: {
     handler: async (context) => {
-      if (!context.backend || !context.workspace) return {};
-
-      const fs = require('fs');
-      const path = require('path');
-      const swarmDir = path.join(context.workspace, '.swarm');
-      const feedPath = path.join(swarmDir, 'feed.jsonl');
-      const agentOutput = context.content || '';
+      const { swarm, agentOutput = '' } = context;
 
       // Check for done signal
       if (/<done\s*\/?>/.test(agentOutput)) {
-        const doneEntry = JSON.stringify({
-          id: `f-${Date.now()}`,
-          seq: getNextSeq(feedPath, fs),
-          from: ROLE,
+        swarm.feed.append({
           to: 'all',
           type: 'done',
           content: 'Navigator signals task completion.',
-          ts: new Date().toISOString(),
         });
-        fs.appendFileSync(feedPath, doneEntry + '\n', 'utf-8');
-        return {};
+        return { done: true };
       }
 
-      // Write navigator's output to feed
-      if (!fs.existsSync(swarmDir)) fs.mkdirSync(swarmDir, { recursive: true });
-
-      const entry = JSON.stringify({
-        id: `f-${Date.now()}`,
-        seq: getNextSeq(feedPath, fs),
-        from: ROLE,
+      // Write navigator's directive to feed
+      swarm.feed.append({
         to: 'driver',
         type: 'directive',
         content: agentOutput.slice(0, 4000),
-        ts: new Date().toISOString(),
       });
-      fs.appendFileSync(feedPath, entry + '\n', 'utf-8');
-
-      // Read driver's latest report (if any new ones)
-      const driverMessages = readNewMessagesFor(ROLE, feedPath, fs, context);
-      if (driverMessages.length > 0) {
-        const latest = driverMessages[driverMessages.length - 1];
-        return {
-          queueMessages: [{
-            content: [
-              '## Driver reports:',
-              '',
-              latest.content,
-              '',
-              '---',
-              '_Read `.swarm/feed.jsonl` for full context. Review and provide next directive._',
-            ].join('\n'),
-            priority: 'normal',
-            source: 'hook',
-          }],
-        };
-      }
 
       return {};
     },
     priority: 50,
   },
+
+  /**
+   * onSwarmFeedMessage — Driver posted an action report.
+   * Queue a message to wake the navigator with the report.
+   */
+  onSwarmFeedMessage: {
+    handler: async (context) => {
+      const { feedEntries = [] } = context;
+      if (feedEntries.length === 0) return {};
+
+      const latest = feedEntries[feedEntries.length - 1];
+
+      return {
+        queueMessages: [{
+          content: [
+            `## Driver reports: (turn ${context.swarm.turnNumber}/${context.swarm.maxTurns})`,
+            '',
+            latest.content,
+            '',
+            '---',
+            '_Read `.swarm/feed.jsonl` for full context. Review and provide next directive._',
+          ].join('\n'),
+          priority: 'normal',
+          source: 'hook',
+        }],
+      };
+    },
+    priority: 50,
+  },
 };
+```
 
-// ─── Helpers (same as driver) ───
+#### 4.5.8 How `SwarmSessionManager` Fires Swarm Events
 
-function getNextSeq(feedPath, fs) {
-  if (!fs.existsSync(feedPath)) return 1;
-  const lines = fs.readFileSync(feedPath, 'utf-8').trim().split('\n').filter(Boolean);
-  let maxSeq = 0;
-  for (const line of lines) {
-    try { maxSeq = Math.max(maxSeq, JSON.parse(line).seq || 0); } catch { /* skip */ }
-  }
-  return maxSeq + 1;
-}
+The `SwarmSessionManager` owns the event firing lifecycle. It calls hooks via a new `runSwarmHooks()` function that wraps the existing `runHooks()` with `SwarmHookContext` injection:
 
-function readNewMessagesFor(role, feedPath, fs, context) {
-  if (!fs.existsSync(feedPath)) return [];
-  const cursorKey = `__swarm_cursor_${role}`;
-  const cursor = context[cursorKey] || 0;
-  const lines = fs.readFileSync(feedPath, 'utf-8').trim().split('\n').filter(Boolean);
-  const newMessages = [];
-  for (const line of lines) {
-    try {
-      const entry = JSON.parse(line);
-      if (entry.seq > cursor && entry.from !== role && (entry.to === role || entry.to === 'all')) {
-        newMessages.push(entry);
-      }
-    } catch { /* skip */ }
+```typescript
+// src/agent/swarm/SwarmHookRunner.ts
+
+import { runHooks } from '@/assistant/hooks/HookRunner';
+import type { SwarmHookContext, SwarmFeedEntry } from './types';
+
+/**
+ * Run swarm-specific hooks for a given agent role.
+ * Injects SwarmHookContext into the standard HookContext.
+ */
+export async function runSwarmHooks(
+  event: 'onSwarmInit' | 'onSwarmTurnStart' | 'onSwarmTurnEnd' | 'onSwarmFeedMessage',
+  options: {
+    role: string;
+    agentConfig: SwarmAgentConfig;
+    feedManager: SwarmFeedManager;
+    turnNumber: number;
+    maxTurns: number;
+    turnStrategy: TurnStrategy;
+    peers: string[];
+    workspace: string;
+    assistantHooksPath: string;       // role-specific hooks dir
+    content?: string;                 // user task (for onSwarmInit)
+    agentOutput?: string;             // raw output (for onSwarmTurnEnd)
+    feedEntries?: SwarmFeedEntry[];   // new entries (for onSwarmFeedMessage)
   }
-  if (newMessages.length > 0) {
-    context[cursorKey] = newMessages[newMessages.length - 1].seq;
-  }
-  return newMessages;
+): Promise<SwarmHookResult> {
+  const swarmContext: SwarmHookContext = {
+    role: options.role,
+    name: options.agentConfig.name,
+    agentBackend: options.agentConfig.presetAgentType || 'claude', // resolved backend
+    peers: options.peers,
+    turnNumber: options.turnNumber,
+    maxTurns: options.maxTurns,
+    turnStrategy: options.turnStrategy,
+    feed: {
+      append: (entry) => options.feedManager.append({
+        from: options.role,
+        backend: options.agentConfig.presetAgentType,
+        ...entry,
+      }),
+      readNew: () => options.feedManager.readNewFor(options.role),
+      readAll: () => options.feedManager.readAll(),
+      isDone: () => options.feedManager.isDone(),
+    },
+  };
+
+  // Run hooks with swarm context injected
+  return await runHooks(event, {
+    assistantPath: options.assistantHooksPath.replace(/\/hooks$/, ''),
+    workspace: options.workspace,
+    backend: options.agentConfig.presetAgentType,
+    content: options.content,
+    // Swarm-specific fields (accessible via context.swarm, context.feedEntries, etc.)
+    swarm: swarmContext,
+    agentOutput: options.agentOutput,
+    feedEntries: options.feedEntries,
+  } as any) as SwarmHookResult;
 }
 ```
 
-### 4.6 `SwarmSessionManager` — Core Implementation
+**Key design: hooks never touch the filesystem directly.** They use `context.swarm.feed.append()` which delegates to `SwarmFeedManager`. This means the same hooks work regardless of backend — a Codex agent's hooks produce the same feed entries as a Claude agent's hooks.
 
-The SwarmSessionManager is the orchestrator. It lives in the main process and coordinates the two agent sessions.
+### 4.6 `SwarmSessionManager` — Core Implementation (Cross-Backend Aware)
+
+The SwarmSessionManager is the orchestrator. It lives in the main process and coordinates N agent sessions, each potentially using a different backend.
 
 ```typescript
 // src/agent/swarm/SwarmSessionManager.ts — simplified pseudocode
 
 import { SwarmFeedManager } from './SwarmFeedManager';
 import { SwarmTurnController } from './SwarmTurnController';
+import { runSwarmHooks } from './SwarmHookRunner';
 import type { SwarmConfig, SwarmAgentConfig } from './types';
+
+type SwarmAgentSession = {
+  role: string;
+  config: SwarmAgentConfig;
+  backend: string;            // resolved backend (per-agent or fallback)
+  queue: AcpMessageQueue;     // each agent gets its own queue
+  hooksPath: string;          // role-specific hooks directory
+};
 
 export class SwarmSessionManager {
   private feedManager: SwarmFeedManager;
   private turnController: SwarmTurnController;
-  private agentQueues: Map<string, AcpMessageQueue>;
+  private agents: Map<string, SwarmAgentSession> = new Map();
   private config: SwarmConfig;
+  private defaultBackend: string;
+  private workspace: string;
 
-  constructor(config: SwarmConfig, workspace: string) {
+  constructor(config: SwarmConfig, workspace: string, defaultBackend: string) {
     this.config = config;
+    this.workspace = workspace;
+    this.defaultBackend = defaultBackend;
     this.feedManager = new SwarmFeedManager(workspace, config.feedPath);
     this.turnController = new SwarmTurnController(
       config.turnStrategy,
@@ -706,49 +945,150 @@ export class SwarmSessionManager {
     // 1. Initialize feed
     this.feedManager.init();
 
-    // 2. Write user's task to feed
-    this.feedManager.append({
-      from: 'user',
-      to: 'all',
-      type: 'directive',
-      content: userMessage,
-    });
-
-    // 3. Initialize agent sessions (each gets its own queue + hooks)
+    // 2. Initialize each agent session with its resolved backend
     for (const agentConfig of this.config.agents) {
-      await this.initAgentSession(agentConfig);
+      const resolvedBackend = agentConfig.presetAgentType || this.defaultBackend;
+      const session: SwarmAgentSession = {
+        role: agentConfig.role,
+        config: agentConfig,
+        backend: resolvedBackend,
+        queue: new AcpMessageQueue(/* sender for this backend type */),
+        hooksPath: path.join(this.config.assistantPath, agentConfig.hooksDir),
+      };
+      this.agents.set(agentConfig.role, session);
     }
 
-    // 4. Start the first agent (navigator goes first in round-robin)
+    // 3. Fire onSwarmInit for each agent — collects seed queueMessages
+    for (const [role, session] of this.agents) {
+      const result = await runSwarmHooks('onSwarmInit', {
+        role,
+        agentConfig: session.config,
+        feedManager: this.feedManager,
+        turnNumber: 0,
+        maxTurns: this.config.maxTurns,
+        turnStrategy: this.config.turnStrategy,
+        peers: this.getPeers(role),
+        workspace: this.workspace,
+        assistantHooksPath: session.hooksPath,
+        content: userMessage,
+      });
+
+      // Enqueue seed messages
+      if (result.queueMessages?.length) {
+        session.queue.enqueueAll(result.queueMessages);
+      }
+    }
+
+    // 4. Start the first agent's turn
     const firstRole = this.turnController.next();
-    this.triggerAgent(firstRole);
+    await this.startTurn(firstRole);
   }
 
-  async onAgentResponse(role: string, content: string): Promise<void> {
-    // 1. Write response to feed
-    this.feedManager.append({
-      from: role,
-      to: this.getCounterpart(role),
-      type: role === 'navigator' ? 'directive' : 'action',
-      content: content,
+  /** Called when an agent finishes its turn */
+  async onAgentFinished(role: string, output: string): Promise<void> {
+    const session = this.agents.get(role)!;
+
+    // 1. Fire onSwarmTurnEnd — hook writes to feed, detects done
+    const turnEndResult = await runSwarmHooks('onSwarmTurnEnd', {
+      role,
+      agentConfig: session.config,
+      feedManager: this.feedManager,
+      turnNumber: this.turnController.getTurnCount(),
+      maxTurns: this.config.maxTurns,
+      turnStrategy: this.config.turnStrategy,
+      peers: this.getPeers(role),
+      workspace: this.workspace,
+      assistantHooksPath: session.hooksPath,
+      agentOutput: output,
     });
 
     // 2. Check termination
-    if (this.feedManager.isDone() || this.turnController.isExhausted()) {
+    if (turnEndResult.done || this.feedManager.isDone() || this.turnController.isExhausted()) {
       this.terminate();
       return;
     }
 
-    // 3. Trigger next agent with new feed entries
-    const nextRole = this.turnController.next();
+    // 3. Determine next agent
+    const nextRole = turnEndResult.nextAgent || this.turnController.next();
+    const nextSession = this.agents.get(nextRole)!;
+
+    // 4. Read new feed entries for the next agent
     const newEntries = this.feedManager.readNewFor(nextRole);
-    this.sendFeedToAgent(nextRole, newEntries);
+
+    // 5. Fire onSwarmFeedMessage for the next agent
+    const feedResult = await runSwarmHooks('onSwarmFeedMessage', {
+      role: nextRole,
+      agentConfig: nextSession.config,
+      feedManager: this.feedManager,
+      turnNumber: this.turnController.getTurnCount(),
+      maxTurns: this.config.maxTurns,
+      turnStrategy: this.config.turnStrategy,
+      peers: this.getPeers(nextRole),
+      workspace: this.workspace,
+      assistantHooksPath: nextSession.hooksPath,
+      feedEntries: newEntries,
+    });
+
+    // 6. Enqueue messages and start next turn
+    if (feedResult.queueMessages?.length) {
+      nextSession.queue.enqueueAll(feedResult.queueMessages);
+    }
+
+    await this.startTurn(nextRole);
   }
 
-  private getCounterpart(role: string): string {
-    return role === 'driver' ? 'navigator' : 'driver';
+  private async startTurn(role: string): Promise<void> {
+    const session = this.agents.get(role)!;
+
+    // Fire onSwarmTurnStart
+    await runSwarmHooks('onSwarmTurnStart', {
+      role,
+      agentConfig: session.config,
+      feedManager: this.feedManager,
+      turnNumber: this.turnController.getTurnCount(),
+      maxTurns: this.config.maxTurns,
+      turnStrategy: this.config.turnStrategy,
+      peers: this.getPeers(role),
+      workspace: this.workspace,
+      assistantHooksPath: session.hooksPath,
+    });
+
+    // Start processing this agent's queue
+    session.queue.start();
   }
+
+  private getPeers(role: string): string[] {
+    return [...this.agents.keys()].filter(r => r !== role);
+  }
+
+  terminate(): void { /* stop all queues, emit done event to UI */ }
+  pause(): void { /* pause all queues */ }
+  resume(): void { /* resume all queues */ }
 }
+```
+
+**Cross-backend lifecycle example (Codex driver + Claude navigator):**
+
+```
+1. init("Build REST API with auth")
+   ├─ Create SwarmAgentSession("driver", backend="codex")
+   ├─ Create SwarmAgentSession("navigator", backend="claude")
+   ├─ onSwarmInit(driver) → seeds driver queue (Codex process)
+   └─ onSwarmInit(navigator) → seeds navigator queue (Claude process)
+
+2. Navigator turn (Claude process):
+   ├─ onSwarmTurnStart(navigator)
+   ├─ Claude analyzes task, outputs plan
+   ├─ onSwarmTurnEnd(navigator) → writes directive to feed (backend: "claude")
+   └─ onSwarmFeedMessage(driver) → queues directive for Codex
+
+3. Driver turn (Codex process):
+   ├─ onSwarmTurnStart(driver)
+   ├─ Codex reads directive, writes code fast
+   ├─ onSwarmTurnEnd(driver) → writes action report to feed (backend: "codex")
+   └─ onSwarmFeedMessage(navigator) → queues report for Claude review
+
+4. Repeat until <done/> or maxTurns
 ```
 
 ### 4.7 Integration with Existing Systems
@@ -775,17 +1115,20 @@ Register the new assistant:
 When `assistant.mode === 'swarm'`:
 
 1. Read `swarm` config from `assistant.json`
-2. Create `SwarmSessionManager` instead of single agent manager
-3. Load hooks from each agent's `hooksDir` (driver-hooks.js, navigator-hooks.js)
-4. Initialize the feed workspace
+2. Resolve each agent's backend: `agent.presetAgentType || assistant.presetAgentType`
+3. Create `SwarmSessionManager` instead of single agent manager
+4. For each agent: load hooks from its `hooksDir`, create backend-specific process
+5. Initialize the feed workspace
 
 #### 4.7.3 Message Queue Integration (`src/process/task/AcpAgentManager.ts`)
 
-The swarm manager wraps the existing `AcpMessageQueue`:
+The swarm manager replaces the generic `runQueueInitHooks`/`runAgentResponseHooks` pipeline with swarm-specific event firing:
 
 - Each agent role gets its own `AcpMessageQueue` instance
-- `runQueueInitHooks()` and `runAgentResponseHooks()` are called per-agent with role-specific hooks
-- Feed routing happens between the hook response and queue enqueue
+- **Instead of** `runQueueInitHooks()` → fires `onSwarmInit` per agent
+- **Instead of** `runAgentResponseHooks()` → fires `onSwarmTurnEnd` + `onSwarmFeedMessage`
+- Each queue's `sendMessageDirect` is wired to the agent's resolved backend process (Claude, Codex, Gemini, etc.)
+- The existing `onAgentResponse` event is **not fired** for swarm agents — zero regression risk for Ralph/Ouroboros
 
 ### 4.8 UI Changes
 
@@ -859,40 +1202,47 @@ ALTER TABLE messages ADD COLUMN agent_meta TEXT;
 
 The `rowToMessage()` / `messageToRow()` functions in `src/process/database/types.ts` parse/stringify this field.
 
-## 5. Sequence Diagram
+## 5. Sequence Diagram (with Swarm Hook Events)
 
 ```
-User                  SwarmSessionManager        Navigator             Driver              Feed
-  │                          │                      │                    │                  │
-  │── "Build REST API" ─────►│                      │                    │                  │
-  │                          │── write task ─────────┼────────────────────┼─────────────────►│
-  │                          │── seed navigator ────►│                    │                  │
-  │                          │                      │── analyze task     │                  │
-  │                          │                      │── plan steps       │                  │
-  │                          │◄── "Create Express   │                    │                  │
-  │                          │    scaffold first" ──│                    │                  │
-  │                          │── write to feed ──────┼────────────────────┼─────────────────►│
-  │                          │── route to driver ────┼───────────────────►│                  │
-  │                          │                      │                    │── read directive  │
-  │                          │                      │                    │── create files    │
-  │                          │                      │                    │── run code        │
-  │                          │◄──────────────────────┼── "Created         │                  │
-  │                          │                      │   server.ts" ──────│                  │
-  │                          │── write to feed ──────┼────────────────────┼─────────────────►│
-  │                          │── route to navigator ►│                    │                  │
-  │                          │                      │── review code      │                  │
-  │                          │                      │── check quality    │                  │
-  │                          │◄── "Add auth         │                    │                  │
-  │                          │    middleware next" ──│                    │                  │
-  │                          │── write to feed ──────┼────────────────────┼─────────────────►│
-  │                          │── route to driver ────┼───────────────────►│                  │
-  │                          │                      │                    │── implement auth  │
-  │                          │                      │                    │                  │
-  │                          │        ... continues round-robin ...      │                  │
-  │                          │                      │                    │                  │
-  │                          │◄── "<done/>" ────────│                    │                  │
-  │◄── "Task complete" ─────│                      │                    │                  │
-  │                          │                      │                    │                  │
+User                  SwarmSessionManager         Navigator (Claude)     Driver (Codex)     Feed
+  │                          │                         │                    │                 │
+  │── "Build REST API" ─────►│                         │                    │                 │
+  │                          │                         │                    │                 │
+  │                          │─ onSwarmInit(navigator) ►│                    │                 │
+  │                          │─ onSwarmInit(driver) ────┼───────────────────►│                 │
+  │                          │                         │                    │                 │
+  │                          │─ onSwarmTurnStart(nav) ─►│                    │                 │
+  │                          │                         │── analyze task     │                 │
+  │                          │                         │── plan steps       │                 │
+  │                          │◄────── output ──────────│                    │                 │
+  │                          │                         │                    │                 │
+  │                          │─ onSwarmTurnEnd(nav) ───►│                    │                 │
+  │                          │  hook: feed.append() ───┼────────────────────┼────────────────►│
+  │                          │  (directive → driver)   │                    │                 │
+  │                          │                         │                    │                 │
+  │                          │─ onSwarmFeedMessage(drv) ┼───────────────────►│                 │
+  │                          │  hook: queueMessages ───┼───────────────────►│                 │
+  │                          │                         │                    │                 │
+  │                          │─ onSwarmTurnStart(drv) ─┼───────────────────►│                 │
+  │                          │                         │                    │── write code    │
+  │                          │                         │                    │── run tests     │
+  │                          │◄────────────────────────┼────── output ──────│                 │
+  │                          │                         │                    │                 │
+  │                          │─ onSwarmTurnEnd(drv) ───┼───────────────────►│                 │
+  │                          │  hook: feed.append() ───┼────────────────────┼────────────────►│
+  │                          │  (action → navigator)   │                    │                 │
+  │                          │                         │                    │                 │
+  │                          │─ onSwarmFeedMessage(nav) ►│                    │                 │
+  │                          │  hook: queueMessages ───►│                    │                 │
+  │                          │                         │── review code      │                 │
+  │                          │                         │── check quality    │                 │
+  │                          │                         │                    │                 │
+  │                          │        ... continues round-robin ...         │                 │
+  │                          │                         │                    │                 │
+  │                          │─ onSwarmTurnEnd(nav) ───►│                    │                 │
+  │                          │  hook: done=true ───────│                    │                 │
+  │◄── "Task complete" ─────│                         │                    │                 │
 ```
 
 ## 6. Unit Tests
@@ -1011,66 +1361,147 @@ describe('SwarmTurnController', () => {
 ```typescript
 // tests/unit/swarm/swarmHooks.test.ts
 
-describe('Driver hooks', () => {
-  test('onQueueInit returns seed message for driver', async () => {
+/** Helper: create a mock SwarmHookContext for testing */
+function createMockSwarmContext(role, overrides = {}) {
+  const feedEntries = [];
+  return {
+    role,
+    name: role.charAt(0).toUpperCase() + role.slice(1),
+    agentBackend: 'claude',
+    peers: role === 'driver' ? ['navigator'] : ['driver'],
+    turnNumber: 1,
+    maxTurns: 30,
+    turnStrategy: 'round-robin',
+    feed: {
+      append: (entry) => {
+        const full = { id: `f-${Date.now()}`, seq: feedEntries.length + 1, from: role, ts: new Date().toISOString(), ...entry };
+        feedEntries.push(full);
+        return full;
+      },
+      readNew: () => [],
+      readAll: () => feedEntries,
+      isDone: () => feedEntries.some(e => e.type === 'done'),
+    },
+    _feedEntries: feedEntries, // test inspection
+    ...overrides,
+  };
+}
+
+describe('Driver hooks (swarm events)', () => {
+  test('onSwarmInit returns seed message with role context', async () => {
     const hooks = require('../../../assistant/dual-claude/swarm/driver/hooks/driver-hooks.js');
-    const result = await hooks.onQueueInit.handler({
-      backend: 'claude',
-      workspace: tmpDir,
+    const swarm = createMockSwarmContext('driver');
+    const result = await hooks.onSwarmInit.handler({
+      swarm,
       content: 'Build a REST API',
     });
     expect(result.queueMessages).toHaveLength(1);
     expect(result.queueMessages[0].content).toContain('Driver');
+    expect(result.queueMessages[0].content).toContain('Build a REST API');
   });
 
-  test('onAgentResponse writes to feed and returns empty when no navigator message', async () => {
+  test('onSwarmTurnEnd writes action to feed via context.swarm.feed', async () => {
     const hooks = require('../../../assistant/dual-claude/swarm/driver/hooks/driver-hooks.js');
-    setupFeedDir(tmpDir);
-
-    const result = await hooks.onAgentResponse.handler({
-      backend: 'claude',
-      workspace: tmpDir,
-      content: 'Created server.ts with Express setup.',
+    const swarm = createMockSwarmContext('driver');
+    const result = await hooks.onSwarmTurnEnd.handler({
+      swarm,
+      agentOutput: 'Created server.ts with Express setup.',
     });
 
-    // Should have written to feed
-    const feed = readFeed(tmpDir);
-    expect(feed.length).toBeGreaterThan(0);
-    expect(feed[feed.length - 1].from).toBe('driver');
+    expect(swarm._feedEntries).toHaveLength(1);
+    expect(swarm._feedEntries[0].from).toBe('driver');
+    expect(swarm._feedEntries[0].to).toBe('navigator');
+    expect(swarm._feedEntries[0].type).toBe('action');
+    expect(result.done).toBeUndefined();
   });
 
-  test('onAgentResponse detects <done/> signal', async () => {
+  test('onSwarmTurnEnd detects <done/> signal and writes done entry', async () => {
     const hooks = require('../../../assistant/dual-claude/swarm/driver/hooks/driver-hooks.js');
-    setupFeedDir(tmpDir);
-
-    const result = await hooks.onAgentResponse.handler({
-      backend: 'claude',
-      workspace: tmpDir,
-      content: 'All done! <done/>',
+    const swarm = createMockSwarmContext('driver');
+    const result = await hooks.onSwarmTurnEnd.handler({
+      swarm,
+      agentOutput: 'All tasks complete! <done/>',
     });
 
-    const feed = readFeed(tmpDir);
-    const doneEntries = feed.filter(e => e.type === 'done');
-    expect(doneEntries).toHaveLength(1);
-    expect(result).toEqual({});
+    expect(swarm._feedEntries).toHaveLength(1);
+    expect(swarm._feedEntries[0].type).toBe('done');
+    expect(result.done).toBe(true);
+  });
+
+  test('onSwarmFeedMessage queues navigator directive for driver', async () => {
+    const hooks = require('../../../assistant/dual-claude/swarm/driver/hooks/driver-hooks.js');
+    const swarm = createMockSwarmContext('driver');
+    const result = await hooks.onSwarmFeedMessage.handler({
+      swarm,
+      feedEntries: [{
+        id: 'f-1', seq: 2, from: 'navigator', to: 'driver',
+        type: 'directive', content: 'Create auth middleware', ts: new Date().toISOString(),
+      }],
+    });
+
+    expect(result.queueMessages).toHaveLength(1);
+    expect(result.queueMessages[0].content).toContain('Navigator says');
+    expect(result.queueMessages[0].content).toContain('Create auth middleware');
   });
 });
 
-describe('Navigator hooks', () => {
-  test('onQueueInit writes user task to feed and returns seed message', async () => {
+describe('Navigator hooks (swarm events)', () => {
+  test('onSwarmInit writes user task to feed and returns seed message', async () => {
     const hooks = require('../../../assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js');
-    const result = await hooks.onQueueInit.handler({
-      backend: 'claude',
-      workspace: tmpDir,
+    const swarm = createMockSwarmContext('navigator');
+    const result = await hooks.onSwarmInit.handler({
+      swarm,
       content: 'Build a REST API',
     });
 
     expect(result.queueMessages).toHaveLength(1);
     expect(result.queueMessages[0].content).toContain('Navigator');
 
-    const feed = readFeed(tmpDir);
-    expect(feed).toHaveLength(1);
-    expect(feed[0].from).toBe('user');
+    // Navigator's onSwarmInit writes the user task to feed
+    expect(swarm._feedEntries).toHaveLength(1);
+    expect(swarm._feedEntries[0].type).toBe('directive');
+    expect(swarm._feedEntries[0].content).toBe('Build a REST API');
+  });
+
+  test('onSwarmTurnEnd writes directive to feed', async () => {
+    const hooks = require('../../../assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js');
+    const swarm = createMockSwarmContext('navigator');
+    await hooks.onSwarmTurnEnd.handler({
+      swarm,
+      agentOutput: 'Create Express scaffold in src/server.ts with health check.',
+    });
+
+    expect(swarm._feedEntries).toHaveLength(1);
+    expect(swarm._feedEntries[0].to).toBe('driver');
+    expect(swarm._feedEntries[0].type).toBe('directive');
+  });
+
+  test('onSwarmFeedMessage queues driver report for navigator', async () => {
+    const hooks = require('../../../assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js');
+    const swarm = createMockSwarmContext('navigator');
+    const result = await hooks.onSwarmFeedMessage.handler({
+      swarm,
+      feedEntries: [{
+        id: 'f-3', seq: 3, from: 'driver', to: 'navigator',
+        type: 'action', content: 'Created server.ts', ts: new Date().toISOString(),
+      }],
+    });
+
+    expect(result.queueMessages).toHaveLength(1);
+    expect(result.queueMessages[0].content).toContain('Driver reports');
+  });
+});
+
+describe('Cross-backend swarm hooks', () => {
+  test('hooks work with different agentBackend values', async () => {
+    const driverHooks = require('../../../assistant/dual-claude/swarm/driver/hooks/driver-hooks.js');
+    const codexSwarm = createMockSwarmContext('driver', { agentBackend: 'codex' });
+    const result = await driverHooks.onSwarmInit.handler({
+      swarm: codexSwarm,
+      content: 'Build REST API',
+    });
+
+    expect(result.queueMessages[0].content).toContain('codex');
   });
 });
 ```
@@ -1081,39 +1512,42 @@ describe('Navigator hooks', () => {
 
 | # | Task | Files | Scope |
 |---|------|-------|-------|
-| 1 | Add `mode` field to assistant type | `src/common/presets/assistantPresets.ts`, assistant type defs | Small |
-| 2 | Create `src/agent/swarm/types.ts` | New file | Small |
-| 3 | Create `SwarmFeedManager` | `src/agent/swarm/SwarmFeedManager.ts` | Medium |
-| 4 | Create `SwarmTurnController` | `src/agent/swarm/SwarmTurnController.ts` | Small |
-| 5 | Create `SwarmSessionManager` | `src/agent/swarm/SwarmSessionManager.ts` | Medium |
-| 6 | Create `dual-claude` assistant config | `assistant/dual-claude/assistant.json` + hooks | Medium |
-| 7 | Create driver hooks | `assistant/dual-claude/swarm/driver/hooks/driver-hooks.js` | Medium |
-| 8 | Create navigator hooks | `assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js` | Medium |
-| 9 | Integrate swarm mode in agent init | `src/process/initAgent.ts` | Small |
-| 10 | Add `agentMeta` to message model | `src/common/chatLib.ts`, `src/process/database/types.ts` | Small |
-| 11 | Add `agent_meta` DB column | `src/process/database/schema.ts` migration | Small |
-| 12 | Create `SwarmAgentBadge` UI component | `src/renderer/components/SwarmAgentBadge.tsx` | Small |
-| 13 | Update `MessageList` to render agent badges | `src/renderer/messages/MessageList.tsx` | Small |
-| 14 | Unit tests | `tests/unit/swarm/*.test.ts` | Medium |
+| 1 | Add `mode` field + swarm types to assistant types | `src/common/presets/assistantPresets.ts`, type defs | Small |
+| 2 | Create `src/agent/swarm/types.ts` | New file (SwarmConfig, SwarmFeedEntry, SwarmHookContext, etc.) | Small |
+| 3 | Add swarm hook events to `HookEvent` union | `src/assistant/hooks/types.ts` | Small |
+| 4 | Create `SwarmFeedManager` | `src/agent/swarm/SwarmFeedManager.ts` | Medium |
+| 5 | Create `SwarmTurnController` | `src/agent/swarm/SwarmTurnController.ts` | Small |
+| 6 | Create `SwarmHookRunner` | `src/agent/swarm/SwarmHookRunner.ts` (wraps `runHooks` with swarm context) | Medium |
+| 7 | Create `SwarmSessionManager` | `src/agent/swarm/SwarmSessionManager.ts` (cross-backend aware) | Medium |
+| 8 | Create `dual-claude` assistant config | `assistant/dual-claude/assistant.json` + per-agent `agent.json` | Medium |
+| 9 | Create driver hooks | `assistant/dual-claude/swarm/driver/hooks/driver-hooks.js` (onSwarm* events) | Medium |
+| 10 | Create navigator hooks | `assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js` (onSwarm* events) | Medium |
+| 11 | Integrate swarm mode in agent init | `src/process/initAgent.ts` (detect `mode: "swarm"`, resolve per-agent backends) | Medium |
+| 12 | Add `agentMeta` to message model | `src/common/chatLib.ts`, `src/process/database/types.ts` | Small |
+| 13 | Add `agent_meta` DB column | `src/process/database/schema.ts` migration | Small |
+| 14 | Create `SwarmAgentBadge` UI component | `src/renderer/components/SwarmAgentBadge.tsx` | Small |
+| 15 | Update `MessageList` to render agent badges | `src/renderer/messages/MessageList.tsx` | Small |
+| 16 | Unit tests | `tests/unit/swarm/*.test.ts` | Medium |
 
 ### Implementation Order
 
 **Phase 1 — Core (get it working):**
-Tasks 1–5, 9: Types, feed manager, turn controller, session manager, agent init integration
+Tasks 1–7, 11: Types, swarm hook events, feed manager, turn controller, hook runner, session manager, agent init
 
 **Phase 2 — Assistant & Hooks (make it autonomous):**
-Tasks 6–8: dual-claude assistant config and hook implementations
+Tasks 8–10: dual-claude assistant + per-agent configs + swarm event hooks
 
 **Phase 3 — UI (make it visible):**
-Tasks 10–13: Message model extension, DB migration, agent badge component
+Tasks 12–15: Message model extension, DB migration, agent badge component
 
 **Phase 4 — Tests (make it reliable):**
-Task 14: Unit tests for feed, turn controller, and hooks
+Task 16: Unit tests for feed, turn controller, hooks, and cross-backend scenarios
 
 ## 8. Future Extensions
 
-- **N-agent swarms** — Add a "reviewer" or "tester" role (architecture supports it, just add to `swarm.agents[]`)
-- **Cross-backend swarms** — Driver is Claude, Navigator is Gemini (different `presetAgentType` per agent)
+- **N-agent swarms** — Add a "reviewer" or "tester" role (architecture supports it, just add to `swarm.agents[]` or new `agent.json`)
+- **Cross-backend swarms** — Already supported: Codex+Claude, Gemini+Claude, Qwen+Codex (each agent resolves its own `presetAgentType`)
 - **Human-in-the-loop** — User can inject messages into the feed via UI, acting as a third participant
 - **Feed visualization** — Dedicated UI panel showing the `.swarm/feed.jsonl` as a timeline
 - **Swarm templates** — Pre-built configurations: "Code Review" (writer + reviewer), "TDD" (test-writer + implementer), "Full Stack" (frontend + backend)
+- **Custom swarm hook events** — Agents can emit custom events via `feedEntries` with custom `type` values, allowing hooks to react to domain-specific signals
