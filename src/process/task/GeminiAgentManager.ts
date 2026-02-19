@@ -21,6 +21,7 @@ import { getDatabase } from '@process/database';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
+import { LocalServerDetector } from '@/common/navigation';
 import BaseAgentManager from './BaseAgentManager';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
@@ -66,6 +67,9 @@ export class GeminiAgentManager extends BaseAgentManager<
 
   /** Session-level approval store for "always allow" memory */
   readonly approvalStore = new GeminiApprovalStore();
+
+  /** Detect local server URLs (Dash, Flask, etc.) in tool output */
+  private localServerDetector = new LocalServerDetector();
 
   private async injectHistoryFromDatabase(): Promise<void> {
     // ... (omitting injectHistoryFromDatabase for space)
@@ -470,6 +474,20 @@ export class GeminiAgentManager extends BaseAgentManager<
       // 处理预览打开事件（chrome-devtools 导航触发）/ Handle preview open event (triggered by chrome-devtools navigation)
       if (handlePreviewOpenEvent(data)) {
         return; // 不需要继续处理 / No need to continue processing
+      }
+
+      // Detect local server URLs (Dash, Flask, Streamlit, etc.) in tool_group output
+      if (data.type === 'tool_group' && Array.isArray(data.data)) {
+        for (const tool of data.data) {
+          const resultText = typeof tool.resultDisplay === 'string' ? tool.resultDisplay : '';
+          if (resultText) {
+            const detections = this.localServerDetector.detect(resultText);
+            for (const detection of detections) {
+              const previewMsg = LocalServerDetector.createPreviewMessage(detection, this.conversation_id);
+              ipcBridge.preview.open.emit(previewMsg.data);
+            }
+          }
+        }
       }
 
       data.conversation_id = this.conversation_id;

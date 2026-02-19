@@ -10,7 +10,7 @@ import type { FileChange, McpInvocation, CodexEventMsg } from '@/common/codex/ty
 import { ToolRegistry } from '@/common/codex/utils';
 import type { ICodexMessageEmitter } from '@/agent/codex/messaging/CodexMessageEmitter';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import { NavigationInterceptor } from '@/common/navigation';
+import { NavigationInterceptor, LocalServerDetector } from '@/common/navigation';
 
 /**
  * Metadata for exec approval requests (for ApprovalStore)
@@ -29,6 +29,7 @@ export class CodexToolHandlers {
   private toolRegistry: ToolRegistry;
   private activeToolGroups: Map<string, string> = new Map(); // callId -> msg_id mapping
   private activeToolCalls: Map<string, string> = new Map(); // callId -> msg_id mapping for tool calls
+  private localServerDetector = new LocalServerDetector();
 
   constructor(
     private conversation_id: string,
@@ -75,6 +76,12 @@ export class CodexToolHandlers {
     else buf.stdout += chunk;
     buf.combined += chunk;
     this.cmdBuffers.set(callId, buf);
+
+    // Detect local server URLs (Dash, Flask, Streamlit, etc.) in command output
+    const detections = this.localServerDetector.detect(chunk);
+    for (const detection of detections) {
+      this.messageEmitter.emitAndPersistMessage(LocalServerDetector.createPreviewMessage(detection, this.conversation_id), false);
+    }
 
     // Use new CodexToolCall approach with subtype and original data
     this.emitCodexToolCall(callId, {
