@@ -14,8 +14,10 @@
 import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
 import type { TProviderWithModel } from '@/common/storage';
-import type { AgentNodeConfig, AgentRole, MultiAgentProgress, MultiAgentResult, TopologyConfig, TopologyType, CreateNodeSessionFn } from '@/agent/multi-agent';
-import { MultiAgentOrchestrator, MULTI_AGENT_DEFAULTS } from '@/agent/multi-agent';
+import type { AgentNodeConfig, AgentRole, MultiAgentProgress, MultiAgentResult, TopologyConfig, TopologyType } from '@/agent/multi-agent';
+import { MULTI_AGENT_DEFAULTS } from '@/agent/multi-agent';
+import { MultiAgentSession } from '@/agent/multi-agent/MultiAgentSession';
+import type { CreateSessionFn } from '@/agent/multi-agent/MultiAgentSession';
 import type AcpAgentManager from '@/process/task/AcpAgentManager';
 import { ConversationService } from './conversationService';
 import WorkerManage from '../WorkerManage';
@@ -36,6 +38,7 @@ export type MultiAgentStartParams = {
     customAgentId?: string;
     systemContext?: string;
     enabledSkills?: string[];
+    nodeHooksPath?: string;
   }>;
   edges?: Array<{ from: string; to: string }>;
   hubNodeId?: string;
@@ -47,13 +50,13 @@ export type MultiAgentStartParams = {
 
 type ActiveRun = {
   id: string;
-  orchestrator: MultiAgentOrchestrator;
+  session: MultiAgentSession;
   resultPromise: Promise<MultiAgentResult>;
 };
 
 const activeRuns = new Map<string, ActiveRun>();
 
-function createNodeSessionFactory(model?: TProviderWithModel): CreateNodeSessionFn {
+function createNodeSessionFactory(model?: TProviderWithModel): CreateSessionFn {
   return async (params) => {
     const conversationId = uuid();
 
@@ -116,6 +119,7 @@ export async function startMultiAgentRun(params: MultiAgentStartParams): Promise
         customAgentId: n.customAgentId,
         systemContext: n.systemContext,
         enabledSkills: n.enabledSkills,
+        nodeHooksPath: n.nodeHooksPath,
       })
     ),
     edges: params.edges,
@@ -125,7 +129,7 @@ export async function startMultiAgentRun(params: MultiAgentStartParams): Promise
 
   const sessionFactory = createNodeSessionFactory(params.model);
 
-  const orchestrator = new MultiAgentOrchestrator(
+  const session = new MultiAgentSession(
     sessionFactory,
     {
       task: params.task,
@@ -139,17 +143,17 @@ export async function startMultiAgentRun(params: MultiAgentStartParams): Promise
     }
   );
 
-  const resultPromise = orchestrator.run().then((result) => {
+  const resultPromise = session.run().then((result) => {
     activeRuns.delete(runId);
     ipcBridge.multiAgent.completed.emit({ runId, result });
     console.log(`[MultiAgentService] Run ${runId} completed: status=${result.status}, turns=${result.totalTurns}`);
     return result;
   });
 
-  activeRuns.set(runId, { id: runId, orchestrator, resultPromise });
+  activeRuns.set(runId, { id: runId, session, resultPromise });
 
   // Wait briefly for sessions to start
-  const progress = orchestrator.progress;
+  const progress = session.progress;
   console.log(`[MultiAgentService] Started run ${runId} with ${params.topologyType} topology (${params.nodes.length} nodes)`);
 
   return {
@@ -161,7 +165,7 @@ export async function startMultiAgentRun(params: MultiAgentStartParams): Promise
 export function stopMultiAgentRun(runId: string): boolean {
   const run = activeRuns.get(runId);
   if (!run) return false;
-  run.orchestrator.stop();
+  run.session.stop();
   activeRuns.delete(runId);
   return true;
 }
@@ -169,7 +173,7 @@ export function stopMultiAgentRun(runId: string): boolean {
 export function getMultiAgentProgress(runId: string): MultiAgentProgress | null {
   const run = activeRuns.get(runId);
   if (!run) return null;
-  return run.orchestrator.progress;
+  return run.session.progress;
 }
 
 export function listMultiAgentRuns(): Array<{
@@ -181,7 +185,7 @@ export function listMultiAgentRuns(): Array<{
   nodeCount: number;
 }> {
   return Array.from(activeRuns.values()).map((run) => {
-    const p = run.orchestrator.progress;
+    const p = run.session.progress;
     return {
       runId: run.id,
       status: p.status,

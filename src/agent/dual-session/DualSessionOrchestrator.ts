@@ -7,17 +7,17 @@
 /**
  * DualSessionOrchestrator
  *
- * Thin facade over MultiAgentOrchestrator configured with a 'pair' topology.
+ * Thin facade over MultiAgentSession configured with a 'pair' topology.
  * Preserves the original DualSession API (Driver/Navigator, DualSessionProgress)
  * while delegating all actual orchestration to the generic multi-agent system.
  *
  * This is the backward-compatible entry point. New code should consider using
- * MultiAgentOrchestrator directly with the topology of their choice.
+ * MultiAgentSession directly with the topology of their choice.
  */
 
 import type AcpAgentManager from '@/process/task/AcpAgentManager';
-import { MultiAgentOrchestrator } from '@/agent/multi-agent/MultiAgentOrchestrator';
-import type { CreateNodeSessionFn } from '@/agent/multi-agent/MultiAgentOrchestrator';
+import { MultiAgentSession } from '@/agent/multi-agent/MultiAgentSession';
+import type { CreateSessionFn as MultiAgentCreateSessionFn } from '@/agent/multi-agent/MultiAgentSession';
 import { createPairTopology } from '@/agent/multi-agent/topologies';
 import type { DualSessionConfig, DualSessionProgress, DualSessionResult, DualSessionStatus, DualSessionStatusCallback } from './types';
 import { DUAL_SESSION_COMPLETION_SIGNAL, DUAL_SESSION_DEFAULTS } from './types';
@@ -30,7 +30,7 @@ export type CreateSessionFn = (params: { workspace: string; backend: string; yol
 
 export class DualSessionOrchestrator {
   private config: DualSessionConfig;
-  private inner: MultiAgentOrchestrator;
+  private inner: MultiAgentSession;
   private onStatus: DualSessionStatusCallback | undefined;
 
   constructor(createSession: CreateSessionFn, config: Partial<DualSessionConfig> & { task: string; workspace: string }, onStatus?: DualSessionStatusCallback) {
@@ -63,10 +63,9 @@ export class DualSessionOrchestrator {
       topology.nodes[1].assistantHooksPath = this.config.assistantHooksPath;
     }
 
-    // Wrap the CreateSessionFn as CreateNodeSessionFn (same signature)
-    const createNodeSession: CreateNodeSessionFn = createSession;
+    const createNodeSession: MultiAgentCreateSessionFn = createSession;
 
-    this.inner = new MultiAgentOrchestrator(
+    this.inner = new MultiAgentSession(
       createNodeSession,
       {
         task: this.config.task,
@@ -76,8 +75,7 @@ export class DualSessionOrchestrator {
         yoloMode: this.config.yoloMode,
         completionPattern: DUAL_SESSION_COMPLETION_SIGNAL,
       },
-      (multiProgress) => {
-        // Adapt multi-agent progress to dual-session progress
+      (_multiProgress) => {
         this.onStatus?.(this.progress);
       }
     );

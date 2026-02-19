@@ -24,6 +24,10 @@ export { TopologyRouter } from './TopologyRouter';
 export { MultiAgentOrchestrator } from './MultiAgentOrchestrator';
 export type { CreateNodeSessionFn, MultiAgentStatusCallback } from './MultiAgentOrchestrator';
 
+// Simplified session (hooks-driven)
+export { MultiAgentSession } from './MultiAgentSession';
+export type { CreateSessionFn, StatusCallback } from './MultiAgentSession';
+
 // Prompt builder
 export { buildNodeInitialPrompt } from './PromptBuilder';
 
