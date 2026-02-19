@@ -805,6 +805,59 @@ export const dualSession = {
   completed: bridge.buildEmitter<{ runId: string; result: DualSessionResult }>('dual-session.completed'),
 };
 
+// ==================== Multi-Agent API ====================
+
+import type { MultiAgentProgress, MultiAgentResult, TopologyType, AgentRole } from '@/agent/multi-agent/types';
+
+export const multiAgent = {
+  /** Start a multi-agent run with arbitrary topology */
+  start: bridge.buildProvider<
+    IBridgeResponse<{ runId: string; nodes: Array<{ id: string; role: AgentRole; conversationId: string }> }>,
+    {
+      task: string;
+      workspace: string;
+      topologyType: TopologyType;
+      nodes: Array<{
+        id: string;
+        label?: string;
+        role: AgentRole;
+        backend: string;
+        cliPath?: string;
+        customAgentId?: string;
+        systemContext?: string;
+        enabledSkills?: string[];
+      }>;
+      edges?: Array<{ from: string; to: string }>;
+      hubNodeId?: string;
+      pipelineOrder?: string[];
+      maxTurns?: number;
+      yoloMode?: boolean;
+    }
+  >('multi-agent.start'),
+  /** Stop a running multi-agent session */
+  stop: bridge.buildProvider<IBridgeResponse, { runId: string }>('multi-agent.stop'),
+  /** Get progress */
+  getProgress: bridge.buildProvider<IBridgeResponse<MultiAgentProgress | null>, { runId: string }>('multi-agent.get-progress'),
+  /** List active runs */
+  list: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        runId: string;
+        status: string;
+        topology: string;
+        currentTurn: number;
+        maxTurns: number;
+        nodeCount: number;
+      }>
+    >,
+    void
+  >('multi-agent.list'),
+  /** Status update events */
+  statusUpdate: bridge.buildEmitter<{ runId: string; progress: MultiAgentProgress }>('multi-agent.status-update'),
+  /** Completion event */
+  completed: bridge.buildEmitter<{ runId: string; result: MultiAgentResult }>('multi-agent.completed'),
+};
+
 // ==================== Channel API ====================
 
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser } from '@/channels/types';
