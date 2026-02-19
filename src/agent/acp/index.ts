@@ -8,7 +8,7 @@ import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { extractAtPaths, parseAllAtCommands, reconstructQuery } from '@/common/atCommandParser';
 import type { TMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import { NavigationInterceptor, LocalServerDetector } from '@/common/navigation';
+import { NavigationInterceptor } from '@/common/navigation';
 import { uuid } from '@/common/utils';
 import type { AcpBackend, AcpPermissionRequest, AcpResult, AcpSessionUpdate, ToolCallUpdate } from '@/types/acpTypes';
 import { AcpErrorType, createAcpError } from '@/types/acpTypes';
@@ -107,9 +107,6 @@ export class AcpAgent {
   // Track pending navigation tool calls for URL extraction from results
   // 跟踪待处理的导航工具调用，以便从结果中提取 URL
   private pendingNavigationTools = new Set<string>();
-
-  // Detect local server URLs (Dash, Flask, etc.) in tool output
-  private localServerDetector = new LocalServerDetector();
 
   // ApprovalStore for session-level "always allow" caching
   // Workaround for claude-code-acp bug: it doesn't check suggestions to auto-approve
@@ -667,19 +664,6 @@ export class AcpAgent {
           // Clean up tracking
           // 清理跟踪
           this.pendingNavigationTools.delete(toolCallId);
-        }
-
-        // Detect local server URLs (Dash, Flask, Streamlit, etc.) in tool output
-        if (statusUpdate.update?.content) {
-          for (const item of statusUpdate.update.content) {
-            const text = item.content?.text || '';
-            if (text) {
-              const detections = this.localServerDetector.detect(text);
-              for (const detection of detections) {
-                this.onStreamEvent(LocalServerDetector.createPreviewMessage(detection, this.id));
-              }
-            }
-          }
         }
       }
 

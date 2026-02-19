@@ -10,6 +10,7 @@ import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/add-chat.svg';
 import { CronJobManager } from '@/renderer/pages/cron';
 import DevToolsButton from './components/DevToolsButton';
+import PreviewAppButton from './components/PreviewAppButton';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import { iconColors } from '@/renderer/theme/colors';
 import { Button, Dropdown, Menu, Tooltip, Typography } from '@arco-design/web-react';
@@ -119,7 +120,12 @@ const GeminiConversationPanel: React.FC<{ conversation: GeminiConversation; slid
     siderTitle: sliderTitle,
     sider: <ChatSider conversation={conversation} />,
     headerLeft: <GeminiModelSelector selection={modelSelection} />,
-    headerExtra: <CronJobManager conversationId={conversation.id} />,
+    headerExtra: (
+      <>
+        <PreviewAppButton workspace={conversation.extra?.workspace} />
+        <CronJobManager conversationId={conversation.id} />
+      </>
+    ),
     workspaceEnabled,
     backend: 'gemini' as const,
     // 传递预设助手信息 / Pass preset assistant info
@@ -204,6 +210,7 @@ const ChatConversation: React.FC<{
       headerExtra={
         conversation ? (
           <>
+            <PreviewAppButton workspace={conversation.extra?.workspace as string | undefined} />
             <DevToolsButton conversation={conversation} />
             <CronJobManager conversationId={conversation.id} />
           </>
