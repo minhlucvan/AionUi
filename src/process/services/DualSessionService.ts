@@ -72,7 +72,7 @@ function createSessionFactory(model?: TProviderWithModel): CreateSessionFn {
       type: 'acp',
       id: conversationId,
       name: `multi-agent-${params.backend}-${conversationId.slice(0, 8)}`,
-      model: model || { provider: 'default', model: '' },
+      model: model as TProviderWithModel,
       extra: {
         workspace: params.workspace,
         backend: params.backend as any,

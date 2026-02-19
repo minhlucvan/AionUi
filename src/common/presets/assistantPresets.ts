@@ -1,4 +1,29 @@
-import type { PresetAgentType } from '@/types/acpTypes';
+import type { PresetAgentType, AcpBackend } from '@/types/acpTypes';
+import type { TopologyType, AgentRole } from '@/agent/multi-agent/types';
+
+/**
+ * Multi-agent node configuration for assistant presets.
+ */
+export type PresetAgentNode = {
+  id: string;
+  label?: string;
+  role: AgentRole;
+  backend: AcpBackend;
+  /** Rule file path (resolved from resourceDir) per locale */
+  ruleFiles?: Record<string, string>;
+};
+
+/**
+ * Multi-agent topology configuration embedded in an assistant preset.
+ * When present, selecting this assistant starts a multi-agent session
+ * instead of a single conversation.
+ */
+export type PresetMultiAgentConfig = {
+  topology: TopologyType;
+  nodes: PresetAgentNode[];
+  maxTurns?: number;
+  yoloMode?: boolean;
+};
 
 export type AssistantPreset = {
   id: string;
@@ -17,6 +42,11 @@ export type AssistantPreset = {
    * 此助手默认启用的技能列表（来自 skills/ 目录的技能名称）
    */
   defaultEnabledSkills?: string[];
+  /**
+   * Multi-agent configuration. When set, this assistant launches a multi-agent
+   * session (e.g. pair topology) instead of a single conversation.
+   */
+  multiAgent?: PresetMultiAgentConfig;
   nameI18n: Record<string, string>;
   descriptionI18n: Record<string, string>;
   promptsI18n?: Record<string, string[]>;
@@ -303,6 +333,55 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     promptsI18n: {
       'en-US': ['Start a fantasy adventure', 'Create a character', 'Begin a story'],
       'zh-CN': ['开始一个奇幻冒险', '创建一个角色', '开始一个故事'],
+    },
+  },
+  {
+    id: 'dual-claude-coding',
+    avatar: '👥',
+    presetAgentType: 'claude',
+    resourceDir: 'assistant/dual-claude-coding',
+    ruleFiles: {
+      'en-US': 'dual-claude-coding.md',
+      'zh-CN': 'dual-claude-coding.zh-CN.md',
+    },
+    multiAgent: {
+      topology: 'pair',
+      nodes: [
+        {
+          id: 'driver',
+          label: 'Driver',
+          role: 'driver',
+          backend: 'claude',
+          ruleFiles: {
+            'en-US': 'driver.md',
+            'zh-CN': 'driver.zh-CN.md',
+          },
+        },
+        {
+          id: 'navigator',
+          label: 'Navigator',
+          role: 'navigator',
+          backend: 'claude',
+          ruleFiles: {
+            'en-US': 'navigator.md',
+            'zh-CN': 'navigator.zh-CN.md',
+          },
+        },
+      ],
+      maxTurns: 20,
+      yoloMode: true,
+    },
+    nameI18n: {
+      'en-US': 'Dual Claude Coding',
+      'zh-CN': '双 Claude 编程',
+    },
+    descriptionI18n: {
+      'en-US': 'Two Claude agents pair-program: a Driver plans and reviews while a Navigator implements and tests. Ideal for complex tasks that benefit from planning and review.',
+      'zh-CN': '两个 Claude 代理结对编程：Driver 负责规划和审查，Navigator 负责实现和测试。适用于需要规划和审查的复杂任务。',
+    },
+    promptsI18n: {
+      'en-US': ['Refactor the authentication module to use JWT tokens', 'Add comprehensive error handling to the API layer', 'Implement a caching system for database queries'],
+      'zh-CN': ['将认证模块重构为使用 JWT 令牌', '为 API 层添加完善的错误处理', '为数据库查询实现缓存系统'],
     },
   },
   {
