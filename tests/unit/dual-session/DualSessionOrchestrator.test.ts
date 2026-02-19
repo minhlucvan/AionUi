@@ -4,11 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * Tests for dual-session via MultiAgentSession with pair topology.
+ * Replaces the old DualSessionOrchestrator tests.
+ */
+
 import { describe, expect, it, jest, beforeEach } from '@jest/globals';
-import { DualSessionOrchestrator } from '@/agent/dual-session/DualSessionOrchestrator';
-import type { CreateSessionFn } from '@/agent/dual-session/DualSessionOrchestrator';
+import { MultiAgentSession } from '@/agent/multi-agent/MultiAgentSession';
+import type { CreateSessionFn } from '@/agent/multi-agent/MultiAgentSession';
 import { DUAL_SESSION_COMPLETION_SIGNAL } from '@/agent/dual-session/types';
-import type { DualSessionConfig, DualSessionStatusCallback } from '@/agent/dual-session/types';
+import { createPairTopology } from '@/agent/multi-agent/topologies';
 
 // Mock channelEventBus
 const mockListeners: Array<(event: any) => void> = [];
@@ -54,7 +59,23 @@ function createMockSession(conversationId: string) {
   };
 }
 
-describe('DualSessionOrchestrator', () => {
+function createDualSession(createSession: CreateSessionFn, overrides?: Record<string, any>, onStatus?: (p: any) => void) {
+  const topology = createPairTopology('claude', 'claude');
+  return new MultiAgentSession(
+    createSession,
+    {
+      task: overrides?.task ?? 'Test task',
+      workspace: overrides?.workspace ?? '/tmp/test',
+      topology,
+      maxTurns: overrides?.maxTurns ?? 10,
+      yoloMode: overrides?.yoloMode ?? true,
+      completionPattern: DUAL_SESSION_COMPLETION_SIGNAL,
+    },
+    onStatus
+  );
+}
+
+describe('MultiAgentSession (pair/dual-session)', () => {
   let driverSession: ReturnType<typeof createMockSession>;
   let navigatorSession: ReturnType<typeof createMockSession>;
   let createSession: CreateSessionFn;
@@ -71,49 +92,36 @@ describe('DualSessionOrchestrator', () => {
     }) as any;
   });
 
-  const baseConfig: DualSessionConfig = {
-    task: 'Test task',
-    workspace: '/tmp/test',
-    driverBackend: 'claude',
-    navigatorBackend: 'claude',
-    maxTurns: 10,
-    yoloMode: true,
-  };
-
   describe('constructor', () => {
     it('should initialize with idle status', () => {
-      const orchestrator = new DualSessionOrchestrator(createSession, baseConfig);
-      expect(orchestrator.status).toBe('idle');
+      const session = createDualSession(createSession);
+      expect(session.status).toBe('idle');
     });
   });
 
   describe('run', () => {
     it('should create both sessions', async () => {
-      const orchestrator = new DualSessionOrchestrator(createSession, baseConfig);
-
-      // Start run (will block until completion)
-      const runPromise = orchestrator.run();
-
-      // Wait for sessions to be created
+      const session = createDualSession(createSession);
+      const runPromise = session.run();
       await new Promise((r) => setTimeout(r, 50));
 
       expect(createSession).toHaveBeenCalledTimes(2);
 
-      // Simulate driver finishing with completion signal
       emitAgentEvent('driver-conv-id', 'content', `Done! ${DUAL_SESSION_COMPLETION_SIGNAL}`);
       emitAgentEvent('driver-conv-id', 'finish');
 
       const result = await runPromise;
-      expect(result.driverConversationId).toBe('driver-conv-id');
-      expect(result.navigatorConversationId).toBe('navigator-conv-id');
+      const driverNode = result.nodes.find((n) => n.id === 'driver');
+      const navigatorNode = result.nodes.find((n) => n.id === 'navigator');
+      expect(driverNode?.conversationId).toBe('driver-conv-id');
+      expect(navigatorNode?.conversationId).toBe('navigator-conv-id');
     });
 
     it('should detect completion signal and stop', async () => {
-      const orchestrator = new DualSessionOrchestrator(createSession, baseConfig);
-      const runPromise = orchestrator.run();
+      const session = createDualSession(createSession);
+      const runPromise = session.run();
       await new Promise((r) => setTimeout(r, 50));
 
-      // Simulate driver finishing with completion signal
       emitAgentEvent('driver-conv-id', 'content', `All tasks complete. ${DUAL_SESSION_COMPLETION_SIGNAL}`);
       emitAgentEvent('driver-conv-id', 'finish');
 
@@ -123,15 +131,14 @@ describe('DualSessionOrchestrator', () => {
     });
 
     it('should relay driver response to navigator', async () => {
-      const orchestrator = new DualSessionOrchestrator(createSession, baseConfig);
-      const runPromise = orchestrator.run();
+      const session = createDualSession(createSession);
+      const runPromise = session.run();
       await new Promise((r) => setTimeout(r, 50));
 
       // Simulate driver finishing WITHOUT completion signal
       emitAgentEvent('driver-conv-id', 'content', 'Please implement the login feature');
       emitAgentEvent('driver-conv-id', 'finish');
 
-      // Wait for relay
       await new Promise((r) => setTimeout(r, 50));
 
       // Navigator should have received the relay message via enqueueMessages
@@ -139,7 +146,7 @@ describe('DualSessionOrchestrator', () => {
       const lastCall = navigatorSession.task.enqueueMessages.mock.calls[navigatorSession.task.enqueueMessages.mock.calls.length - 1][0];
       expect(lastCall[0].content).toContain('Please implement the login feature');
 
-      // Now simulate navigator responding and driver completing
+      // Now simulate navigator responding and completing
       emitAgentEvent('navigator-conv-id', 'content', `Done. ${DUAL_SESSION_COMPLETION_SIGNAL}`);
       emitAgentEvent('navigator-conv-id', 'finish');
 
@@ -149,9 +156,8 @@ describe('DualSessionOrchestrator', () => {
     });
 
     it('should stop at max turns', async () => {
-      const config = { ...baseConfig, maxTurns: 2 };
-      const orchestrator = new DualSessionOrchestrator(createSession, config);
-      const runPromise = orchestrator.run();
+      const session = createDualSession(createSession, { maxTurns: 2 });
+      const runPromise = session.run();
       await new Promise((r) => setTimeout(r, 50));
 
       // Turn 1: driver responds
@@ -171,28 +177,24 @@ describe('DualSessionOrchestrator', () => {
 
     it('should emit status callbacks', async () => {
       const statusUpdates: any[] = [];
-      const onStatus: DualSessionStatusCallback = (progress) => {
+      const session = createDualSession(createSession, {}, (progress: any) => {
         statusUpdates.push({ ...progress });
-      };
-
-      const orchestrator = new DualSessionOrchestrator(createSession, baseConfig, onStatus);
-      const runPromise = orchestrator.run();
+      });
+      const runPromise = session.run();
       await new Promise((r) => setTimeout(r, 50));
 
-      // Complete immediately
       emitAgentEvent('driver-conv-id', 'content', DUAL_SESSION_COMPLETION_SIGNAL);
       emitAgentEvent('driver-conv-id', 'finish');
 
       await runPromise;
 
-      // Should have received status updates (starting, running, turn, completed)
       expect(statusUpdates.length).toBeGreaterThan(0);
       expect(statusUpdates[0].status).toBe('starting');
     });
 
     it('should accumulate streaming content', async () => {
-      const orchestrator = new DualSessionOrchestrator(createSession, baseConfig);
-      const runPromise = orchestrator.run();
+      const session = createDualSession(createSession);
+      const runPromise = session.run();
       await new Promise((r) => setTimeout(r, 50));
 
       // Simulate streamed content (multiple chunks)
@@ -208,11 +210,11 @@ describe('DualSessionOrchestrator', () => {
 
   describe('stop', () => {
     it('should stop a running session', async () => {
-      const orchestrator = new DualSessionOrchestrator(createSession, baseConfig);
-      const runPromise = orchestrator.run();
+      const session = createDualSession(createSession);
+      const runPromise = session.run();
       await new Promise((r) => setTimeout(r, 50));
 
-      orchestrator.stop();
+      session.stop();
 
       const result = await runPromise;
       expect(result.status).toBe('stopped');
@@ -222,14 +224,12 @@ describe('DualSessionOrchestrator', () => {
 
   describe('progress', () => {
     it('should track turns in progress', async () => {
-      const orchestrator = new DualSessionOrchestrator(createSession, baseConfig);
-      const runPromise = orchestrator.run();
+      const session = createDualSession(createSession);
+      const runPromise = session.run();
       await new Promise((r) => setTimeout(r, 50));
 
-      // Initial progress
-      expect(orchestrator.progress.currentTurn).toBe(0);
+      expect(session.progress.currentTurn).toBe(0);
 
-      // After driver responds
       emitAgentEvent('driver-conv-id', 'content', `Done ${DUAL_SESSION_COMPLETION_SIGNAL}`);
       emitAgentEvent('driver-conv-id', 'finish');
 

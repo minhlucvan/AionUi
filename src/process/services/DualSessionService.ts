@@ -7,18 +7,19 @@
 /**
  * DualSessionService
  *
- * Service layer that integrates the DualSessionOrchestrator with
- * AionUi's conversation and worker management systems.
- *
- * Provides methods to start, stop, and monitor dual-session runs.
+ * Service layer for dual-session (driver/navigator) runs.
+ * Uses MultiAgentSession directly with pair topology instead of
+ * the DualSessionOrchestrator facade.
  */
 
 import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
 import type { TProviderWithModel } from '@/common/storage';
-import type { DualSessionConfig, DualSessionProgress, DualSessionResult } from '@/agent/dual-session';
-import { DualSessionOrchestrator, DUAL_SESSION_DEFAULTS } from '@/agent/dual-session';
-import type { CreateSessionFn } from '@/agent/dual-session';
+import type { DualSessionProgress, DualSessionResult, DualSessionStatus } from '@/agent/dual-session/types';
+import { DUAL_SESSION_DEFAULTS, DUAL_SESSION_COMPLETION_SIGNAL } from '@/agent/dual-session/types';
+import { MultiAgentSession } from '@/agent/multi-agent/MultiAgentSession';
+import type { CreateSessionFn } from '@/agent/multi-agent/MultiAgentSession';
+import { createPairTopology } from '@/agent/multi-agent/topologies';
 import type AcpAgentManager from '@/process/task/AcpAgentManager';
 import { ConversationService } from './conversationService';
 import WorkerManage from '../WorkerManage';
@@ -71,15 +72,17 @@ export type DualSessionStartParams = {
 
   /** Custom agent ID for the navigator */
   navigatorCustomAgentId?: string;
+
+  /** Node hooks path for driver */
+  driverNodeHooksPath?: string;
+
+  /** Node hooks path for navigator */
+  navigatorNodeHooksPath?: string;
 };
 
-/**
- * Active dual-session run entry.
- */
 type ActiveRun = {
   id: string;
-  orchestrator: DualSessionOrchestrator;
-  config: DualSessionConfig;
+  session: MultiAgentSession;
   resultPromise: Promise<DualSessionResult>;
 };
 
@@ -87,8 +90,7 @@ type ActiveRun = {
 const activeRuns = new Map<string, ActiveRun>();
 
 /**
- * Create the session factory function that the orchestrator uses
- * to spawn ACP conversations.
+ * Create the session factory for spawning ACP conversations.
  */
 function createSessionFactory(model?: TProviderWithModel): CreateSessionFn {
   return async (params) => {
@@ -115,13 +117,11 @@ function createSessionFactory(model?: TProviderWithModel): CreateSessionFn {
       throw new Error(`Failed to create session: ${result.error}`);
     }
 
-    // Get the task manager (it was registered by ConversationService.createConversation)
     const task = WorkerManage.getTaskById(result.conversation.id);
     if (!task) {
       throw new Error(`Task manager not found for conversation ${result.conversation.id}`);
     }
 
-    // Enable yoloMode if requested
     if (params.yoloMode) {
       await task.ensureYoloMode();
     }
@@ -134,9 +134,33 @@ function createSessionFactory(model?: TProviderWithModel): CreateSessionFn {
 }
 
 /**
+ * Map MultiAgentResult → DualSessionResult.
+ */
+function toProgress(session: MultiAgentSession): DualSessionProgress {
+  const mp = session.progress;
+  const driverNode = mp.nodes.find((n) => n.id === 'driver');
+  const navigatorNode = mp.nodes.find((n) => n.id === 'navigator');
+
+  return {
+    currentTurn: mp.currentTurn,
+    maxTurns: mp.maxTurns,
+    status: mp.status as DualSessionStatus,
+    driverConversationId: driverNode?.conversationId || '',
+    navigatorConversationId: navigatorNode?.conversationId || '',
+    turns: mp.turns.map((t) => ({
+      turn: t.turn,
+      from: t.from as 'driver' | 'navigator',
+      to: t.to as 'driver' | 'navigator',
+      content: t.content,
+      timestamp: t.timestamp,
+    })),
+    startedAt: mp.startedAt,
+    endedAt: mp.endedAt,
+  };
+}
+
+/**
  * Start a new dual-session run.
- *
- * @returns The run ID and the conversation IDs for both sessions.
  */
 export async function startDualSession(params: DualSessionStartParams): Promise<{
   runId: string;
@@ -145,60 +169,76 @@ export async function startDualSession(params: DualSessionStartParams): Promise<
 }> {
   const runId = uuid();
 
-  const config: DualSessionConfig = {
-    task: params.task,
-    workspace: params.workspace,
-    driverBackend: (params.driverBackend as any) || DUAL_SESSION_DEFAULTS.driverBackend,
-    navigatorBackend: (params.navigatorBackend as any) || DUAL_SESSION_DEFAULTS.navigatorBackend,
-    driverCliPath: params.driverCliPath,
-    navigatorCliPath: params.navigatorCliPath,
-    maxTurns: params.maxTurns ?? DUAL_SESSION_DEFAULTS.maxTurns,
-    yoloMode: params.yoloMode ?? DUAL_SESSION_DEFAULTS.yoloMode,
+  const driverBackend = (params.driverBackend as any) || DUAL_SESSION_DEFAULTS.driverBackend;
+  const navigatorBackend = (params.navigatorBackend as any) || DUAL_SESSION_DEFAULTS.navigatorBackend;
+  const maxTurns = params.maxTurns ?? DUAL_SESSION_DEFAULTS.maxTurns;
+  const yoloMode = params.yoloMode ?? DUAL_SESSION_DEFAULTS.yoloMode;
+
+  // Build pair topology
+  const topology = createPairTopology(driverBackend, navigatorBackend, {
     driverContext: params.driverContext,
     navigatorContext: params.navigatorContext,
-    driverSkills: params.driverSkills,
-    navigatorSkills: params.navigatorSkills,
-    driverCustomAgentId: params.driverCustomAgentId,
-    navigatorCustomAgentId: params.navigatorCustomAgentId,
-  };
+    driverCliPath: params.driverCliPath,
+    navigatorCliPath: params.navigatorCliPath,
+  });
+
+  // Apply skills, custom agent IDs, and hooks to node configs
+  if (params.driverSkills) topology.nodes[0].enabledSkills = params.driverSkills;
+  if (params.navigatorSkills) topology.nodes[1].enabledSkills = params.navigatorSkills;
+  if (params.driverCustomAgentId) topology.nodes[0].customAgentId = params.driverCustomAgentId;
+  if (params.navigatorCustomAgentId) topology.nodes[1].customAgentId = params.navigatorCustomAgentId;
+  if (params.driverNodeHooksPath) topology.nodes[0].nodeHooksPath = params.driverNodeHooksPath;
+  if (params.navigatorNodeHooksPath) topology.nodes[1].nodeHooksPath = params.navigatorNodeHooksPath;
 
   const sessionFactory = createSessionFactory(params.model);
 
-  const orchestrator = new DualSessionOrchestrator(sessionFactory, config, (progress: DualSessionProgress) => {
-    // Emit progress events to the renderer via IPC
-    ipcBridge.dualSession.statusUpdate.emit({
-      runId,
-      progress,
-    });
-  });
+  const session = new MultiAgentSession(
+    sessionFactory,
+    {
+      task: params.task,
+      workspace: params.workspace,
+      topology,
+      maxTurns,
+      yoloMode,
+      completionPattern: DUAL_SESSION_COMPLETION_SIGNAL,
+    },
+    () => {
+      ipcBridge.dualSession.statusUpdate.emit({ runId, progress: toProgress(session) });
+    }
+  );
 
-  // Start the run in the background (it resolves when done)
-  const resultPromise = orchestrator.run().then((result) => {
-    // Clean up when done
+  const resultPromise = session.run().then((result) => {
     activeRuns.delete(runId);
 
-    // Emit completion event
-    ipcBridge.dualSession.completed.emit({
-      runId,
-      result,
-    });
+    const driverNode = result.nodes.find((n) => n.id === 'driver');
+    const navigatorNode = result.nodes.find((n) => n.id === 'navigator');
 
+    const dualResult: DualSessionResult = {
+      status: result.status as DualSessionStatus,
+      totalTurns: result.totalTurns,
+      taskCompleted: result.taskCompleted,
+      turns: result.turns.map((t) => ({
+        turn: t.turn,
+        from: t.from as 'driver' | 'navigator',
+        to: t.to as 'driver' | 'navigator',
+        content: t.content,
+        timestamp: t.timestamp,
+      })),
+      duration: result.duration,
+      driverConversationId: driverNode?.conversationId || '',
+      navigatorConversationId: navigatorNode?.conversationId || '',
+      finalOutput: result.finalOutput,
+    };
+
+    ipcBridge.dualSession.completed.emit({ runId, result: dualResult });
     console.log(`[DualSessionService] Run ${runId} completed: status=${result.status}, turns=${result.totalTurns}, completed=${result.taskCompleted}`);
 
-    return result;
+    return dualResult;
   });
 
-  activeRuns.set(runId, {
-    id: runId,
-    orchestrator,
-    config,
-    resultPromise,
-  });
+  activeRuns.set(runId, { id: runId, session, resultPromise });
 
-  // Wait for the orchestrator to create both sessions and return their IDs
-  // We need to wait a bit for the sessions to be created
-  const progress = orchestrator.progress;
-
+  const progress = toProgress(session);
   console.log(`[DualSessionService] Started run ${runId}`);
 
   return {
@@ -208,30 +248,20 @@ export async function startDualSession(params: DualSessionStartParams): Promise<
   };
 }
 
-/**
- * Stop a running dual-session.
- */
 export function stopDualSession(runId: string): boolean {
   const run = activeRuns.get(runId);
   if (!run) return false;
-
-  run.orchestrator.stop();
+  run.session.stop();
   activeRuns.delete(runId);
   return true;
 }
 
-/**
- * Get the progress of a running dual-session.
- */
 export function getDualSessionProgress(runId: string): DualSessionProgress | null {
   const run = activeRuns.get(runId);
   if (!run) return null;
-  return run.orchestrator.progress;
+  return toProgress(run.session);
 }
 
-/**
- * List all active dual-session runs.
- */
 export function listDualSessions(): Array<{
   runId: string;
   status: string;
@@ -241,7 +271,7 @@ export function listDualSessions(): Array<{
   navigatorConversationId: string;
 }> {
   return Array.from(activeRuns.values()).map((run) => {
-    const progress = run.orchestrator.progress;
+    const progress = toProgress(run.session);
     return {
       runId: run.id,
       status: progress.status,
@@ -253,9 +283,6 @@ export function listDualSessions(): Array<{
   });
 }
 
-/**
- * Wait for a dual-session to complete and return the result.
- */
 export async function waitForDualSession(runId: string): Promise<DualSessionResult | null> {
   const run = activeRuns.get(runId);
   if (!run) return null;
