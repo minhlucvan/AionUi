@@ -93,6 +93,8 @@ export type AgentNodeConfig = {
   enabledSkills?: string[];
   /** Assistant hooks path */
   assistantHooksPath?: string;
+  /** Path to node-level hooks directory for multi-agent workflows */
+  nodeHooksPath?: string;
 };
 
 // ─── Topology ─────────────────────────────────────────────────

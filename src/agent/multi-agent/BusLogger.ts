@@ -26,7 +26,7 @@ import * as path from 'path';
 import type { AgentBus } from './AgentBus';
 import type { BusEvent, TopologyConfig } from './types';
 
-export type LogEventKind = 'bus:event' | 'orchestrator:start' | 'orchestrator:node_created' | 'orchestrator:initial_prompt' | 'orchestrator:route' | 'orchestrator:completion' | 'orchestrator:max_turns' | 'orchestrator:stop' | 'orchestrator:error' | 'orchestrator:finish';
+export type LogEventKind = 'bus:event' | 'orchestrator:start' | 'orchestrator:node_created' | 'orchestrator:initial_prompt' | 'orchestrator:route' | 'orchestrator:completion' | 'orchestrator:max_turns' | 'orchestrator:stop' | 'orchestrator:error' | 'orchestrator:finish' | 'hook:complete';
 
 export type LogEntry = {
   /** ISO timestamp */

@@ -23,9 +23,11 @@ import { AgentBus } from './AgentBus';
 import { AgentNode } from './AgentNode';
 import { BusLogger } from './BusLogger';
 import { FileRelay } from './FileRelay';
+import { NodeHookRunner } from './NodeHookRunner';
 import { TopologyRouter } from './TopologyRouter';
 import { buildNodeInitialPrompt } from './PromptBuilder';
-import type { BusEvent, MultiAgentConfig, MultiAgentProgress, MultiAgentResult, MultiAgentStatus, MultiAgentTurn } from './types';
+import type { NodeHookResult } from './NodeHookTypes';
+import type { AgentNodeConfig, BusEvent, MultiAgentConfig, MultiAgentProgress, MultiAgentResult, MultiAgentStatus, MultiAgentTurn } from './types';
 import { MULTI_AGENT_COMPLETION_SIGNAL, MULTI_AGENT_DEFAULTS } from './types';
 
 /**
@@ -175,7 +177,11 @@ export class MultiAgentOrchestrator {
 
   private async createAllNodes(): Promise<void> {
     const createPromises = this.config.topology.nodes.map(async (nodeConfig) => {
-      const node = new AgentNode(nodeConfig, this.bus, this.fileRelay || undefined);
+      const hookRunner = this.createNodeHookRunner(nodeConfig);
+      const node = new AgentNode(nodeConfig, this.bus, this.fileRelay || undefined, hookRunner || undefined);
+
+      // Set hook callback so busMessages and completion signals bubble up
+      node.setHookCallback((nodeId, result) => this.handleNodeHookResult(nodeId, result));
 
       const session = await this.createNodeSession({
         workspace: this.config.workspace,
@@ -192,11 +198,66 @@ export class MultiAgentOrchestrator {
       this.nodes.set(nodeConfig.id, node);
       this.nodeConversationMap.set(nodeConfig.id, session.conversationId);
 
+      // Run onNodeInit hooks after attach
+      await node.runInitHooks();
+
       this.logger.logNodeCreated(nodeConfig.id, nodeConfig.role, nodeConfig.backend, session.conversationId);
       console.log(`[MultiAgent] Node "${nodeConfig.id}" (${nodeConfig.role}) -> conversation ${session.conversationId}`);
     });
 
     await Promise.all(createPromises);
+  }
+
+  /**
+   * Create a NodeHookRunner for a node if it has hooks configured.
+   */
+  private createNodeHookRunner(nodeConfig: AgentNodeConfig): NodeHookRunner | null {
+    const hooksPath = nodeConfig.nodeHooksPath;
+    if (!hooksPath || !this.fileRelay) return null;
+
+    return new NodeHookRunner({
+      hooksPath,
+      nodeId: nodeConfig.id,
+      role: nodeConfig.role,
+      workspace: this.config.workspace,
+      relayDir: this.fileRelay.getRootDir(),
+      topologyType: this.config.topology.type,
+      maxTurns: this.config.maxTurns,
+    });
+  }
+
+  /**
+   * Handle side-effects from node hooks: busMessages and completion signals.
+   */
+  private handleNodeHookResult(nodeId: string, result: NodeHookResult): void {
+    if (this.stopped) return;
+
+    // Route bus messages to target nodes
+    if (result.busMessages?.length) {
+      for (const busMsg of result.busMessages) {
+        const targetNode = this.nodes.get(busMsg.to);
+        if (!targetNode) {
+          console.warn(`[MultiAgent] Hook busMessage target "${busMsg.to}" not found`);
+          continue;
+        }
+
+        void targetNode.deliver({
+          id: uuid(),
+          from: nodeId,
+          to: busMsg.to,
+          content: busMsg.content,
+          meta: { turn: this._currentTurn, source: 'hook' },
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    // Hook-driven completion
+    if (result.complete) {
+      this.logger.logEvent('hook:complete', { nodeId, turn: this._currentTurn });
+      console.log(`[MultiAgent] Completion signal from hook on node "${nodeId}"`);
+      this.finish(true, `Hook completion from ${nodeId}`);
+    }
   }
 
   private async sendInitialPrompts(): Promise<void> {
@@ -370,6 +431,7 @@ export class MultiAgentOrchestrator {
       this.busUnsubscribe = null;
     }
     for (const node of this.nodes.values()) {
+      void node.runCompleteHooks();
       node.detach();
     }
   }
