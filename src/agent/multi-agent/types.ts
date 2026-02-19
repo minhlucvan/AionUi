@@ -192,4 +192,6 @@ export type MultiAgentResult = {
   duration: number;
   nodes: Array<{ id: string; role: AgentRole; conversationId: string }>;
   finalOutput: string;
+  /** Path to the JSONL debug log for this run */
+  logFile?: string;
 };

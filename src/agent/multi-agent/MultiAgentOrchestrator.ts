@@ -21,6 +21,7 @@ import { uuid } from '@/common/utils';
 import type AcpAgentManager from '@/process/task/AcpAgentManager';
 import { AgentBus } from './AgentBus';
 import { AgentNode } from './AgentNode';
+import { BusLogger } from './BusLogger';
 import { TopologyRouter } from './TopologyRouter';
 import { buildNodeInitialPrompt } from './PromptBuilder';
 import type { BusEvent, MultiAgentConfig, MultiAgentProgress, MultiAgentResult, MultiAgentStatus, MultiAgentTurn } from './types';
@@ -41,6 +42,7 @@ export class MultiAgentOrchestrator {
 
   readonly bus: AgentBus;
   private router: TopologyRouter;
+  private logger: BusLogger;
   private nodes: Map<string, AgentNode> = new Map();
   private nodeConversationMap: Map<string, string> = new Map(); // nodeId -> conversationId
 
@@ -54,7 +56,7 @@ export class MultiAgentOrchestrator {
   private runResolve: ((result: MultiAgentResult) => void) | null = null;
   private busUnsubscribe: (() => void) | null = null;
 
-  constructor(createNodeSession: CreateNodeSessionFn, config: Partial<MultiAgentConfig> & { task: string; workspace: string; topology: MultiAgentConfig['topology'] }, onStatus?: MultiAgentStatusCallback) {
+  constructor(createNodeSession: CreateNodeSessionFn, config: Partial<MultiAgentConfig> & { task: string; workspace: string; topology: MultiAgentConfig['topology']; logDir?: string }, onStatus?: MultiAgentStatusCallback) {
     this.config = {
       maxTurns: MULTI_AGENT_DEFAULTS.maxTurns,
       yoloMode: MULTI_AGENT_DEFAULTS.yoloMode,
@@ -65,6 +67,8 @@ export class MultiAgentOrchestrator {
     this.onStatus = onStatus;
     this.bus = new AgentBus();
     this.router = new TopologyRouter(this.config.topology);
+    // Logger is created here but started in run() once we have a runId
+    this.logger = new BusLogger('pending', this.bus, config.logDir);
   }
 
   get status(): MultiAgentStatus {
@@ -97,6 +101,17 @@ export class MultiAgentOrchestrator {
     this._status = 'starting';
     this._startedAt = Date.now();
     this.stopped = false;
+
+    // Re-create logger with actual runId and start file + bus subscription
+    this.logger = new BusLogger(this._runId, this.bus, (this.config as MultiAgentConfig & { logDir?: string }).logDir);
+    this.logger.start();
+    this.logger.logStart(this.config.topology, {
+      task: this.config.task,
+      workspace: this.config.workspace,
+      maxTurns: this.config.maxTurns,
+      yoloMode: this.config.yoloMode,
+    });
+
     this.emitProgress();
 
     try {
@@ -118,10 +133,12 @@ export class MultiAgentOrchestrator {
       });
     } catch (error) {
       this._status = 'failed';
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.logError(errMsg);
       this.cleanup();
       this.emitProgress();
 
-      return this.buildResult(false, error instanceof Error ? error.message : String(error));
+      return this.buildResult(false, errMsg);
     }
   }
 
@@ -131,6 +148,7 @@ export class MultiAgentOrchestrator {
   stop(): void {
     this.stopped = true;
     this._status = 'stopped';
+    this.logger.logEvent('orchestrator:stop', { turn: this._currentTurn });
     this.cleanup();
     this.emitProgress();
 
@@ -168,6 +186,7 @@ export class MultiAgentOrchestrator {
       this.nodes.set(nodeConfig.id, node);
       this.nodeConversationMap.set(nodeConfig.id, session.conversationId);
 
+      this.logger.logNodeCreated(nodeConfig.id, nodeConfig.role, nodeConfig.backend, session.conversationId);
       console.log(`[MultiAgent] Node "${nodeConfig.id}" (${nodeConfig.role}) -> conversation ${session.conversationId}`);
     });
 
@@ -189,6 +208,7 @@ export class MultiAgentOrchestrator {
       const targets = this.router.getTargets(nodeConfig.id);
       const prompt = buildNodeInitialPrompt(this.config, nodeConfig, isStarter, targets);
 
+      this.logger.logInitialPrompt(nodeConfig.id, prompt, isStarter);
       await node.sendInitialPrompt(prompt);
     }
   }
@@ -228,11 +248,13 @@ export class MultiAgentOrchestrator {
     }
 
     this.emitProgress();
+    this.logger.logRoute(this._currentTurn, from, targets, content.length);
     console.log(`[MultiAgent] Turn ${this._currentTurn}/${this.config.maxTurns}: ${from} -> [${targets.join(', ')}] (${content.length} chars)`);
 
     // Check completion
     const completionPattern = this.config.completionPattern || MULTI_AGENT_COMPLETION_SIGNAL;
     if (content.includes(completionPattern)) {
+      this.logger.logCompletion(this._currentTurn, from);
       console.log('[MultiAgent] Completion signal detected');
       this.finish(true, content);
       return;
@@ -240,6 +262,7 @@ export class MultiAgentOrchestrator {
 
     // Check max turns
     if (this._currentTurn >= this.config.maxTurns) {
+      this.logger.logMaxTurns(this._currentTurn, this.config.maxTurns);
       console.log('[MultiAgent] Max turns reached');
       this._status = 'max_turns_reached';
       this.finish(false, content);
@@ -267,8 +290,10 @@ export class MultiAgentOrchestrator {
           timestamp: Date.now(),
         });
       } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        this.logger.logError(errMsg, { context: 'deliver', targetId, turn: this._currentTurn });
         console.error(`[MultiAgent] Failed to deliver to "${targetId}":`, err);
-        this.bus.error(targetId, err instanceof Error ? err.message : String(err));
+        this.bus.error(targetId, errMsg);
       }
     }
   }
@@ -292,6 +317,15 @@ export class MultiAgentOrchestrator {
       this._status = taskCompleted ? 'completed' : this._status === 'max_turns_reached' ? 'max_turns_reached' : 'failed';
     }
 
+    const result = this.buildResult(taskCompleted, finalOutput);
+    this.logger.logFinish({
+      status: result.status,
+      totalTurns: result.totalTurns,
+      taskCompleted: result.taskCompleted,
+      duration: result.duration,
+      logFile: this.logger.getFilePath(),
+    });
+
     this.cleanup();
     this.emitProgress();
 
@@ -300,12 +334,13 @@ export class MultiAgentOrchestrator {
     }
 
     if (this.runResolve) {
-      this.runResolve(this.buildResult(taskCompleted, finalOutput));
+      this.runResolve(result);
       this.runResolve = null;
     }
   }
 
   private cleanup(): void {
+    this.logger.stop();
     if (this.busUnsubscribe) {
       this.busUnsubscribe();
       this.busUnsubscribe = null;
@@ -324,6 +359,7 @@ export class MultiAgentOrchestrator {
       duration: Date.now() - this._startedAt,
       nodes: this.getNodeSummaries(),
       finalOutput,
+      logFile: this.logger.getFilePath(),
     };
   }
 

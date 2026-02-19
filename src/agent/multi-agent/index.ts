@@ -12,6 +12,8 @@ export { MULTI_AGENT_DEFAULTS, MULTI_AGENT_COMPLETION_SIGNAL } from './types';
 export { AgentBus } from './AgentBus';
 export type { BusListener } from './AgentBus';
 export { AgentNode } from './AgentNode';
+export { BusLogger } from './BusLogger';
+export type { LogEventKind, LogEntry } from './BusLogger';
 export { TopologyRouter } from './TopologyRouter';
 export { MultiAgentOrchestrator } from './MultiAgentOrchestrator';
 export type { CreateNodeSessionFn, MultiAgentStatusCallback } from './MultiAgentOrchestrator';
