@@ -83,20 +83,25 @@ Each agent in the swarm has its own directory under `swarm/`, mirroring the top-
 ```
 assistant/dual-claude/
 ├── assistant.json              ← swarm-level config (mode, feedPath, agents list)
+│                                  NO systemPrompt here — only agents have prompts
 └── swarm/
     ├── driver/
-    │   ├── agent.json          ← agent-level config (role, backend, avatar, systemPrompt)
+    │   ├── agent.json          ← agent-level config (role, backend, avatar)
+    │   ├── driver.md           ← system prompt / instructions for this agent
     │   └── hooks/
     │       └── driver-hooks.js ← swarm event handlers for this agent
     └── navigator/
         ├── agent.json          ← agent-level config
+        ├── navigator.md        ← system prompt / instructions for this agent
         └── hooks/
             └── navigator-hooks.js
 ```
 
-This mirrors how `assistant.json` + `hooks/` works at the assistant level, but scoped per agent. Benefits:
+This mirrors how existing assistants work (`ralph.en-US.md` contains preset rules). Benefits:
 - Each agent is self-contained — easy to copy/swap/customize
-- Adding a new agent to a swarm = adding a new directory
+- System prompts live in `.md` files — easier to edit, version, and review than JSON strings
+- The main `assistant.json` has **no system prompt** — it's a swarm orchestrator, not an agent
+- Adding a new agent to a swarm = adding a new directory with `agent.json` + `{role}.md` + `hooks/`
 - `agent.json` follows the same schema conventions as `assistant.json`
 
 ## 3. Data Structures
@@ -143,7 +148,7 @@ The swarm uses a **two-level config** pattern: `assistant.json` at the swarm lev
 
 #### 3.1.2 `agent.json` — Per-Agent Config
 
-Each agent directory contains an `agent.json` that follows the same conventions as `assistant.json`:
+Each agent directory contains an `agent.json` for metadata and a `{role}.md` for the system prompt (just like `ralph.en-US.md` for the Ralph assistant):
 
 ```jsonc
 // assistant/dual-claude/swarm/driver/agent.json
@@ -154,12 +159,36 @@ Each agent directory contains an `agent.json` that follows the same conventions 
   "description": "Executes code, writes files, runs tests. Takes direction from Navigator.",
   // Per-agent backend — omit to inherit from top-level assistant.json presetAgentType
   // "presetAgentType": "codex",  // ← uncomment to make Driver use Codex
-  "systemPrompt": "You are the DRIVER in a pair-programming session. You write code, run commands, and implement features. The Navigator will review your work and give you direction via messages in the feed. After each action, report what you did and wait for the Navigator's input. Focus on execution, not planning.",
   "nameI18n": {
     "en-US": "Driver",
     "zh-CN": "执行者"
   }
 }
+```
+
+```markdown
+<!-- assistant/dual-claude/swarm/driver/driver.md -->
+# Driver — Swarm Agent
+
+You are the DRIVER in a pair-programming session.
+You write code, run commands, and implement features.
+
+The Navigator will review your work and give you direction
+via messages in the feed.
+
+## Workflow
+
+1. Read `.swarm/feed.jsonl` for the Navigator's latest directive
+2. Execute the directive (write code, run tests, etc.)
+3. Report what you did clearly
+4. Wait for the Navigator's next instruction
+
+## Rules
+
+- Focus on **execution**, not planning
+- After each action, summarize what you did and what files changed
+- If you encounter an error, report it clearly — don't guess at fixes
+- When the task is complete, output `<done/>`
 ```
 
 ```jsonc
@@ -170,13 +199,38 @@ Each agent directory contains an `agent.json` that follows the same conventions 
   "avatar": "🧭",
   "description": "Reviews code, plans architecture, gives direction to Driver.",
   // "presetAgentType": "claude",  // ← explicitly Claude for planning/review
-  "systemPrompt": "You are the NAVIGATOR in a pair-programming session. You review the Driver's code, plan the architecture, catch bugs, and give clear direction. Read the feed to see what the Driver has done, then provide your next instruction or review. Focus on strategy and quality, not writing code directly.",
   "nameI18n": {
     "en-US": "Navigator",
     "zh-CN": "导航者"
   }
 }
 ```
+
+```markdown
+<!-- assistant/dual-claude/swarm/navigator/navigator.md -->
+# Navigator — Swarm Agent
+
+You are the NAVIGATOR in a pair-programming session.
+You review the Driver's code, plan the architecture,
+catch bugs, and give clear direction.
+
+## Workflow
+
+1. Analyze the task and break it into clear, actionable steps
+2. Write ONE directive at a time to the Driver
+3. After the Driver reports back, review the work critically
+4. Provide the next directive or corrections
+5. When all work is complete, output `<done/>`
+
+## Rules
+
+- Focus on **strategy and quality**, not writing code directly
+- Be specific: include file paths, function names, exact requirements
+- Review the Driver's output critically — catch bugs and design issues
+- Give ONE clear directive at a time (not a list of 10 things)
+```
+
+**System prompt loading:** `SwarmSessionManager` reads `{agentDir}/{role}.md` and injects it as the system prompt for that agent's session. Supports i18n via `{role}.{locale}.md` (e.g., `driver.zh-CN.md`) — same pattern as `ralph.en-US.md`.
 
 #### 3.1.3 `agent.json` Schema
 
@@ -194,13 +248,14 @@ type SwarmAgentConfig = {
   description: string;
   /** Backend override — omit to inherit from assistant.json presetAgentType */
   presetAgentType?: string;
-  /** System prompt injected into this agent's conversation */
-  systemPrompt?: string;
   /** Internationalized names */
   nameI18n?: Record<string, string>;
   /** Per-agent enabled skills */
   defaultEnabledSkills?: string[];
 };
+
+// NOTE: No systemPrompt field — system prompt lives in {role}.md file alongside agent.json.
+// Loaded at runtime by SwarmSessionManager, supports i18n via {role}.{locale}.md.
 ```
 
 **Backend resolution order:**
@@ -215,10 +270,12 @@ assistant/codex-claude-swarm/
 └── swarm/
     ├── driver/
     │   ├── agent.json                ← presetAgentType: "codex" (override!)
+    │   ├── driver.md                 ← system prompt for Codex driver
     │   └── hooks/
     │       └── driver-hooks.js
     └── navigator/
         ├── agent.json                ← presetAgentType: "claude" (or omit to inherit)
+        ├── navigator.md              ← system prompt for Claude navigator
         └── hooks/
             └── navigator-hooks.js
 ```
@@ -229,9 +286,9 @@ assistant/codex-claude-swarm/
   "role": "driver",
   "name": "Codex Driver",
   "avatar": "⚡",
-  "presetAgentType": "codex",    // ← Codex backend for fast code execution
-  "systemPrompt": "You are a fast code execution engine. Read directives from the Navigator, implement them precisely, and report results."
+  "presetAgentType": "codex"     // ← Codex backend for fast code execution
 }
+// System prompt in: swarm/driver/driver.md
 ```
 
 ```jsonc
@@ -240,12 +297,12 @@ assistant/codex-claude-swarm/
   "role": "navigator",
   "name": "Claude Navigator",
   "avatar": "🧭",
-  "presetAgentType": "claude",   // ← Claude backend for planning/review
-  "systemPrompt": "You are the architect. Plan the approach, review the Codex Driver's output, catch bugs, and provide clear step-by-step directives."
+  "presetAgentType": "claude"    // ← Claude backend for planning/review
 }
+// System prompt in: swarm/navigator/navigator.md
 ```
 
-This enables any combination: Claude+Claude, Codex+Claude, Gemini+Claude, Qwen+Codex, etc. Swapping a backend is a one-line change in `agent.json`.
+This enables any combination: Claude+Claude, Codex+Claude, Gemini+Claude, Qwen+Codex, etc. Swapping a backend is a one-line change in `agent.json`. Swapping the prompt style is editing the `.md` file.
 
 ### 3.2 Feed Message Format (`.swarm/feed.jsonl`)
 
@@ -331,18 +388,19 @@ src/agent/swarm/
 └── index.ts                    # Public API
 
 assistant/dual-claude/
-├── assistant.json              # Swarm-level config (see §3.1.1)
+├── assistant.json              # Swarm-level config — no system prompt (see §3.1.1)
 ├── swarm/
 │   ├── driver/
 │   │   ├── agent.json              # Driver agent config (see §3.1.2)
+│   │   ├── driver.md               # Driver system prompt / instructions
 │   │   └── hooks/
 │   │       └── driver-hooks.js     # onSwarm* event handlers
 │   └── navigator/
 │       ├── agent.json              # Navigator agent config (see §3.1.2)
+│       ├── navigator.md            # Navigator system prompt / instructions
 │       └── hooks/
 │           └── navigator-hooks.js  # onSwarm* event handlers
-├── workspace/                  # Template workspace
-└── dual-claude.en-US.md        # Preset prompt/rules
+└── workspace/                  # Template workspace
 
 tests/unit/swarm/
 ├── SwarmFeedManager.test.ts
@@ -917,6 +975,7 @@ type SwarmAgentSession = {
   role: string;
   config: SwarmAgentConfig;
   backend: string;            // resolved backend (per-agent or fallback)
+  systemPrompt: string;       // loaded from {role}.md file
   queue: AcpMessageQueue;     // each agent gets its own queue
   hooksPath: string;          // role-specific hooks directory
 };
@@ -946,14 +1005,20 @@ export class SwarmSessionManager {
     this.feedManager.init();
 
     // 2. Initialize each agent session with its resolved backend
-    for (const agentConfig of this.config.agents) {
+    //    - Reads agent.json for config
+    //    - Reads {role}.md for system prompt (supports i18n: {role}.{locale}.md)
+    //    - Resolves backend: agent.presetAgentType || assistant.presetAgentType
+    for (const agentDir of this.config.agentDirs) {
+      const agentConfig = readJson(path.join(agentDir, 'agent.json'));
+      const systemPrompt = readPromptMd(agentDir, agentConfig.role); // driver.md or driver.en-US.md
       const resolvedBackend = agentConfig.presetAgentType || this.defaultBackend;
       const session: SwarmAgentSession = {
         role: agentConfig.role,
         config: agentConfig,
         backend: resolvedBackend,
+        systemPrompt, // loaded from {role}.md, NOT from agent.json
         queue: new AcpMessageQueue(/* sender for this backend type */),
-        hooksPath: path.join(this.config.assistantPath, agentConfig.hooksDir),
+        hooksPath: path.join(agentDir, 'hooks'),
       };
       this.agents.set(agentConfig.role, session);
     }
