@@ -22,6 +22,7 @@ import type AcpAgentManager from '@/process/task/AcpAgentManager';
 import { AgentBus } from './AgentBus';
 import { AgentNode } from './AgentNode';
 import { BusLogger } from './BusLogger';
+import { FileRelay } from './FileRelay';
 import { TopologyRouter } from './TopologyRouter';
 import { buildNodeInitialPrompt } from './PromptBuilder';
 import type { BusEvent, MultiAgentConfig, MultiAgentProgress, MultiAgentResult, MultiAgentStatus, MultiAgentTurn } from './types';
@@ -43,6 +44,7 @@ export class MultiAgentOrchestrator {
   readonly bus: AgentBus;
   private router: TopologyRouter;
   private logger: BusLogger;
+  private fileRelay: FileRelay | null = null;
   private nodes: Map<string, AgentNode> = new Map();
   private nodeConversationMap: Map<string, string> = new Map(); // nodeId -> conversationId
 
@@ -112,6 +114,10 @@ export class MultiAgentOrchestrator {
       yoloMode: this.config.yoloMode,
     });
 
+    // File-based relay: persist all messages to workspace for debugging
+    this.fileRelay = new FileRelay(this.config.workspace, this._runId);
+    this.fileRelay.start(this.config.topology.nodes.map((n) => n.id));
+
     this.emitProgress();
 
     try {
@@ -169,7 +175,7 @@ export class MultiAgentOrchestrator {
 
   private async createAllNodes(): Promise<void> {
     const createPromises = this.config.topology.nodes.map(async (nodeConfig) => {
-      const node = new AgentNode(nodeConfig, this.bus);
+      const node = new AgentNode(nodeConfig, this.bus, this.fileRelay || undefined);
 
       const session = await this.createNodeSession({
         workspace: this.config.workspace,
@@ -287,6 +293,7 @@ export class MultiAgentOrchestrator {
           from,
           to: targetId,
           content: relayContent,
+          meta: { turn: this._currentTurn },
           timestamp: Date.now(),
         });
       } catch (err) {
@@ -326,6 +333,20 @@ export class MultiAgentOrchestrator {
       logFile: this.logger.getFilePath(),
     });
 
+    // Write summary to workspace files
+    if (this.fileRelay) {
+      this.fileRelay.writeSummary({
+        runId: result.status,
+        status: result.status,
+        totalTurns: result.totalTurns,
+        taskCompleted: result.taskCompleted,
+        duration: result.duration,
+        topology: this.config.topology.type,
+        nodes: result.nodes.map((n) => n.id),
+        task: this.config.task,
+      });
+    }
+
     this.cleanup();
     this.emitProgress();
 
@@ -341,6 +362,9 @@ export class MultiAgentOrchestrator {
 
   private cleanup(): void {
     this.logger.stop();
+    if (this.fileRelay) {
+      this.fileRelay.stop();
+    }
     if (this.busUnsubscribe) {
       this.busUnsubscribe();
       this.busUnsubscribe = null;
@@ -360,6 +384,7 @@ export class MultiAgentOrchestrator {
       nodes: this.getNodeSummaries(),
       finalOutput,
       logFile: this.logger.getFilePath(),
+      relayDir: this.fileRelay?.getRootDir(),
     };
   }
 

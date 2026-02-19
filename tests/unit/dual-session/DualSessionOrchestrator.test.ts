@@ -36,7 +36,7 @@ function emitAgentEvent(conversationId: string, type: string, data?: unknown) {
 }
 
 function createMockSession(conversationId: string) {
-  const messages: Array<{ content: string; msg_id: string }> = [];
+  const messages: Array<{ content: string; msg_id?: string }> = [];
   return {
     conversationId,
     messages,
@@ -44,6 +44,10 @@ function createMockSession(conversationId: string) {
       sendMessage: jest.fn(async (msg: { content: string; msg_id: string }) => {
         messages.push(msg);
         return { success: true };
+      }),
+      enqueueMessages: jest.fn((msgs: Array<{ content: string }>) => {
+        for (const msg of msgs) messages.push(msg);
+        return msgs.map(() => 'queued-id');
       }),
       ensureYoloMode: jest.fn(async () => true),
     } as any,
@@ -130,10 +134,10 @@ describe('DualSessionOrchestrator', () => {
       // Wait for relay
       await new Promise((r) => setTimeout(r, 50));
 
-      // Navigator should have received the relay message
-      expect(navigatorSession.task.sendMessage).toHaveBeenCalled();
-      const relayedMessage = navigatorSession.task.sendMessage.mock.calls[navigatorSession.task.sendMessage.mock.calls.length - 1][0];
-      expect(relayedMessage.content).toContain('Please implement the login feature');
+      // Navigator should have received the relay message via enqueueMessages
+      expect(navigatorSession.task.enqueueMessages).toHaveBeenCalled();
+      const lastCall = navigatorSession.task.enqueueMessages.mock.calls[navigatorSession.task.enqueueMessages.mock.calls.length - 1][0];
+      expect(lastCall[0].content).toContain('Please implement the login feature');
 
       // Now simulate navigator responding and driver completing
       emitAgentEvent('navigator-conv-id', 'content', `Done. ${DUAL_SESSION_COMPLETION_SIGNAL}`);

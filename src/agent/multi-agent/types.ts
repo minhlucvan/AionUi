@@ -194,4 +194,6 @@ export type MultiAgentResult = {
   finalOutput: string;
   /** Path to the JSONL debug log for this run */
   logFile?: string;
+  /** Path to the file-based relay directory for this run */
+  relayDir?: string;
 };

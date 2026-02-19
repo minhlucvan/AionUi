@@ -14,6 +14,8 @@ export type { BusListener } from './AgentBus';
 export { AgentNode } from './AgentNode';
 export { BusLogger } from './BusLogger';
 export type { LogEventKind, LogEntry } from './BusLogger';
+export { FileRelay } from './FileRelay';
+export type { FeedEntry } from './FileRelay';
 export { TopologyRouter } from './TopologyRouter';
 export { MultiAgentOrchestrator } from './MultiAgentOrchestrator';
 export type { CreateNodeSessionFn, MultiAgentStatusCallback } from './MultiAgentOrchestrator';
