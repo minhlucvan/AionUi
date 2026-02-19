@@ -1,0 +1,33 @@
+{
+  "id": "dual-claude-coding",
+  "name": "Dual Claude Coding",
+  "version": "1.0.0",
+  "description": "Two Claude agents pair-program: a Driver plans and reviews while a Navigator implements and tests. Uses a self-feeding relay loop with role-switching.",
+  "author": "AionUi",
+  "tags": ["pair-programming", "driver-navigator", "multi-agent", "code-review", "autonomous"],
+  "presetAgentType": "claude",
+  "avatar": "👥",
+  "ruleFiles": {
+    "en-US": "dual-claude-coding.md",
+    "zh-CN": "dual-claude-coding.zh-CN.md"
+  },
+  "nameI18n": {
+    "en-US": "Dual Claude Coding",
+    "zh-CN": "双 Claude 编程"
+  },
+  "descriptionI18n": {
+    "en-US": "Two Claude agents pair-program: a Driver plans and reviews while a Navigator implements and tests. Ideal for complex tasks that benefit from planning and review.",
+    "zh-CN": "两个 Claude 代理结对编程：Driver 负责规划和审查，Navigator 负责实现和测试。适用于需要规划和审查的复杂任务。"
+  },
+  "promptsI18n": {
+    "en-US": ["Refactor the authentication module to use JWT tokens", "Add comprehensive error handling to the API layer", "Implement a caching system for database queries", "Set up a test suite for the user management module"],
+    "zh-CN": ["将认证模块重构为使用 JWT 令牌", "为 API 层添加完善的错误处理", "为数据库查询实现缓存系统", "为用户管理模块建立测试套件"]
+  },
+  "queuedMessages": {
+    "description": "Driver/Navigator relay: onQueueInit seeds the Driver's first planning turn, onAgentResponse alternates between Driver and Navigator roles via <handoff> tags until <done/> is signalled.",
+    "phases": [
+      { "trigger": "onQueueInit", "messages": 1, "purpose": "Seed the Driver's initial planning turn" },
+      { "trigger": "onAgentResponse", "messages": "N (up to maxTurns)", "purpose": "Relay between Driver and Navigator roles" }
+    ]
+  }
+}
