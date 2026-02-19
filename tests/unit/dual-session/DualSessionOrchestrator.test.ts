@@ -12,8 +12,10 @@
 import { describe, expect, it, jest, beforeEach } from '@jest/globals';
 import { MultiAgentSession } from '@/agent/multi-agent/MultiAgentSession';
 import type { CreateSessionFn } from '@/agent/multi-agent/MultiAgentSession';
-import { DUAL_SESSION_COMPLETION_SIGNAL } from '@/agent/dual-session/types';
 import { createPairTopology } from '@/agent/multi-agent/topologies';
+
+// Same signal used by DualSessionService
+const PAIR_COMPLETION_SIGNAL = '<dual-session>DONE</dual-session>';
 
 // Mock channelEventBus
 const mockListeners: Array<(event: any) => void> = [];
@@ -69,7 +71,7 @@ function createDualSession(createSession: CreateSessionFn, overrides?: Record<st
       topology,
       maxTurns: overrides?.maxTurns ?? 10,
       yoloMode: overrides?.yoloMode ?? true,
-      completionPattern: DUAL_SESSION_COMPLETION_SIGNAL,
+      completionPattern: PAIR_COMPLETION_SIGNAL,
     },
     onStatus
   );
@@ -107,7 +109,7 @@ describe('MultiAgentSession (pair/dual-session)', () => {
 
       expect(createSession).toHaveBeenCalledTimes(2);
 
-      emitAgentEvent('driver-conv-id', 'content', `Done! ${DUAL_SESSION_COMPLETION_SIGNAL}`);
+      emitAgentEvent('driver-conv-id', 'content', `Done! ${PAIR_COMPLETION_SIGNAL}`);
       emitAgentEvent('driver-conv-id', 'finish');
 
       const result = await runPromise;
@@ -122,7 +124,7 @@ describe('MultiAgentSession (pair/dual-session)', () => {
       const runPromise = session.run();
       await new Promise((r) => setTimeout(r, 50));
 
-      emitAgentEvent('driver-conv-id', 'content', `All tasks complete. ${DUAL_SESSION_COMPLETION_SIGNAL}`);
+      emitAgentEvent('driver-conv-id', 'content', `All tasks complete. ${PAIR_COMPLETION_SIGNAL}`);
       emitAgentEvent('driver-conv-id', 'finish');
 
       const result = await runPromise;
@@ -147,7 +149,7 @@ describe('MultiAgentSession (pair/dual-session)', () => {
       expect(lastCall[0].content).toContain('Please implement the login feature');
 
       // Now simulate navigator responding and completing
-      emitAgentEvent('navigator-conv-id', 'content', `Done. ${DUAL_SESSION_COMPLETION_SIGNAL}`);
+      emitAgentEvent('navigator-conv-id', 'content', `Done. ${PAIR_COMPLETION_SIGNAL}`);
       emitAgentEvent('navigator-conv-id', 'finish');
 
       const result = await runPromise;
@@ -183,7 +185,7 @@ describe('MultiAgentSession (pair/dual-session)', () => {
       const runPromise = session.run();
       await new Promise((r) => setTimeout(r, 50));
 
-      emitAgentEvent('driver-conv-id', 'content', DUAL_SESSION_COMPLETION_SIGNAL);
+      emitAgentEvent('driver-conv-id', 'content', PAIR_COMPLETION_SIGNAL);
       emitAgentEvent('driver-conv-id', 'finish');
 
       await runPromise;
@@ -200,11 +202,11 @@ describe('MultiAgentSession (pair/dual-session)', () => {
       // Simulate streamed content (multiple chunks)
       emitAgentEvent('driver-conv-id', 'content', 'Hello ');
       emitAgentEvent('driver-conv-id', 'content', 'World');
-      emitAgentEvent('driver-conv-id', 'content', `! ${DUAL_SESSION_COMPLETION_SIGNAL}`);
+      emitAgentEvent('driver-conv-id', 'content', `! ${PAIR_COMPLETION_SIGNAL}`);
       emitAgentEvent('driver-conv-id', 'finish');
 
       const result = await runPromise;
-      expect(result.turns[0].content).toBe(`Hello World! ${DUAL_SESSION_COMPLETION_SIGNAL}`);
+      expect(result.turns[0].content).toBe(`Hello World! ${PAIR_COMPLETION_SIGNAL}`);
     });
   });
 
@@ -230,7 +232,7 @@ describe('MultiAgentSession (pair/dual-session)', () => {
 
       expect(session.progress.currentTurn).toBe(0);
 
-      emitAgentEvent('driver-conv-id', 'content', `Done ${DUAL_SESSION_COMPLETION_SIGNAL}`);
+      emitAgentEvent('driver-conv-id', 'content', `Done ${PAIR_COMPLETION_SIGNAL}`);
       emitAgentEvent('driver-conv-id', 'finish');
 
       const result = await runPromise;

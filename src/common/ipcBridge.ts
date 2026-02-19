@@ -756,11 +756,11 @@ export const devtools = {
 };
 
 // ==================== Dual Session API ====================
-
-import type { DualSessionProgress, DualSessionResult } from '@/agent/dual-session/types';
+// Dual-session is just a multi-agent pair topology. Uses multi-agent types directly.
+import type { MultiAgentProgress, MultiAgentResult, TopologyType, AgentRole } from '@/agent/multi-agent/types';
 
 export const dualSession = {
-  /** Start a new dual-session run */
+  /** Start a new dual-session run (pair topology) */
   start: bridge.buildProvider<
     IBridgeResponse<{ runId: string; driverConversationId: string; navigatorConversationId: string }>,
     {
@@ -784,7 +784,7 @@ export const dualSession = {
   /** Stop a running dual-session */
   stop: bridge.buildProvider<IBridgeResponse, { runId: string }>('dual-session.stop'),
   /** Get progress of a running dual-session */
-  getProgress: bridge.buildProvider<IBridgeResponse<DualSessionProgress | null>, { runId: string }>('dual-session.get-progress'),
+  getProgress: bridge.buildProvider<IBridgeResponse<MultiAgentProgress | null>, { runId: string }>('dual-session.get-progress'),
   /** List all active dual-session runs */
   list: bridge.buildProvider<
     IBridgeResponse<
@@ -800,14 +800,12 @@ export const dualSession = {
     void
   >('dual-session.list'),
   /** Status update events (emitted during a run) */
-  statusUpdate: bridge.buildEmitter<{ runId: string; progress: DualSessionProgress }>('dual-session.status-update'),
+  statusUpdate: bridge.buildEmitter<{ runId: string; progress: MultiAgentProgress }>('dual-session.status-update'),
   /** Completion event (emitted when a run finishes) */
-  completed: bridge.buildEmitter<{ runId: string; result: DualSessionResult }>('dual-session.completed'),
+  completed: bridge.buildEmitter<{ runId: string; result: MultiAgentResult }>('dual-session.completed'),
 };
 
 // ==================== Multi-Agent API ====================
-
-import type { MultiAgentProgress, MultiAgentResult, TopologyType, AgentRole } from '@/agent/multi-agent/types';
 
 export const multiAgent = {
   /** Start a multi-agent run with arbitrary topology */
