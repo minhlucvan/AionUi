@@ -755,6 +755,56 @@ export const devtools = {
   listProjects: bridge.buildProvider<IBridgeResponse<IDevToolsProjectInfo[]>, void>('devtools.list-projects'),
 };
 
+// ==================== Dual Session API ====================
+
+import type { DualSessionProgress, DualSessionResult } from '@/agent/dual-session/types';
+
+export const dualSession = {
+  /** Start a new dual-session run */
+  start: bridge.buildProvider<
+    IBridgeResponse<{ runId: string; driverConversationId: string; navigatorConversationId: string }>,
+    {
+      task: string;
+      workspace: string;
+      driverBackend?: string;
+      navigatorBackend?: string;
+      driverCliPath?: string;
+      navigatorCliPath?: string;
+      model?: TProviderWithModel;
+      maxTurns?: number;
+      yoloMode?: boolean;
+      driverContext?: string;
+      navigatorContext?: string;
+      driverSkills?: string[];
+      navigatorSkills?: string[];
+      driverCustomAgentId?: string;
+      navigatorCustomAgentId?: string;
+    }
+  >('dual-session.start'),
+  /** Stop a running dual-session */
+  stop: bridge.buildProvider<IBridgeResponse, { runId: string }>('dual-session.stop'),
+  /** Get progress of a running dual-session */
+  getProgress: bridge.buildProvider<IBridgeResponse<DualSessionProgress | null>, { runId: string }>('dual-session.get-progress'),
+  /** List all active dual-session runs */
+  list: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        runId: string;
+        status: string;
+        currentTurn: number;
+        maxTurns: number;
+        driverConversationId: string;
+        navigatorConversationId: string;
+      }>
+    >,
+    void
+  >('dual-session.list'),
+  /** Status update events (emitted during a run) */
+  statusUpdate: bridge.buildEmitter<{ runId: string; progress: DualSessionProgress }>('dual-session.status-update'),
+  /** Completion event (emitted when a run finishes) */
+  completed: bridge.buildEmitter<{ runId: string; result: DualSessionResult }>('dual-session.completed'),
+};
+
 // ==================== Channel API ====================
 
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser } from '@/channels/types';
