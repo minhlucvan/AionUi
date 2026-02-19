@@ -30,6 +30,7 @@ import { useWorkspaceModals } from './hooks/useWorkspaceModals';
 import { useWorkspacePaste } from './hooks/useWorkspacePaste';
 import { useWorkspaceTree } from './hooks/useWorkspaceTree';
 import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
+import { useAppConfig } from './hooks/useAppConfig';
 import type { WorkspaceProps } from './types';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
 
@@ -118,6 +119,16 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     t,
     onFilesDropped: pasteHook.handleFilesToAdd,
   });
+
+  // App preview config (app.json detection)
+  const { appConfig } = useAppConfig(workspace);
+
+  const handlePreviewApp = useCallback(() => {
+    if (!appConfig) return;
+    openPreview(appConfig.url, 'url', {
+      title: appConfig.name || `Preview: ${appConfig.url}`,
+    });
+  }, [appConfig, openPreview]);
 
   // 只在用户主动打开搜索时聚焦，不在会话切换时自动聚焦
   // Only focus search input when user actively opens search, not on conversation switch
@@ -828,6 +839,26 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             </div>
           </div>
         </div>
+
+        {/* App Preview Button - shown when workspace has app.json */}
+        {!isWorkspaceCollapsed && appConfig && (
+          <div className='px-12px pb-4px'>
+            <button
+              type='button'
+              className='w-full flex items-center gap-8px px-10px py-6px rd-8px bg-primary/8 hover:bg-primary/15 border border-primary/20 cursor-pointer transition-colors text-left'
+              onClick={handlePreviewApp}
+              title={appConfig.description || appConfig.name}
+            >
+              <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='var(--color-primary-6, #165DFF)' strokeWidth='2' className='flex-shrink-0'>
+                <polygon points='5 3 19 12 5 21 5 3' />
+              </svg>
+              <div className='flex flex-col min-w-0'>
+                <span className='text-13px font-medium text-primary truncate'>{appConfig.name}</span>
+                {appConfig.description && <span className='text-11px text-t-tertiary truncate'>{appConfig.description}</span>}
+              </div>
+            </button>
+          </div>
+        )}
 
         {/* Main content area */}
         {!isWorkspaceCollapsed && (
