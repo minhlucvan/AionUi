@@ -85,17 +85,20 @@ Each agent in the swarm has its own directory under `swarm/`, mirroring the top-
 assistant/dual-claude/
 ├── assistant.json              ← swarm-level config (mode, feedPath, agents list)
 │                                  NO systemPrompt here — only agents have prompts
-└── swarm/
-    ├── driver/
-    │   ├── agent.json          ← agent-level config (role, backend, avatar)
-    │   ├── driver.md           ← system prompt / instructions for this agent
-    │   └── hooks/
-    │       └── driver-hooks.js ← swarm event handlers for this agent
-    └── navigator/
-        ├── agent.json          ← agent-level config
-        ├── navigator.md        ← system prompt / instructions for this agent
-        └── hooks/
-            └── navigator-hooks.js
+├── swarm/
+│   ├── driver/
+│   │   ├── agent.json          ← agent-level config (role, backend, avatar)
+│   │   ├── driver.md           ← system prompt / instructions for this agent
+│   │   └── hooks/
+│   │       └── driver-hooks.js ← swarm event handlers for this agent
+│   └── navigator/
+│       ├── agent.json          ← agent-level config
+│       ├── navigator.md        ← system prompt / instructions for this agent
+│       └── hooks/
+│           └── navigator-hooks.js
+└── workspace/                  ← template copied by buildWorkspaceWidthFiles()
+    └── .swarm/                 ← feed directory pre-created in template
+        └── .gitkeep            ← feed.jsonl created at runtime by SwarmFeedManager
 ```
 
 This mirrors how existing assistants work (`ralph.en-US.md` contains preset rules). Benefits:
@@ -104,6 +107,7 @@ This mirrors how existing assistants work (`ralph.en-US.md` contains preset rule
 - The main `assistant.json` has **no system prompt** — it's a swarm orchestrator, not an agent
 - Adding a new agent to a swarm = adding a new directory with `agent.json` + `{role}.md` + `hooks/`
 - `agent.json` follows the same schema conventions as `assistant.json`
+- The `workspace/` template includes `.swarm/` so the feed directory exists after `buildWorkspaceWidthFiles()` copies it
 
 ## 3. Data Structures
 
@@ -268,17 +272,20 @@ type SwarmAgentConfig = {
 ```
 assistant/codex-claude-swarm/
 ├── assistant.json                    ← mode: "swarm", presetAgentType: "claude" (fallback)
-└── swarm/
-    ├── driver/
-    │   ├── agent.json                ← presetAgentType: "codex" (override!)
-    │   ├── driver.md                 ← system prompt for Codex driver
-    │   └── hooks/
-    │       └── driver-hooks.js
-    └── navigator/
-        ├── agent.json                ← presetAgentType: "claude" (or omit to inherit)
-        ├── navigator.md              ← system prompt for Claude navigator
-        └── hooks/
-            └── navigator-hooks.js
+├── swarm/
+│   ├── driver/
+│   │   ├── agent.json                ← presetAgentType: "codex" (override!)
+│   │   ├── driver.md                 ← system prompt for Codex driver
+│   │   └── hooks/
+│   │       └── driver-hooks.js
+│   └── navigator/
+│       ├── agent.json                ← presetAgentType: "claude" (or omit to inherit)
+│       ├── navigator.md              ← system prompt for Claude navigator
+│       └── hooks/
+│           └── navigator-hooks.js
+└── workspace/                        ← template workspace
+    └── .swarm/
+        └── .gitkeep
 ```
 
 ```jsonc
@@ -401,7 +408,9 @@ assistant/dual-claude/
 │       ├── navigator.md            # Navigator system prompt / instructions
 │       └── hooks/
 │           └── navigator-hooks.js  # onSwarm* event handlers
-└── workspace/                  # Template workspace
+└── workspace/                  # Template workspace (copied by buildWorkspaceWidthFiles)
+    └── .swarm/                 # Feed directory — pre-created in template
+        └── .gitkeep            # feed.jsonl is created at runtime by SwarmFeedManager
 
 tests/unit/swarm/
 ├── SwarmFeedManager.test.ts
@@ -411,19 +420,21 @@ tests/unit/swarm/
 
 ### 4.2 `SwarmFeedManager` — The Message Bus
 
-Manages the `.swarm/feed.jsonl` file as an append-only message bus.
+Manages the `.swarm/feed.jsonl` file as an append-only message bus. The `.swarm/` directory already exists in the workspace because it's part of the `assistant/dual-claude/workspace/` template — copied by `buildWorkspaceWidthFiles()` during conversation creation.
 
 ```typescript
 // src/agent/swarm/SwarmFeedManager.ts
 
 class SwarmFeedManager {
-  private feedPath: string;
+  private feedPath: string;       // absolute: {workspace}/.swarm/feed.jsonl
   private seq: number = 0;
   private cursors: Map<string, number> = new Map();  // role → last-read seq
 
   constructor(workspacePath: string, feedRelPath: string);
+  // feedRelPath = ".swarm/feed.jsonl" (from assistant.json swarm.feedPath)
+  // resolves to: {workspacePath}/.swarm/feed.jsonl
 
-  /** Initialize feed directory and file */
+  /** Initialize feed file (directory already exists from workspace template) */
   init(): void;
 
   /** Append a message to the feed */
@@ -445,6 +456,7 @@ class SwarmFeedManager {
 
 **Key design decisions:**
 
+- **Workspace template includes `.swarm/`** — The directory is pre-created in `assistant/dual-claude/workspace/.swarm/` and copied to the runtime workspace by `buildWorkspaceWidthFiles()`. The `feed.jsonl` file itself is created at runtime by `init()`.
 - **Append-only JSONL** — Each write is a single `fs.appendFileSync()` call (atomic on most filesystems for small writes). No file locking needed.
 - **Cursor-based reads** — Each agent tracks its `lastSeenSeq`. `readNewFor(role)` returns entries where `seq > cursor AND (to === role OR to === 'all')`.
 - **Inspectable** — Humans can `cat .swarm/feed.jsonl` to see the full conversation history between agents.
@@ -1295,7 +1307,7 @@ The swarm hooks use each agent's existing `AcpMessageQueue` (from its `AcpAgentM
 
 #### 4.7.6 Shared Workspace
 
-All agents in a swarm share the **same workspace directory**. This is intentional — they're pair-programming on the same codebase. The `buildWorkspaceWidthFiles()` call sets up the workspace once (for the first agent), and subsequent agents receive the same path. The feed file (`.swarm/feed.jsonl`) lives inside this shared workspace.
+All agents in a swarm share the **same workspace directory**. This is intentional — they're pair-programming on the same codebase. The `buildWorkspaceWidthFiles()` call copies the `assistant/dual-claude/workspace/` template (which includes `.swarm/`) into the runtime workspace. The `SwarmFeedManager` then creates `feed.jsonl` inside the already-existing `.swarm/` directory. Subsequent agents receive the same workspace path — they all see the same files and the same feed.
 
 ### 4.8 UI Changes
 
