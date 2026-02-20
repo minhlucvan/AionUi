@@ -40,10 +40,10 @@ export async function runSwarmHooks(
     feed: {
       append: (entry) =>
         options.feedManager.append({
-          ...entry,
           from: options.role,
           backend: options.agentConfig.presetAgentType,
-        }),
+          ...entry,
+        } as any),
       readNew: () => options.feedManager.readNewFor(options.role),
       readAll: () => options.feedManager.readAll(),
       isDone: () => options.feedManager.isDone(),
