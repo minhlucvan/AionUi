@@ -4,19 +4,38 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const ROLE = 'navigator';
+// ── Output parser helpers ──
+
+/**
+ * Extract content from a named XML-like tag.
+ * Returns null if the tag is not found.
+ */
+function extractTag(text, tagName) {
+  const regex = new RegExp(`<${tagName}>([\\s\\S]*?)</${tagName}>`, 'i');
+  const match = text.match(regex);
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * Check if the output contains a <done> tag (self-closing or with content).
+ */
+function isDone(text) {
+  return /<done\s*\/?>/.test(text) || /<done>[\s\S]*?<\/done>/i.test(text);
+}
+
+// ── Hook handlers ──
 
 module.exports = {
   /**
-   * onSwarmInit — Navigator seeds the collaboration.
-   * Writes user task to feed and receives planning prompt.
+   * onSwarmInit — Seed the navigator with the task.
+   * Navigator goes first — analyzes and sends the first directive.
    */
   onSwarmInit: {
     handler: async (context) => {
       const { swarm } = context;
       const userRequest = (context.content || '').trim();
 
-      // Write user task to feed as the seed directive
+      // Write user task to feed as the seed
       swarm.feed.append({
         to: 'all',
         type: 'directive',
@@ -27,29 +46,10 @@ module.exports = {
         queueMessages: [
           {
             content: [
-              '## Swarm — Navigator Session',
+              `Your task: ${userRequest}`,
               '',
-              `**Task:** ${userRequest}`,
-              `**Your backend:** ${swarm.agentBackend}`,
-              `**Your role:** ${swarm.role}`,
-              `**Driver backend:** ${swarm.peers.join(', ')}`,
-              '',
-              'You are the **Navigator** in a pair-programming swarm.',
-              'The Driver will execute your directives and report back.',
-              '',
-              '**Your workflow:**',
-              '1. Analyze the task and break it into clear, actionable steps',
-              '2. Write your first directive to the Driver',
-              '3. After the Driver reports back, review the work',
-              '4. Provide the next directive or corrections',
-              '5. When all work is complete, output `<done/>`',
-              '',
-              '**Rules:**',
-              '- Give ONE clear directive at a time (not a list of 10 things)',
-              '- Be specific: include file paths, function names, exact requirements',
-              "- Review the Driver's output critically — catch bugs and design issues",
-              '',
-              'Begin by analyzing the task and writing your first directive.',
+              'Analyze this task and send the Driver their first directive.',
+              'Break it down into focused steps. Start with the first one.',
             ].join('\n'),
             priority: 'normal',
             source: 'hook',
@@ -61,29 +61,57 @@ module.exports = {
   },
 
   /**
-   * onSwarmTurnEnd — Navigator provided a review or directive.
-   * Write to feed. Detect done signal.
+   * onSwarmTurnEnd — Parse the navigator's structured output, write to feed.
+   *
+   * Expected tags in agent output:
+   *   <directive>...</directive> — instruction for the driver
+   *   <review>...</review>      — assessment of driver's work
+   *   <done>...</done>          — task complete signal
    */
   onSwarmTurnEnd: {
     handler: async (context) => {
       const { swarm, agentOutput = '' } = context;
 
-      // Check for done signal
-      if (/<done\s*\/?>/.test(agentOutput)) {
+      // 1. Check for done signal
+      if (isDone(agentOutput)) {
+        const doneSummary = extractTag(agentOutput, 'done') || 'Navigator signals task completion.';
         swarm.feed.append({
           to: 'all',
           type: 'done',
-          content: 'Navigator signals task completion.',
+          content: doneSummary,
         });
         return { done: true };
       }
 
-      // Write navigator's directive to feed
-      swarm.feed.append({
-        to: 'driver',
-        type: 'directive',
-        content: agentOutput.slice(0, 4000),
-      });
+      // 2. Parse structured output
+      const directive = extractTag(agentOutput, 'directive');
+      const review = extractTag(agentOutput, 'review');
+
+      // 3. Build feed entries — a review + directive combo is common
+      if (review) {
+        swarm.feed.append({
+          to: 'driver',
+          type: 'review',
+          content: review.slice(0, 4000),
+        });
+      }
+
+      if (directive) {
+        swarm.feed.append({
+          to: 'driver',
+          type: 'directive',
+          content: directive.slice(0, 4000),
+        });
+      }
+
+      // 4. Fallback — no recognized tags, treat entire output as directive
+      if (!directive && !review) {
+        swarm.feed.append({
+          to: 'driver',
+          type: 'directive',
+          content: agentOutput.slice(0, 4000),
+        });
+      }
 
       return {};
     },
@@ -91,27 +119,40 @@ module.exports = {
   },
 
   /**
-   * onSwarmFeedMessage — Driver posted an action report.
-   * Queue a message to wake the navigator with the report.
+   * onSwarmFeedMessage — Driver posted an action report or blocker.
+   * Translate feed entries into a message the navigator understands.
    */
   onSwarmFeedMessage: {
     handler: async (context) => {
-      const { feedEntries = [] } = context;
+      const { feedEntries = [], swarm } = context;
       if (feedEntries.length === 0) return {};
 
       const latest = feedEntries[feedEntries.length - 1];
+      const turnInfo = `(turn ${swarm.turnNumber}/${swarm.maxTurns})`;
+
+      // Build a natural message based on feed entry type
+      let header;
+      switch (latest.type) {
+        case 'action':
+          header = `Driver report ${turnInfo}:`;
+          break;
+        case 'blocker':
+          header = `Driver is blocked ${turnInfo}:`;
+          break;
+        default:
+          header = `Driver ${turnInfo}:`;
+      }
+
+      // Include file list if present
+      const parts = [header, '', latest.content];
+      if (latest.files && latest.files.length > 0) {
+        parts.push('', 'Files changed:', ...latest.files.map((f) => `- ${f}`));
+      }
 
       return {
         queueMessages: [
           {
-            content: [
-              `## Driver reports: (turn ${context.swarm.turnNumber}/${context.swarm.maxTurns})`,
-              '',
-              latest.content,
-              '',
-              '---',
-              '_Read `.swarm/feed.jsonl` for full context. Review and provide next directive._',
-            ].join('\n'),
+            content: parts.join('\n'),
             priority: 'normal',
             source: 'hook',
           },
