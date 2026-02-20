@@ -227,6 +227,32 @@ def test_section_workflow(tmp_path):
 
 
 @pytest.mark.integration
+def test_section_context_manager_workflow(tmp_path):
+    """Test section() as context manager in a full workflow."""
+    st = Notebook(out_md=str(tmp_path / "ctx_sections.md"), title="Report")
+
+    with st.section("Setup", "Initialize data sources"):
+        st.kv({"Status": "OK"}, title="Environment")
+
+    with st.section("Analysis"):
+        st.write("Running analysis...")
+        st.metric("Score", "92%", delta="+5%")
+
+    with st.section("Conclusion"):
+        st.success("All checks passed!")
+
+    md = st.to_markdown()
+
+    assert "## Setup" in md
+    assert "_Initialize data sources_" in md
+    assert "## Analysis" in md
+    assert "## Conclusion" in md
+    assert "92%" in md
+    # Context manager adds dividers between sections
+    assert "---" in md
+
+
+@pytest.mark.integration
 def test_expander_layout(tmp_path):
     """Test expander context manager works correctly."""
     st = Notebook(out_md=str(tmp_path / "expander.md"))

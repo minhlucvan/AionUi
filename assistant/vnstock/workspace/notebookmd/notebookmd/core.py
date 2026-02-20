@@ -101,7 +101,7 @@ class Notebook:
     ):
         self.out_path = Path(out_md)
         self.assets_path = Path(assets_dir) if assets_dir else self.out_path.parent / "assets"
-        self.title = title
+        self._title = title
         self.cfg = cfg or NotebookConfig()
 
         self._asset_mgr = AssetManager(self.assets_path, self.out_path.parent)
@@ -122,7 +122,7 @@ class Notebook:
         self._started = True
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self._w(f"# {self.title}\n\n_Generated: {now}_\n\n")
+        self._w(f"# {self._title}\n\n_Generated: {now}_\n\n")
         self._w("## Artifacts\n\n")
         self._w("{{ARTIFACTS_PLACEHOLDER}}\n\n---\n\n")
 
@@ -133,30 +133,32 @@ class Notebook:
 
     # ── Sections ──
 
-    def section(self, title: str, description: str = "") -> None:
+    def section(self, title: str, description: str = "") -> _SectionContext:
         """Start a new semantic section with a heading and optional description.
 
-        Use this to organize your report into logical parts.  Unlike notebook
-        cells, there is no context manager — just call ``section()`` and
-        continue emitting content below it.
+        Works both as a plain call and as a context manager::
+
+            # Plain call — just emits the heading, content follows below
+            st.section("Key Metrics", "Fundamental indicators for VCB")
+            st.metric("ROE", "22.5%")
+            st.kv({"P/E": "15.2x", "P/B": "2.3x"})
+
+            # Context manager — heading emitted on enter, divider on exit
+            with st.section("Price Trend"):
+                st.line_chart(df, x="date", y="close")
 
         Args:
             title: Section heading text.
             description: Optional short description rendered as a caption.
 
-        Example::
-
-            st.section("Key Metrics", "Fundamental indicators for VCB")
-            st.metric("ROE", "22.5%")
-            st.kv({"P/E": "15.2x", "P/B": "2.3x"})
-
-            st.section("Price Trend")
-            st.line_chart(df, x="date", y="close")
+        Returns:
+            A context manager (also usable as a plain call).
         """
         self._ensure_started()
         self._w(f"## {title}\n\n")
         if description:
             self._w(f"_{description}_\n\n")
+        return _SectionContext(self)
 
     # ── Text Elements ──
 
@@ -825,6 +827,31 @@ class Notebook:
         content = "".join(self._chunks)
         artifact_index = self._asset_mgr.render_index()
         return content.replace("{{ARTIFACTS_PLACEHOLDER}}", artifact_index)
+
+
+class _SectionContext:
+    """Returned by ``Notebook.section()`` to allow optional context-manager use.
+
+    When used as a plain call the heading is already emitted and this object is
+    simply discarded.  When used with ``with``, it emits a divider on exit to
+    visually close the section::
+
+        # Both styles are valid:
+        st.section("Setup")           # plain call
+        with st.section("Analysis"):  # context manager
+            st.write("...")
+    """
+
+    def __init__(self, notebook: Notebook):
+        self._notebook = notebook
+
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        # Add a divider to visually close the section
+        self._notebook._w("\n---\n\n")
+        return None
 
 
 class _TabGroup:

@@ -35,7 +35,7 @@ def test_notebook_init_basic(tmp_path):
     N = Notebook(out_md=str(out_path), title="Test Report", cfg=cfg)
 
     assert N.out_path == out_path
-    assert N.title == "Test Report"
+    assert N._title == "Test Report"
 
 
 def test_notebook_init_custom_assets_dir(tmp_path):
@@ -187,6 +187,34 @@ def test_section_with_description(tmp_path):
     assert "_Fetch and validate input data_" in md
 
 
+def test_section_context_manager(tmp_path):
+    """Test section() works as a context manager."""
+    N = Notebook(out_md=str(tmp_path / "test.md"))
+
+    with N.section("Analysis"):
+        N.note("Inside section")
+
+    md = N.to_markdown()
+
+    assert "## Analysis" in md
+    assert "Inside section" in md
+    assert "---" in md  # Divider emitted on exit
+
+
+def test_section_context_manager_with_description(tmp_path):
+    """Test section() context manager with description."""
+    N = Notebook(out_md=str(tmp_path / "test.md"))
+
+    with N.section("Setup", "Initialize environment"):
+        N.write("Setting up...")
+
+    md = N.to_markdown()
+
+    assert "## Setup" in md
+    assert "_Initialize environment_" in md
+    assert "Setting up..." in md
+
+
 def test_multiple_sections(tmp_path):
     """Test multiple sections render sequentially."""
     N = Notebook(out_md=str(tmp_path / "test.md"))
@@ -205,6 +233,29 @@ def test_multiple_sections(tmp_path):
     assert "## First" in md
     assert "## Second" in md
     assert "## Third" in md
+
+
+def test_mixed_section_styles(tmp_path):
+    """Test mixing plain calls and context managers."""
+    N = Notebook(out_md=str(tmp_path / "test.md"))
+
+    N.section("Plain Section")
+    N.note("Plain content")
+
+    with N.section("Context Section"):
+        N.note("Context content")
+
+    N.section("Another Plain")
+    N.note("More content")
+
+    md = N.to_markdown()
+
+    assert "## Plain Section" in md
+    assert "## Context Section" in md
+    assert "## Another Plain" in md
+    assert "Plain content" in md
+    assert "Context content" in md
+    assert "More content" in md
 
 
 # Text element tests (renamed from st_ prefix)
