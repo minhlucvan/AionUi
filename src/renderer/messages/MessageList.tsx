@@ -22,6 +22,7 @@ import type { FileChangeInfo } from './codex/MessageFileChanges';
 import MessageFileChanges, { parseDiff } from './codex/MessageFileChanges';
 import { useMessageList } from './hooks';
 import MessagePlan from './MessagePlan';
+import MessageSwarmDirective from './MessageSwarmDirective';
 import MessageTips from './MessageTips';
 import MessageToolCall from './MessageToolCall';
 import MessageToolGroup from './MessageToolGroup';
@@ -87,6 +88,8 @@ const MessageItem: React.FC<{ message: TMessage }> = React.memo(
         return <MessagePlan message={message}></MessagePlan>;
       case 'available_commands':
         return null;
+      case 'swarm_directive':
+        return <MessageSwarmDirective message={message} />;
       default:
         return <div>{t('messages.unknownMessageType', { type: (message as any).type })}</div>;
     }
