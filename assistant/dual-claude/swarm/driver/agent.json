@@ -1,0 +1,10 @@
+{
+  "role": "driver",
+  "name": "Driver",
+  "avatar": "🔧",
+  "description": "Executes code, writes files, runs tests. Takes direction from Navigator.",
+  "nameI18n": {
+    "en-US": "Driver",
+    "zh-CN": "执行者"
+  }
+}

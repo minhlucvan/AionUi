@@ -29,6 +29,7 @@ import MessageToolGroupSummary from './MessageToolGroupSummary';
 import MessageText from './MessagetText';
 import type { WriteFileResult } from './types';
 import { useAutoScroll } from './useAutoScroll';
+import SwarmAgentBadge from '@renderer/components/SwarmAgentBadge';
 
 type TurnDiffContent = Extract<CodexToolCallUpdate, { subtype: 'turn_diff' }>;
 
@@ -47,6 +48,7 @@ export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ 
 const MessageItem: React.FC<{ message: TMessage }> = React.memo(
   HOC((props) => {
     const { message } = props as { message: TMessage };
+    const isSwarm = !!message.agentMeta;
     return (
       <div
         className={classNames('flex items-start message-item [&>div]:max-w-full px-8px m-t-10px max-w-full md:max-w-780px mx-auto', message.type, {
@@ -55,6 +57,9 @@ const MessageItem: React.FC<{ message: TMessage }> = React.memo(
           'justify-start': message.position === 'left',
         })}
       >
+        {isSwarm && message.position === 'left' && (
+          <SwarmAgentBadge avatar={message.agentMeta!.avatar} name={message.agentMeta!.name} role={message.agentMeta!.role} />
+        )}
         {props.children}
       </div>
     );

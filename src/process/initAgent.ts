@@ -15,6 +15,8 @@ import { ConfigStorage } from '@/common/storage';
 import { getAssistantsDir } from './migrations/assistantMigration';
 import { copyDirectoryRecursively } from './utils';
 import { computeOpenClawIdentityHash } from './utils/openclawUtils';
+import { SwarmSessionManager } from '@/agent/swarm/SwarmSessionManager';
+import WorkerManage from './WorkerManage';
 
 // Regex to match AionUI timestamp suffix pattern
 const AIONUI_TIMESTAMP_REGEX = /^(.+?)_aionui_\d+(\.[^.]+)$/;
@@ -331,4 +333,45 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
     name: workspace,
     id: uuid(),
   };
+};
+
+/**
+ * Create a swarm conversation (mode: "swarm").
+ * Spawns a parent conversation for UI grouping, then creates a SwarmSessionManager
+ * that will spawn child agent conversations via the standard pipeline.
+ */
+export const createSwarmConversation = async (options: ICreateConversationParams): Promise<TChatConversation> => {
+  // 1. Create the parent conversation (the swarm itself — for UI grouping)
+  const parentConversation = await createAcpAgent(options);
+
+  // 2. Read assistant.json to get swarm config
+  const assistantDir = path.join(getAssistantsDir(), options.extra.presetAssistantId || '');
+  let assistantJson: any;
+  try {
+    const configContent = await fs.readFile(path.join(assistantDir, 'assistant.json'), 'utf-8');
+    assistantJson = JSON.parse(configContent);
+  } catch (error) {
+    console.warn(`[AionUi] Failed to read swarm assistant.json:`, error);
+    return parentConversation;
+  }
+
+  // 3. Only create swarm manager if mode is "swarm"
+  if (assistantJson.mode !== 'swarm' || !assistantJson.swarm) {
+    return parentConversation;
+  }
+
+  // 4. Create SwarmSessionManager
+  const swarmManager = new SwarmSessionManager(
+    assistantJson.swarm,
+    parentConversation.id,
+    parentConversation.extra.workspace,
+    assistantJson.presetAgentType || 'claude',
+    assistantJson.id,
+    assistantDir,
+  );
+
+  // 5. Register the swarm manager
+  WorkerManage.registerSwarm(parentConversation.id, swarmManager);
+
+  return parentConversation;
 };

@@ -1,0 +1,10 @@
+{
+  "role": "navigator",
+  "name": "Navigator",
+  "avatar": "🧭",
+  "description": "Reviews code, plans architecture, gives direction to Driver.",
+  "nameI18n": {
+    "en-US": "Navigator",
+    "zh-CN": "导航者"
+  }
+}

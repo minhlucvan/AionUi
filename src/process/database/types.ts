@@ -91,6 +91,7 @@ export interface IMessageRow {
   content: string; // JSON string of message content
   position?: 'left' | 'right' | 'center' | 'pop';
   status?: 'finish' | 'pending' | 'error' | 'work';
+  agent_meta?: string; // JSON string of SwarmAgentMeta { role, name, avatar }
   created_at: number;
 }
 
@@ -205,6 +206,7 @@ export function messageToRow(message: TMessage): IMessageRow {
     content: JSON.stringify(message.content),
     position: message.position,
     status: message.status,
+    agent_meta: message.agentMeta ? JSON.stringify(message.agentMeta) : undefined,
     created_at: message.createdAt || Date.now(),
   };
 }
@@ -221,6 +223,7 @@ export function rowToMessage(row: IMessageRow): TMessage {
     content: JSON.parse(row.content),
     position: row.position,
     status: row.status,
+    agentMeta: row.agent_meta ? JSON.parse(row.agent_meta) : undefined,
     createdAt: row.created_at,
   } as TMessage;
 }

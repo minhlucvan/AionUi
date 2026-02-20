@@ -857,13 +857,37 @@ const migration_v15: IMigration = {
 };
 
 /**
+ * Migration v15 -> v16: Add agent_meta column to messages table for swarm/multi-agent conversations
+ */
+const migration_v16: IMigration = {
+  version: 16,
+  name: 'Add agent_meta column to messages table',
+  up: (db) => {
+    // Check if column already exists
+    const columns = db.pragma('table_info(messages)') as Array<{ name: string }>;
+    const hasAgentMeta = columns.some((col) => col.name === 'agent_meta');
+
+    if (!hasAgentMeta) {
+      db.exec(`ALTER TABLE messages ADD COLUMN agent_meta TEXT;`);
+    }
+
+    console.log('[Migration v16] Added agent_meta column to messages table');
+  },
+  down: (db) => {
+    // SQLite doesn't support DROP COLUMN before 3.35.0, but we can leave the column
+    // as it's nullable and won't affect existing functionality
+    console.log('[Migration v16] Rolled back: agent_meta column left in place (nullable, no impact)');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14, migration_v15,
+  migration_v13, migration_v14, migration_v15, migration_v16,
 ];
 
 /**

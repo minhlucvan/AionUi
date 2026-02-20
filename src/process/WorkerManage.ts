@@ -14,10 +14,16 @@ import { ProcessChat } from './initStorage';
 import type AgentBaseTask from './task/BaseAgentManager';
 import { GeminiAgentManager } from './task/GeminiAgentManager';
 import { getDatabase } from './database/export';
+import type { SwarmSessionManager } from '@/agent/swarm/SwarmSessionManager';
 
 const taskList: {
   id: string;
   task: AgentBaseTask<unknown>;
+}[] = [];
+
+const swarmList: {
+  id: string;
+  swarm: SwarmSessionManager;
 }[] = [];
 
 /**
@@ -189,6 +195,19 @@ const listTasks = () => {
   return taskList.map((t) => ({ id: t.id, type: t.task.type }));
 };
 
+const registerSwarm = (parentConversationId: string, swarm: SwarmSessionManager) => {
+  const existing = swarmList.find((item) => item.id === parentConversationId);
+  if (existing) {
+    existing.swarm = swarm;
+  } else {
+    swarmList.push({ id: parentConversationId, swarm });
+  }
+};
+
+const getSwarmById = (parentConversationId: string): SwarmSessionManager | undefined => {
+  return swarmList.find((item) => item.id === parentConversationId)?.swarm;
+};
+
 const WorkerManage = {
   buildConversation,
   getTaskById,
@@ -197,6 +216,8 @@ const WorkerManage = {
   listTasks,
   kill,
   clear,
+  registerSwarm,
+  getSwarmById,
 };
 
 export default WorkerManage;

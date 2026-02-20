@@ -88,6 +88,14 @@ interface IMessage<T extends TMessageType, Content extends Record<string, any>> 
    * 消息状态
    */
   status?: 'finish' | 'pending' | 'error' | 'work';
+  /**
+   * Agent identity metadata for swarm/multi-agent conversations
+   */
+  agentMeta?: {
+    role: string;
+    name: string;
+    avatar: string;
+  };
 }
 
 export type IMessageText = IMessage<'text', { content: string }>;
