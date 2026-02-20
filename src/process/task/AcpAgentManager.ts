@@ -64,6 +64,8 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
 
   /** External stream listeners (e.g., SwarmSessionManager forwarding to group chat) */
   private streamListeners: Array<(message: IResponseMessage) => void> = [];
+  /** External finish listeners (e.g., SwarmSessionManager turn handoff) */
+  private finishListeners: Array<(output: string) => void> = [];
 
   /** Message queue for sequential auto-prompting */
   readonly messageQueue: AcpMessageQueue;
@@ -99,6 +101,11 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   /** Register an external stream listener (e.g., for swarm group chat forwarding) */
   onStream(listener: (message: IResponseMessage) => void): void {
     this.streamListeners.push(listener);
+  }
+
+  /** Register an external finish listener (e.g., for swarm turn handoff) */
+  onFinish(listener: (output: string) => void): void {
+    this.finishListeners.push(listener);
   }
 
   initAgent(data: AcpAgentManagerData = this.options) {
@@ -318,6 +325,16 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             // Notify message queue so it can process the next queued message
             this.messageQueue.onAgentFinished();
             void this.runAgentResponseHooks();
+
+            // Notify external finish listeners (e.g., swarm turn handoff)
+            const output = this.currentMsgContent || '';
+            for (const listener of this.finishListeners) {
+              try {
+                listener(output);
+              } catch (err) {
+                console.warn('[AcpAgentManager] Finish listener error:', err);
+              }
+            }
           }
 
           // Process cron commands when turn ends (finish signal)

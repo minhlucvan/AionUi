@@ -15,7 +15,10 @@ import type AcpAgentManager from '@/process/task/AcpAgentManager';
 import { ConversationService } from '@/process/services/conversationService';
 import WorkerManage from '@/process/WorkerManage';
 import { ipcBridge } from '@/common';
+import { transformMessage } from '@/common/chatLib';
+import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
+import { addOrUpdateMessage } from '@/process/message';
 import { getDatabase } from '@/process/database/export';
 
 type SwarmAgentHandle = {
@@ -210,6 +213,11 @@ export class SwarmSessionManager {
       // forward it to the parent group conversation with agentMeta
       this.setupAgentResponseForwarding(manager, agentConfig);
 
+      // Wire finish signal to trigger swarm turn handoff
+      manager.onFinish((output: string) => {
+        void this.onAgentFinished(agentConfig.role, output);
+      });
+
       this.agents.set(agentConfig.role, {
         role: agentConfig.role,
         config: agentConfig,
@@ -269,14 +277,23 @@ export class SwarmSessionManager {
     manager.onStream((message: any) => {
       // Only forward text content to the group chat
       if (message.type === 'content' && typeof message.data === 'string' && message.data.length > 0) {
-        ipcBridge.conversation.responseStream.emit({
+        const groupMessage: IResponseMessage = {
           conversation_id: parentId,
           type: 'content',
           data: message.data,
           msg_id: message.msg_id || uuid(),
           timestamp: Date.now(),
           agentMeta,
-        });
+        };
+
+        // Save to group conversation DB so messages persist
+        const tMessage = transformMessage(groupMessage);
+        if (tMessage) {
+          addOrUpdateMessage(parentId, tMessage);
+        }
+
+        // Emit to the response stream so the UI updates in real-time
+        ipcBridge.conversation.responseStream.emit(groupMessage);
       }
     });
   }

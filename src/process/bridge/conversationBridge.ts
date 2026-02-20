@@ -10,7 +10,9 @@ import type { TChatConversation } from '@/common/storage';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
 import { ipcBridge } from '../../common';
+import type { TMessage } from '@/common/chatLib';
 import { uuid } from '../../common/utils';
+import { addOrUpdateMessage } from '../message';
 import { cleanupChatWorkspace } from '../../assistant/WorkspaceTemplateCopy';
 import { ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
@@ -416,6 +418,27 @@ export function initConversationBridge(): void {
     const swarmManager = WorkerManage.getSwarmById(conversation_id);
 
     if (swarmManager) {
+      // Save the user's message to the group conversation so it appears in the chat
+      const userMessage: TMessage = {
+        id: uuid(),
+        msg_id: other.msg_id || uuid(),
+        conversation_id,
+        type: 'text',
+        position: 'right',
+        content: { content: other.input },
+        createdAt: Date.now(),
+      };
+      addOrUpdateMessage(conversation_id, userMessage);
+
+      // Emit the user message to the response stream so the UI updates immediately
+      ipcBridge.conversation.responseStream.emit({
+        conversation_id,
+        type: 'user_content',
+        data: other.input,
+        msg_id: userMessage.msg_id!,
+        timestamp: Date.now(),
+      });
+
       // Check if swarm is already initialized
       if (!swarmManager.isInitialized) {
         console.log(`[conversationBridge] Initializing swarm for conversation: ${conversation_id}`);
