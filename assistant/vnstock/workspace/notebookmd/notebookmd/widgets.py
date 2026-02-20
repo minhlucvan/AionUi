@@ -632,6 +632,252 @@ def render_empty() -> str:
     return ""
 
 
+# ── Smart Write / Templating ──────────────────────────────────────────────────
+
+
+def render_write(*args: Any) -> str:
+    """Auto-format any combination of values into markdown (à la st.write).
+
+    Type dispatch:
+    - str        → markdown text
+    - dict       → JSON code block
+    - DataFrame  → markdown table
+    - int/float  → bold number
+    - list/tuple → bullet list
+    - Exception  → error blockquote
+    - bool       → ``True`` / ``False``
+    - None       → ``None``
+    - other      → ``str(obj)``
+
+    Multiple args are concatenated with blank lines.
+    """
+    from .emitters import render_table
+
+    parts: list[str] = []
+    for obj in args:
+        if isinstance(obj, str):
+            parts.append(obj.rstrip() + "\n\n")
+        elif isinstance(obj, bool):
+            parts.append(f"`{obj}`\n\n")
+        elif isinstance(obj, (int, float)):
+            parts.append(f"**{obj}**\n\n")
+        elif isinstance(obj, dict):
+            parts.append(render_json(obj, expanded=True))
+        elif isinstance(obj, (list, tuple)):
+            for item in obj:
+                parts.append(f"- {item}\n")
+            parts.append("\n")
+        elif isinstance(obj, Exception):
+            parts.append(render_exception(obj))
+        elif obj is None:
+            parts.append("`None`\n\n")
+        elif pd is not None and isinstance(obj, pd.DataFrame):
+            parts.append(render_table(obj, name="", max_rows=30))
+        else:
+            parts.append(str(obj).rstrip() + "\n\n")
+    return "".join(parts)
+
+
+def render_stat(
+    label: str,
+    value: Any,
+    description: str = "",
+    fmt: str | None = None,
+) -> str:
+    """Render a single-line statistic with bold value and optional context.
+
+    Designed for inline stat callouts like:
+        "Quality z-score: **+1.5** (93rd percentile, top 7%)"
+
+    Args:
+        label: Stat name (e.g. "Quality z-score").
+        value: The value to display (auto-formatted if numeric).
+        description: Optional parenthetical context text.
+        fmt: Optional Python format spec for numeric values (e.g. "+.1f", ".2%").
+
+    Examples::
+
+        render_stat("Quality z-score", 1.5, "93rd percentile, top 7%", fmt="+.1f")
+        # → "Quality z-score: **+1.5** (93rd percentile, top 7%)"
+
+        render_stat("P/E Ratio", 15.2)
+        # → "P/E Ratio: **15.2**"
+
+        render_stat("Return", 0.123, "annualized", fmt=".1%")
+        # → "Return: **12.3%** (annualized)"
+    """
+    if fmt and isinstance(value, (int, float)):
+        formatted = format(value, fmt)
+    else:
+        formatted = str(value)
+
+    line = f"{label}: **{formatted}**"
+    if description:
+        line += f" ({description})"
+    return line + "\n\n"
+
+
+def render_stats(
+    stats: list[dict[str, Any]],
+    separator: str = " · ",
+) -> str:
+    """Render multiple inline stats on one line, separated by a delimiter.
+
+    Args:
+        stats: List of dicts with keys: label, value, fmt (optional), description (optional).
+        separator: String between each stat.
+
+    Example::
+
+        render_stats([
+            {"label": "P/E", "value": 15.2, "fmt": ".1f"},
+            {"label": "P/B", "value": 2.8, "fmt": ".1f"},
+            {"label": "ROE", "value": 0.221, "fmt": ".1%"},
+        ])
+        # → "P/E: **15.2** · P/B: **2.8** · ROE: **22.1%**"
+    """
+    parts: list[str] = []
+    for s in stats:
+        label = s["label"]
+        value = s["value"]
+        fmt = s.get("fmt")
+        desc = s.get("description", "")
+
+        if fmt and isinstance(value, (int, float)):
+            formatted = format(value, fmt)
+        else:
+            formatted = str(value)
+
+        part = f"{label}: **{formatted}**"
+        if desc:
+            part += f" ({desc})"
+        parts.append(part)
+
+    return separator.join(parts) + "\n\n"
+
+
+def render_badge(text: str, style: str = "default") -> str:
+    """Render an inline badge/pill label.
+
+    Args:
+        text: Badge text.
+        style: One of "default", "success", "warning", "error", "info".
+
+    Example::
+
+        render_badge("BULLISH", "success")
+        # → "**`✅ BULLISH`**"
+    """
+    icons = {
+        "success": "✅",
+        "warning": "⚠️",
+        "error": "❌",
+        "info": "ℹ️",
+        "default": "",
+    }
+    icon = icons.get(style, "")
+    prefix = f"{icon} " if icon else ""
+    return f"**`{prefix}{text}`**\n\n"
+
+
+def render_change(
+    label: str,
+    current: float,
+    previous: float,
+    fmt: str = ".2f",
+    pct: bool = True,
+    invert: bool = False,
+) -> str:
+    """Render a value with its absolute and percentage change from a previous value.
+
+    Args:
+        label: Metric name.
+        current: Current value.
+        previous: Previous/baseline value.
+        fmt: Format spec for values.
+        pct: If True, also show percentage change.
+        invert: If True, a decrease is considered positive (e.g., error rate).
+
+    Example::
+
+        render_change("Revenue", 1_200_000, 1_000_000, fmt=",.0f")
+        # → "Revenue: **1,200,000** (▲ +200,000, +20.0%)"
+    """
+    diff = current - previous
+    is_positive = (diff < 0) if invert else (diff > 0)
+
+    arrow = "▲" if is_positive else ("▼" if diff != 0 else "→")
+    sign = "+" if diff > 0 else ""
+    formatted_current = format(current, fmt)
+    formatted_diff = format(diff, fmt)
+
+    line = f"{label}: **{formatted_current}** ({arrow} {sign}{formatted_diff}"
+    if pct and previous != 0:
+        pct_change = diff / abs(previous) * 100
+        line += f", {sign}{pct_change:.1f}%"
+    line += ")"
+    return line + "\n\n"
+
+
+def render_ranking(
+    label: str,
+    value: Any,
+    rank: int | None = None,
+    total: int | None = None,
+    percentile: float | None = None,
+    fmt: str | None = None,
+) -> str:
+    """Render a value with its rank/percentile context.
+
+    Args:
+        label: Metric name.
+        value: The metric value.
+        rank: Position in ranking (1-based).
+        total: Total items in ranking.
+        percentile: Percentile (0-100).
+        fmt: Format spec for the value.
+
+    Examples::
+
+        render_ranking("Quality z-score", 1.5, percentile=93, fmt="+.1f")
+        # → "Quality z-score: **+1.5** (93rd percentile, top 7%)"
+
+        render_ranking("Market Cap", 12_500, rank=3, total=50, fmt=",.0f")
+        # → "Market Cap: **12,500** (#3 of 50)"
+    """
+    if fmt and isinstance(value, (int, float)):
+        formatted = format(value, fmt)
+    else:
+        formatted = str(value)
+
+    context_parts: list[str] = []
+
+    if percentile is not None:
+        suffix = _ordinal_suffix(int(percentile))
+        context_parts.append(f"{int(percentile)}{suffix} percentile")
+        top_pct = 100 - percentile
+        if top_pct <= 50:
+            context_parts.append(f"top {top_pct:.0f}%")
+
+    if rank is not None:
+        if total is not None:
+            context_parts.append(f"#{rank} of {total}")
+        else:
+            context_parts.append(f"#{rank}")
+
+    line = f"{label}: **{formatted}**"
+    if context_parts:
+        line += f" ({', '.join(context_parts)})"
+    return line + "\n\n"
+
+
+def _ordinal_suffix(n: int) -> str:
+    """Return ordinal suffix for a number (1st, 2nd, 3rd, 4th, ...)."""
+    if 11 <= (n % 100) <= 13:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+
+
 # ── Connection / Data Source ──────────────────────────────────────────────────
 
 

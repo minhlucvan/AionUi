@@ -57,6 +57,12 @@ from .widgets import (
     render_video,
     render_warning,
     render_exception as render_widget_exception,
+    render_write,
+    render_stat,
+    render_stats,
+    render_badge,
+    render_change,
+    render_ranking,
 )
 
 
@@ -658,6 +664,147 @@ class Notebook:
             details: Optional extra information.
         """
         self._w(render_connection_status(name, status=status, details=details))
+
+    # ── Smart Write / Templating ──
+
+    def write(self, *args: Any) -> None:
+        """Auto-format and display any combination of values (à la st.write).
+
+        Type dispatch:
+        - str        → markdown text
+        - dict       → JSON code block
+        - DataFrame  → markdown table
+        - int/float  → bold number
+        - list/tuple → bullet list
+        - Exception  → error callout
+        - None       → ``None``
+        - other      → ``str(obj)``
+
+        Example::
+
+            N.write("Hello", {"key": "value"}, df, 42)
+        """
+        self._w(render_write(*args))
+
+    def stat(
+        self,
+        label: str,
+        value: Any,
+        description: str = "",
+        fmt: str | None = None,
+    ) -> None:
+        """Display a single-line statistic with bold value and optional context.
+
+        The go-to method for inline data callouts like:
+            "Quality z-score: **+1.5** (93rd percentile, top 7%)"
+
+        Args:
+            label: Stat name.
+            value: The value (auto-formatted if numeric + fmt given).
+            description: Optional parenthetical context.
+            fmt: Python format spec (e.g. "+.1f", ".2%", ",.0f").
+
+        Examples::
+
+            N.stat("Quality z-score", 1.5, "93rd percentile, top 7%", fmt="+.1f")
+            N.stat("P/E Ratio", 15.2)
+            N.stat("Return", 0.123, "annualized", fmt=".1%")
+        """
+        self._w(render_stat(label, value, description=description, fmt=fmt))
+
+    def stats(
+        self,
+        stats: list[dict[str, Any]],
+        separator: str = " · ",
+    ) -> None:
+        """Display multiple inline stats on one line.
+
+        Args:
+            stats: List of dicts with keys: label, value, fmt (opt), description (opt).
+            separator: Delimiter between stats.
+
+        Example::
+
+            N.stats([
+                {"label": "P/E", "value": 15.2, "fmt": ".1f"},
+                {"label": "P/B", "value": 2.8, "fmt": ".1f"},
+                {"label": "ROE", "value": 0.221, "fmt": ".1%"},
+            ])
+            # → "P/E: **15.2** · P/B: **2.8** · ROE: **22.1%**"
+        """
+        self._w(render_stats(stats, separator=separator))
+
+    def badge(self, text: str, style: str = "default") -> None:
+        """Display an inline badge/pill label.
+
+        Args:
+            text: Badge text (e.g. "BULLISH", "HOLD", "BUY").
+            style: One of "default", "success", "warning", "error", "info".
+
+        Example::
+
+            N.badge("BULLISH", "success")
+            N.badge("OVERVALUED", "warning")
+        """
+        self._w(render_badge(text, style=style))
+
+    def change(
+        self,
+        label: str,
+        current: float,
+        previous: float,
+        fmt: str = ".2f",
+        pct: bool = True,
+        invert: bool = False,
+    ) -> None:
+        """Display a value with absolute and percentage change.
+
+        Args:
+            label: Metric name.
+            current: Current value.
+            previous: Previous/baseline value.
+            fmt: Format spec for the values.
+            pct: Show percentage change.
+            invert: If True, a decrease is positive (e.g. error rate, churn).
+
+        Example::
+
+            N.change("Revenue", 1_200_000, 1_000_000, fmt=",.0f")
+            # → "Revenue: **1,200,000** (▲ +200,000, +20.0%)"
+
+            N.change("Churn Rate", 0.021, 0.024, fmt=".1%", invert=True)
+            # → "Churn Rate: **2.1%** (▲ -0.3%, -12.5%)"
+        """
+        self._w(render_change(label, current, previous, fmt=fmt, pct=pct, invert=invert))
+
+    def ranking(
+        self,
+        label: str,
+        value: Any,
+        rank: int | None = None,
+        total: int | None = None,
+        percentile: float | None = None,
+        fmt: str | None = None,
+    ) -> None:
+        """Display a value with rank/percentile context.
+
+        Args:
+            label: Metric name.
+            value: The metric value.
+            rank: Position in ranking (1-based).
+            total: Total items in ranking.
+            percentile: Percentile (0-100).
+            fmt: Format spec for the value.
+
+        Examples::
+
+            N.ranking("Quality z-score", 1.5, percentile=93, fmt="+.1f")
+            # → "Quality z-score: **+1.5** (93rd percentile, top 7%)"
+
+            N.ranking("Market Cap", 12_500, rank=3, total=50, fmt=",.0f")
+            # → "Market Cap: **12,500** (#3 of 50)"
+        """
+        self._w(render_ranking(label, value, rank=rank, total=total, percentile=percentile, fmt=fmt))
 
     # ── Internal chart helpers ──
 
