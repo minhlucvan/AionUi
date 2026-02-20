@@ -35,19 +35,17 @@ module.exports = {
         content: userTask,
       });
 
-      return {
-        queueMessages: [
-          {
-            content: [
-              `Your task: ${userTask}`,
-              '',
-              'Analyze this task. Plan the approach and send the Navigator the first directive.',
-            ].join('\n'),
-            priority: 'normal',
-            source: 'hook',
-          },
-        ],
-      };
+      swarm.enqueue({
+        content: [
+          `Your task: ${userTask}`,
+          '',
+          'Analyze this task. Plan the approach and send the Navigator the first directive.',
+        ].join('\n'),
+        priority: 'normal',
+        source: 'hook',
+      });
+
+      return {};
     },
     priority: 50,
   },
@@ -152,15 +150,13 @@ module.exports = {
         parts.push('', 'Files changed:', ...latest.files.map((f) => `- ${f}`));
       }
 
-      return {
-        queueMessages: [
-          {
-            content: parts.join('\n'),
-            priority: 'normal',
-            source: 'hook',
-          },
-        ],
-      };
+      swarm.enqueue({
+        content: parts.join('\n'),
+        priority: 'normal',
+        source: 'hook',
+      });
+
+      return {};
     },
     priority: 50,
   },

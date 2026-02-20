@@ -34,22 +34,21 @@ module.exports = {
    */
   onSwarmInit: {
     handler: async (context) => {
+      const { swarm } = context;
       const userTask = (context.content || '').trim();
 
-      return {
-        queueMessages: [
-          {
-            content: [
-              `Your task: ${userTask}`,
-              '',
-              'The Driver is analyzing this task and will send you a directive shortly.',
-              'Wait for the directive, then execute it and report back.',
-            ].join('\n'),
-            priority: 'normal',
-            source: 'hook',
-          },
-        ],
-      };
+      swarm.enqueue({
+        content: [
+          `Your task: ${userTask}`,
+          '',
+          'The Driver is analyzing this task and will send you a directive shortly.',
+          'Wait for the directive, then execute it and report back.',
+        ].join('\n'),
+        priority: 'normal',
+        source: 'hook',
+      });
+
+      return {};
     },
     priority: 50,
   },
@@ -131,15 +130,13 @@ module.exports = {
           header = `Driver ${turnInfo}:`;
       }
 
-      return {
-        queueMessages: [
-          {
-            content: [header, '', latest.content].join('\n'),
-            priority: 'normal',
-            source: 'hook',
-          },
-        ],
-      };
+      swarm.enqueue({
+        content: [header, '', latest.content].join('\n'),
+        priority: 'normal',
+        source: 'hook',
+      });
+
+      return {};
     },
     priority: 50,
   },

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { HookContext, HookResult } from '@/assistant/hooks/types';
+import type { HookContext, HookResult, QueueMessage } from '@/assistant/hooks/types';
 
 /**
  * Turn-taking strategy for swarm agents
@@ -93,6 +93,8 @@ export type SwarmHookContext = {
     readAll: () => SwarmFeedEntry[];
     isDone: () => boolean;
   };
+  /** Enqueue a message into this agent's persistent message queue */
+  enqueue: (message: QueueMessage) => void;
 };
 
 /**
@@ -109,6 +111,7 @@ export type SwarmFullHookContext = HookContext & {
  */
 export type SwarmHookResult = HookResult & {
   feedEntries?: Array<{ to: string; type: string; content: string; files?: string[] }>;
+  queueMessages?: QueueMessage[];
   done?: boolean;
   nextAgent?: string;
 };
