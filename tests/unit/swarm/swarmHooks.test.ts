@@ -6,9 +6,12 @@
 
 import type { SwarmFeedEntry } from '../../../src/agent/swarm/types';
 
+type QueuedMsg = { content: string; files?: string[]; priority?: string; source?: string };
+
 /** Helper: create a mock SwarmHookContext for testing */
 function createMockSwarmContext(role: string, overrides: Record<string, any> = {}) {
   const feedEntries: SwarmFeedEntry[] = [];
+  const queuedMessages: QueuedMsg[] = [];
   return {
     role,
     name: role.charAt(0).toUpperCase() + role.slice(1),
@@ -33,7 +36,11 @@ function createMockSwarmContext(role: string, overrides: Record<string, any> = {
       readAll: () => feedEntries,
       isDone: () => feedEntries.some((e) => e.type === 'done'),
     },
+    enqueue: (msg: QueuedMsg) => {
+      queuedMessages.push(msg);
+    },
     _feedEntries: feedEntries, // test inspection
+    _queuedMessages: queuedMessages, // test inspection
     ...overrides,
   };
 }
@@ -44,16 +51,16 @@ describe('Driver hooks — output parsing', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const hooks = require('../../../assistant/dual-claude/swarm/driver/hooks/driver-hooks.js');
 
-  test('onSwarmInit seeds feed with user task and gives Driver the task', async () => {
+  test('onSwarmInit seeds feed with user task and enqueues task for Driver', async () => {
     const swarm = createMockSwarmContext('driver');
-    const result = await hooks.onSwarmInit.handler({
+    await hooks.onSwarmInit.handler({
       swarm,
       content: 'Build a REST API',
     });
 
-    // Driver gets the task to analyze
-    expect(result.queueMessages).toHaveLength(1);
-    const msg = result.queueMessages[0].content;
+    // Driver gets the task via enqueue
+    expect(swarm._queuedMessages).toHaveLength(1);
+    const msg = swarm._queuedMessages[0].content;
     expect(msg).toContain('Build a REST API');
     expect(msg).toContain('Plan the approach');
     expect(msg).not.toContain('feed.jsonl');
@@ -157,9 +164,9 @@ describe('Driver hooks — output parsing', () => {
     expect(result.done).toBe(true);
   });
 
-  test('onSwarmFeedMessage builds report from Navigator action', async () => {
+  test('onSwarmFeedMessage enqueues report from Navigator action', async () => {
     const swarm = createMockSwarmContext('driver');
-    const result = await hooks.onSwarmFeedMessage.handler({
+    await hooks.onSwarmFeedMessage.handler({
       swarm,
       feedEntries: [
         {
@@ -175,8 +182,8 @@ describe('Driver hooks — output parsing', () => {
       ],
     });
 
-    expect(result.queueMessages).toHaveLength(1);
-    const msg = result.queueMessages[0].content;
+    expect(swarm._queuedMessages).toHaveLength(1);
+    const msg = swarm._queuedMessages[0].content;
     expect(msg).toContain('Navigator report');
     expect(msg).toContain('Created Express server');
     expect(msg).toContain('src/server.ts');
@@ -185,7 +192,7 @@ describe('Driver hooks — output parsing', () => {
 
   test('onSwarmFeedMessage shows blocker header', async () => {
     const swarm = createMockSwarmContext('driver');
-    const result = await hooks.onSwarmFeedMessage.handler({
+    await hooks.onSwarmFeedMessage.handler({
       swarm,
       feedEntries: [
         {
@@ -200,17 +207,17 @@ describe('Driver hooks — output parsing', () => {
       ],
     });
 
-    expect(result.queueMessages[0].content).toContain('Navigator is blocked');
+    expect(swarm._queuedMessages[0].content).toContain('Navigator is blocked');
   });
 
-  test('onSwarmFeedMessage returns empty when no entries', async () => {
+  test('onSwarmFeedMessage does not enqueue when no entries', async () => {
     const swarm = createMockSwarmContext('driver');
-    const result = await hooks.onSwarmFeedMessage.handler({
+    await hooks.onSwarmFeedMessage.handler({
       swarm,
       feedEntries: [],
     });
 
-    expect(result.queueMessages).toBeUndefined();
+    expect(swarm._queuedMessages).toHaveLength(0);
   });
 });
 
@@ -220,15 +227,15 @@ describe('Navigator hooks — output parsing', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const hooks = require('../../../assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js');
 
-  test('onSwarmInit gives Navigator the task context (no feed write)', async () => {
+  test('onSwarmInit enqueues task context for Navigator (no feed write)', async () => {
     const swarm = createMockSwarmContext('navigator');
-    const result = await hooks.onSwarmInit.handler({
+    await hooks.onSwarmInit.handler({
       swarm,
       content: 'Build a REST API',
     });
 
-    expect(result.queueMessages).toHaveLength(1);
-    const msg = result.queueMessages[0].content;
+    expect(swarm._queuedMessages).toHaveLength(1);
+    const msg = swarm._queuedMessages[0].content;
     expect(msg).toContain('Build a REST API');
     expect(msg).toContain('Driver is analyzing');
     expect(msg).not.toContain('feed.jsonl');
@@ -297,9 +304,9 @@ describe('Navigator hooks — output parsing', () => {
     expect(swarm._feedEntries[0].type).toBe('done');
   });
 
-  test('onSwarmFeedMessage builds directive message from Driver', async () => {
+  test('onSwarmFeedMessage enqueues directive message from Driver', async () => {
     const swarm = createMockSwarmContext('navigator');
-    const result = await hooks.onSwarmFeedMessage.handler({
+    await hooks.onSwarmFeedMessage.handler({
       swarm,
       feedEntries: [
         {
@@ -314,14 +321,14 @@ describe('Navigator hooks — output parsing', () => {
       ],
     });
 
-    expect(result.queueMessages).toHaveLength(1);
-    expect(result.queueMessages[0].content).toContain('Driver directive');
-    expect(result.queueMessages[0].content).toContain('Create auth middleware');
+    expect(swarm._queuedMessages).toHaveLength(1);
+    expect(swarm._queuedMessages[0].content).toContain('Driver directive');
+    expect(swarm._queuedMessages[0].content).toContain('Create auth middleware');
   });
 
-  test('onSwarmFeedMessage builds review message from Driver', async () => {
+  test('onSwarmFeedMessage enqueues review message from Driver', async () => {
     const swarm = createMockSwarmContext('navigator');
-    const result = await hooks.onSwarmFeedMessage.handler({
+    await hooks.onSwarmFeedMessage.handler({
       swarm,
       feedEntries: [
         {
@@ -336,18 +343,18 @@ describe('Navigator hooks — output parsing', () => {
       ],
     });
 
-    expect(result.queueMessages[0].content).toContain('Driver review');
-    expect(result.queueMessages[0].content).toContain('missing error handling');
+    expect(swarm._queuedMessages[0].content).toContain('Driver review');
+    expect(swarm._queuedMessages[0].content).toContain('missing error handling');
   });
 
-  test('onSwarmFeedMessage returns empty when no entries', async () => {
+  test('onSwarmFeedMessage does not enqueue when no entries', async () => {
     const swarm = createMockSwarmContext('navigator');
-    const result = await hooks.onSwarmFeedMessage.handler({
+    await hooks.onSwarmFeedMessage.handler({
       swarm,
       feedEntries: [],
     });
 
-    expect(result.queueMessages).toBeUndefined();
+    expect(swarm._queuedMessages).toHaveLength(0);
   });
 });
 
@@ -364,11 +371,11 @@ describe('End-to-end flow: Driver leads, Navigator implements', () => {
     const navigatorSwarm = createMockSwarmContext('navigator');
 
     // 1. User sends task → Driver init seeds feed, Navigator gets context
-    const driverInit = await driverHooks.onSwarmInit.handler({ swarm: driverSwarm, content: 'Add login endpoint' });
-    const navInit = await navigatorHooks.onSwarmInit.handler({ swarm: navigatorSwarm, content: 'Add login endpoint' });
+    await driverHooks.onSwarmInit.handler({ swarm: driverSwarm, content: 'Add login endpoint' });
+    await navigatorHooks.onSwarmInit.handler({ swarm: navigatorSwarm, content: 'Add login endpoint' });
 
-    expect(driverInit.queueMessages[0].content).toContain('Plan the approach');
-    expect(navInit.queueMessages[0].content).toContain('Driver is analyzing');
+    expect(driverSwarm._queuedMessages[0].content).toContain('Plan the approach');
+    expect(navigatorSwarm._queuedMessages[0].content).toContain('Driver is analyzing');
     expect(driverSwarm._feedEntries[0].type).toBe('task'); // Driver seeds feed
     expect(navigatorSwarm._feedEntries).toHaveLength(0); // Navigator does NOT seed
 
@@ -383,13 +390,14 @@ describe('End-to-end flow: Driver leads, Navigator implements', () => {
     expect(driverSwarm._feedEntries[2].to).toBe('navigator');
 
     // 3. Navigator receives directive via onSwarmFeedMessage
-    const navFeed = await navigatorHooks.onSwarmFeedMessage.handler({
+    await navigatorHooks.onSwarmFeedMessage.handler({
       swarm: navigatorSwarm,
       feedEntries: [driverSwarm._feedEntries[2]], // the directive
     });
 
-    expect(navFeed.queueMessages[0].content).toContain('Driver directive');
-    expect(navFeed.queueMessages[0].content).toContain('POST /login');
+    // Navigator init + feed message = 2 queued messages
+    expect(navigatorSwarm._queuedMessages[1].content).toContain('Driver directive');
+    expect(navigatorSwarm._queuedMessages[1].content).toContain('POST /login');
 
     // 4. Navigator executes and reports back
     await navigatorHooks.onSwarmTurnEnd.handler({
@@ -402,23 +410,24 @@ describe('End-to-end flow: Driver leads, Navigator implements', () => {
     expect(navigatorSwarm._feedEntries[0].files).toEqual(['src/routes/auth.ts']);
 
     // 5. Driver receives report via onSwarmFeedMessage
-    const driverFeed = await driverHooks.onSwarmFeedMessage.handler({
+    await driverHooks.onSwarmFeedMessage.handler({
       swarm: driverSwarm,
       feedEntries: [navigatorSwarm._feedEntries[0]], // the action report
     });
 
-    expect(driverFeed.queueMessages[0].content).toContain('Navigator report');
-    expect(driverFeed.queueMessages[0].content).toContain('src/routes/auth.ts');
+    // Driver init + feed message = 2 queued messages
+    expect(driverSwarm._queuedMessages[1].content).toContain('Navigator report');
+    expect(driverSwarm._queuedMessages[1].content).toContain('src/routes/auth.ts');
   });
 
   test('seed messages do not leak internal details', async () => {
     const swarm = createMockSwarmContext('driver');
-    const result = await driverHooks.onSwarmInit.handler({
+    await driverHooks.onSwarmInit.handler({
       swarm,
       content: 'Build REST API',
     });
 
-    const msg = result.queueMessages[0].content;
+    const msg = swarm._queuedMessages[0].content;
     expect(msg).not.toContain('.swarm');
     expect(msg).not.toContain('feed.jsonl');
     expect(msg).not.toContain('onSwarm');

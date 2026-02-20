@@ -31,6 +31,16 @@ export const HOOK_PRIORITY = {
 export type HookEvent = 'onWorkspaceInit' | 'onConversationInit' | 'onSendMessage' | 'onFirstMessage' | 'onBuildSystemInstructions' | 'onError' | 'onQueueInit' | 'onAgentResponse' | 'onSwarmInit' | 'onSwarmTurnStart' | 'onSwarmTurnEnd' | 'onSwarmFeedMessage';
 
 /**
+ * Message shape for enqueue()
+ */
+export type QueueMessage = {
+  content: string;
+  files?: string[];
+  priority?: 'normal' | 'high';
+  source?: 'hook' | 'cron' | 'system';
+};
+
+/**
  * Hook context (same for all hooks)
  */
 export type HookContext = {
@@ -44,6 +54,8 @@ export type HookContext = {
   skillsSourceDir?: string;
   presetContext?: string;
   utils: HookUtils;
+  /** Enqueue a message into the agent's message queue */
+  enqueue: (message: QueueMessage) => void;
 };
 
 /**
@@ -53,13 +65,6 @@ export type HookResult = {
   content?: string;
   blocked?: boolean;
   blockReason?: string;
-  /** Messages to enqueue into the agent's message queue (used by onQueueInit) */
-  queueMessages?: Array<{
-    content: string;
-    files?: string[];
-    priority?: 'normal' | 'high';
-    source?: 'hook' | 'cron' | 'system';
-  }>;
 };
 
 /**
