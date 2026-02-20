@@ -971,13 +971,48 @@ const migration_v17: IMigration = {
 };
 
 /**
+ * Migration v17 -> v18: Add conversation_mode and parent_id columns to conversations table
+ * conversation_mode: 'direct' (legacy/default) or 'group' (swarm group chat)
+ * parent_id: links child agent conversations to their parent group conversation
+ */
+const migration_v18: IMigration = {
+  version: 18,
+  name: 'Add conversation_mode and parent_id columns to conversations table',
+  up: (db) => {
+    // Add conversation_mode column with default 'direct'
+    const columns = db.pragma('table_info(conversations)') as Array<{ name: string }>;
+    const hasMode = columns.some((col) => col.name === 'conversation_mode');
+    if (!hasMode) {
+      db.exec(`ALTER TABLE conversations ADD COLUMN conversation_mode TEXT NOT NULL DEFAULT 'direct' CHECK(conversation_mode IN ('direct', 'group'));`);
+    }
+
+    // Add parent_id column for linking child conversations to parent group
+    const hasParentId = columns.some((col) => col.name === 'parent_id');
+    if (!hasParentId) {
+      db.exec(`ALTER TABLE conversations ADD COLUMN parent_id TEXT REFERENCES conversations(id) ON DELETE CASCADE;`);
+    }
+
+    // Add index for parent_id lookups
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_parent_id ON conversations(parent_id);`);
+    // Add index for conversation_mode filtering
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_mode ON conversations(conversation_mode);`);
+
+    console.log('[Migration v18] Added conversation_mode and parent_id columns to conversations table');
+  },
+  down: (db) => {
+    // SQLite doesn't support DROP COLUMN before 3.35.0, columns are nullable so no impact
+    console.log('[Migration v18] Rolled back: conversation_mode and parent_id columns left in place (nullable, no impact)');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14, migration_v15, migration_v16, migration_v17,
+  migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
 ];
 
 /**

@@ -62,6 +62,9 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   // Pending hook messages to write to JSONL once the session ID is known
   private pendingQueueOpsToWrite: Array<{ content: string }> | null = null;
 
+  /** External stream listeners (e.g., SwarmSessionManager forwarding to group chat) */
+  private streamListeners: Array<(message: IResponseMessage) => void> = [];
+
   /** Message queue for sequential auto-prompting */
   readonly messageQueue: AcpMessageQueue;
 
@@ -91,6 +94,11 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         },
       });
     });
+  }
+
+  /** Register an external stream listener (e.g., for swarm group chat forwarding) */
+  onStream(listener: (message: IResponseMessage) => void): void {
+    this.streamListeners.push(listener);
   }
 
   initAgent(data: AcpAgentManagerData = this.options) {
@@ -262,6 +270,15 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             ...filteredMessage,
             conversation_id: this.conversation_id,
           });
+
+          // Notify external stream listeners (e.g., swarm group chat forwarding)
+          for (const listener of this.streamListeners) {
+            try {
+              listener(filteredMessage);
+            } catch (err) {
+              console.warn('[AcpAgentManager] Stream listener error:', err);
+            }
+          }
 
           const totalDuration = Date.now() - pipelineStart;
           if (totalDuration > 10) {

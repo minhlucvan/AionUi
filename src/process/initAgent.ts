@@ -17,6 +17,7 @@ import { copyDirectoryRecursively } from './utils';
 import { computeOpenClawIdentityHash } from './utils/openclawUtils';
 import { SwarmSessionManager } from '@/agent/swarm/SwarmSessionManager';
 import WorkerManage from './WorkerManage';
+import { getDatabase } from './database/export';
 
 // Regex to match AionUI timestamp suffix pattern
 const AIONUI_TIMESTAMP_REGEX = /^(.+?)_aionui_\d+(\.[^.]+)$/;
@@ -332,8 +333,9 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
 
 /**
  * Create a swarm conversation (mode: "swarm").
- * Spawns a parent conversation for UI grouping, then creates a SwarmSessionManager
- * that will spawn child agent conversations via the standard pipeline.
+ * Creates a parent group conversation, then spawns child agent conversations
+ * linked to it via parent_id. The SwarmSessionManager orchestrates the agents
+ * and forwards their responses to the group chat.
  */
 export const createSwarmConversation = async (options: ICreateConversationParams, assistantConfig: import('@/assistant/types').AssistantMetadata): Promise<TChatConversation> => {
   const { extra } = options;
@@ -356,9 +358,10 @@ export const createSwarmConversation = async (options: ICreateConversationParams
   const { getAssistantDir } = await import('@/assistant/loadAssistantConfig');
   const assistantDir = getAssistantDir(assistantConfig.id);
 
-  // Create parent swarm conversation with type='swarm'
+  // Create parent swarm conversation with type='swarm' and group mode
   const parentConversation: TChatConversation = {
     type: 'swarm',
+    conversationMode: 'group',
     extra: {
       workspace,
       customWorkspace,

@@ -14,6 +14,9 @@ import type { SwarmConfig, SwarmAgentConfig, SwarmFeedEntry } from './types';
 import type AcpAgentManager from '@/process/task/AcpAgentManager';
 import { ConversationService } from '@/process/services/conversationService';
 import WorkerManage from '@/process/WorkerManage';
+import { ipcBridge } from '@/common';
+import { uuid } from '@/common/utils';
+import { getDatabase } from '@/process/database/export';
 
 type SwarmAgentHandle = {
   role: string;
@@ -61,6 +64,9 @@ function readPromptMd(agentDir: string, role: string): string {
  * Thin orchestrator that spawns each swarm agent as a regular AionUi conversation
  * via the existing ConversationService → createAcpAgent → AcpAgentManager pipeline.
  *
+ * The parent conversation is a "group chat" — agent text responses are forwarded
+ * to it with agentMeta so the UI shows a unified multi-agent conversation.
+ *
  * Source of truth: all state lives in .swarm/ files
  *   .swarm/feed.jsonl       — shared message bus between agents
  *   .swarm/{role}-mq.jsonl  — per-agent message queue with status tracking
@@ -94,7 +100,8 @@ export class SwarmSessionManager {
   }
 
   /**
-   * Initialize: spawn each agent as a regular conversation via existing pipeline.
+   * Initialize: spawn each agent as a child conversation linked to the parent group.
+   * Each agent loads its own agent.json (like assistant.json) with hooks support.
    */
   async init(userMessage: string): Promise<void> {
     if (this.initialized) {
@@ -136,11 +143,14 @@ export class SwarmSessionManager {
 
       const hooksPath = path.join(agentDir, 'hooks');
 
+      // Resolve hooks path — only set if the hooks directory exists
+      const resolvedHooksPath = fs.existsSync(hooksPath) ? hooksPath : undefined;
+
       // Create persistent message queue for this agent
       const mq = new SwarmMessageQueue(this.workspace, agentConfig.role);
       mq.init();
 
-      // Reuse existing pipeline: spawn as a regular ACP conversation
+      // Reuse existing pipeline: spawn as a regular conversation with parentId
       // NOTE: Do NOT pass presetAssistantId here because that would cause
       // ConversationService to detect this as a swarm and create another swarm instead of ACP.
       // Instead, we use presetContext to provide the agent's system prompt.
@@ -170,12 +180,35 @@ export class SwarmSessionManager {
       }
 
       console.log(`[SwarmSessionManager] Created agent conversation ${result.conversation.id} for role ${agentConfig.role}`);
+
+      // Set parentId and assistantHooksPath on the child conversation
+      const childConv = result.conversation;
+      childConv.parentId = this.parentConversationId;
+
+      // Persist the parentId and hooksPath to the database
+      try {
+        const db = getDatabase();
+        db.updateConversation(childConv.id, {
+          parentId: this.parentConversationId,
+          extra: {
+            ...childConv.extra,
+            assistantHooksPath: resolvedHooksPath,
+          },
+        } as any);
+      } catch (err) {
+        console.warn(`[SwarmSessionManager] Failed to update child conversation:`, err);
+      }
+
       const manager = WorkerManage.getTaskById(result.conversation.id) as AcpAgentManager;
       console.log(`[SwarmSessionManager] Got manager for ${agentConfig.role}:`, !!manager);
 
       if (!manager) {
         throw new Error(`Failed to get task manager for swarm agent "${agentConfig.role}" (conversation ${result.conversation.id})`);
       }
+
+      // Set up response forwarding: when an agent emits text content,
+      // forward it to the parent group conversation with agentMeta
+      this.setupAgentResponseForwarding(manager, agentConfig);
 
       this.agents.set(agentConfig.role, {
         role: agentConfig.role,
@@ -184,7 +217,7 @@ export class SwarmSessionManager {
         conversationId: result.conversation.id,
         manager,
         mq,
-        hooksPath,
+        hooksPath: resolvedHooksPath || hooksPath,
         systemPromptPath: path.join(agentDir, `${agentConfig.role}.md`),
       });
     }
@@ -217,6 +250,35 @@ export class SwarmSessionManager {
 
     this.initialized = true;
     console.log(`[SwarmSessionManager] Swarm initialized for ${this.parentConversationId}`);
+  }
+
+  /**
+   * Set up forwarding of agent text responses to the parent group conversation.
+   * Only forwards text content (not tool calls, permissions, etc.) so the group
+   * chat shows a clean view of agent responses.
+   */
+  private setupAgentResponseForwarding(manager: AcpAgentManager, agentConfig: SwarmAgentConfig): void {
+    const agentMeta = {
+      role: agentConfig.role,
+      name: agentConfig.name,
+      avatar: agentConfig.avatar,
+    };
+    const parentId = this.parentConversationId;
+
+    // Use the onStream() hook to receive filtered messages and forward text to group
+    manager.onStream((message: any) => {
+      // Only forward text content to the group chat
+      if (message.type === 'content' && typeof message.data === 'string' && message.data.length > 0) {
+        ipcBridge.conversation.responseStream.emit({
+          conversation_id: parentId,
+          type: 'content',
+          data: message.data,
+          msg_id: message.msg_id || uuid(),
+          timestamp: Date.now(),
+          agentMeta,
+        });
+      }
+    });
   }
 
   /** Called when an agent finishes its turn */
@@ -363,5 +425,15 @@ export class SwarmSessionManager {
   /** Get agent handles (for UI integration) */
   getAgents(): Map<string, SwarmAgentHandle> {
     return this.agents;
+  }
+
+  /** Get agent configs for UI rendering */
+  getAgentConfigs(): Array<{ role: string; name: string; avatar: string; conversationId: string }> {
+    return Array.from(this.agents.values()).map((handle) => ({
+      role: handle.role,
+      name: handle.config.name,
+      avatar: handle.config.avatar,
+      conversationId: handle.conversationId,
+    }));
   }
 }

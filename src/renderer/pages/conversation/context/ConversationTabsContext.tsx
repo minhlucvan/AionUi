@@ -21,6 +21,8 @@ export interface ConversationTab {
   type: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway' | 'nanobot' | 'swarm';
   /** 是否有未保存的修改 / Whether there are unsaved changes */
   isDirty?: boolean;
+  /** Conversation mode: 'direct' (default) or 'group' (swarm group chat) */
+  conversationMode?: 'direct' | 'group';
 }
 
 export interface ConversationTabsContextValue {
@@ -125,6 +127,7 @@ export const ConversationTabsProvider: React.FC<{ children: React.ReactNode }> =
           name: conversation.name,
           workspace: conversation.extra?.workspace || '',
           type: conversation.type,
+          conversationMode: conversation.conversationMode,
         },
       ];
     });

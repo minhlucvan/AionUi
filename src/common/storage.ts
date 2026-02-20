@@ -153,6 +153,10 @@ interface IChatConversation<T, Extra> {
   source?: ConversationSource;
   /** Channel chat isolation ID (e.g. user:xxx, group:xxx) */
   channelChatId?: string;
+  /** Conversation mode: 'direct' (default one-on-one) or 'group' (swarm group chat) */
+  conversationMode?: 'direct' | 'group';
+  /** Parent group conversation ID for child agent conversations in swarm mode */
+  parentId?: string;
 }
 
 // Token 使用统计数据类型

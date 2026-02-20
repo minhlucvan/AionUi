@@ -346,6 +346,8 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
           content: contentString,
         },
         createdAt: message.timestamp || Date.now(),
+        // Carry through agentMeta for swarm group chat messages
+        agentMeta: message.agentMeta,
       };
     }
     case 'tool_call': {
