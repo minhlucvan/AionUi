@@ -6,31 +6,12 @@
 
 // ── Output parser helpers ──
 
-/**
- * Extract content from a named XML-like tag.
- * Returns null if the tag is not found.
- */
 function extractTag(text, tagName) {
   const regex = new RegExp(`<${tagName}>([\\s\\S]*?)</${tagName}>`, 'i');
   const match = text.match(regex);
   return match ? match[1].trim() : null;
 }
 
-/**
- * Extract all file paths from <files> tag (one per line).
- */
-function extractFiles(text) {
-  const raw = extractTag(text, 'files');
-  if (!raw) return [];
-  return raw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-/**
- * Check if the output contains a <done> tag (self-closing or with content).
- */
 function isDone(text) {
   return /<done\s*\/?>/.test(text) || /<done>[\s\S]*?<\/done>/i.test(text);
 }
@@ -39,12 +20,20 @@ function isDone(text) {
 
 module.exports = {
   /**
-   * onSwarmInit — Seed the driver with the task and their role context.
-   * The prompt focuses on persona — no workflow/feed internals.
+   * onSwarmInit — Driver receives the user's task first.
+   * Writes user task to feed as seed, gives Driver the task to analyze.
    */
   onSwarmInit: {
     handler: async (context) => {
-      const userTask = context.content || 'No task specified.';
+      const { swarm } = context;
+      const userTask = (context.content || '').trim();
+
+      // Seed the feed with the user's task
+      swarm.feed.append({
+        to: 'all',
+        type: 'task',
+        content: userTask,
+      });
 
       return {
         queueMessages: [
@@ -52,8 +41,7 @@ module.exports = {
             content: [
               `Your task: ${userTask}`,
               '',
-              'Wait for the Navigator to analyze this and send you the first directive.',
-              'Once you receive a directive, execute it and report back using your communication protocol.',
+              'Analyze this task. Plan the approach and send the Navigator the first directive.',
             ].join('\n'),
             priority: 'normal',
             source: 'hook',
@@ -65,13 +53,13 @@ module.exports = {
   },
 
   /**
-   * onSwarmTurnEnd — Parse the driver's structured output, write to feed.
+   * onSwarmTurnEnd — Parse the Driver's structured output, write to feed.
    *
-   * Expected tags in agent output:
-   *   <report>...</report>   — what was done (required)
-   *   <files>...</files>     — changed files (optional)
-   *   <blocker>...</blocker> — if stuck (optional)
-   *   <done>...</done>       — task complete signal
+   * Driver outputs:
+   *   <plan>...</plan>           — high-level plan (first turn)
+   *   <directive>...</directive> — instruction for Navigator
+   *   <review>...</review>      — assessment of Navigator's work
+   *   <done>...</done>          — task complete signal
    */
   onSwarmTurnEnd: {
     handler: async (context) => {
@@ -89,29 +77,45 @@ module.exports = {
       }
 
       // 2. Parse structured output
-      const report = extractTag(agentOutput, 'report');
-      const blocker = extractTag(agentOutput, 'blocker');
-      const files = extractFiles(agentOutput);
+      const plan = extractTag(agentOutput, 'plan');
+      const directive = extractTag(agentOutput, 'directive');
+      const review = extractTag(agentOutput, 'review');
 
-      // 3. Build feed content — prefer parsed tags, fallback to raw output
-      let feedContent;
-      if (blocker) {
-        feedContent = `**Blocker:**\n${blocker}`;
-        if (report) feedContent = `${report}\n\n${feedContent}`;
-      } else if (report) {
-        feedContent = report;
-      } else {
-        // No tags found — use raw output (agent didn't follow protocol)
-        feedContent = agentOutput.slice(0, 4000);
+      // 3. Write plan to feed if present (informational for both agents)
+      if (plan) {
+        swarm.feed.append({
+          to: 'all',
+          type: 'plan',
+          content: plan.slice(0, 4000),
+        });
       }
 
-      // 4. Write to feed
-      swarm.feed.append({
-        to: 'navigator',
-        type: blocker ? 'blocker' : 'action',
-        content: feedContent.slice(0, 4000),
-        files: files.length > 0 ? files : undefined,
-      });
+      // 4. Write review to feed if present
+      if (review) {
+        swarm.feed.append({
+          to: 'navigator',
+          type: 'review',
+          content: review.slice(0, 4000),
+        });
+      }
+
+      // 5. Write directive to feed
+      if (directive) {
+        swarm.feed.append({
+          to: 'navigator',
+          type: 'directive',
+          content: directive.slice(0, 4000),
+        });
+      }
+
+      // 6. Fallback — no recognized tags, treat entire output as directive
+      if (!directive && !review && !plan) {
+        swarm.feed.append({
+          to: 'navigator',
+          type: 'directive',
+          content: agentOutput.slice(0, 4000),
+        });
+      }
 
       return {};
     },
@@ -119,8 +123,8 @@ module.exports = {
   },
 
   /**
-   * onSwarmFeedMessage — Navigator sent a directive/review to the driver.
-   * Translate feed entries into a message the agent understands.
+   * onSwarmFeedMessage — Navigator posted a report or blocker for the Driver.
+   * Translate feed entries into a message the Driver understands.
    */
   onSwarmFeedMessage: {
     handler: async (context) => {
@@ -130,23 +134,28 @@ module.exports = {
       const latest = feedEntries[feedEntries.length - 1];
       const turnInfo = `(turn ${swarm.turnNumber}/${swarm.maxTurns})`;
 
-      // Build a natural message based on feed entry type
       let header;
       switch (latest.type) {
-        case 'directive':
-          header = `Navigator directive ${turnInfo}:`;
+        case 'action':
+          header = `Navigator report ${turnInfo}:`;
           break;
-        case 'review':
-          header = `Navigator review ${turnInfo}:`;
+        case 'blocker':
+          header = `Navigator is blocked ${turnInfo}:`;
           break;
         default:
           header = `Navigator ${turnInfo}:`;
       }
 
+      // Include file list if present
+      const parts = [header, '', latest.content];
+      if (latest.files && latest.files.length > 0) {
+        parts.push('', 'Files changed:', ...latest.files.map((f) => `- ${f}`));
+      }
+
       return {
         queueMessages: [
           {
-            content: [`${header}`, '', latest.content].join('\n'),
+            content: parts.join('\n'),
             priority: 'normal',
             source: 'hook',
           },

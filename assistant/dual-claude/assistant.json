@@ -2,7 +2,7 @@
   "id": "dual-claude",
   "name": "Dual Claude — Driver & Navigator",
   "version": "1.0.0",
-  "description": "Two Claude Code agents collaborating: one drives (writes code), one navigates (reviews & plans).",
+  "description": "Two Claude Code agents collaborating: the Driver plans and directs, the Navigator implements and reports.",
   "author": "AionUi",
   "presetAgentType": "claude",
   "avatar": "🤝",
@@ -21,8 +21,8 @@
     "zh-CN": "双 Claude 协作"
   },
   "descriptionI18n": {
-    "en-US": "Two Claude Code agents collaborating: one drives (writes code), one navigates (reviews & plans).",
-    "zh-CN": "两个 Claude Code 智能体协作：一个执行（写代码），一个导航（审查与规划）。"
+    "en-US": "Two Claude Code agents collaborating: the Driver plans and directs, the Navigator implements and reports.",
+    "zh-CN": "两个 Claude Code 智能体协作：驱动者（规划与指导），执行者（实现与报告）。"
   },
   "promptsI18n": {
     "en-US": [

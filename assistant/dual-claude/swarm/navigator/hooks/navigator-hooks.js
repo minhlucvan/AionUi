@@ -6,19 +6,21 @@
 
 // ── Output parser helpers ──
 
-/**
- * Extract content from a named XML-like tag.
- * Returns null if the tag is not found.
- */
 function extractTag(text, tagName) {
   const regex = new RegExp(`<${tagName}>([\\s\\S]*?)</${tagName}>`, 'i');
   const match = text.match(regex);
   return match ? match[1].trim() : null;
 }
 
-/**
- * Check if the output contains a <done> tag (self-closing or with content).
- */
+function extractFiles(text) {
+  const raw = extractTag(text, 'files');
+  if (!raw) return [];
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function isDone(text) {
   return /<done\s*\/?>/.test(text) || /<done>[\s\S]*?<\/done>/i.test(text);
 }
@@ -27,29 +29,21 @@ function isDone(text) {
 
 module.exports = {
   /**
-   * onSwarmInit — Seed the navigator with the task.
-   * Navigator goes first — analyzes and sends the first directive.
+   * onSwarmInit — Navigator waits for the Driver's first directive.
+   * Driver goes first — Navigator just receives context.
    */
   onSwarmInit: {
     handler: async (context) => {
-      const { swarm } = context;
-      const userRequest = (context.content || '').trim();
-
-      // Write user task to feed as the seed
-      swarm.feed.append({
-        to: 'all',
-        type: 'directive',
-        content: userRequest,
-      });
+      const userTask = (context.content || '').trim();
 
       return {
         queueMessages: [
           {
             content: [
-              `Your task: ${userRequest}`,
+              `Your task: ${userTask}`,
               '',
-              'Analyze this task and send the Driver their first directive.',
-              'Break it down into focused steps. Start with the first one.',
+              'The Driver is analyzing this task and will send you a directive shortly.',
+              'Wait for the directive, then execute it and report back.',
             ].join('\n'),
             priority: 'normal',
             source: 'hook',
@@ -61,12 +55,13 @@ module.exports = {
   },
 
   /**
-   * onSwarmTurnEnd — Parse the navigator's structured output, write to feed.
+   * onSwarmTurnEnd — Parse the Navigator's structured output, write to feed.
    *
-   * Expected tags in agent output:
-   *   <directive>...</directive> — instruction for the driver
-   *   <review>...</review>      — assessment of driver's work
-   *   <done>...</done>          — task complete signal
+   * Navigator outputs:
+   *   <report>...</report>     — what was done
+   *   <files>...</files>       — changed files
+   *   <blocker>...</blocker>   — if stuck
+   *   <done>...</done>         — task complete signal
    */
   onSwarmTurnEnd: {
     handler: async (context) => {
@@ -84,34 +79,28 @@ module.exports = {
       }
 
       // 2. Parse structured output
-      const directive = extractTag(agentOutput, 'directive');
-      const review = extractTag(agentOutput, 'review');
+      const report = extractTag(agentOutput, 'report');
+      const blocker = extractTag(agentOutput, 'blocker');
+      const files = extractFiles(agentOutput);
 
-      // 3. Build feed entries — a review + directive combo is common
-      if (review) {
-        swarm.feed.append({
-          to: 'driver',
-          type: 'review',
-          content: review.slice(0, 4000),
-        });
+      // 3. Build feed content — prefer parsed tags, fallback to raw output
+      let feedContent;
+      if (blocker) {
+        feedContent = `**Blocker:**\n${blocker}`;
+        if (report) feedContent = `${report}\n\n${feedContent}`;
+      } else if (report) {
+        feedContent = report;
+      } else {
+        feedContent = agentOutput.slice(0, 4000);
       }
 
-      if (directive) {
-        swarm.feed.append({
-          to: 'driver',
-          type: 'directive',
-          content: directive.slice(0, 4000),
-        });
-      }
-
-      // 4. Fallback — no recognized tags, treat entire output as directive
-      if (!directive && !review) {
-        swarm.feed.append({
-          to: 'driver',
-          type: 'directive',
-          content: agentOutput.slice(0, 4000),
-        });
-      }
+      // 4. Write to feed — addressed to driver
+      swarm.feed.append({
+        to: 'driver',
+        type: blocker ? 'blocker' : 'action',
+        content: feedContent.slice(0, 4000),
+        files: files.length > 0 ? files : undefined,
+      });
 
       return {};
     },
@@ -119,8 +108,8 @@ module.exports = {
   },
 
   /**
-   * onSwarmFeedMessage — Driver posted an action report or blocker.
-   * Translate feed entries into a message the navigator understands.
+   * onSwarmFeedMessage — Driver sent a directive or review to the Navigator.
+   * Translate feed entries into a message the Navigator understands.
    */
   onSwarmFeedMessage: {
     handler: async (context) => {
@@ -130,29 +119,22 @@ module.exports = {
       const latest = feedEntries[feedEntries.length - 1];
       const turnInfo = `(turn ${swarm.turnNumber}/${swarm.maxTurns})`;
 
-      // Build a natural message based on feed entry type
       let header;
       switch (latest.type) {
-        case 'action':
-          header = `Driver report ${turnInfo}:`;
+        case 'directive':
+          header = `Driver directive ${turnInfo}:`;
           break;
-        case 'blocker':
-          header = `Driver is blocked ${turnInfo}:`;
+        case 'review':
+          header = `Driver review ${turnInfo}:`;
           break;
         default:
           header = `Driver ${turnInfo}:`;
       }
 
-      // Include file list if present
-      const parts = [header, '', latest.content];
-      if (latest.files && latest.files.length > 0) {
-        parts.push('', 'Files changed:', ...latest.files.map((f) => `- ${f}`));
-      }
-
       return {
         queueMessages: [
           {
-            content: parts.join('\n'),
+            content: [header, '', latest.content].join('\n'),
             priority: 'normal',
             source: 'hook',
           },

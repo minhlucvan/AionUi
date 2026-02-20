@@ -1,10 +1,10 @@
 {
   "role": "driver",
   "name": "Driver",
-  "avatar": "🔧",
-  "description": "Executes code, writes files, runs tests. Takes direction from Navigator.",
+  "avatar": "🧭",
+  "description": "Technical lead who plans the approach, breaks down tasks, and directs the Navigator.",
   "nameI18n": {
     "en-US": "Driver",
-    "zh-CN": "执行者"
+    "zh-CN": "驱动者"
   }
 }
