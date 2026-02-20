@@ -27,7 +27,7 @@ export async function runSwarmHooks(
     content?: string;
     agentOutput?: string;
     feedEntries?: SwarmFeedEntry[];
-  },
+  }
 ): Promise<SwarmHookResult> {
   const swarmContext: SwarmHookContext = {
     role: options.role,
@@ -40,9 +40,9 @@ export async function runSwarmHooks(
     feed: {
       append: (entry) =>
         options.feedManager.append({
+          ...entry,
           from: options.role,
           backend: options.agentConfig.presetAgentType,
-          ...entry,
         }),
       readNew: () => options.feedManager.readNewFor(options.role),
       readAll: () => options.feedManager.readAll(),

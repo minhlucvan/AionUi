@@ -66,14 +66,7 @@ export class SwarmSessionManager {
   private assistantDir: string;
   private running: boolean = false;
 
-  constructor(
-    config: SwarmConfig,
-    parentConversationId: string,
-    workspace: string,
-    defaultBackend: string,
-    assistantId: string,
-    assistantDir: string,
-  ) {
+  constructor(config: SwarmConfig, parentConversationId: string, workspace: string, defaultBackend: string, assistantId: string, assistantDir: string) {
     this.config = config;
     this.parentConversationId = parentConversationId;
     this.workspace = workspace;
@@ -101,7 +94,14 @@ export class SwarmSessionManager {
       // Reuse existing pipeline: spawn as a regular conversation
       const result = await ConversationService.createConversation({
         type: 'acp',
-        model: { provider: resolvedBackend, model: '' },
+        model: {
+          id: resolvedBackend,
+          platform: resolvedBackend,
+          name: resolvedBackend,
+          baseUrl: '',
+          apiKey: '',
+          useModel: '',
+        },
         extra: {
           workspace: this.workspace,
           backend: resolvedBackend as any,
