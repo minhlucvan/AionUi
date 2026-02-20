@@ -443,10 +443,12 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         // 首条消息时注入预设规则和 skills 索引（来自智能助手配置）
         // Inject preset context and skills INDEX on first message (from smart assistant config)
         if (this.isFirstMessage) {
+          console.log('[AcpAgentManager] First message - presetContext length:', this.options.presetContext?.length || 0);
           contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
             presetContext: this.options.presetContext,
             enabledSkills: this.options.enabledSkills,
           });
+          console.log('[AcpAgentManager] After prepareFirstMessage - content length:', contentToSend.length);
         }
 
         const userMessage: TMessage = {

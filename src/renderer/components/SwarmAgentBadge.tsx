@@ -19,13 +19,9 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const SwarmAgentBadge: React.FC<SwarmAgentBadgeProps> = ({ avatar, name, role }) => (
-  <div className="flex flex-col items-center mr-2 min-w-8">
-    <span className="text-lg">{avatar}</span>
-    <span
-      className={classNames('text-xs px-1 rounded border mt-0.5', ROLE_COLORS[role] || 'bg-gray-100 text-gray-600 border-gray-200')}
-    >
-      {name}
-    </span>
+  <div className='flex flex-col items-center mr-2 min-w-8'>
+    <span className='text-lg'>{avatar}</span>
+    <span className={classNames('text-xs px-1 rounded border mt-0.5', ROLE_COLORS[role] || 'bg-gray-100 text-gray-600 border-gray-200')}>{name}</span>
   </div>
 );
 

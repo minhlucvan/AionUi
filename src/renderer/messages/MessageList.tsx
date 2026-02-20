@@ -57,9 +57,7 @@ const MessageItem: React.FC<{ message: TMessage }> = React.memo(
           'justify-start': message.position === 'left',
         })}
       >
-        {isSwarm && message.position === 'left' && (
-          <SwarmAgentBadge avatar={message.agentMeta!.avatar} name={message.agentMeta!.name} role={message.agentMeta!.role} />
-        )}
+        {isSwarm && message.position === 'left' && <SwarmAgentBadge avatar={message.agentMeta!.avatar} name={message.agentMeta!.name} role={message.agentMeta!.role} />}
         {props.children}
       </div>
     );

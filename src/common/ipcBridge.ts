@@ -568,7 +568,7 @@ export interface IConfirmMessageParams {
 }
 
 export interface ICreateConversationParams {
-  type: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway' | 'nanobot';
+  type: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway' | 'nanobot' | 'swarm';
   id?: string;
   name?: string;
   model: TProviderWithModel;

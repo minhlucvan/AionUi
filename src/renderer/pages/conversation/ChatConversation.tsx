@@ -25,6 +25,7 @@ import ChatSider from './ChatSider';
 import CodexChat from './codex/CodexChat';
 import NanobotChat from './nanobot/NanobotChat';
 import OpenClawChat from './openclaw/OpenClawChat';
+import SwarmChat from './swarm/SwarmChat';
 import GeminiChat from './gemini/GeminiChat';
 import GeminiModelSelector from './gemini/GeminiModelSelector';
 import { useGeminiModelSelection } from './gemini/useGeminiModelSelection';
@@ -154,6 +155,8 @@ const ChatConversation: React.FC<{
         return <OpenClawChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} />;
       case 'nanobot':
         return <NanobotChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} />;
+      case 'swarm':
+        return <SwarmChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} />;
       default:
         return null;
     }

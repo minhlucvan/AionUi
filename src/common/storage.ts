@@ -281,6 +281,37 @@ export type TChatConversation =
     >
   | Omit<
       IChatConversation<
+        'swarm',
+        {
+          workspace: string;
+          customWorkspace?: boolean;
+          /** 预设助手 ID，用于标识 swarm 配置 / Preset assistant ID for swarm configuration */
+          presetAssistantId: string;
+          /** Assistant directory path / 助手目录路径 */
+          assistantDir: string;
+          /** Default agent from assistant.json (metadata only) / 来自 assistant.json 的默认 agent */
+          defaultAgent?: string;
+          /** Assistant hooks path / 助手 hooks 路径 */
+          assistantHooksPath?: string;
+          /** Swarm configuration / Swarm 配置 */
+          swarmConfig: {
+            feedPath: string;
+            agents: string[];
+            maxTurns: number;
+            turnStrategy: 'round-robin' | 'on-demand';
+          };
+          /** 启用的 skills 列表 / Enabled skills list (optional, for compatibility) */
+          enabledSkills?: string[];
+          /** Bot ID，用于标识会话所属的 Bot / Bot ID to identify which bot owns this conversation */
+          botId?: string;
+          /** External channel ID (e.g., Mezon channel/thread ID) for bot conversation routing / 外部渠道 ID，用于 Bot 会话路由 */
+          externalChannelId?: string;
+        }
+      >,
+      'model'
+    >
+  | Omit<
+      IChatConversation<
         'nanobot',
         {
           workspace?: string;

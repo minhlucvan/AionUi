@@ -48,7 +48,7 @@ function createMockSwarmContext(role: string, overrides: Record<string, any> = {
 // ─── Driver hooks (the lead / planner) ───
 
 describe('Driver hooks — output parsing', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
   const hooks = require('../../../assistant/dual-claude/swarm/driver/hooks/driver-hooks.js');
 
   test('onSwarmInit seeds feed with user task and enqueues task for Driver', async () => {
@@ -77,19 +77,7 @@ describe('Driver hooks — output parsing', () => {
     const swarm = createMockSwarmContext('driver');
     await hooks.onSwarmTurnEnd.handler({
       swarm,
-      agentOutput: [
-        'Let me analyze this...',
-        '',
-        '<plan>',
-        '1. Create Express scaffold',
-        '2. Add auth middleware',
-        '3. Write tests',
-        '</plan>',
-        '',
-        '<directive>',
-        'Create src/server.ts with Express scaffold, health endpoint on GET /health.',
-        '</directive>',
-      ].join('\n'),
+      agentOutput: ['Let me analyze this...', '', '<plan>', '1. Create Express scaffold', '2. Add auth middleware', '3. Write tests', '</plan>', '', '<directive>', 'Create src/server.ts with Express scaffold, health endpoint on GET /health.', '</directive>'].join('\n'),
     });
 
     expect(swarm._feedEntries).toHaveLength(2);
@@ -109,15 +97,7 @@ describe('Driver hooks — output parsing', () => {
     const swarm = createMockSwarmContext('driver');
     await hooks.onSwarmTurnEnd.handler({
       swarm,
-      agentOutput: [
-        '<review>',
-        'Health endpoint looks good. But missing error handling.',
-        '</review>',
-        '',
-        '<directive>',
-        'Add try-catch in the route handler and return 500 on error.',
-        '</directive>',
-      ].join('\n'),
+      agentOutput: ['<review>', 'Health endpoint looks good. But missing error handling.', '</review>', '', '<directive>', 'Add try-catch in the route handler and return 500 on error.', '</directive>'].join('\n'),
     });
 
     expect(swarm._feedEntries).toHaveLength(2);
@@ -224,7 +204,7 @@ describe('Driver hooks — output parsing', () => {
 // ─── Navigator hooks (the implementer) ───
 
 describe('Navigator hooks — output parsing', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
   const hooks = require('../../../assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js');
 
   test('onSwarmInit enqueues task context for Navigator (no feed write)', async () => {
@@ -361,9 +341,9 @@ describe('Navigator hooks — output parsing', () => {
 // ─── Flow integration ───
 
 describe('End-to-end flow: Driver leads, Navigator implements', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
   const driverHooks = require('../../../assistant/dual-claude/swarm/driver/hooks/driver-hooks.js');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
   const navigatorHooks = require('../../../assistant/dual-claude/swarm/navigator/hooks/navigator-hooks.js');
 
   test('full cycle: user → driver plans → navigator executes → driver reviews', async () => {

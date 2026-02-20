@@ -41,12 +41,19 @@ function readPromptMd(agentDir: string, role: string): string {
   const locale = process.env.LANG?.split('.')[0]?.replace('_', '-') || 'en-US';
   const localePath = path.join(agentDir, `${role}.${locale}.md`);
   if (fs.existsSync(localePath)) {
-    return fs.readFileSync(localePath, 'utf-8');
+    const content = fs.readFileSync(localePath, 'utf-8');
+    console.log(`[readPromptMd] Reading from locale path: ${localePath}`);
+    console.log(`[readPromptMd] First 300 chars: ${content.substring(0, 300)}`);
+    return content;
   }
   const defaultPath = path.join(agentDir, `${role}.md`);
   if (fs.existsSync(defaultPath)) {
-    return fs.readFileSync(defaultPath, 'utf-8');
+    const content = fs.readFileSync(defaultPath, 'utf-8');
+    console.log(`[readPromptMd] Reading from default path: ${defaultPath}`);
+    console.log(`[readPromptMd] First 300 chars: ${content.substring(0, 300)}`);
+    return content;
   }
+  console.log(`[readPromptMd] No prompt file found for ${role} in ${agentDir}`);
   return '';
 }
 
@@ -69,15 +76,9 @@ export class SwarmSessionManager {
   private assistantId: string;
   private assistantDir: string;
   private running: boolean = false;
+  private initialized = false;
 
-  constructor(
-    config: SwarmConfig,
-    parentConversationId: string,
-    workspace: string,
-    defaultBackend: string,
-    assistantId: string,
-    assistantDir: string,
-  ) {
+  constructor(config: SwarmConfig, parentConversationId: string, workspace: string, defaultBackend: string, assistantId: string, assistantDir: string) {
     this.config = config;
     this.parentConversationId = parentConversationId;
     this.workspace = workspace;
@@ -88,10 +89,19 @@ export class SwarmSessionManager {
     this.turnController = new SwarmTurnController(config.turnStrategy, config.agents, config.maxTurns);
   }
 
+  get isInitialized(): boolean {
+    return this.initialized;
+  }
+
   /**
    * Initialize: spawn each agent as a regular conversation via existing pipeline.
    */
   async init(userMessage: string): Promise<void> {
+    if (this.initialized) {
+      console.warn('[SwarmSessionManager] Already initialized, skipping');
+      return;
+    }
+
     this.feedManager.init();
     this.running = true;
 
@@ -100,13 +110,40 @@ export class SwarmSessionManager {
       const agentConfig: SwarmAgentConfig = readJson(path.join(agentDir, 'agent.json'));
       const resolvedBackend = agentConfig.presetAgentType || this.defaultBackend;
       const systemPrompt = readPromptMd(agentDir, agentConfig.role);
+
+      // Detailed logging to verify prompt content
+      console.log(`[SwarmSessionManager] ===== LOADING SYSTEM PROMPT FOR ${agentConfig.role} =====`);
+      console.log(`[SwarmSessionManager] Prompt file path: ${path.join(agentDir, agentConfig.role + '.md')}`);
+      console.log(`[SwarmSessionManager] Total length: ${systemPrompt.length} characters`);
+      console.log(`[SwarmSessionManager] First 300 chars: ${systemPrompt.substring(0, 300)}`);
+
+      // Verify critical sections exist
+      const hasCriticalRequirement = systemPrompt.includes('CRITICAL REQUIREMENT');
+      const hasDirectiveTag = systemPrompt.includes('<directive>');
+      const hasPlanTag = systemPrompt.includes('<plan>');
+      const hasReportTag = systemPrompt.includes('<report>');
+
+      console.log(`[SwarmSessionManager] Validation:`);
+      console.log(`[SwarmSessionManager]   - Has CRITICAL REQUIREMENT section: ${hasCriticalRequirement}`);
+      console.log(`[SwarmSessionManager]   - Has <directive> tag docs: ${hasDirectiveTag}`);
+      console.log(`[SwarmSessionManager]   - Has <plan> tag docs: ${hasPlanTag}`);
+      console.log(`[SwarmSessionManager]   - Has <report> tag docs: ${hasReportTag}`);
+
+      if (!hasCriticalRequirement) {
+        console.error(`[SwarmSessionManager] ⚠️  WARNING: Missing CRITICAL REQUIREMENT section for ${agentConfig.role}!`);
+      }
+      console.log(`[SwarmSessionManager] ===== END SYSTEM PROMPT VALIDATION =====\n`);
+
       const hooksPath = path.join(agentDir, 'hooks');
 
       // Create persistent message queue for this agent
       const mq = new SwarmMessageQueue(this.workspace, agentConfig.role);
       mq.init();
 
-      // Reuse existing pipeline: spawn as a regular conversation
+      // Reuse existing pipeline: spawn as a regular ACP conversation
+      // NOTE: Do NOT pass presetAssistantId here because that would cause
+      // ConversationService to detect this as a swarm and create another swarm instead of ACP.
+      // Instead, we use presetContext to provide the agent's system prompt.
       const result = await ConversationService.createConversation({
         type: 'acp',
         model: {
@@ -120,7 +157,6 @@ export class SwarmSessionManager {
         extra: {
           workspace: this.workspace,
           backend: resolvedBackend as any,
-          presetAssistantId: this.assistantId,
           presetContext: systemPrompt,
           enabledSkills: agentConfig.defaultEnabledSkills || [],
           agentName: agentConfig.name,
@@ -133,7 +169,13 @@ export class SwarmSessionManager {
         throw new Error(`Failed to spawn swarm agent "${agentConfig.role}": ${result.error}`);
       }
 
+      console.log(`[SwarmSessionManager] Created agent conversation ${result.conversation.id} for role ${agentConfig.role}`);
       const manager = WorkerManage.getTaskById(result.conversation.id) as AcpAgentManager;
+      console.log(`[SwarmSessionManager] Got manager for ${agentConfig.role}:`, !!manager);
+
+      if (!manager) {
+        throw new Error(`Failed to get task manager for swarm agent "${agentConfig.role}" (conversation ${result.conversation.id})`);
+      }
 
       this.agents.set(agentConfig.role, {
         role: agentConfig.role,
@@ -172,6 +214,9 @@ export class SwarmSessionManager {
     // Start the first agent's turn
     const firstRole = this.turnController.next();
     await this.startTurn(firstRole);
+
+    this.initialized = true;
+    console.log(`[SwarmSessionManager] Swarm initialized for ${this.parentConversationId}`);
   }
 
   /** Called when an agent finishes its turn */
