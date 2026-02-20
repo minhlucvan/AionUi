@@ -258,18 +258,25 @@ const migration_v8: IMigration = {
   version: 8,
   name: 'Add source column to conversations',
   up: (db) => {
-    // Add source column to conversations table
-    db.exec(`
-      ALTER TABLE conversations ADD COLUMN source TEXT CHECK(source IN ('aionui', 'telegram'));
-    `);
+    // Check if source column already exists
+    const columns = db.pragma('table_info(conversations)') as Array<{ name: string }>;
+    const hasSource = columns.some((col) => col.name === 'source');
+
+    if (!hasSource) {
+      // Add source column to conversations table
+      db.exec(`
+        ALTER TABLE conversations ADD COLUMN source TEXT CHECK(source IN ('aionui', 'telegram'));
+      `);
+      console.log('[Migration v8] Added source column to conversations table');
+    } else {
+      console.log('[Migration v8] source column already exists, skipping');
+    }
 
     // Create index for efficient source-based queries
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
       CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
     `);
-
-    console.log('[Migration v8] Added source column to conversations table');
   },
   down: (db) => {
     // SQLite doesn't support DROP COLUMN directly, need to recreate table
@@ -903,13 +910,16 @@ const migration_v17: IMigration = {
         status TEXT CHECK(status IN ('pending', 'running', 'finished')),
         source TEXT CHECK(source IS NULL OR source IN ('aionui', 'telegram', 'lark', 'dingtalk')),
         channel_chat_id TEXT,
+        conversation_mode TEXT NOT NULL DEFAULT 'direct' CHECK(conversation_mode IN ('direct', 'group')),
+        parent_id TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_id) REFERENCES conversations(id) ON DELETE CASCADE
       );
 
-      INSERT INTO conversations_new (id, user_id, name, type, extra, model, status, source, channel_chat_id, created_at, updated_at)
-      SELECT id, user_id, name, type, extra, model, status, source, channel_chat_id, created_at, updated_at FROM conversations;
+      INSERT INTO conversations_new (id, user_id, name, type, extra, model, status, source, channel_chat_id, conversation_mode, parent_id, created_at, updated_at)
+      SELECT id, user_id, name, type, extra, model, status, source, channel_chat_id, 'direct', NULL, created_at, updated_at FROM conversations;
 
       DROP TABLE conversations;
       ALTER TABLE conversations_new RENAME TO conversations;
@@ -922,9 +932,11 @@ const migration_v17: IMigration = {
       CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
       CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
       CREATE INDEX IF NOT EXISTS idx_conversations_source_chat ON conversations(source, channel_chat_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_parent_id ON conversations(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_mode ON conversations(conversation_mode);
     `);
 
-    console.log('[Migration v17] Added swarm to conversations type constraint');
+    console.log('[Migration v17] Added swarm to conversations type constraint with conversation_mode and parent_id columns');
   },
   down: (db) => {
     // Rollback: recreate table without 'swarm' in type constraint
@@ -946,13 +958,16 @@ const migration_v17: IMigration = {
         status TEXT CHECK(status IN ('pending', 'running', 'finished')),
         source TEXT CHECK(source IS NULL OR source IN ('aionui', 'telegram', 'lark', 'dingtalk')),
         channel_chat_id TEXT,
+        conversation_mode TEXT NOT NULL DEFAULT 'direct' CHECK(conversation_mode IN ('direct', 'group')),
+        parent_id TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_id) REFERENCES conversations(id) ON DELETE CASCADE
       );
 
-      INSERT INTO conversations_rollback (id, user_id, name, type, extra, model, status, source, channel_chat_id, created_at, updated_at)
-      SELECT id, user_id, name, type, extra, model, status, source, channel_chat_id, created_at, updated_at FROM conversations;
+      INSERT INTO conversations_rollback (id, user_id, name, type, extra, model, status, source, channel_chat_id, conversation_mode, parent_id, created_at, updated_at)
+      SELECT id, user_id, name, type, extra, model, status, source, channel_chat_id, conversation_mode, parent_id, created_at, updated_at FROM conversations;
 
       DROP TABLE conversations;
       ALTER TABLE conversations_rollback RENAME TO conversations;
@@ -964,9 +979,11 @@ const migration_v17: IMigration = {
       CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
       CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
       CREATE INDEX IF NOT EXISTS idx_conversations_source_chat ON conversations(source, channel_chat_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_parent_id ON conversations(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_mode ON conversations(conversation_mode);
     `);
 
-    console.log('[Migration v17] Rolled back: Removed swarm from conversations type constraint');
+    console.log('[Migration v17] Rolled back: Removed swarm from conversations type constraint (conversation_mode and parent_id preserved)');
   },
 };
 
