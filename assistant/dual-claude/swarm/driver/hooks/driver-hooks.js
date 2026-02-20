@@ -35,12 +35,14 @@ module.exports = {
         content: userTask,
       });
 
+      // Read system prompt directly and inject it
+      const fs = require('fs');
+      const path = require('path');
+      const promptPath = path.join(__dirname, '../driver.md');
+      const systemPrompt = fs.readFileSync(promptPath, 'utf-8');
+
       swarm.enqueue({
-        content: [
-          `Your task: ${userTask}`,
-          '',
-          'Analyze this task. Plan the approach and send the Navigator the first directive.',
-        ].join('\n'),
+        content: ['[SYSTEM INSTRUCTIONS - YOU MUST FOLLOW THESE EXACTLY]', '', systemPrompt, '', '=' + '='.repeat(79), '', `Your task: ${userTask}`, '', 'Analyze this task. Plan the approach and send the Navigator the first directive.', '', "REMEMBER: You MUST use <plan> and <directive> XML tags. Do NOT use Write, WebFetch, or other tools - that is the Navigator's job."].join('\n'),
         priority: 'normal',
         source: 'hook',
       });
