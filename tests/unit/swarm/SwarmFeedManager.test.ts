@@ -109,4 +109,42 @@ describe('SwarmFeedManager', () => {
     const entries = feedManager2.readAll();
     expect(entries).toHaveLength(2);
   });
+
+  test('append sets initial status to pending', () => {
+    feedManager.append({ from: 'user', to: 'all', type: 'directive', content: 'Task' });
+    const entries = feedManager.readAll();
+    expect(entries[0].status).toBe('pending');
+  });
+
+  test('updateStatus changes status of a specific entry', () => {
+    feedManager.append({ from: 'user', to: 'all', type: 'directive', content: 'A' });
+    feedManager.append({ from: 'driver', to: 'navigator', type: 'directive', content: 'B' });
+
+    const entries = feedManager.readAll();
+    feedManager.updateStatus(entries[0].id, 'delivered');
+
+    const updated = feedManager.readAll();
+    expect(updated[0].status).toBe('delivered');
+    expect(updated[1].status).toBe('pending'); // unchanged
+  });
+
+  test('markDelivered updates multiple entries', () => {
+    feedManager.append({ from: 'user', to: 'all', type: 'directive', content: 'A' });
+    feedManager.append({ from: 'driver', to: 'navigator', type: 'directive', content: 'B' });
+
+    const entries = feedManager.readAll();
+    feedManager.markDelivered(entries);
+
+    const updated = feedManager.readAll();
+    expect(updated[0].status).toBe('delivered');
+    expect(updated[1].status).toBe('delivered');
+  });
+
+  test('markProcessed updates entry status', () => {
+    const entry = feedManager.append({ from: 'user', to: 'all', type: 'directive', content: 'A' });
+    feedManager.markProcessed(entry.id);
+
+    const updated = feedManager.readAll();
+    expect(updated[0].status).toBe('processed');
+  });
 });

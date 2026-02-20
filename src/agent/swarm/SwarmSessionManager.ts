@@ -7,6 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { SwarmFeedManager } from './SwarmFeedManager';
+import { SwarmMessageQueue } from './SwarmMessageQueue';
 import { SwarmTurnController } from './SwarmTurnController';
 import { runSwarmHooks } from './SwarmHookRunner';
 import type { SwarmConfig, SwarmAgentConfig, SwarmFeedEntry } from './types';
@@ -20,6 +21,7 @@ type SwarmAgentHandle = {
   backend: string;
   conversationId: string;
   manager: AcpAgentManager;
+  mq: SwarmMessageQueue;
   hooksPath: string;
   systemPromptPath: string;
 };
@@ -36,13 +38,11 @@ function readJson<T = any>(filePath: string): T {
  * Supports i18n: {role}.{locale}.md → {role}.md fallback.
  */
 function readPromptMd(agentDir: string, role: string): string {
-  // Try locale-specific first
   const locale = process.env.LANG?.split('.')[0]?.replace('_', '-') || 'en-US';
   const localePath = path.join(agentDir, `${role}.${locale}.md`);
   if (fs.existsSync(localePath)) {
     return fs.readFileSync(localePath, 'utf-8');
   }
-  // Fallback to default
   const defaultPath = path.join(agentDir, `${role}.md`);
   if (fs.existsSync(defaultPath)) {
     return fs.readFileSync(defaultPath, 'utf-8');
@@ -53,6 +53,10 @@ function readPromptMd(agentDir: string, role: string): string {
 /**
  * Thin orchestrator that spawns each swarm agent as a regular AionUi conversation
  * via the existing ConversationService → createAcpAgent → AcpAgentManager pipeline.
+ *
+ * Source of truth: all state lives in .swarm/ files
+ *   .swarm/feed.jsonl       — shared message bus between agents
+ *   .swarm/{role}-mq.jsonl  — per-agent message queue with status tracking
  */
 export class SwarmSessionManager {
   private feedManager: SwarmFeedManager;
@@ -66,7 +70,14 @@ export class SwarmSessionManager {
   private assistantDir: string;
   private running: boolean = false;
 
-  constructor(config: SwarmConfig, parentConversationId: string, workspace: string, defaultBackend: string, assistantId: string, assistantDir: string) {
+  constructor(
+    config: SwarmConfig,
+    parentConversationId: string,
+    workspace: string,
+    defaultBackend: string,
+    assistantId: string,
+    assistantDir: string,
+  ) {
     this.config = config;
     this.parentConversationId = parentConversationId;
     this.workspace = workspace;
@@ -90,6 +101,10 @@ export class SwarmSessionManager {
       const resolvedBackend = agentConfig.presetAgentType || this.defaultBackend;
       const systemPrompt = readPromptMd(agentDir, agentConfig.role);
       const hooksPath = path.join(agentDir, 'hooks');
+
+      // Create persistent message queue for this agent
+      const mq = new SwarmMessageQueue(this.workspace, agentConfig.role);
+      mq.init();
 
       // Reuse existing pipeline: spawn as a regular conversation
       const result = await ConversationService.createConversation({
@@ -126,12 +141,13 @@ export class SwarmSessionManager {
         backend: resolvedBackend,
         conversationId: result.conversation.id,
         manager,
+        mq,
         hooksPath,
         systemPromptPath: path.join(agentDir, `${agentConfig.role}.md`),
       });
     }
 
-    // Fire onSwarmInit for each agent → collects seed queueMessages
+    // Fire onSwarmInit for each agent → hook returns queueMessages → persist to MQ → deliver
     for (const [role, handle] of this.agents) {
       const result = await runSwarmHooks('onSwarmInit', {
         role,
@@ -148,7 +164,7 @@ export class SwarmSessionManager {
 
       if (result.queueMessages?.length) {
         for (const msg of result.queueMessages) {
-          await handle.manager.sendMessage({ content: msg.content, files: msg.files });
+          this.enqueueAndDeliver(handle, msg);
         }
       }
     }
@@ -164,7 +180,12 @@ export class SwarmSessionManager {
 
     const handle = this.agents.get(role)!;
 
-    // 1. Fire onSwarmTurnEnd — hook writes to feed, detects done
+    // Mark all delivered MQ entries as processed for this agent
+    for (const entry of handle.mq.getRecoverable()) {
+      handle.mq.markProcessed(entry.id);
+    }
+
+    // 1. Fire onSwarmTurnEnd — hook parses output, writes to feed
     const turnEndResult = await runSwarmHooks('onSwarmTurnEnd', {
       role,
       agentConfig: handle.config,
@@ -188,8 +209,9 @@ export class SwarmSessionManager {
     const nextRole = turnEndResult.nextAgent || this.turnController.next();
     const nextHandle = this.agents.get(nextRole)!;
 
-    // 4. Read new feed entries for the next agent
+    // 4. Read new feed entries for the next agent, mark as delivered
     const newEntries = this.feedManager.readNewFor(nextRole);
+    this.feedManager.markDelivered(newEntries);
 
     // 5. Fire onSwarmFeedMessage for the next agent
     const feedResult = await runSwarmHooks('onSwarmFeedMessage', {
@@ -205,21 +227,42 @@ export class SwarmSessionManager {
       feedEntries: newEntries,
     });
 
-    // 6. Enqueue messages into the agent's existing message queue
+    // 6. Persist to MQ then deliver
     if (feedResult.queueMessages?.length) {
       for (const msg of feedResult.queueMessages) {
-        await nextHandle.manager.sendMessage({ content: msg.content, files: msg.files });
+        this.enqueueAndDeliver(nextHandle, msg);
       }
     }
 
     await this.startTurn(nextRole);
   }
 
+  /**
+   * Persist a message to the agent's MQ file, then deliver to the agent process.
+   * MQ file is the source of truth — if delivery fails, the message stays pending.
+   */
+  private enqueueAndDeliver(handle: SwarmAgentHandle, msg: { content: string; files?: string[] }): void {
+    const entry = handle.mq.enqueue({
+      content: msg.content,
+      source: 'hook',
+      files: msg.files,
+    });
+
+    try {
+      void handle.manager.sendMessage({ content: msg.content, files: msg.files });
+      handle.mq.markDelivered(entry.id);
+    } catch (err) {
+      console.error(`[SwarmSessionManager] Failed to deliver message to ${handle.role}:`, err);
+      handle.mq.markError(entry.id);
+    }
+  }
+
   /** Route a feed entry to the target agent's message queue */
   routeToAgent(entry: SwarmFeedEntry): void {
     const handle = this.agents.get(entry.to);
     if (handle) {
-      void handle.manager.sendMessage({ content: entry.content, files: entry.files });
+      this.enqueueAndDeliver(handle, { content: entry.content, files: entry.files });
+      this.feedManager.markProcessed(entry.id);
     }
   }
 

@@ -40,16 +40,42 @@ export class SwarmFeedManager {
   }
 
   /** Append a message to the feed */
-  append(entry: Omit<SwarmFeedEntry, 'id' | 'seq' | 'ts'>): SwarmFeedEntry {
+  append(entry: Omit<SwarmFeedEntry, 'id' | 'seq' | 'ts' | 'status'>): SwarmFeedEntry {
     this.seq++;
     const full: SwarmFeedEntry = {
       id: uuid(),
       seq: this.seq,
+      status: 'pending',
       ts: new Date().toISOString(),
       ...entry,
     };
     fs.appendFileSync(this.feedPath, JSON.stringify(full) + '\n', 'utf-8');
     return full;
+  }
+
+  /** Update the status of a feed entry by ID. Rewrites the file. */
+  updateStatus(entryId: string, status: SwarmFeedEntry['status']): void {
+    const entries = this.readAll();
+    const updated = entries.map((e) => {
+      if (e.id === entryId) {
+        return { ...e, status };
+      }
+      return e;
+    });
+    const content = updated.map((e) => JSON.stringify(e)).join('\n') + (updated.length > 0 ? '\n' : '');
+    fs.writeFileSync(this.feedPath, content, 'utf-8');
+  }
+
+  /** Mark feed entries as delivered for a role */
+  markDelivered(entries: SwarmFeedEntry[]): void {
+    for (const entry of entries) {
+      this.updateStatus(entry.id, 'delivered');
+    }
+  }
+
+  /** Mark a feed entry as processed */
+  markProcessed(entryId: string): void {
+    this.updateStatus(entryId, 'processed');
   }
 
   /** Read new messages for a specific agent since its last cursor position */

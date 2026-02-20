@@ -6,6 +6,7 @@
 
 export { SwarmSessionManager } from './SwarmSessionManager';
 export { SwarmFeedManager } from './SwarmFeedManager';
+export { SwarmMessageQueue } from './SwarmMessageQueue';
 export { SwarmTurnController } from './SwarmTurnController';
 export { runSwarmHooks } from './SwarmHookRunner';
-export type { SwarmConfig, SwarmAgentConfig, SwarmFeedEntry, SwarmAgentMeta, SwarmHookContext, SwarmHookResult, TurnStrategy } from './types';
+export type { SwarmConfig, SwarmAgentConfig, SwarmFeedEntry, SwarmMqEntry, SwarmAgentMeta, SwarmHookContext, SwarmHookResult, TurnStrategy } from './types';

@@ -42,11 +42,29 @@ export type SwarmFeedEntry = {
   seq: number;
   from: string;
   to: string;
-  type: 'message' | 'action' | 'review' | 'directive' | 'status' | 'done';
+  type: 'message' | 'action' | 'review' | 'directive' | 'plan' | 'task' | 'blocker' | 'status' | 'done';
   content: string;
   files?: string[];
   backend?: string;
+  /** Delivery status: tracks whether this entry has been consumed */
+  status?: 'pending' | 'delivered' | 'processed';
   ts: string;
+};
+
+/**
+ * Per-agent message queue entry stored in .swarm/{role}-mq.jsonl
+ */
+export type SwarmMqEntry = {
+  id: string;
+  seq: number;
+  role: string;
+  status: 'pending' | 'delivered' | 'processed' | 'error';
+  content: string;
+  source: string;
+  priority: string;
+  files?: string[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 /**
