@@ -266,7 +266,8 @@
       "closeOthers": "Close Others"
     },
     "swarm": {
-      "groupChat": "Group Chat"
+      "groupChat": "Group Chat",
+      "directiveFrom": "Directive from {{name}}"
     },
     "workspace": {
       "title": "Workspace",

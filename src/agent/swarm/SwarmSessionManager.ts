@@ -32,6 +32,12 @@ type SwarmAgentHandle = {
   systemPromptPath: string;
 };
 
+/** Per-agent buffer that accumulates text content during a turn for the group chat */
+type AgentTurnBuffer = {
+  content: string;
+  msgId: string;
+};
+
 /**
  * Read a JSON file and parse it.
  */
@@ -86,6 +92,8 @@ export class SwarmSessionManager {
   private assistantDir: string;
   private running: boolean = false;
   private initialized = false;
+  /** Per-agent buffers that accumulate text during a turn for consolidated group messages */
+  private turnBuffers: Map<string, AgentTurnBuffer> = new Map();
 
   constructor(config: SwarmConfig, parentConversationId: string, workspace: string, defaultBackend: string, assistantId: string, assistantDir: string) {
     this.config = config;
@@ -262,40 +270,68 @@ export class SwarmSessionManager {
 
   /**
    * Set up forwarding of agent text responses to the parent group conversation.
-   * Only forwards text content (not tool calls, permissions, etc.) so the group
-   * chat shows a clean view of agent responses.
+   * Accumulates streaming text during a turn and only flushes to the group chat
+   * when the agent finishes — producing one clean message per turn, not noisy
+   * streaming chunks. Internal reasoning, tool calls, etc. are excluded.
    */
   private setupAgentResponseForwarding(manager: AcpAgentManager, agentConfig: SwarmAgentConfig): void {
+    const role = agentConfig.role;
+
+    // Accumulate streaming text content during the agent's turn
+    manager.onStream((message: any) => {
+      if (message.type === 'content' && typeof message.data === 'string' && message.data.length > 0) {
+        const existing = this.turnBuffers.get(role);
+        if (existing) {
+          existing.content += message.data;
+        } else {
+          this.turnBuffers.set(role, {
+            content: message.data,
+            msgId: message.msg_id || uuid(),
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * Flush accumulated turn content to the group chat as a single consolidated message.
+   * Called when an agent finishes its turn.
+   */
+  private flushTurnToGroup(role: string, agentConfig: SwarmAgentConfig): void {
+    const buffer = this.turnBuffers.get(role);
+    if (!buffer || !buffer.content.trim()) {
+      this.turnBuffers.delete(role);
+      return;
+    }
+
     const agentMeta = {
       role: agentConfig.role,
       name: agentConfig.name,
       avatar: agentConfig.avatar,
     };
     const parentId = this.parentConversationId;
+    const msgId = uuid();
 
-    // Use the onStream() hook to receive filtered messages and forward text to group
-    manager.onStream((message: any) => {
-      // Only forward text content to the group chat
-      if (message.type === 'content' && typeof message.data === 'string' && message.data.length > 0) {
-        const groupMessage: IResponseMessage = {
-          conversation_id: parentId,
-          type: 'content',
-          data: message.data,
-          msg_id: message.msg_id || uuid(),
-          timestamp: Date.now(),
-          agentMeta,
-        };
+    const groupMessage: IResponseMessage = {
+      conversation_id: parentId,
+      type: 'content',
+      data: buffer.content,
+      msg_id: msgId,
+      timestamp: Date.now(),
+      agentMeta,
+    };
 
-        // Save to group conversation DB so messages persist
-        const tMessage = transformMessage(groupMessage);
-        if (tMessage) {
-          addOrUpdateMessage(parentId, tMessage);
-        }
+    // Save consolidated message to group conversation DB
+    const tMessage = transformMessage(groupMessage);
+    if (tMessage) {
+      addOrUpdateMessage(parentId, tMessage);
+    }
 
-        // Emit to the response stream so the UI updates in real-time
-        ipcBridge.conversation.responseStream.emit(groupMessage);
-      }
-    });
+    // Emit to the response stream so the UI renders it
+    ipcBridge.conversation.responseStream.emit(groupMessage);
+
+    // Clear the buffer for next turn
+    this.turnBuffers.delete(role);
   }
 
   /** Called when an agent finishes its turn */
@@ -303,6 +339,9 @@ export class SwarmSessionManager {
     if (!this.running) return;
 
     const handle = this.agents.get(role)!;
+
+    // Flush accumulated text to the group chat as a single consolidated message
+    this.flushTurnToGroup(role, handle.config);
 
     // Mark all delivered MQ entries as processed for this agent
     for (const entry of handle.mq.getRecoverable()) {
@@ -351,10 +390,10 @@ export class SwarmSessionManager {
       feedEntries: newEntries,
     });
 
-    // 6. Persist to MQ then deliver
+    // 6. Persist to MQ then deliver (tag messages with the sending agent's role)
     if (feedResult.queueMessages?.length) {
       for (const msg of feedResult.queueMessages) {
-        this.enqueueAndDeliver(nextHandle, msg);
+        this.enqueueAndDeliver(nextHandle, { ...msg, fromRole: role });
       }
     }
 
@@ -364,13 +403,38 @@ export class SwarmSessionManager {
   /**
    * Persist a message to the agent's MQ file, then deliver to the agent process.
    * MQ file is the source of truth — if delivery fails, the message stays pending.
+   * Also emits a visual directive separator in the agent's individual conversation.
    */
-  private enqueueAndDeliver(handle: SwarmAgentHandle, msg: { content: string; files?: string[] }): void {
+  private enqueueAndDeliver(handle: SwarmAgentHandle, msg: { content: string; files?: string[]; fromRole?: string }): void {
     const entry = handle.mq.enqueue({
       content: msg.content,
       source: 'hook',
       files: msg.files,
     });
+
+    // Emit a directive separator in the agent's individual conversation
+    // so the user can see when a new instruction arrived from a peer agent
+    const fromRole = msg.fromRole || 'system';
+    const fromAgent = this.agents.get(fromRole);
+    const directiveMessage: IResponseMessage = {
+      conversation_id: handle.conversationId,
+      type: 'swarm_directive',
+      data: {
+        from: fromRole,
+        fromName: fromAgent?.config.name || fromRole,
+        fromAvatar: fromAgent?.config.avatar || '📋',
+        summary: msg.content.length > 200 ? msg.content.substring(0, 200) + '...' : msg.content,
+      },
+      msg_id: uuid(),
+      timestamp: Date.now(),
+    };
+    ipcBridge.conversation.responseStream.emit(directiveMessage);
+
+    // Also save the directive to the agent's message DB for persistence
+    const tDirective = transformMessage(directiveMessage);
+    if (tDirective) {
+      addOrUpdateMessage(handle.conversationId, tDirective);
+    }
 
     try {
       void handle.manager.sendMessage({ content: msg.content, files: msg.files });
