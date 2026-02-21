@@ -29,6 +29,10 @@ $PYTHON -m pip install -q vnstock>=3.4.2
 $PYTHON -m pip install -q scipy>=1.11.0
 # Charting and visualization
 $PYTHON -m pip install -q matplotlib>=3.7.0
+# Technical analysis indicators
+$PYTHON -m pip install -q pandas-ta
+# Interactive charting and static export
+$PYTHON -m pip install -q plotly kaleido
 # Data validation
 $PYTHON -m pip install -q pydantic>=2.4.2
 # Configuration

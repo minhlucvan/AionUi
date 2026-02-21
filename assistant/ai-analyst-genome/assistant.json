@@ -1,8 +1,8 @@
 {
   "id": "ai-analyst-genome",
   "name": "AI Analyst",
-  "version": "1.0.0",
-  "description": "AI Data Analyst for Vietnamese stock market powered by AI Analyst Genome. 17-agent pipeline, 4-layer quality system, 37+ skills. Supports real-time quotes, financial statements, screening, backtesting, and presentation-ready analysis for ~1,700 stocks across HOSE, HNX, and UPCOM.",
+  "version": "1.1.0",
+  "description": "AI Data Analyst for Vietnamese stock market powered by AI Analyst Genome. 17-agent pipeline, 4-layer quality system, 55+ skills. Full technical analysis (RSI, MACD, Bollinger, ADX), macro regime classification, factor scoring, multi-model valuation, investor persona analysis (Buffett, Graham, Wood, Druckenmiller, CANSLIM), professional Plotly charting, and presentation-ready output for ~1,700 stocks across HOSE, HNX, and UPCOM.",
   "author": "AI Analyst Lab",
   "presetAgentType": "claude",
   "workspacePath": "./workspace",
@@ -10,7 +10,7 @@
   "ruleFiles": {
     "en-US": "ai-analyst-genome.en-US.md"
   },
-  "tags": ["ai-analyst", "vietnam", "stock-market", "vnstock", "data-analysis", "equity-research", "pipeline", "presentation"],
+  "tags": ["ai-analyst", "vietnam", "stock-market", "vnstock", "data-analysis", "equity-research", "pipeline", "presentation", "technical-analysis", "macro-regime", "factor-investing", "valuation"],
   "defaultEnabledSkills": ["vnstock-data", "question-router", "explore"],
   "nameI18n": {
     "en-US": "AI Analyst (Genome)",
@@ -20,7 +20,7 @@
     "ko-KR": "AI 애널리스트 (Genome)"
   },
   "descriptionI18n": {
-    "en-US": "AI Data Analyst for Vietnamese stock market. 17-agent pipeline with 4-layer validation, confidence scoring, and presentation-ready output. Supports real-time quotes, financial analysis, stock screening, backtesting, and portfolio optimization for ~1,700 stocks across HOSE, HNX, and UPCOM.",
+    "en-US": "AI Data Analyst for Vietnamese stock market. 17-agent pipeline with 4-layer validation, technical analysis (RSI, MACD, Bollinger), macro regime classification, factor scoring, multi-model valuation, investor persona analysis (Buffett, Graham, Wood, Druckenmiller), professional Plotly charting, and presentation-ready output for ~1,700 stocks across HOSE, HNX, and UPCOM.",
     "zh-CN": "越南股市 AI 数据分析师。17 代理管道，4 层验证系统，置信度评分，可直接用于演示的输出。支持约 1,700 只股票的实时行情、财务分析、股票筛选、回测和投资组合优化。",
     "zh-TW": "越南股市 AI 資料分析師。17 代理管道，4 層驗證系統，信心評分，可直接用於簡報的輸出。支援約 1,700 檔股票的即時報價、財務分析、股票篩選、回測和投資組合最佳化。",
     "ja-JP": "ベトナム株式市場向け AI データアナリスト。17 エージェントパイプライン、4 層検証、信頼度スコアリング、プレゼン対応出力。HOSE、HNX、UPCOM の約 1,700 銘柄のリアルタイム相場、財務分析、スクリーニング、バックテスト、ポートフォリオ最適化をサポート。",
