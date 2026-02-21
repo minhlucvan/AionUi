@@ -1,0 +1,69 @@
+{
+  "id": "ai-analyst-genome",
+  "presetAgentType": "claude",
+  "workspacePath": "./workspace",
+  "avatar": "🧬",
+  "version": "1.0.0",
+  "tags": ["data-analyst", "vietnam", "stock-market", "vnstock", "analytics", "pipeline", "presentation"],
+  "defaultEnabledSkills": ["vnstock-data"],
+  "ruleFiles": {
+    "en-US": "ai-analyst-genome.en-US.md"
+  },
+  "nameI18n": {
+    "en-US": "AI Analyst (Genome)",
+    "zh-CN": "AI 分析师 (Genome)",
+    "zh-TW": "AI 分析師 (Genome)",
+    "ja-JP": "AI アナリスト (Genome)",
+    "ko-KR": "AI 애널리스트 (Genome)"
+  },
+  "descriptionI18n": {
+    "en-US": "AI Data Analyst powered by the AI Analyst Genome. Features a 19-agent pipeline, 4-layer quality system, and 37+ skills for Vietnamese stock market analysis. Supports question routing (L0-L5), automated analysis pipelines, Marp presentation generation, and comprehensive data validation.",
+    "zh-CN": "基于 AI Analyst Genome 的 AI 数据分析师。具备 19 个代理管道、4 层质量系统和 37+ 技能，专注越南股市分析。支持问题路由（L0-L5）、自动分析管道、Marp 演示文稿生成和全面的数据验证。",
+    "zh-TW": "基於 AI Analyst Genome 的 AI 資料分析師。具備 19 個代理管道、4 層品質系統和 37+ 技能，專注越南股市分析。支援問題路由（L0-L5）、自動分析管道、Marp 簡報生成和全面的資料驗證。",
+    "ja-JP": "AI Analyst Genome を搭載した AI データアナリスト。19 エージェントパイプライン、4 層品質システム、37 以上のスキルでベトナム株式市場分析に対応。質問ルーティング（L0-L5）、自動分析パイプライン、Marp プレゼンテーション生成、包括的なデータ検証をサポート。",
+    "ko-KR": "AI Analyst Genome 기반 AI 데이터 애널리스트. 19개 에이전트 파이프라인, 4계층 품질 시스템, 37개 이상의 스킬로 베트남 주식 시장 분석을 지원합니다. 질문 라우팅(L0-L5), 자동 분석 파이프라인, Marp 프레젠테이션 생성, 포괄적 데이터 검증을 지원합니다."
+  },
+  "promptsI18n": {
+    "en-US": [
+      "What's VCB's current price?",
+      "Compare VCB and TCB P/E ratios",
+      "Which banking stocks have ROE > 20%?",
+      "Find undervalued stocks with strong momentum",
+      "Build an optimal VN30 portfolio for 2026",
+      "Screen stocks with PE < 15 AND ROE > 20%"
+    ],
+    "zh-CN": [
+      "VCB 的当前价格是多少？",
+      "比较 VCB 和 TCB 的市盈率",
+      "哪些银行股的 ROE 大于 20%？",
+      "寻找有强劲动能的低估股票",
+      "为 2026 年构建最优 VN30 投资组合",
+      "筛选市盈率 < 15 且 ROE > 20% 的股票"
+    ],
+    "zh-TW": [
+      "VCB 的目前價格是多少？",
+      "比較 VCB 和 TCB 的本益比",
+      "哪些銀行股的 ROE 大於 20%？",
+      "尋找有強勁動能的低估股票",
+      "為 2026 年建構最優 VN30 投資組合",
+      "篩選本益比 < 15 且 ROE > 20% 的股票"
+    ],
+    "ja-JP": [
+      "VCB の現在の株価は？",
+      "VCB と TCB の PER を比較して",
+      "ROE が 20% を超える銀行株は？",
+      "強いモメンタムを持つ割安株を探して",
+      "2026 年の最適な VN30 ポートフォリオを構築して",
+      "PER < 15 かつ ROE > 20% の株をスクリーニング"
+    ],
+    "ko-KR": [
+      "VCB의 현재 주가는?",
+      "VCB와 TCB의 PER 비교",
+      "ROE가 20% 이상인 은행주는?",
+      "강한 모멘텀을 가진 저평가 주식 찾기",
+      "2026년 최적의 VN30 포트폴리오 구성",
+      "PER < 15이고 ROE > 20%인 주식 스크리닝"
+    ]
+  },
+  "isBuiltin": true
+}
