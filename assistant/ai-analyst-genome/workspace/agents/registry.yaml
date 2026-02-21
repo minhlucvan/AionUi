@@ -478,7 +478,8 @@ skills:
     - id: "backtest"
       file: ".claude/skills/backtest/skill.md"
       trigger: "/backtest command"
-      purpose: "Historical strategy testing interface"
+      purpose: "Historical strategy testing with execution engine"
+      scripts: ["scripts/run_backtest.py"]
 
     - id: "screen"
       file: ".claude/skills/screen/skill.md"

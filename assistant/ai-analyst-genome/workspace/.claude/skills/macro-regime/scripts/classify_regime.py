@@ -5,6 +5,7 @@ Classify Vietnam's macroeconomic regime based on GDP, credit, and inflation.
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from typing import Literal
@@ -134,39 +135,80 @@ def classify_regime_dict(gdp_growth: float, credit_growth: float, inflation: flo
     return result
 
 
+def auto_classify() -> dict:
+    """Auto-classify regime using GSO and SBV data fetchers.
+
+    Pulls the latest macro data from the enhanced fetchers
+    (user config → market proxy → defaults) and classifies.
+    """
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+    if _script_dir not in sys.path:
+        sys.path.insert(0, _script_dir)
+
+    from fetch_gso_data import fetch_gso_data
+    from fetch_sbv_data import fetch_sbv_data
+
+    gso = fetch_gso_data()
+    sbv = fetch_sbv_data()
+
+    gdp = gso.get('gdp_growth', {}).get('current', 6.5)
+    credit = sbv.get('credit_growth', {}).get('current', 12.0)
+    inflation = gso.get('inflation', {}).get('cpi_yoy', 4.0)
+
+    result = classify_regime_dict(gdp, credit, inflation)
+    result['data_sources'] = {
+        'gso': gso.get('data_source', 'unknown'),
+        'sbv': sbv.get('data_source', 'unknown'),
+    }
+
+    # Include market proxy if available
+    if 'market_proxy' in gso:
+        result['market_proxy'] = gso['market_proxy']
+    if 'banking_proxy' in sbv:
+        result['banking_proxy'] = sbv['banking_proxy']
+
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Classify Vietnam's macroeconomic regime"
     )
-    parser.add_argument("--gdp", type=float, required=True,
-                       help="GDP growth rate (%)")
-    parser.add_argument("--credit", type=float, required=True,
-                       help="Credit growth rate (%)")
-    parser.add_argument("--inflation", type=float, required=True,
-                       help="Inflation rate (%)")
+    parser.add_argument("--gdp", type=float, default=None,
+                       help="GDP growth rate (%%) — if omitted, auto-fetched")
+    parser.add_argument("--credit", type=float, default=None,
+                       help="Credit growth rate (%%) — if omitted, auto-fetched")
+    parser.add_argument("--inflation", type=float, default=None,
+                       help="Inflation rate (%%) — if omitted, auto-fetched")
+    parser.add_argument("--auto", action="store_true",
+                       help="Auto-fetch all indicators from data sources")
     parser.add_argument("--output", type=str,
                        help="Output JSON file path (optional)")
 
     args = parser.parse_args()
 
-    # Classify regime
-    regime, confidence = classify_regime(args.gdp, args.credit, args.inflation)
+    if args.auto or (args.gdp is None and args.credit is None and args.inflation is None):
+        result = auto_classify()
+    else:
+        gdp = args.gdp if args.gdp is not None else 6.5
+        credit = args.credit if args.credit is not None else 12.0
+        inflation = args.inflation if args.inflation is not None else 4.0
 
-    # Build output
-    result = {
-        "regime": regime,
-        "confidence": round(confidence, 2),
-        "indicators": {
-            "gdp_growth": args.gdp,
-            "credit_growth": args.credit,
-            "inflation": args.inflation
-        },
-        "favored_sectors": get_favored_sectors(regime),
-        "favored_factors": get_favored_factors(regime),
-        "timestamp": datetime.utcnow().isoformat() + "Z"
-    }
+        regime, confidence = classify_regime(gdp, credit, inflation)
 
-    # Output
+        result = {
+            "regime": regime,
+            "confidence": round(confidence, 2),
+            "indicators": {
+                "gdp_growth": gdp,
+                "credit_growth": credit,
+                "inflation": inflation
+            },
+            "favored_sectors": get_favored_sectors(regime),
+            "favored_factors": get_favored_factors(regime),
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+
     output_json = json.dumps(result, indent=2)
     print(output_json)
 
