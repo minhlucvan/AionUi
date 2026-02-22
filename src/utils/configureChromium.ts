@@ -12,6 +12,15 @@ import { app } from 'electron';
 const isWebUI = process.argv.some((arg) => arg === '--webui');
 const isResetPassword = process.argv.includes('--resetpass');
 
+// Enable remote debugging port for CDP access (agent-browser, chrome-devtools-mcp)
+// 启用远程调试端口，以支持 CDP 访问（agent-browser、chrome-devtools-mcp）
+// Port 0 means the OS will assign a random free port
+// 端口 0 表示操作系统会分配一个随机空闲端口
+const cdpPortArg = process.argv.find((arg) => arg.startsWith('--remote-debugging-port='));
+if (!cdpPortArg) {
+  app.commandLine.appendSwitch('remote-debugging-port', '0');
+}
+
 // Only configure flags for WebUI and --resetpass modes
 // 仅为 WebUI 和重置密码模式配置参数
 if (isWebUI || isResetPassword) {

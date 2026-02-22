@@ -478,6 +478,13 @@ export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
 };
 
+// CDP (Chrome DevTools Protocol) bridge for agent-browser / chrome-devtools-mcp integration
+// CDP（Chrome 开发者工具协议）桥接，用于 agent-browser / chrome-devtools-mcp 集成
+export const cdp = {
+  // Get the auto-assigned remote debugging port / 获取自动分配的远程调试端口
+  getPort: bridge.buildProvider<number, void>('cdp.get-port'),
+};
+
 // 窗口控制相关接口 / Window controls API
 export const windowControls = {
   minimize: bridge.buildProvider<void, void>('window-controls:minimize'),
