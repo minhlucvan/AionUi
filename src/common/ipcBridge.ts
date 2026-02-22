@@ -816,6 +816,26 @@ export const channel = {
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
 };
 
+// ==================== Browser Agent API ====================
+// Built-in browser control for AI agents (Chrome MCP-like functionality)
+// 内置浏览器控制，供 AI 代理使用（类似 Chrome MCP 功能）
+
+import type { BrowserAgentCommand, BrowserAgentResult, BrowserAgentStatus } from './types/browserAgent';
+
+export const browserAgent = {
+  // Main process → Renderer: send command to execute in webview
+  // 主进程 → 渲染进程：发送命令到 webview 执行
+  command: bridge.buildEmitter<BrowserAgentCommand>('browser-agent.command'),
+
+  // Renderer → Main process: return command execution result
+  // 渲染进程 → 主进程：返回命令执行结果
+  result: bridge.buildEmitter<BrowserAgentResult>('browser-agent.result'),
+
+  // Get current browser status (renderer → main or main → renderer)
+  // 获取当前浏览器状态
+  getStatus: bridge.buildProvider<BrowserAgentStatus, void>('browser-agent.get-status'),
+};
+
 // VNStock - Vietnamese stock market data
 export const vnstock = {
   checkInstallation: bridge.buildProvider<boolean, void>('vnstock:checkInstallation'),

@@ -7,6 +7,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Left, Right, Refresh, Loading } from '@icon-park/react';
+import { useBrowserAgent } from '../../hooks/useBrowserAgent';
 
 interface URLViewerProps {
   /** URL to display */
@@ -78,6 +79,9 @@ const URLViewer: React.FC<URLViewerProps> = ({ url }) => {
     },
     [currentUrl]
   );
+
+  // Connect browser agent to this webview / 将浏览器代理连接到此 webview
+  useBrowserAgent(webviewRef, currentUrl, navigateToWithHistory);
 
   // 监听 webview 事件 / Listen to webview events
   useEffect(() => {

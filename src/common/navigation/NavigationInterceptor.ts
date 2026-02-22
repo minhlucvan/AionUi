@@ -6,6 +6,7 @@
 
 import type { IResponseMessage } from '@/common/ipcBridge';
 import type { PreviewContentType } from '@/common/types/preview';
+import { BUILTIN_BROWSER_IDENTIFIERS, normalizeToolToCommand } from '@/common/types/browserAgent';
 import { uuid } from '@/common/utils';
 
 /**
@@ -25,7 +26,7 @@ export const CHROME_DEVTOOLS_IDENTIFIERS = ['chrome-devtools', 'chrome_devtools'
  * Common MCP prefixes to strip when normalizing tool names
  * 需要去除的常见 MCP 前缀
  */
-export const MCP_PREFIXES = ['mcp__chrome-devtools__', 'chrome-devtools__', 'chrome-devtools.'] as const;
+export const MCP_PREFIXES = ['mcp__chrome-devtools__', 'chrome-devtools__', 'chrome-devtools.', 'mcp__aionui-browser__', 'aionui-browser__', 'aionui-browser.', 'mcp__builtin-browser__', 'builtin-browser__', 'builtin-browser.'] as const;
 
 /**
  * Preview open event data structure
@@ -106,6 +107,49 @@ export class NavigationInterceptor {
     if (!str) return false;
     const lower = str.toLowerCase();
     return CHROME_DEVTOOLS_IDENTIFIERS.some((id) => lower.includes(id));
+  }
+
+  /**
+   * Check if a string contains built-in browser agent identifier
+   * 检查字符串是否包含内置浏览器代理标识符
+   */
+  static isBuiltinBrowserIdentifier(str: string): boolean {
+    if (!str) return false;
+    const lower = str.toLowerCase();
+    return BUILTIN_BROWSER_IDENTIFIERS.some((id) => lower.includes(id));
+  }
+
+  /**
+   * Check if a tool belongs to the built-in browser agent
+   * 检查工具是否属于内置浏览器代理
+   *
+   * A tool is considered a built-in browser tool if:
+   * 1. The server name contains a built-in browser identifier, OR
+   * 2. The tool name contains a built-in browser identifier prefix
+   *
+   * AND the base tool name is a recognized browser command.
+   */
+  static isBuiltinBrowserTool(data: NavigationToolData | string): boolean {
+    if (typeof data === 'string') {
+      const isBuiltinBrowser = this.isBuiltinBrowserIdentifier(data);
+      if (!isBuiltinBrowser) return false;
+      const baseName = this.normalizeToolName(data);
+      return normalizeToolToCommand(baseName) !== null;
+    }
+
+    const { toolName = '', server = '' } = data;
+    const isBuiltinBrowser = this.isBuiltinBrowserIdentifier(server) || this.isBuiltinBrowserIdentifier(toolName);
+    if (!isBuiltinBrowser) return false;
+    const baseName = this.normalizeToolName(toolName);
+    return normalizeToolToCommand(baseName) !== null;
+  }
+
+  /**
+   * Check if a tool is any kind of browser tool (Chrome DevTools or built-in)
+   * 检查工具是否为任何类型的浏览器工具（Chrome DevTools 或内置）
+   */
+  static isBrowserTool(data: NavigationToolData | string): boolean {
+    return this.isNavigationTool(data) || this.isBuiltinBrowserTool(data);
   }
 
   /**
@@ -261,6 +305,42 @@ export class NavigationInterceptor {
       url,
       previewMessage,
     };
+  }
+
+  /**
+   * Extract browser agent command info from tool data.
+   * Returns the normalized command name and parameters for routing to BrowserAgentService.
+   *
+   * 从工具数据中提取浏览器代理命令信息。
+   * 返回规范化的命令名称和参数，用于路由到 BrowserAgentService。
+   */
+  static extractBrowserCommand(data: NavigationToolData): { command: string; params: Record<string, unknown> } | null {
+    if (!this.isBuiltinBrowserTool(data)) return null;
+
+    const toolName = data.toolName || '';
+    const baseName = this.normalizeToolName(toolName);
+    const command = normalizeToolToCommand(baseName);
+    if (!command) return null;
+
+    // Extract params from various formats
+    const params: Record<string, unknown> = {};
+
+    // From arguments (MCP format)
+    if (data.arguments) {
+      Object.assign(params, data.arguments);
+    }
+
+    // From rawInput (ACP format)
+    if (data.rawInput) {
+      Object.assign(params, data.rawInput);
+    }
+
+    // From direct url field
+    if (data.url) {
+      params.url = data.url;
+    }
+
+    return { command, params };
   }
 }
 
