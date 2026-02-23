@@ -17,13 +17,13 @@ Dual-engine generative art workspace — create seeded, reproducible algorithmic
 | **p5.js** | 2D canvas | Flow fields, fractals, waveforms, signal flow, tessellations, cellular automata |
 | **Three.js** | 3D WebGL | Room acoustics, spatial audio, speaker placement, terrain, parametric surfaces |
 
-## Agents
+## Agent
 
 | Agent | Description |
 |-------|-------------|
-| **art-consultant** | Creative director — understands your vision, routes to the right engine, recommends techniques |
-| **code-generator** | Dual-engine implementation specialist — produces p5.js or Three.js code |
-| **quality-reviewer** | Validation — checks code quality and visual standards for both engines |
+| **algorithmic-art-engineer** | Dual-engine implementation specialist — produces p5.js or Three.js code from specifications |
+
+The Art Consultant / Creative Director role is handled by the `algorithmic-art.md` system prompt.
 
 ## Skills
 
@@ -31,7 +31,7 @@ Each skill is a self-contained subfolder with `SKILL.md` and `references/`:
 
 | Skill | Domain |
 |-------|--------|
-| **algorithmic-art** | Router & creative direction — engine routing, color theory, palette database, composition |
+| **algorithmic-art** | Router — picks engine (p5js or 3js) based on concept |
 | **algorithmic-art-p5js** | p5.js 2D engine — canvas setup, techniques, particle systems, fractals, nature simulation |
 | **algorithmic-art-3js** | Three.js 3D engine — scene setup, room acoustics, spatial audio, terrain, parametric surfaces |
 

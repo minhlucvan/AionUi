@@ -118,14 +118,14 @@ function generateArt() {
 - Placeholder/TODO code
 - Copying specific artists' visual styles
 
-## Agents & Skills
+## Agent & Skills
 
-### Agents
+### Agent
 | Agent | Role |
 |-------|------|
-| `@art-consultant` | Primary — consults user, recommends techniques, delegates work |
-| `@code-generator` | Produces p5.js or Three.js HTML from specifications |
-| `@quality-reviewer` | Validates output against quality checklist |
+| `@algorithmic-art-engineer` | Dual-engine implementation specialist — produces p5.js or Three.js HTML from specifications |
+
+The Art Consultant / Creative Director role is handled by the outer `algorithmic-art.md` system prompt, which consults users and delegates to the engineer.
 
 ### Skills
 | Skill | Domain |
