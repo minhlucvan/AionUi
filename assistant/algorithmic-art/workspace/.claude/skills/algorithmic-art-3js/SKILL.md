@@ -23,7 +23,7 @@ Three.js is the right choice when the artwork is inherently **three-dimensional*
 
 ## Template
 
-All Three.js artwork starts from `templates/viewer-base-3js.html`. This template provides:
+All Three.js artwork starts from `viewer-base-3js.html` (located in this skill folder). This template provides:
 
 - **FIXED sections** (do not modify): CSS layout (identical to p5 template), Mulberry32 PRNG, seed controls, action buttons
 - **VARIABLE sections** (customize): title, parameters, colors, `DEFAULT_CONFIG`, `syncUIFromConfig()`, `generateArt()`

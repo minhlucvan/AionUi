@@ -253,7 +253,7 @@ For **p5.js (2D)**:
 ```
 Generate a complete, self-contained algorithmic art HTML file using p5.js.
 
-**Template**: Start from templates/viewer-base.html (or a matching scenario template from templates/<category>/).
+**Template**: Start from .claude/skills/algorithmic-art-p5js/viewer-base.html.
 Read the template first, then modify only the VARIABLE sections.
 
 **Technique**: [technique name and algorithm details from research]
@@ -283,7 +283,7 @@ For **Three.js (3D)**:
 ```
 Generate a complete, self-contained algorithmic art HTML file using Three.js.
 
-**Template**: Start from templates/viewer-base-3js.html (or a matching 3D template from templates/3d/).
+**Template**: Start from .claude/skills/algorithmic-art-3js/viewer-base-3js.html.
 Read the template first, then modify only the VARIABLE sections.
 
 **Technique**: [technique name and algorithm details from research]

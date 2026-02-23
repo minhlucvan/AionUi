@@ -24,7 +24,7 @@ p5.js is the right choice when the artwork is inherently **two-dimensional**:
 
 ## Template
 
-All p5.js artwork starts from the viewer-base template (located at `workspace/templates/viewer-base.html`). This template provides:
+All p5.js artwork starts from `viewer-base.html` (located in this skill folder). This template provides:
 
 - **FIXED sections** (do not modify): CSS layout, Mulberry32 PRNG, seed controls, action buttons
 - **VARIABLE sections** (customize): title, parameters, colors, `DEFAULT_CONFIG`, `syncUIFromConfig()`, `generateArt()`
@@ -48,9 +48,7 @@ p5.js creates its own `<canvas>` element inside `#canvasContainer`. Never pre-cr
 ### Library Loading
 
 ```html
-<script src="p5.min.js"></script>   <!-- for index.html -->
-<script src="../p5.min.js"></script> <!-- for templates/ -->
-<script src="../../p5.min.js"></script> <!-- for templates/category/ -->
+<script src="p5.min.js"></script>
 ```
 
 Always use the local bundled `p5.min.js` — never CDN.

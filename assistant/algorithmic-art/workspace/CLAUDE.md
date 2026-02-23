@@ -2,39 +2,40 @@
 
 ## Overview
 
-This workspace creates generative algorithmic art using p5.js. Every artwork is a single self-contained HTML file with seeded randomness, parameter controls, and PNG export.
+This workspace creates generative algorithmic art using **p5.js (2D)** or **Three.js (3D)**. Every artwork is a single self-contained HTML file with seeded randomness, parameter controls, and PNG export.
 
 ## Tech Stack
 
-- **p5.js 1.9.0** — Creative coding library (bundled locally as `p5.min.js`)
+- **p5.js 1.9.0** — 2D creative coding library (bundled locally as `p5.min.js`)
+- **Three.js r160** — 3D WebGL library (bundled locally as `three.min.js`)
 - **HTML5 / CSS3 / ES6** — No build tools, runs directly in browser
-- **Python 3** — Art database search (BM25 engine in `scripts/`)
 
 ## Single-File Art Format
 
 All artwork lives in one HTML file:
 - `<style>` — inline CSS (dark sidebar + canvas layout)
-- `<script src="p5.min.js">` — local p5.js (NOT CDN)
-- `<script>` — all game logic inline
+- `<script src="p5.min.js">` or `<script src="three.min.js">` — local library (NOT CDN)
+- `<script>` — all logic inline
 
 ### File Structure Pattern
 
 ```
-viewer-base.html (template)
+viewer-base.html / viewer-base-3js.html (template)
 ├── CSS: sidebar layout, controls, dark theme
 ├── HTML: sidebar (header, seed, params, colors, actions, description) + canvas area
 └── JS:
     ├── FIXED: Mulberry32 PRNG, seed management, regenerate, download
-    └── VARIABLE: CONFIG, syncUIFromConfig, setup, generateArt
+    └── VARIABLE: CONFIG, syncUIFromConfig, setup/initThree, generateArt
 ```
 
-## p5.js Loading (Mandatory)
+## Library Loading (Mandatory)
 
 ```html
-<script src="p5.min.js"></script>
+<script src="p5.min.js"></script>    <!-- p5.js -->
+<script src="three.min.js"></script> <!-- Three.js -->
 ```
 
-**NEVER** use a CDN URL. The library is bundled locally in this workspace.
+**NEVER** use a CDN URL. Libraries are bundled locally in this workspace.
 
 ## Seeded Randomness (Mandatory)
 
@@ -85,35 +86,10 @@ function generateArt() {
 
 - **Minimum 2 layered techniques** — depth through background + mid + foreground
 - **Perlin noise** for organic variation — never raw random for positions
-- **Canvas: 1200×1200** minimum for print quality
+- **Canvas: 1200x1200** minimum for print quality
 - **Every seed produces output** — no blank canvases
 - **Seeds 0, 42, 100, 999** must produce visually distinct results
 - **All parameters in CONFIG** — no magic numbers in generateArt()
-
-## Templates
-
-Pre-built scenario templates in `templates/`:
-
-| Category | Templates | Use Cases |
-|----------|-----------|-----------|
-| `mathematics/` | Mandelbrot, phyllotaxis, Lissajous | Math concepts, infinite detail, parametric curves |
-| `physics/` | Flow fields, wave interference, N-body | Fluid dynamics, wave theory, gravity simulation |
-| `biology/` | Reaction-diffusion, cellular automata, flocking | Pattern formation, emergence, collective behavior |
-| `geometry/` | Voronoi, fractal trees, circle packing | Tessellation, branching structures, space filling |
-
-Use a template as starting point when the technique matches. Modify algorithm and parameters to fit the specific request.
-
-## Art Database
-
-Search for techniques, palettes, and reference works:
-
-```bash
-python3 scripts/search.py "flow field" --domain technique -n 3
-python3 scripts/search.py "warm organic" --domain palette -n 3
-python3 scripts/search.py "Fidenza" --domain reference -n 3
-```
-
-Data files: `data/techniques.csv`, `data/palettes.csv`, `data/references.csv`
 
 ## UI Layout
 
@@ -123,18 +99,18 @@ Data files: `data/techniques.csv`, `data/palettes.csv`, `data/references.csv`
 - Parameters: sliders with live value display
 - Colors: at least 3 pickers wired to CONFIG.colors
 - Actions: Regenerate, Reset, Download PNG (FIXED — do not modify)
-- Description: algorithm explanation (2–5 sentences)
+- Description: algorithm explanation (2-5 sentences)
 
 ### Colors
 - Background: `#0a0a14`
-- Sidebar gradient: `#16213e` → `#1a1a2e`
+- Sidebar gradient: `#16213e` -> `#1a1a2e`
 - Accent: `#d97757` (terra cotta)
 
 ## FORBIDDEN
 
 - `Math.random()` or unseeded `random()` anywhere
-- CDN URLs for p5.js (use local `p5.min.js`)
-- Pre-created `<canvas>` tags in HTML (let p5 create it)
+- CDN URLs for libraries (use local bundled files)
+- Pre-created `<canvas>` tags in HTML (let p5/Three.js create it)
 - Hardcoded values without CONFIG constants
 - Missing seed controls or download button
 - Blank canvas for any seed value
@@ -148,13 +124,12 @@ Data files: `data/techniques.csv`, `data/palettes.csv`, `data/references.csv`
 | Agent | Role |
 |-------|------|
 | `@art-consultant` | Primary — consults user, recommends techniques, delegates work |
-| `@code-generator` | Produces p5.js HTML from specifications |
+| `@code-generator` | Produces p5.js or Three.js HTML from specifications |
 | `@quality-reviewer` | Validates output against quality checklist |
 
 ### Skills
 | Skill | Domain |
 |-------|--------|
-| `particle-systems` | Flow fields, boids, attraction/repulsion |
-| `fractals-and-math` | Mandelbrot, Julia, L-systems, parametric curves |
-| `nature-simulation` | Reaction-diffusion, cellular automata, DLA, waves |
-| `color-and-composition` | Palette theory, layering, visual balance |
+| `algorithmic-art` | Router — picks engine (p5js or 3js) based on concept |
+| `algorithmic-art-p5js` | p5.js 2D engine — base template, 12 example templates, techniques, palettes |
+| `algorithmic-art-3js` | Three.js 3D engine — base template, 3D techniques, palettes |

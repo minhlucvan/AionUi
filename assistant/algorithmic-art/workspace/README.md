@@ -37,12 +37,12 @@ Each skill is a self-contained subfolder with `SKILL.md` and `references/`:
 
 ## Templates
 
-### Base Templates (in `templates/`)
-- `viewer-base.html` — p5.js base template with sidebar, seed controls, PRNG
-- `viewer-base-3js.html` — Three.js base template with OrbitControls
+Base templates and example templates live inside their respective skills:
 
-### Example Templates (in skills)
-12 p5.js example templates live in `.claude/skills/algorithmic-art-p5js/templates/` as markdown files:
+- **p5js skill** — `viewer-base.html` + 12 example templates (`.md`)
+- **3js skill** — `viewer-base-3js.html`
+
+Example templates (in `.claude/skills/algorithmic-art-p5js/templates/`):
 - **Mathematics** — mandelbrot-explorer, phyllotaxis-spiral, lissajous-harmonics
 - **Physics** — flow-field-particles, wave-interference, n-body-gravity
 - **Biology** — reaction-diffusion, cellular-automata, flocking-boids

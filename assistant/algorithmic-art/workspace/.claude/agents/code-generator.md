@@ -20,7 +20,7 @@ You will receive:
 
 ### For p5.js (2D)
 
-Start from `templates/viewer-base.html`. Reference example templates in `.claude/skills/algorithmic-art-p5js/templates/` for technique-specific patterns.
+Start from `.claude/skills/algorithmic-art-p5js/viewer-base.html`. Reference example templates in `.claude/skills/algorithmic-art-p5js/templates/` for technique-specific patterns.
 
 - Load library: `<script src="p5.min.js"></script>` (local, NOT CDN)
 - Canvas: `createCanvas(CANVAS_SIZE, CANVAS_SIZE)` inside `#canvasContainer`
@@ -30,7 +30,7 @@ Start from `templates/viewer-base.html`. Reference example templates in `.claude
 
 ### For Three.js (3D)
 
-Start from `templates/viewer-base-3js.html`.
+Start from `.claude/skills/algorithmic-art-3js/viewer-base-3js.html`.
 
 - Load library: `<script src="three.min.js"></script>` (local, NOT CDN)
 - Renderer: `THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })`

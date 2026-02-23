@@ -213,13 +213,13 @@ python3 scripts/search.py "<技术或风格>" --domain reference -n 3
 ### 代码生成子代理提示
 
 根据选择的引擎使用对应模板：
-- **p5.js**：从 `templates/viewer-base.html` 开始
-- **Three.js**：从 `templates/viewer-base-3js.html` 开始
+- **p5.js**：从 `.claude/skills/algorithmic-art-p5js/viewer-base.html` 开始
+- **Three.js**：从 `.claude/skills/algorithmic-art-3js/viewer-base-3js.html` 开始
 
 ```
 使用 [p5.js / Three.js] 生成一个完整的、自包含的算法艺术 HTML 文件。
 
-**模板**：从 templates/viewer-base.html（p5）或 templates/viewer-base-3js.html（Three.js）开始。
+**模板**：从 .claude/skills/algorithmic-art-p5js/viewer-base.html（p5）或 .claude/skills/algorithmic-art-3js/viewer-base-3js.html（Three.js）开始。
 先阅读模板，然后只修改 VARIABLE 部分。
 
 **技术**：[技术名称和来自研究的算法细节]
