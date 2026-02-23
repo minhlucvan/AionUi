@@ -89,8 +89,8 @@ python3 --version || python --version
 搜索算法艺术数据库中匹配用户需求的技术。
 
 运行以下搜索：
-python3 assistant/algorithmic-art/scripts/search.py "<主要关键词>" --domain technique -n 3
-python3 assistant/algorithmic-art/scripts/search.py "<次要关键词>" --domain technique -n 2
+python3 scripts/search.py "<主要关键词>" --domain technique -n 3
+python3 scripts/search.py "<次要关键词>" --domain technique -n 2
 
 对每个结果评估：
 - 与用户陈述的情绪/用途的匹配程度
@@ -109,7 +109,7 @@ python3 assistant/algorithmic-art/scripts/search.py "<次要关键词>" --domain
 搜索算法艺术调色板数据库中匹配用户请求的配色方案。
 
 运行：
-python3 assistant/algorithmic-art/scripts/search.py "<情绪/颜色关键词>" --domain palette -n 5
+python3 scripts/search.py "<情绪/颜色关键词>" --domain palette -n 5
 
 对每个调色板评估：
 - 和谐度与对比度（在该技术的尺度上是否可读？）
@@ -128,7 +128,7 @@ python3 assistant/algorithmic-art/scripts/search.py "<情绪/颜色关键词>" -
 搜索算法艺术参考数据库中与本项目相关的作品。
 
 运行：
-python3 assistant/algorithmic-art/scripts/search.py "<技术或风格>" --domain reference -n 3
+python3 scripts/search.py "<技术或风格>" --domain reference -n 3
 
 对每个参考作品：
 - 哪些具体经验适用于用户的项目？
@@ -184,7 +184,7 @@ python3 assistant/algorithmic-art/scripts/search.py "<技术或风格>" --domain
 ```
 使用 p5.js 生成一个完整的、自包含的算法艺术 HTML 文件。
 
-**模板**：从 assistant/algorithmic-art/templates/viewer.html 开始
+**模板**：从 templates/viewer-base.html 开始（或从 templates/<category>/ 中匹配的场景模板开始）。
 先阅读模板，然后只修改 VARIABLE 部分。
 
 **技术**：[技术名称和来自研究的算法细节]

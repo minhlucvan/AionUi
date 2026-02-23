@@ -89,8 +89,8 @@ Prompt the subagent to search for matching techniques and return the top candida
 Search the algorithmic art database for techniques matching the user's needs.
 
 Run these searches:
-python3 assistant/algorithmic-art/scripts/search.py "<primary keyword>" --domain technique -n 3
-python3 assistant/algorithmic-art/scripts/search.py "<secondary keyword>" --domain technique -n 2
+python3 scripts/search.py "<primary keyword>" --domain technique -n 3
+python3 scripts/search.py "<secondary keyword>" --domain technique -n 2
 
 For each result, evaluate:
 - How well it matches the user's stated mood/purpose
@@ -109,7 +109,7 @@ Prompt the subagent to find palettes and evaluate them against the user's mood a
 Search the algorithmic art palette database for color schemes matching the user's request.
 
 Run:
-python3 assistant/algorithmic-art/scripts/search.py "<mood/color keywords>" --domain palette -n 5
+python3 scripts/search.py "<mood/color keywords>" --domain palette -n 5
 
 For each palette, evaluate:
 - Harmony and contrast (will it read well at the technique's scale?)
@@ -128,7 +128,7 @@ Prompt the subagent to find famous works as inspiration and extract applicable l
 Search the algorithmic art reference database for works relevant to this project.
 
 Run:
-python3 assistant/algorithmic-art/scripts/search.py "<technique or style>" --domain reference -n 3
+python3 scripts/search.py "<technique or style>" --domain reference -n 3
 
 For each reference:
 - What specific lesson applies to the user's project?
@@ -184,7 +184,7 @@ Once the user approves (or you have enough information for a specific request), 
 ```
 Generate a complete, self-contained algorithmic art HTML file using p5.js.
 
-**Template**: Start from assistant/algorithmic-art/templates/viewer.html
+**Template**: Start from templates/viewer-base.html (or a matching scenario template from templates/<category>/).
 Read the template first, then modify only the VARIABLE sections.
 
 **Technique**: [technique name and algorithm details from research]

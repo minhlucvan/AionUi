@@ -4,12 +4,9 @@
   "version": "2.0.0",
   "description": "Specialized assistant for creating generative algorithmic art using p5.js — for representation, education, and illustration",
   "author": "AionUi",
+  "workspacePath": "./workspace",
   "tags": ["generative-art", "p5js", "algorithmic", "visualization", "education", "illustration", "creative-coding"],
   "presetAgentType": "claude",
-  "isBuiltin": true,
-  "structure": {
-    "data": "Technique, palette, and reference CSV databases",
-    "scripts": "BM25 search engine for querying art databases",
-    "templates": "Base HTML viewer template for p5.js artworks"
-  }
+  "defaultAgent": "art-consultant",
+  "isBuiltin": true
 }
