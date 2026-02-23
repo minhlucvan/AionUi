@@ -90,7 +90,6 @@ For noise in Three.js (no built-in Perlin), implement a simple 3D value noise or
 ```javascript
 // Simple 3D seeded noise using hash + smoothstep
 function seededNoise3D(x, y, z) {
-  // Use seeded PRNG to create a deterministic hash grid
   let ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
   let fx = x - ix, fy = y - iy, fz = z - iz;
   fx = fx * fx * (3 - 2 * fx); // smoothstep
@@ -164,87 +163,11 @@ function clearScene() {
 }
 ```
 
-## 3D-Specific Techniques
+## References
 
-### Room Acoustics Visualization
+Detailed 3D technique guides live in `references/`:
 
-```javascript
-// Room as wireframe box
-let roomGeo = new THREE.BoxGeometry(CONFIG.roomWidth, CONFIG.roomHeight, CONFIG.roomDepth);
-let roomMat = new THREE.MeshBasicMaterial({ color: 0x334455, wireframe: true });
-scene.add(new THREE.Mesh(roomGeo, roomMat));
-
-// Ray reflections — trace from source, bounce off walls
-function traceRay(origin, direction, bounces) {
-  let raycaster = new THREE.Raycaster(origin, direction);
-  // ... intersect with room walls, reflect, draw line segments
-}
-```
-
-### Spatial Audio / Speaker Placement
-
-```javascript
-// Sound sources as emissive spheres with directional cones
-let speakerGeo = new THREE.ConeGeometry(0.2, 0.4, 8);
-let speakerMat = new THREE.MeshStandardMaterial({
-  color: CONFIG.colors[0], emissive: CONFIG.colors[0], emissiveIntensity: 0.5
-});
-
-// Directional cone visualization
-let coneGeo = new THREE.ConeGeometry(CONFIG.coneRadius, CONFIG.coneLength, 16, 1, true);
-let coneMat = new THREE.MeshBasicMaterial({
-  color: CONFIG.colors[1], transparent: true, opacity: 0.15, side: THREE.DoubleSide
-});
-```
-
-### 3D Particle Systems
-
-```javascript
-// High-performance points-based particles
-let positions = new Float32Array(CONFIG.particleCount * 3);
-let colors = new Float32Array(CONFIG.particleCount * 3);
-
-for (let i = 0; i < CONFIG.particleCount; i++) {
-  positions[i * 3] = seededRandomRange(-5, 5);     // x
-  positions[i * 3 + 1] = seededRandomRange(-5, 5); // y
-  positions[i * 3 + 2] = seededRandomRange(-5, 5); // z
-}
-
-let geo = new THREE.BufferGeometry();
-geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-let mat = new THREE.PointsMaterial({ size: 0.05, vertexColors: true });
-scene.add(new THREE.Points(geo, mat));
-```
-
-### Parametric Surfaces
-
-```javascript
-// Custom parametric surface using BufferGeometry
-function parametricSurface(u, v) {
-  // Klein bottle, torus knot, etc.
-  let x = Math.cos(u) * (3 + Math.cos(v));
-  let y = Math.sin(u) * (3 + Math.cos(v));
-  let z = Math.sin(v);
-  return new THREE.Vector3(x, y, z);
-}
-```
-
-### Terrain Generation
-
-```javascript
-// Height-mapped plane geometry
-let planeGeo = new THREE.PlaneGeometry(10, 10, CONFIG.resolution, CONFIG.resolution);
-let positions = planeGeo.attributes.position.array;
-
-for (let i = 0; i < positions.length; i += 3) {
-  let x = positions[i], y = positions[i + 1];
-  positions[i + 2] = seededNoise2D(x * CONFIG.noiseScale, y * CONFIG.noiseScale) * CONFIG.heightScale;
-}
-
-planeGeo.computeVertexNormals();
-```
+- **3d-techniques.md** — room acoustics, spatial audio, speaker placement, 3D particles, parametric surfaces, terrain generation
 
 ## Download / Export
 

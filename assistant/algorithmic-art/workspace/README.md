@@ -27,14 +27,13 @@ Dual-engine generative art workspace — create seeded, reproducible algorithmic
 
 ## Skills
 
+Each skill is a self-contained subfolder with `SKILL.md` and `references/`:
+
 | Skill | Domain |
 |-------|--------|
-| **algorithmic-art-p5js** | p5.js engine patterns, 2D canvas techniques, waveforms, signal flow |
-| **algorithmic-art-3js** | Three.js engine patterns, 3D scene setup, spatial concepts, OrbitControls |
-| **particle-systems** | Flow fields, boids, N-body, trails |
-| **fractals-and-math** | Mandelbrot, Julia, L-systems, parametric curves |
-| **nature-simulation** | Reaction-diffusion, cellular automata, DLA, waves |
-| **color-and-composition** | Palette theory, layering, visual balance |
+| **algorithmic-art** | Router & creative direction — engine routing, color theory, palette database, composition |
+| **algorithmic-art-p5js** | p5.js 2D engine — canvas setup, techniques, particle systems, fractals, nature simulation |
+| **algorithmic-art-3js** | Three.js 3D engine — scene setup, room acoustics, spatial audio, terrain, parametric surfaces |
 
 ## Templates
 

@@ -4,11 +4,6 @@ Expertise in color selection, palette harmony, and compositional principles for 
 
 ## Palette Selection
 
-### Search the Database
-```bash
-python3 scripts/search.py "<mood keywords>" --domain palette -n 5
-```
-
 ### Mood-to-Palette Quick Map
 
 | Mood | Palette Direction |

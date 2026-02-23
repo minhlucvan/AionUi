@@ -144,6 +144,15 @@ px += Math.cos(angle) * stepLength;
 py += Math.sin(angle) * stepLength;
 ```
 
+## References
+
+Detailed technique guides live in `references/`:
+
+- **techniques.csv** — 25 algorithmic art techniques with parameters, algorithms, and complexity ratings
+- **particle-systems.md** — flow fields, boids, N-body, trails
+- **fractals-and-math.md** — Mandelbrot, Julia, L-systems, parametric curves, strange attractors
+- **nature-simulation.md** — reaction-diffusion, cellular automata, DLA, wave interference
+
 ## Output Format
 
 Single self-contained HTML file with:

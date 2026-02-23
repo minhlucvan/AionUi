@@ -3,12 +3,9 @@
   "description": "Workspace for creating generative algorithmic art with p5.js (2D) and Three.js (3D) — mathematics, physics, biology, geometry, acoustics, and spatial visualization",
   "version": "3.0.0",
   "skills": [
+    "algorithmic-art",
     "algorithmic-art-p5js",
-    "algorithmic-art-3js",
-    "particle-systems",
-    "fractals-and-math",
-    "nature-simulation",
-    "color-and-composition"
+    "algorithmic-art-3js"
   ],
   "agents": [
     "art-consultant",
