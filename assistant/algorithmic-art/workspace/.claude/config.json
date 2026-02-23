@@ -1,0 +1,7 @@
+{
+  "name": "Algorithmic Art Assistant",
+  "description": "Workspace for creating generative algorithmic art with p5.js — for representation, education, and illustration",
+  "version": "1.0.0",
+  "skills": ["p5js-generative", "mathematical-patterns", "color-theory", "data-visualization-art"],
+  "agents": ["art-director", "algorithm-engineer", "visualization-expert"]
+}

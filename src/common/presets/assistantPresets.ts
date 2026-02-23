@@ -327,4 +327,26 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': ['读取 prd.json 并实现下一个用户故事', '为以下功能生成 PRD：添加 OAuth 用户认证', '检查进度并继续下一个任务', '验证所有故事已完成并运行最终检查'],
     },
   },
+  {
+    id: 'algorithmic-art',
+    avatar: '🎨',
+    presetAgentType: 'claude',
+    resourceDir: 'assistant/algorithmic-art',
+    ruleFiles: {
+      'en-US': 'algorithmic-art.md',
+      'zh-CN': 'algorithmic-art.zh-CN.md',
+    },
+    nameI18n: {
+      'en-US': 'Algorithmic Art',
+      'zh-CN': '算法艺术',
+    },
+    descriptionI18n: {
+      'en-US': 'Create generative algorithmic art with p5.js — flow fields, fractals, data visualizations, and mathematical patterns for representation, education, and illustration.',
+      'zh-CN': '使用 p5.js 创建生成式算法艺术 — 流场、分形、数据可视化和数学图案，用于表现、教育和插画。',
+    },
+    promptsI18n: {
+      'en-US': ['Create a Perlin noise flow field with luminous particle trails', 'Generate a fractal tree with golden ratio branching angles', 'Visualize the Fibonacci spiral as interactive generative art', 'Create a data-driven mandala from synthetic dataset patterns'],
+      'zh-CN': ['创建带有光粒子轨迹的 Perlin 噪声流场', '生成具有黄金比例分支角度的分形树', '将 Fibonacci 螺旋可视化为交互式生成艺术', '从合成数据集模式创建数据驱动的曼陀罗'],
+    },
+  },
 ];
