@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flow Field Particles</title>
+<script src="../../p5.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a14;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ──── Sidebar ──── */
+  .sidebar {
+    width: 320px;
+    min-width: 320px;
+    background: linear-gradient(180deg, #16213e 0%, #1a1a2e 100%);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+  .sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .sidebar-header p {
+    font-size: 12px;
+    color: #8899aa;
+    line-height: 1.5;
+  }
+
+  .section {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #667788;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  /* ──── Seed Controls ──── */
+  .seed-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .seed-input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .seed-input:focus { border-color: #d97757; }
+
+  .btn-seed {
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .btn-seed:hover { background: rgba(217,119,87,0.2); border-color: #d97757; color: #d97757; }
+
+  /* ──── Sliders ──── */
+  .param-group { margin-bottom: 12px; }
+  .param-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .param-label span:first-child { color: #aabbcc; }
+  .param-label span:last-child { color: #d97757; font-family: monospace; }
+
+  input[type="range"] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #d97757;
+    cursor: pointer;
+    border: 2px solid #1a1a2e;
+  }
+
+  /* ──── Color Pickers ──── */
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .color-row label { font-size: 12px; color: #aabbcc; min-width: 70px; }
+  .color-row input[type="color"] {
+    width: 32px;
+    height: 24px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .color-hex {
+    font-size: 11px;
+    color: #667788;
+    font-family: monospace;
+  }
+
+  /* ──── Action Buttons ──── */
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  .btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .btn-primary {
+    background: #d97757;
+    color: #fff;
+  }
+  .btn-primary:hover { background: #c4663f; }
+  .btn-secondary {
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+  /* ──── Canvas Area ──── */
+  .canvas-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0a0a14;
+    overflow: hidden;
+  }
+  .canvas-area canvas { display: block; }
+
+  /* ──── Description ──── */
+  .description {
+    padding: 16px 20px;
+    font-size: 12px;
+    color: #667788;
+    line-height: 1.6;
+  }
+  .description a { color: #d97757; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <!-- ─── Header ─── -->
+  <div class="sidebar-header">
+    <h1>Flow Field Particles</h1>
+    <p>Perlin noise vector field with particle trails. Thousands of particles follow invisible currents defined by layered noise, creating organic fluid-like patterns.</p>
+  </div>
+
+  <!-- ─── Seed Controls (FIXED — do not modify) ─── -->
+  <div class="section">
+    <div class="section-title">Seed</div>
+    <div class="seed-row">
+      <button class="btn-seed" onclick="changeSeed(-1)" title="Previous">&#9664;</button>
+      <input type="number" class="seed-input" id="seedInput" value="42" min="0" max="9999" onchange="setSeed(this.value)">
+      <button class="btn-seed" onclick="changeSeed(1)" title="Next">&#9654;</button>
+      <button class="btn-seed" onclick="randomSeed()" title="Random">&#9776;</button>
+    </div>
+  </div>
+
+  <!-- ─── Parameters ─── -->
+  <div class="section">
+    <div class="section-title">Parameters</div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Noise Scale</span><span id="noiseScaleVal">50</span></div>
+      <input type="range" id="noiseScale" min="1" max="100" value="50"
+             oninput="CONFIG.noiseScale=+this.value; document.getElementById('noiseScaleVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Particle Count</span><span id="particleCountVal">1000</span></div>
+      <input type="range" id="particleCount" min="100" max="3000" value="1000"
+             oninput="CONFIG.particleCount=+this.value; document.getElementById('particleCountVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Step Length</span><span id="stepLengthVal">4</span></div>
+      <input type="range" id="stepLength" min="1" max="10" value="4"
+             oninput="CONFIG.stepLength=+this.value; document.getElementById('stepLengthVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Num Steps</span><span id="numStepsVal">200</span></div>
+      <input type="range" id="numSteps" min="50" max="500" value="200"
+             oninput="CONFIG.numSteps=+this.value; document.getElementById('numStepsVal').textContent=this.value; regenerate()">
+    </div>
+  </div>
+
+  <!-- ─── Colors ─── -->
+  <div class="section">
+    <div class="section-title">Colors</div>
+
+    <div class="color-row">
+      <label>Stream 1</label>
+      <input type="color" id="color1" value="#d97757" onchange="CONFIG.colors[0]=this.value; regenerate()">
+      <span class="color-hex" id="color1Hex">#d97757</span>
+    </div>
+    <div class="color-row">
+      <label>Stream 2</label>
+      <input type="color" id="color2" value="#6a9bcc" onchange="CONFIG.colors[1]=this.value; regenerate()">
+      <span class="color-hex" id="color2Hex">#6a9bcc</span>
+    </div>
+    <div class="color-row">
+      <label>Stream 3</label>
+      <input type="color" id="color3" value="#88d4ab" onchange="CONFIG.colors[2]=this.value; regenerate()">
+      <span class="color-hex" id="color3Hex">#88d4ab</span>
+    </div>
+    <div class="color-row">
+      <label>Stream 4</label>
+      <input type="color" id="color4" value="#e8c547" onchange="CONFIG.colors[3]=this.value; regenerate()">
+      <span class="color-hex" id="color4Hex">#e8c547</span>
+    </div>
+  </div>
+
+  <!-- ─── Actions (FIXED — do not modify) ─── -->
+  <div class="section">
+    <div class="section-title">Actions</div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="regenerate()">&#8634; Regenerate</button>
+      <button class="btn btn-secondary" onclick="resetDefaults()">Reset Defaults</button>
+      <button class="btn btn-secondary" onclick="downloadPNG()">&#11015; Download PNG</button>
+    </div>
+  </div>
+
+  <!-- ─── Description ─── -->
+  <div class="description">
+    <p>A Perlin noise field defines a continuous vector field across the canvas. Particles are spawned at seeded random positions and follow the field for hundreds of steps, tracing smooth curves with curveVertex. Each seed produces a unique noise offset, generating entirely different flow patterns. A subtle noise-based background texture adds depth beneath the flowing particle trails.</p>
+  </div>
+</div>
+
+<div class="canvas-area" id="canvasContainer"></div>
+
+<script>
+// ============================================================
+// FIXED SECTION — Mulberry32 PRNG & Seed Management
+// Do NOT modify this section
+// ============================================================
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+let currentSeed = 42;
+let rng = mulberry32(currentSeed);
+
+function seededRandom() { return rng(); }
+function seededRandomRange(min, max) { return min + seededRandom() * (max - min); }
+function seededRandomInt(min, max) { return Math.floor(seededRandomRange(min, max + 1)); }
+function seededGaussian(mean, sd) {
+  let u1 = seededRandom(), u2 = seededRandom();
+  return mean + sd * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+function seededShuffle(arr) {
+  let a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    let j = Math.floor(seededRandom() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function setSeed(val) {
+  currentSeed = parseInt(val) || 0;
+  document.getElementById('seedInput').value = currentSeed;
+  regenerate();
+}
+function changeSeed(delta) { setSeed(currentSeed + delta); }
+function randomSeed() { setSeed(Math.floor(Math.random() * 10000)); }
+
+function regenerate() {
+  rng = mulberry32(currentSeed);
+  if (typeof generateArt === 'function') {
+    clear();
+    generateArt();
+  }
+}
+
+function resetDefaults() {
+  Object.assign(CONFIG, JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
+  syncUIFromConfig();
+  regenerate();
+}
+
+function downloadPNG() {
+  saveCanvas('artwork_seed_' + currentSeed, 'png');
+}
+
+// ============================================================
+// VARIABLE SECTION — CONFIG & DEFAULT_CONFIG
+// ============================================================
+const DEFAULT_CONFIG = {
+  noiseScale: 50,
+  particleCount: 1000,
+  stepLength: 4,
+  numSteps: 200,
+  colors: ['#d97757', '#6a9bcc', '#88d4ab', '#e8c547'],
+  background: '#0a0a14'
+};
+
+const CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+function syncUIFromConfig() {
+  document.getElementById('noiseScale').value = CONFIG.noiseScale;
+  document.getElementById('noiseScaleVal').textContent = CONFIG.noiseScale;
+
+  document.getElementById('particleCount').value = CONFIG.particleCount;
+  document.getElementById('particleCountVal').textContent = CONFIG.particleCount;
+
+  document.getElementById('stepLength').value = CONFIG.stepLength;
+  document.getElementById('stepLengthVal').textContent = CONFIG.stepLength;
+
+  document.getElementById('numSteps').value = CONFIG.numSteps;
+  document.getElementById('numStepsVal').textContent = CONFIG.numSteps;
+
+  CONFIG.colors.forEach((c, i) => {
+    let picker = document.getElementById('color' + (i + 1));
+    let hex = document.getElementById('color' + (i + 1) + 'Hex');
+    if (picker) { picker.value = c; }
+    if (hex) { hex.textContent = c; }
+  });
+}
+
+// ============================================================
+// VARIABLE SECTION — p5.js Setup & Art Generation
+// ============================================================
+const CANVAS_SIZE = 1200;
+
+function setup() {
+  let canvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
+  canvas.parent('canvasContainer');
+  pixelDensity(1);
+  noLoop();
+  generateArt();
+}
+
+function generateArt() {
+  background(CONFIG.background);
+
+  // Map noiseScale slider (1-100) to actual noise scale (0.001-0.02)
+  let ns = map(CONFIG.noiseScale, 1, 100, 0.001, 0.02);
+
+  // Seeded noise offset so different seeds produce different patterns
+  let noiseOffX = seededRandom() * 10000;
+  let noiseOffY = seededRandom() * 10000;
+
+  // ── Layer 1: Subtle noise-based background texture ──
+  loadPixels();
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let n = noise((x + noiseOffX) * 0.005, (y + noiseOffY) * 0.005);
+      let brightness = map(n, 0, 1, 6, 22);
+      let idx = (y * width + x) * 4;
+      pixels[idx] = brightness * 0.4;
+      pixels[idx + 1] = brightness * 0.4;
+      pixels[idx + 2] = brightness * 0.7;
+      pixels[idx + 3] = 255;
+    }
+  }
+  updatePixels();
+
+  // ── Layer 2: Flow field particle curves ──
+  let pCount = CONFIG.particleCount;
+  let stepLen = CONFIG.stepLength;
+  let steps = CONFIG.numSteps;
+  let margin = 50;
+
+  for (let i = 0; i < pCount; i++) {
+    // Spawn particle at seeded random position
+    let x = seededRandomRange(-margin, width + margin);
+    let y = seededRandomRange(-margin, height + margin);
+
+    // Pick a color from CONFIG.colors
+    let colIdx = seededRandomInt(0, CONFIG.colors.length - 1);
+    let c = color(CONFIG.colors[colIdx]);
+
+    // Vary opacity and stroke weight per particle
+    let alpha = seededRandomRange(15, 80);
+    let sw = seededRandomRange(0.3, 1.8);
+
+    c.setAlpha(alpha);
+    stroke(c);
+    strokeWeight(sw);
+    noFill();
+
+    // Walk through the flow field using curveVertex
+    beginShape();
+    // curveVertex needs at least 4 points; add first point as control point
+    let prevX = x;
+    let prevY = y;
+    curveVertex(x, y);
+
+    for (let s = 0; s < steps; s++) {
+      let angle = noise((x + noiseOffX) * ns, (y + noiseOffY) * ns) * TWO_PI * 2;
+      x += Math.cos(angle) * stepLen;
+      y += Math.sin(angle) * stepLen;
+
+      curveVertex(x, y);
+
+      // Stop if particle leaves canvas significantly
+      if (x < -margin * 2 || x > width + margin * 2 || y < -margin * 2 || y > height + margin * 2) {
+        break;
+      }
+    }
+
+    // Add last point as control point for curveVertex
+    curveVertex(x, y);
+    endShape();
+  }
+}
+
+// Handle color picker hex display updates
+document.querySelectorAll('input[type="color"]').forEach(picker => {
+  picker.addEventListener('input', function() {
+    let hexSpan = document.getElementById(this.id + 'Hex');
+    if (hexSpan) hexSpan.textContent = this.value;
+  });
+});
+</script>
+</body>
+</html>

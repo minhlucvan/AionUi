@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N-Body Gravity</title>
+<script src="../../p5.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a14;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ──── Sidebar ──── */
+  .sidebar {
+    width: 320px;
+    min-width: 320px;
+    background: linear-gradient(180deg, #16213e 0%, #1a1a2e 100%);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+  .sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .sidebar-header p {
+    font-size: 12px;
+    color: #8899aa;
+    line-height: 1.5;
+  }
+
+  .section {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #667788;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  /* ──── Seed Controls ──── */
+  .seed-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .seed-input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .seed-input:focus { border-color: #d97757; }
+
+  .btn-seed {
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .btn-seed:hover { background: rgba(217,119,87,0.2); border-color: #d97757; color: #d97757; }
+
+  /* ──── Sliders ──── */
+  .param-group { margin-bottom: 12px; }
+  .param-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .param-label span:first-child { color: #aabbcc; }
+  .param-label span:last-child { color: #d97757; font-family: monospace; }
+
+  input[type="range"] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #d97757;
+    cursor: pointer;
+    border: 2px solid #1a1a2e;
+  }
+
+  /* ──── Color Pickers ──── */
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .color-row label { font-size: 12px; color: #aabbcc; min-width: 70px; }
+  .color-row input[type="color"] {
+    width: 32px;
+    height: 24px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .color-hex {
+    font-size: 11px;
+    color: #667788;
+    font-family: monospace;
+  }
+
+  /* ──── Action Buttons ──── */
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  .btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .btn-primary {
+    background: #d97757;
+    color: #fff;
+  }
+  .btn-primary:hover { background: #c4663f; }
+  .btn-secondary {
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+  /* ──── Canvas Area ──── */
+  .canvas-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0a0a14;
+    overflow: hidden;
+  }
+  .canvas-area canvas { display: block; }
+
+  /* ──── Description ──── */
+  .description {
+    padding: 16px 20px;
+    font-size: 12px;
+    color: #667788;
+    line-height: 1.6;
+  }
+  .description a { color: #d97757; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <!-- ─── Header ─── -->
+  <div class="sidebar-header">
+    <h1>N-Body Gravity</h1>
+    <p>Gravitational orbital trails from N-body simulation. Bodies interact through Newtonian gravity, tracing elegant curves as they orbit, scatter, and spiral around each other.</p>
+  </div>
+
+  <!-- ─── Seed Controls (FIXED — do not modify) ─── -->
+  <div class="section">
+    <div class="section-title">Seed</div>
+    <div class="seed-row">
+      <button class="btn-seed" onclick="changeSeed(-1)" title="Previous">&#9664;</button>
+      <input type="number" class="seed-input" id="seedInput" value="42" min="0" max="9999" onchange="setSeed(this.value)">
+      <button class="btn-seed" onclick="changeSeed(1)" title="Next">&#9654;</button>
+      <button class="btn-seed" onclick="randomSeed()" title="Random">&#9776;</button>
+    </div>
+  </div>
+
+  <!-- ─── Parameters ─── -->
+  <div class="section">
+    <div class="section-title">Parameters</div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Body Count</span><span id="bodyCountVal">8</span></div>
+      <input type="range" id="bodyCount" min="3" max="20" value="8"
+             oninput="CONFIG.bodyCount=+this.value; document.getElementById('bodyCountVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Trail Length</span><span id="trailLengthVal">800</span></div>
+      <input type="range" id="trailLength" min="100" max="2000" value="800"
+             oninput="CONFIG.trailLength=+this.value; document.getElementById('trailLengthVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Gravity</span><span id="gravityVal">30</span></div>
+      <input type="range" id="gravity" min="1" max="100" value="30"
+             oninput="CONFIG.gravitationalConstant=+this.value; document.getElementById('gravityVal').textContent=this.value; regenerate()">
+    </div>
+  </div>
+
+  <!-- ─── Colors ─── -->
+  <div class="section">
+    <div class="section-title">Colors</div>
+
+    <div class="color-row">
+      <label>Trail 1</label>
+      <input type="color" id="color1" value="#d97757" onchange="CONFIG.colors[0]=this.value; regenerate()">
+      <span class="color-hex" id="color1Hex">#d97757</span>
+    </div>
+    <div class="color-row">
+      <label>Trail 2</label>
+      <input type="color" id="color2" value="#6a9bcc" onchange="CONFIG.colors[1]=this.value; regenerate()">
+      <span class="color-hex" id="color2Hex">#6a9bcc</span>
+    </div>
+    <div class="color-row">
+      <label>Trail 3</label>
+      <input type="color" id="color3" value="#88d4ab" onchange="CONFIG.colors[2]=this.value; regenerate()">
+      <span class="color-hex" id="color3Hex">#88d4ab</span>
+    </div>
+    <div class="color-row">
+      <label>Trail 4</label>
+      <input type="color" id="color4" value="#e8c547" onchange="CONFIG.colors[3]=this.value; regenerate()">
+      <span class="color-hex" id="color4Hex">#e8c547</span>
+    </div>
+    <div class="color-row">
+      <label>Trail 5</label>
+      <input type="color" id="color5" value="#cc6a9b" onchange="CONFIG.colors[4]=this.value; regenerate()">
+      <span class="color-hex" id="color5Hex">#cc6a9b</span>
+    </div>
+  </div>
+
+  <!-- ─── Actions (FIXED — do not modify) ─── -->
+  <div class="section">
+    <div class="section-title">Actions</div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="regenerate()">&#8634; Regenerate</button>
+      <button class="btn btn-secondary" onclick="resetDefaults()">Reset Defaults</button>
+      <button class="btn btn-secondary" onclick="downloadPNG()">&#11015; Download PNG</button>
+    </div>
+  </div>
+
+  <!-- ─── Description ─── -->
+  <div class="description">
+    <p>This artwork simulates Newtonian gravitational interaction among multiple bodies. Each body is initialized with seeded random position, velocity, and mass. The simulation runs for thousands of timesteps, computing pairwise gravitational forces with a softening parameter to prevent singularities. Each body's trajectory is recorded and drawn as a smooth, color-coded curve with opacity that fades over time. A starfield background provides depth. Different seeds produce entirely different orbital configurations, from stable orbits to chaotic scatterings.</p>
+  </div>
+</div>
+
+<div class="canvas-area" id="canvasContainer"></div>
+
+<script>
+// ============================================================
+// FIXED SECTION — Mulberry32 PRNG & Seed Management
+// Do NOT modify this section
+// ============================================================
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+let currentSeed = 42;
+let rng = mulberry32(currentSeed);
+
+function seededRandom() { return rng(); }
+function seededRandomRange(min, max) { return min + seededRandom() * (max - min); }
+function seededRandomInt(min, max) { return Math.floor(seededRandomRange(min, max + 1)); }
+function seededGaussian(mean, sd) {
+  let u1 = seededRandom(), u2 = seededRandom();
+  return mean + sd * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+function seededShuffle(arr) {
+  let a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    let j = Math.floor(seededRandom() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function setSeed(val) {
+  currentSeed = parseInt(val) || 0;
+  document.getElementById('seedInput').value = currentSeed;
+  regenerate();
+}
+function changeSeed(delta) { setSeed(currentSeed + delta); }
+function randomSeed() { setSeed(Math.floor(Math.random() * 10000)); }
+
+function regenerate() {
+  rng = mulberry32(currentSeed);
+  if (typeof generateArt === 'function') {
+    clear();
+    generateArt();
+  }
+}
+
+function resetDefaults() {
+  Object.assign(CONFIG, JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
+  syncUIFromConfig();
+  regenerate();
+}
+
+function downloadPNG() {
+  saveCanvas('artwork_seed_' + currentSeed, 'png');
+}
+
+// ============================================================
+// VARIABLE SECTION — CONFIG & DEFAULT_CONFIG
+// ============================================================
+const DEFAULT_CONFIG = {
+  bodyCount: 8,
+  trailLength: 800,
+  gravitationalConstant: 30,
+  colors: ['#d97757', '#6a9bcc', '#88d4ab', '#e8c547', '#cc6a9b'],
+  background: '#0a0a14'
+};
+
+const CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+function syncUIFromConfig() {
+  document.getElementById('bodyCount').value = CONFIG.bodyCount;
+  document.getElementById('bodyCountVal').textContent = CONFIG.bodyCount;
+
+  document.getElementById('trailLength').value = CONFIG.trailLength;
+  document.getElementById('trailLengthVal').textContent = CONFIG.trailLength;
+
+  document.getElementById('gravity').value = CONFIG.gravitationalConstant;
+  document.getElementById('gravityVal').textContent = CONFIG.gravitationalConstant;
+
+  CONFIG.colors.forEach((c, i) => {
+    let picker = document.getElementById('color' + (i + 1));
+    let hex = document.getElementById('color' + (i + 1) + 'Hex');
+    if (picker) { picker.value = c; }
+    if (hex) { hex.textContent = c; }
+  });
+}
+
+// ============================================================
+// VARIABLE SECTION — p5.js Setup & Art Generation
+// ============================================================
+const CANVAS_SIZE = 1200;
+
+function setup() {
+  let canvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
+  canvas.parent('canvasContainer');
+  pixelDensity(1);
+  noLoop();
+  generateArt();
+}
+
+function generateArt() {
+  background(CONFIG.background);
+
+  let numBodies = CONFIG.bodyCount;
+  let steps = CONFIG.trailLength;
+  // Map gravity slider (1-100) to actual G (0.1-10.0)
+  let G = map(CONFIG.gravitationalConstant, 1, 100, 0.1, 10.0);
+  let dt = 0.4; // timestep
+  let softening = 20; // softening parameter to prevent singularities
+  let centerX = width / 2;
+  let centerY = height / 2;
+
+  // ── Layer 1: Starfield background ──
+  noStroke();
+  for (let i = 0; i < 600; i++) {
+    let sx = seededRandom() * width;
+    let sy = seededRandom() * height;
+    let brightness = seededRandomRange(80, 255);
+    let starSize = seededRandomRange(0.5, 2.5);
+    fill(brightness, brightness, brightness + 20, seededRandomRange(60, 200));
+    ellipse(sx, sy, starSize, starSize);
+  }
+
+  // A few brighter stars with a subtle glow
+  for (let i = 0; i < 15; i++) {
+    let sx = seededRandom() * width;
+    let sy = seededRandom() * height;
+    // Glow
+    for (let r = 8; r > 0; r -= 2) {
+      fill(255, 255, 240, map(r, 8, 0, 3, 15));
+      ellipse(sx, sy, r * 2, r * 2);
+    }
+    fill(255, 255, 250, 200);
+    ellipse(sx, sy, 2, 2);
+  }
+
+  // ── Initialize bodies ──
+  let bodies = [];
+  for (let i = 0; i < numBodies; i++) {
+    // Place bodies in an area around the center
+    let angle = seededRandomRange(0, TWO_PI);
+    let radius = seededRandomRange(100, 400);
+    let px = centerX + Math.cos(angle) * radius;
+    let py = centerY + Math.sin(angle) * radius;
+
+    // Give orbital-ish velocities (perpendicular to radius vector with some randomness)
+    let speed = seededRandomRange(0.5, 3.0);
+    let velAngle = angle + HALF_PI + seededRandomRange(-0.5, 0.5);
+    let vx = Math.cos(velAngle) * speed;
+    let vy = Math.sin(velAngle) * speed;
+
+    // Mass varies
+    let mass = seededRandomRange(5, 40);
+
+    bodies.push({
+      x: px,
+      y: py,
+      vx: vx,
+      vy: vy,
+      mass: mass,
+      trail: [{ x: px, y: py }],
+      colorIdx: i % CONFIG.colors.length
+    });
+  }
+
+  // ── Simulate N-body gravity ──
+  for (let step = 0; step < steps; step++) {
+    // Compute accelerations
+    let ax = new Array(numBodies).fill(0);
+    let ay = new Array(numBodies).fill(0);
+
+    for (let i = 0; i < numBodies; i++) {
+      for (let j = i + 1; j < numBodies; j++) {
+        let dx = bodies[j].x - bodies[i].x;
+        let dy = bodies[j].y - bodies[i].y;
+        let distSq = dx * dx + dy * dy + softening * softening;
+        let dist = Math.sqrt(distSq);
+        let force = G * bodies[i].mass * bodies[j].mass / distSq;
+
+        let fx = force * dx / dist;
+        let fy = force * dy / dist;
+
+        ax[i] += fx / bodies[i].mass;
+        ay[i] += fy / bodies[i].mass;
+        ax[j] -= fx / bodies[j].mass;
+        ay[j] -= fy / bodies[j].mass;
+      }
+    }
+
+    // Update velocities and positions (Euler integration)
+    for (let i = 0; i < numBodies; i++) {
+      bodies[i].vx += ax[i] * dt;
+      bodies[i].vy += ay[i] * dt;
+      bodies[i].x += bodies[i].vx * dt;
+      bodies[i].y += bodies[i].vy * dt;
+
+      bodies[i].trail.push({ x: bodies[i].x, y: bodies[i].y });
+    }
+  }
+
+  // ── Layer 2: Draw orbital trails ──
+  noFill();
+  for (let i = 0; i < numBodies; i++) {
+    let trail = bodies[i].trail;
+    let col = color(CONFIG.colors[bodies[i].colorIdx]);
+    let totalPoints = trail.length;
+
+    // Draw trail in segments for varying opacity
+    let segmentSize = 20;
+    for (let s = 0; s < totalPoints - 1; s += segmentSize) {
+      let endIdx = Math.min(s + segmentSize + 3, totalPoints); // overlap for smooth curves
+      // Opacity fades from dim at start to bright at end
+      let progress = s / totalPoints;
+      let alpha = map(progress, 0, 1, 8, 180);
+      let sw = map(progress, 0, 1, 0.4, 2.2);
+
+      col.setAlpha(alpha);
+      stroke(col);
+      strokeWeight(sw);
+
+      beginShape();
+      for (let p = s; p < endIdx; p++) {
+        curveVertex(trail[p].x, trail[p].y);
+      }
+      endShape();
+    }
+
+    // Draw a brighter dot at the final position of each body
+    let lastPos = trail[trail.length - 1];
+    noStroke();
+
+    // Glow around final position
+    for (let r = 15; r > 0; r -= 2) {
+      let glowCol = color(CONFIG.colors[bodies[i].colorIdx]);
+      glowCol.setAlpha(map(r, 15, 0, 5, 50));
+      fill(glowCol);
+      ellipse(lastPos.x, lastPos.y, r * 2, r * 2);
+    }
+
+    // Body dot sized by mass
+    let dotSize = map(bodies[i].mass, 5, 40, 3, 8);
+    fill(255, 255, 255, 220);
+    ellipse(lastPos.x, lastPos.y, dotSize, dotSize);
+  }
+}
+
+// Handle color picker hex display updates
+document.querySelectorAll('input[type="color"]').forEach(picker => {
+  picker.addEventListener('input', function() {
+    let hexSpan = document.getElementById(this.id + 'Hex');
+    if (hexSpan) hexSpan.textContent = this.value;
+  });
+});
+</script>
+</body>
+</html>
