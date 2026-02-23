@@ -176,12 +176,15 @@ Use these as reference implementations when generating new artwork.
 
 ## References
 
-Detailed technique guides live in `references/`:
+Detailed guides live in `references/`:
 
 - **techniques.csv** — 25 algorithmic art techniques with parameters, algorithms, and complexity ratings
 - **particle-systems.md** — flow fields, boids, N-body, trails
 - **fractals-and-math.md** — Mandelbrot, Julia, L-systems, parametric curves, strange attractors
 - **nature-simulation.md** — reaction-diffusion, cellular automata, DLA, wave interference
+- **color-and-composition.md** — palette theory, harmony rules, layering strategy, composition principles
+- **palettes.csv** — 26 curated palettes with mood, colors, background, and keywords
+- **references.csv** — 15 landmark generative art projects (Fidenza, Chromie Squiggle, etc.)
 
 ## Output Format
 

@@ -165,9 +165,12 @@ function clearScene() {
 
 ## References
 
-Detailed 3D technique guides live in `references/`:
+Detailed guides live in `references/`:
 
 - **3d-techniques.md** — room acoustics, spatial audio, speaker placement, 3D particles, parametric surfaces, terrain generation
+- **color-and-composition.md** — palette theory, harmony rules, layering strategy, composition principles
+- **palettes.csv** — 26 curated palettes with mood, colors, background, and keywords
+- **references.csv** — 15 landmark generative art projects (Fidenza, Chromie Squiggle, etc.)
 
 ## Download / Export
 
