@@ -1,11 +1,11 @@
 {
   "id": "algorithmic-art",
   "name": "Algorithmic Art Assistant",
-  "version": "2.0.0",
-  "description": "Specialized assistant for creating generative algorithmic art using p5.js — for representation, education, and illustration",
+  "version": "3.0.0",
+  "description": "Specialized assistant for creating generative algorithmic art using p5.js (2D) and Three.js (3D) — for representation, education, and illustration",
   "author": "AionUi",
   "workspacePath": "./workspace",
-  "tags": ["generative-art", "p5js", "algorithmic", "visualization", "education", "illustration", "creative-coding"],
+  "tags": ["generative-art", "p5js", "threejs", "algorithmic", "visualization", "education", "illustration", "creative-coding", "3d"],
   "presetAgentType": "claude",
   "defaultAgent": "art-consultant",
   "isBuiltin": true
