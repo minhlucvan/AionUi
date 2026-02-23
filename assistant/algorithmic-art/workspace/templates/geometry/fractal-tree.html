@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fractal Tree</title>
+<script src="../../p5.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a14;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ──── Sidebar ──── */
+  .sidebar {
+    width: 320px;
+    min-width: 320px;
+    background: linear-gradient(180deg, #16213e 0%, #1a1a2e 100%);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+  .sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .sidebar-header p {
+    font-size: 12px;
+    color: #8899aa;
+    line-height: 1.5;
+  }
+
+  .section {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #667788;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  /* ──── Seed Controls ──── */
+  .seed-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .seed-input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .seed-input:focus { border-color: #d97757; }
+
+  .btn-seed {
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .btn-seed:hover { background: rgba(217,119,87,0.2); border-color: #d97757; color: #d97757; }
+
+  /* ──── Sliders ──── */
+  .param-group { margin-bottom: 12px; }
+  .param-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .param-label span:first-child { color: #aabbcc; }
+  .param-label span:last-child { color: #d97757; font-family: monospace; }
+
+  input[type="range"] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #d97757;
+    cursor: pointer;
+    border: 2px solid #1a1a2e;
+  }
+
+  /* ──── Color Pickers ──── */
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .color-row label { font-size: 12px; color: #aabbcc; min-width: 70px; }
+  .color-row input[type="color"] {
+    width: 32px;
+    height: 24px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .color-hex {
+    font-size: 11px;
+    color: #667788;
+    font-family: monospace;
+  }
+
+  /* ──── Action Buttons ──── */
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  .btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .btn-primary {
+    background: #d97757;
+    color: #fff;
+  }
+  .btn-primary:hover { background: #c4663f; }
+  .btn-secondary {
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+  /* ──── Canvas Area ──── */
+  .canvas-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0a0a14;
+    overflow: hidden;
+  }
+  .canvas-area canvas { display: block; }
+
+  /* ──── Description ──── */
+  .description {
+    padding: 16px 20px;
+    font-size: 12px;
+    color: #667788;
+    line-height: 1.6;
+  }
+  .description a { color: #d97757; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <!-- ─── Header ─── -->
+  <div class="sidebar-header">
+    <h1>Fractal Tree</h1>
+    <p>Recursive branching structure with natural variation. Each branch splits into child branches with seeded randomness controlling angles, lengths, and density.</p>
+  </div>
+
+  <!-- ─── Seed Controls (FIXED — do not modify) ─── -->
+  <div class="section">
+    <div class="section-title">Seed</div>
+    <div class="seed-row">
+      <button class="btn-seed" onclick="changeSeed(-1)" title="Previous">&#9664;</button>
+      <input type="number" class="seed-input" id="seedInput" value="42" min="0" max="9999" onchange="setSeed(this.value)">
+      <button class="btn-seed" onclick="changeSeed(1)" title="Next">&#9654;</button>
+      <button class="btn-seed" onclick="randomSeed()" title="Random">&#9776;</button>
+    </div>
+  </div>
+
+  <!-- ─── Parameters ─── -->
+  <div class="section">
+    <div class="section-title">Parameters</div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Max Depth</span><span id="maxDepthVal">8</span></div>
+      <input type="range" id="maxDepth" min="4" max="10" value="8"
+             oninput="CONFIG.maxDepth=+this.value; document.getElementById('maxDepthVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Branch Angle</span><span id="branchAngleVal">30</span></div>
+      <input type="range" id="branchAngle" min="15" max="60" value="30"
+             oninput="CONFIG.branchAngle=+this.value; document.getElementById('branchAngleVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Length Ratio</span><span id="lengthRatioVal">70</span></div>
+      <input type="range" id="lengthRatio" min="40" max="90" value="70"
+             oninput="CONFIG.lengthRatio=+this.value; document.getElementById('lengthRatioVal').textContent=this.value; regenerate()">
+    </div>
+  </div>
+
+  <!-- ─── Colors ─── -->
+  <div class="section">
+    <div class="section-title">Colors</div>
+
+    <div class="color-row">
+      <label>Trunk</label>
+      <input type="color" id="color1" value="#5c3a1e" onchange="CONFIG.colors[0]=this.value; regenerate()">
+      <span class="color-hex" id="color1Hex">#5c3a1e</span>
+    </div>
+    <div class="color-row">
+      <label>Branches</label>
+      <input type="color" id="color2" value="#7a6b3a" onchange="CONFIG.colors[1]=this.value; regenerate()">
+      <span class="color-hex" id="color2Hex">#7a6b3a</span>
+    </div>
+    <div class="color-row">
+      <label>Leaves</label>
+      <input type="color" id="color3" value="#88d4ab" onchange="CONFIG.colors[2]=this.value; regenerate()">
+      <span class="color-hex" id="color3Hex">#88d4ab</span>
+    </div>
+  </div>
+
+  <!-- ─── Actions (FIXED — do not modify) ─── -->
+  <div class="section">
+    <div class="section-title">Actions</div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="regenerate()">&#8634; Regenerate</button>
+      <button class="btn btn-secondary" onclick="resetDefaults()">Reset Defaults</button>
+      <button class="btn btn-secondary" onclick="downloadPNG()">&#11015; Download PNG</button>
+    </div>
+  </div>
+
+  <!-- ─── Description ─── -->
+  <div class="description">
+    <p>This fractal tree is generated through recursive branching. Starting from a trunk at the bottom center, each branch splits into 2-3 child branches with seeded random variation in angle, length, and count. Stroke width tapers with depth, and colors transition from dark trunk tones to bright leaf tips. Terminal branches are adorned with leaf-like dots. A subtle ground gradient anchors the composition.</p>
+  </div>
+</div>
+
+<div class="canvas-area" id="canvasContainer"></div>
+
+<script>
+// ============================================================
+// FIXED SECTION — Mulberry32 PRNG & Seed Management
+// Do NOT modify this section
+// ============================================================
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+let currentSeed = 42;
+let rng = mulberry32(currentSeed);
+
+function seededRandom() { return rng(); }
+function seededRandomRange(min, max) { return min + seededRandom() * (max - min); }
+function seededRandomInt(min, max) { return Math.floor(seededRandomRange(min, max + 1)); }
+function seededGaussian(mean, sd) {
+  let u1 = seededRandom(), u2 = seededRandom();
+  return mean + sd * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+function seededShuffle(arr) {
+  let a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    let j = Math.floor(seededRandom() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function setSeed(val) {
+  currentSeed = parseInt(val) || 0;
+  document.getElementById('seedInput').value = currentSeed;
+  regenerate();
+}
+function changeSeed(delta) { setSeed(currentSeed + delta); }
+function randomSeed() { setSeed(Math.floor(Math.random() * 10000)); }
+
+function regenerate() {
+  rng = mulberry32(currentSeed);
+  if (typeof generateArt === 'function') {
+    clear();
+    generateArt();
+  }
+}
+
+function resetDefaults() {
+  Object.assign(CONFIG, JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
+  syncUIFromConfig();
+  regenerate();
+}
+
+function downloadPNG() {
+  saveCanvas('artwork_seed_' + currentSeed, 'png');
+}
+
+// ============================================================
+// VARIABLE SECTION — CONFIG & DEFAULT_CONFIG
+// ============================================================
+const DEFAULT_CONFIG = {
+  maxDepth: 8,
+  branchAngle: 30,
+  lengthRatio: 70,
+  colors: ['#5c3a1e', '#7a6b3a', '#88d4ab'],
+  background: '#0a0a14'
+};
+
+const CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+function syncUIFromConfig() {
+  document.getElementById('maxDepth').value = CONFIG.maxDepth;
+  document.getElementById('maxDepthVal').textContent = CONFIG.maxDepth;
+
+  document.getElementById('branchAngle').value = CONFIG.branchAngle;
+  document.getElementById('branchAngleVal').textContent = CONFIG.branchAngle;
+
+  document.getElementById('lengthRatio').value = CONFIG.lengthRatio;
+  document.getElementById('lengthRatioVal').textContent = CONFIG.lengthRatio;
+
+  CONFIG.colors.forEach((c, i) => {
+    let picker = document.getElementById('color' + (i + 1));
+    let hex = document.getElementById('color' + (i + 1) + 'Hex');
+    if (picker) { picker.value = c; }
+    if (hex) { hex.textContent = c; }
+  });
+}
+
+// ============================================================
+// VARIABLE SECTION — p5.js Setup & Art Generation
+// ============================================================
+const CANVAS_SIZE = 1200;
+
+function setup() {
+  let canvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
+  canvas.parent('canvasContainer');
+  pixelDensity(1);
+  noLoop();
+  generateArt();
+}
+
+// Helper: parse hex to RGB
+function hexToRgb(hex) {
+  let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 0, g: 0, b: 0 };
+}
+
+// Helper: lerp between two hex colors
+function lerpColorRgb(hex1, hex2, t) {
+  let c1 = hexToRgb(hex1);
+  let c2 = hexToRgb(hex2);
+  return {
+    r: Math.round(c1.r + (c2.r - c1.r) * t),
+    g: Math.round(c1.g + (c2.g - c1.g) * t),
+    b: Math.round(c1.b + (c2.b - c1.b) * t)
+  };
+}
+
+// Store leaf positions for later drawing
+let leafPositions = [];
+
+function generateArt() {
+  background(CONFIG.background);
+  leafPositions = [];
+
+  let ratio = CONFIG.lengthRatio / 100.0; // 0.4 - 0.9
+  let baseAngle = CONFIG.branchAngle;
+  let maxD = CONFIG.maxDepth;
+
+  // Layer 1: Ground gradient and horizon
+  drawGround();
+
+  // Layer 2: The fractal tree
+  let trunkLength = CANVAS_SIZE * 0.22;
+  let startX = CANVAS_SIZE / 2 + seededRandomRange(-30, 30);
+  let startY = CANVAS_SIZE * 0.88;
+
+  // Draw the tree recursively
+  drawBranch(startX, startY, -90, trunkLength, 0, maxD, ratio, baseAngle);
+
+  // Draw leaves at terminal positions
+  drawLeaves();
+}
+
+function drawGround() {
+  // Subtle gradient from dark ground to background
+  noStroke();
+  let groundStart = CANVAS_SIZE * 0.85;
+  let bgRgb = hexToRgb(CONFIG.background);
+  let groundColor = hexToRgb(CONFIG.colors[0]);
+
+  for (let y = groundStart; y < CANVAS_SIZE; y++) {
+    let t = (y - groundStart) / (CANVAS_SIZE - groundStart);
+    let cR = Math.round(bgRgb.r + (groundColor.r * 0.4 - bgRgb.r) * t * t);
+    let cG = Math.round(bgRgb.g + (groundColor.g * 0.4 - bgRgb.g) * t * t);
+    let cB = Math.round(bgRgb.b + (groundColor.b * 0.4 - bgRgb.b) * t * t);
+    fill(cR, cG, cB);
+    rect(0, y, CANVAS_SIZE, 1);
+  }
+
+  // Add subtle noise texture to ground
+  for (let i = 0; i < 800; i++) {
+    let gx = seededRandomRange(0, CANVAS_SIZE);
+    let gy = seededRandomRange(groundStart + 10, CANVAS_SIZE);
+    let gs = seededRandomRange(1, 4);
+    let ga = seededRandomRange(10, 40);
+    fill(groundColor.r * 0.6, groundColor.g * 0.6, groundColor.b * 0.5, ga);
+    ellipse(gx, gy, gs, gs * 0.5);
+  }
+
+  // Grass-like strokes near the base
+  for (let i = 0; i < 150; i++) {
+    let gx = seededRandomRange(0, CANVAS_SIZE);
+    let gy = seededRandomRange(groundStart - 5, groundStart + 30);
+    let gh = seededRandomRange(5, 20);
+    let gAngle = seededRandomRange(-30, 30);
+    let leafC = hexToRgb(CONFIG.colors[2]);
+    stroke(leafC.r * 0.5, leafC.g * 0.5, leafC.b * 0.4, seededRandomRange(30, 80));
+    strokeWeight(seededRandomRange(0.5, 1.5));
+    let radAngle = (gAngle - 90) * Math.PI / 180;
+    line(gx, gy, gx + Math.cos(radAngle) * gh, gy + Math.sin(radAngle) * gh);
+  }
+}
+
+function drawBranch(x, y, angle, len, depth, maxD, ratio, baseAngle) {
+  if (depth > maxD || len < 2) return;
+
+  // Calculate end point
+  let radAngle = angle * Math.PI / 180;
+  let endX = x + Math.cos(radAngle) * len;
+  let endY = y + Math.sin(radAngle) * len;
+
+  // Color: interpolate from trunk to branches to leaves
+  let depthFraction = depth / maxD;
+  let branchColor;
+  if (depthFraction < 0.5) {
+    branchColor = lerpColorRgb(CONFIG.colors[0], CONFIG.colors[1], depthFraction * 2);
+  } else {
+    branchColor = lerpColorRgb(CONFIG.colors[1], CONFIG.colors[2], (depthFraction - 0.5) * 2);
+  }
+
+  // Stroke width decreases with depth
+  let maxStroke = 18;
+  let sw = maxStroke * Math.pow(1 - depthFraction, 1.8) + 0.5;
+
+  // Draw the branch with slight curve
+  let midX = (x + endX) / 2 + seededRandomRange(-len * 0.05, len * 0.05);
+  let midY = (y + endY) / 2 + seededRandomRange(-len * 0.05, len * 0.05);
+
+  stroke(branchColor.r, branchColor.g, branchColor.b);
+  strokeWeight(sw);
+  strokeCap(ROUND);
+  noFill();
+
+  // Draw as a bezier curve for natural feel
+  let ctrlX1 = x + (midX - x) * 0.5 + seededRandomRange(-3, 3);
+  let ctrlY1 = y + (midY - y) * 0.5 + seededRandomRange(-3, 3);
+  let ctrlX2 = midX + (endX - midX) * 0.5 + seededRandomRange(-3, 3);
+  let ctrlY2 = midY + (endY - midY) * 0.5 + seededRandomRange(-3, 3);
+
+  bezier(x, y, ctrlX1, ctrlY1, ctrlX2, ctrlY2, endX, endY);
+
+  // If at terminal depth, record leaf position
+  if (depth >= maxD - 1) {
+    leafPositions.push({
+      x: endX,
+      y: endY,
+      size: seededRandomRange(3, 10),
+      depthFrac: depthFraction
+    });
+  }
+
+  // Determine number of child branches (2 or 3)
+  let numChildren = seededRandom() < 0.35 ? 3 : 2;
+
+  // Slight length variation per branch
+  let childLen = len * ratio * seededRandomRange(0.85, 1.15);
+
+  // Generate child branches
+  if (numChildren === 2) {
+    let angleVar1 = seededRandomRange(-8, 8);
+    let angleVar2 = seededRandomRange(-8, 8);
+    let spread = baseAngle * seededRandomRange(0.7, 1.3);
+
+    drawBranch(endX, endY, angle - spread + angleVar1, childLen, depth + 1, maxD, ratio, baseAngle);
+    drawBranch(endX, endY, angle + spread + angleVar2, childLen * seededRandomRange(0.9, 1.1), depth + 1, maxD, ratio, baseAngle);
+  } else {
+    let angleVar1 = seededRandomRange(-6, 6);
+    let angleVar2 = seededRandomRange(-6, 6);
+    let angleVar3 = seededRandomRange(-10, 10);
+    let spread = baseAngle * seededRandomRange(0.7, 1.3);
+
+    drawBranch(endX, endY, angle - spread + angleVar1, childLen, depth + 1, maxD, ratio, baseAngle);
+    drawBranch(endX, endY, angle + angleVar3, childLen * seededRandomRange(0.8, 1.0), depth + 1, maxD, ratio, baseAngle);
+    drawBranch(endX, endY, angle + spread + angleVar2, childLen * seededRandomRange(0.85, 1.05), depth + 1, maxD, ratio, baseAngle);
+  }
+}
+
+function drawLeaves() {
+  noStroke();
+  let leafRgb = hexToRgb(CONFIG.colors[2]);
+  let branchRgb = hexToRgb(CONFIG.colors[1]);
+
+  for (let i = 0; i < leafPositions.length; i++) {
+    let leaf = leafPositions[i];
+
+    // Main leaf dot
+    let alpha = seededRandomRange(100, 220);
+    let sizeVariation = seededRandomRange(0.6, 1.4);
+    let leafSize = leaf.size * sizeVariation;
+
+    // Slight color variation per leaf
+    let hueShift = seededRandomRange(-20, 20);
+    let lr = Math.max(0, Math.min(255, leafRgb.r + hueShift));
+    let lg = Math.max(0, Math.min(255, leafRgb.g + seededRandomRange(-15, 15)));
+    let lb = Math.max(0, Math.min(255, leafRgb.b + hueShift * 0.5));
+
+    // Soft glow behind leaf
+    fill(lr, lg, lb, alpha * 0.2);
+    ellipse(leaf.x, leaf.y, leafSize * 2.5, leafSize * 2.5);
+
+    // Main leaf body
+    fill(lr, lg, lb, alpha);
+    ellipse(leaf.x, leaf.y, leafSize, leafSize * seededRandomRange(0.7, 1.3));
+
+    // Occasional bright highlight
+    if (seededRandom() < 0.3) {
+      fill(255, 255, 240, seededRandomRange(40, 90));
+      ellipse(leaf.x + seededRandomRange(-2, 2), leaf.y + seededRandomRange(-2, 2), leafSize * 0.4, leafSize * 0.4);
+    }
+  }
+
+  // Add some floating leaf particles around the tree
+  for (let i = 0; i < 60; i++) {
+    let fx = seededRandomRange(CANVAS_SIZE * 0.15, CANVAS_SIZE * 0.85);
+    let fy = seededRandomRange(CANVAS_SIZE * 0.05, CANVAS_SIZE * 0.75);
+    let fs = seededRandomRange(2, 5);
+    let fa = seededRandomRange(15, 60);
+
+    let mixT = seededRandom();
+    let pr = Math.round(leafRgb.r * mixT + branchRgb.r * (1 - mixT));
+    let pg = Math.round(leafRgb.g * mixT + branchRgb.g * (1 - mixT));
+    let pb = Math.round(leafRgb.b * mixT + branchRgb.b * (1 - mixT));
+
+    fill(pr, pg, pb, fa);
+    ellipse(fx, fy, fs, fs);
+  }
+}
+
+// Handle color picker hex display updates
+document.querySelectorAll('input[type="color"]').forEach(picker => {
+  picker.addEventListener('input', function() {
+    let hexSpan = document.getElementById(this.id + 'Hex');
+    if (hexSpan) hexSpan.textContent = this.value;
+  });
+});
+</script>
+</body>
+</html>

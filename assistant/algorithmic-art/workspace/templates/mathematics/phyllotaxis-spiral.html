@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phyllotaxis Spiral</title>
+<script src="../../p5.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a14;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ──── Sidebar ──── */
+  .sidebar {
+    width: 320px;
+    min-width: 320px;
+    background: linear-gradient(180deg, #16213e 0%, #1a1a2e 100%);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+  .sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .sidebar-header p {
+    font-size: 12px;
+    color: #8899aa;
+    line-height: 1.5;
+  }
+
+  .section {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #667788;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  /* ──── Seed Controls ──── */
+  .seed-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .seed-input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .seed-input:focus { border-color: #d97757; }
+
+  .btn-seed {
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .btn-seed:hover { background: rgba(217,119,87,0.2); border-color: #d97757; color: #d97757; }
+
+  /* ──── Sliders ──── */
+  .param-group { margin-bottom: 12px; }
+  .param-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .param-label span:first-child { color: #aabbcc; }
+  .param-label span:last-child { color: #d97757; font-family: monospace; }
+
+  input[type="range"] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #d97757;
+    cursor: pointer;
+    border: 2px solid #1a1a2e;
+  }
+
+  /* ──── Color Pickers ──── */
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .color-row label { font-size: 12px; color: #aabbcc; min-width: 70px; }
+  .color-row input[type="color"] {
+    width: 32px;
+    height: 24px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .color-hex {
+    font-size: 11px;
+    color: #667788;
+    font-family: monospace;
+  }
+
+  /* ──── Action Buttons ──── */
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  .btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .btn-primary {
+    background: #d97757;
+    color: #fff;
+  }
+  .btn-primary:hover { background: #c4663f; }
+  .btn-secondary {
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+  /* ──── Canvas Area ──── */
+  .canvas-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0a0a14;
+    overflow: hidden;
+  }
+  .canvas-area canvas { display: block; }
+
+  /* ──── Description ──── */
+  .description {
+    padding: 16px 20px;
+    font-size: 12px;
+    color: #667788;
+    line-height: 1.6;
+  }
+  .description a { color: #d97757; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <!-- ─── Header ─── -->
+  <div class="sidebar-header">
+    <h1>Phyllotaxis Spiral</h1>
+    <p>Golden angle sunflower pattern. Elements are placed using the divergence angle found in nature, creating the iconic spiral arrangement seen in sunflower heads and pinecones.</p>
+  </div>
+
+  <!-- ─── Seed Controls (FIXED — do not modify) ─── -->
+  <div class="section">
+    <div class="section-title">Seed</div>
+    <div class="seed-row">
+      <button class="btn-seed" onclick="changeSeed(-1)" title="Previous">&#9664;</button>
+      <input type="number" class="seed-input" id="seedInput" value="42" min="0" max="9999" onchange="setSeed(this.value)">
+      <button class="btn-seed" onclick="changeSeed(1)" title="Next">&#9654;</button>
+      <button class="btn-seed" onclick="randomSeed()" title="Random">&#9776;</button>
+    </div>
+  </div>
+
+  <!-- ─── Parameters ─── -->
+  <div class="section">
+    <div class="section-title">Parameters</div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Element Count</span><span id="elementCountVal">1500</span></div>
+      <input type="range" id="elementCount" min="100" max="3000" value="1500"
+             oninput="CONFIG.elementCount=+this.value; document.getElementById('elementCountVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Scale</span><span id="scaleVal">8</span></div>
+      <input type="range" id="scale" min="3" max="15" value="8"
+             oninput="CONFIG.scale=+this.value; document.getElementById('scaleVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Angle Offset</span><span id="angleOffsetVal">50</span></div>
+      <input type="range" id="angleOffset" min="0" max="100" value="50"
+             oninput="CONFIG.angleOffsetSlider=+this.value; document.getElementById('angleOffsetVal').textContent=this.value; regenerate()">
+    </div>
+  </div>
+
+  <!-- ─── Colors ─── -->
+  <div class="section">
+    <div class="section-title">Colors</div>
+
+    <div class="color-row">
+      <label>Primary</label>
+      <input type="color" id="color1" value="#d97757" onchange="CONFIG.colors[0]=this.value; regenerate()">
+      <span class="color-hex" id="color1Hex">#d97757</span>
+    </div>
+    <div class="color-row">
+      <label>Secondary</label>
+      <input type="color" id="color2" value="#6a9bcc" onchange="CONFIG.colors[1]=this.value; regenerate()">
+      <span class="color-hex" id="color2Hex">#6a9bcc</span>
+    </div>
+    <div class="color-row">
+      <label>Accent</label>
+      <input type="color" id="color3" value="#88d4ab" onchange="CONFIG.colors[2]=this.value; regenerate()">
+      <span class="color-hex" id="color3Hex">#88d4ab</span>
+    </div>
+  </div>
+
+  <!-- ─── Actions (FIXED — do not modify) ─── -->
+  <div class="section">
+    <div class="section-title">Actions</div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="regenerate()">&#8634; Regenerate</button>
+      <button class="btn btn-secondary" onclick="resetDefaults()">Reset Defaults</button>
+      <button class="btn btn-secondary" onclick="downloadPNG()">&#11015; Download PNG</button>
+    </div>
+  </div>
+
+  <!-- ─── Description ─── -->
+  <div class="description">
+    <p>Phyllotaxis describes the arrangement of leaves, seeds, or florets in plants. Each element is placed at a fixed divergence angle (approximately 137.508 degrees, the golden angle) from the previous one, at a distance proportional to the square root of its index. This produces Fibonacci spirals visible in sunflower heads. The angle offset parameter lets you explore how tiny deviations from the golden angle create dramatically different patterns. The seed controls palette shift and element shape variation, ensuring each generation is unique.</p>
+  </div>
+</div>
+
+<div class="canvas-area" id="canvasContainer"></div>
+
+<script>
+// ============================================================
+// FIXED SECTION — Mulberry32 PRNG & Seed Management
+// Do NOT modify this section
+// ============================================================
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+let currentSeed = 42;
+let rng = mulberry32(currentSeed);
+
+function seededRandom() { return rng(); }
+function seededRandomRange(min, max) { return min + seededRandom() * (max - min); }
+function seededRandomInt(min, max) { return Math.floor(seededRandomRange(min, max + 1)); }
+function seededGaussian(mean, sd) {
+  let u1 = seededRandom(), u2 = seededRandom();
+  return mean + sd * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+function seededShuffle(arr) {
+  let a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    let j = Math.floor(seededRandom() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function setSeed(val) {
+  currentSeed = parseInt(val) || 0;
+  document.getElementById('seedInput').value = currentSeed;
+  regenerate();
+}
+function changeSeed(delta) { setSeed(currentSeed + delta); }
+function randomSeed() { setSeed(Math.floor(Math.random() * 10000)); }
+
+function regenerate() {
+  rng = mulberry32(currentSeed);
+  if (typeof generateArt === 'function') {
+    clear();
+    generateArt();
+  }
+}
+
+function resetDefaults() {
+  Object.assign(CONFIG, JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
+  syncUIFromConfig();
+  regenerate();
+}
+
+function downloadPNG() {
+  saveCanvas('artwork_seed_' + currentSeed, 'png');
+}
+
+// ============================================================
+// VARIABLE SECTION — CONFIG & DEFAULT_CONFIG
+// ============================================================
+const DEFAULT_CONFIG = {
+  elementCount: 1500,
+  scale: 8,
+  angleOffsetSlider: 50,
+  colors: ['#d97757', '#6a9bcc', '#88d4ab'],
+  background: '#0a0a14'
+};
+
+const CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+function syncUIFromConfig() {
+  document.getElementById('elementCount').value = CONFIG.elementCount;
+  document.getElementById('elementCountVal').textContent = CONFIG.elementCount;
+
+  document.getElementById('scale').value = CONFIG.scale;
+  document.getElementById('scaleVal').textContent = CONFIG.scale;
+
+  document.getElementById('angleOffset').value = CONFIG.angleOffsetSlider;
+  document.getElementById('angleOffsetVal').textContent = CONFIG.angleOffsetSlider;
+
+  CONFIG.colors.forEach((c, i) => {
+    let picker = document.getElementById('color' + (i + 1));
+    let hex = document.getElementById('color' + (i + 1) + 'Hex');
+    if (picker) { picker.value = c; }
+    if (hex) { hex.textContent = c; }
+  });
+}
+
+// ============================================================
+// VARIABLE SECTION — p5.js Setup & Art Generation
+// ============================================================
+const CANVAS_SIZE = 1200;
+
+function setup() {
+  let canvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
+  canvas.parent('canvasContainer');
+  pixelDensity(1);
+  noLoop();
+  generateArt();
+}
+
+// Parse hex color to RGB array
+function hexToRgb(hex) {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16)
+  ];
+}
+
+// Interpolate between two RGB colors
+function lerpRgb(c1, c2, t) {
+  return [
+    c1[0] + (c2[0] - c1[0]) * t,
+    c1[1] + (c2[1] - c1[1]) * t,
+    c1[2] + (c2[2] - c1[2]) * t
+  ];
+}
+
+// Get color from palette at position t (0-1) cycling through CONFIG.colors
+function paletteColor(t, colors) {
+  t = ((t % 1) + 1) % 1; // ensure [0,1)
+  let n = colors.length;
+  let scaled = t * n;
+  let idx = Math.floor(scaled) % n;
+  let frac = scaled - Math.floor(scaled);
+  return lerpRgb(colors[idx], colors[(idx + 1) % n], frac);
+}
+
+function generateArt() {
+  background(CONFIG.background);
+
+  let cx = CANVAS_SIZE / 2;
+  let cy = CANVAS_SIZE / 2;
+  let n = CONFIG.elementCount;
+  let sc = CONFIG.scale;
+
+  // Map slider 0-100 to angle range 137.0 - 138.0 degrees
+  let angleDeg = 137.0 + (CONFIG.angleOffsetSlider / 100);
+  let angleRad = angleDeg * Math.PI / 180;
+
+  // Seed-dependent palette offset and shape variation
+  let paletteOffset = seededRandomRange(0, 1);
+  let shapeMode = seededRandomInt(0, 3); // 0=circle, 1=diamond, 2=hexagon, 3=mixed
+  let sizeVariation = seededRandomRange(0.5, 1.5);
+  let rotationBase = seededRandomRange(0, Math.PI * 2);
+
+  // Parse palette colors
+  let rgbColors = CONFIG.colors.map(hexToRgb);
+
+  // ── Layer 1: Subtle radial gradient background ──
+  noStroke();
+  let bgRgb = hexToRgb(CONFIG.background);
+  let gradientSteps = 60;
+  for (let i = gradientSteps; i >= 0; i--) {
+    let t = i / gradientSteps;
+    let radius = CANVAS_SIZE * 0.75 * t;
+    // Subtle warm glow at center using first palette color
+    let glowColor = lerpRgb(bgRgb, rgbColors[0], (1 - t) * 0.08);
+    fill(glowColor[0], glowColor[1], glowColor[2], 255);
+    ellipse(cx, cy, radius * 2, radius * 2);
+  }
+
+  // ── Layer 2: Phyllotaxis spiral elements ──
+  let maxRadius = 0;
+  // Pre-calculate max radius for normalization
+  maxRadius = sc * Math.sqrt(n);
+
+  for (let i = 0; i < n; i++) {
+    let angle = i * angleRad;
+    let r = sc * Math.sqrt(i);
+    let x = cx + r * Math.cos(angle);
+    let y = cy + r * Math.sin(angle);
+
+    // Color based on index with seed-dependent offset
+    let colorT = (i / n + paletteOffset) % 1;
+    let col = paletteColor(colorT, rgbColors);
+
+    // Size: larger at center, smaller at edges, with seed variation
+    let normalizedR = r / maxRadius;
+    let baseSize = (1 - normalizedR * 0.6) * sc * 0.9 * sizeVariation;
+    // Add per-element variation from seed
+    let elemVariation = seededRandomRange(0.7, 1.3);
+    let elemSize = baseSize * elemVariation;
+
+    if (elemSize < 1) elemSize = 1;
+
+    // Alpha: slightly more transparent at edges
+    let alpha = 200 - normalizedR * 80 + seededRandomRange(-20, 20);
+    alpha = Math.max(60, Math.min(255, alpha));
+
+    fill(col[0], col[1], col[2], alpha);
+
+    // Determine shape for this element
+    let currentShape = shapeMode;
+    if (shapeMode === 3) {
+      currentShape = seededRandomInt(0, 2);
+    }
+
+    let elemRotation = rotationBase + angle * 0.3;
+
+    if (currentShape === 0) {
+      // Circle
+      noStroke();
+      ellipse(x, y, elemSize, elemSize);
+    } else if (currentShape === 1) {
+      // Diamond
+      push();
+      translate(x, y);
+      rotate(elemRotation);
+      noStroke();
+      let half = elemSize / 2;
+      beginShape();
+      vertex(0, -half);
+      vertex(half, 0);
+      vertex(0, half);
+      vertex(-half, 0);
+      endShape(CLOSE);
+      pop();
+    } else {
+      // Hexagon
+      push();
+      translate(x, y);
+      rotate(elemRotation);
+      noStroke();
+      let hr = elemSize / 2;
+      beginShape();
+      for (let a = 0; a < 6; a++) {
+        let ha = a * Math.PI / 3;
+        vertex(hr * Math.cos(ha), hr * Math.sin(ha));
+      }
+      endShape(CLOSE);
+      pop();
+    }
+
+    // Subtle stroke ring on some elements for depth
+    if (i % 5 === 0 && elemSize > 3) {
+      noFill();
+      stroke(col[0], col[1], col[2], alpha * 0.3);
+      strokeWeight(0.5);
+      ellipse(x, y, elemSize * 1.5, elemSize * 1.5);
+      noStroke();
+    }
+  }
+
+  // ── Layer 2b: Center glow accent ──
+  noStroke();
+  let accentRgb = hexToRgb(CONFIG.colors[2]);
+  for (let i = 20; i >= 0; i--) {
+    let t = i / 20;
+    let glowR = 60 * t;
+    let glowA = (1 - t) * 25;
+    fill(accentRgb[0], accentRgb[1], accentRgb[2], glowA);
+    ellipse(cx, cy, glowR * 2, glowR * 2);
+  }
+}
+
+// Handle color picker hex display updates
+document.querySelectorAll('input[type="color"]').forEach(picker => {
+  picker.addEventListener('input', function() {
+    let hexSpan = document.getElementById(this.id + 'Hex');
+    if (hexSpan) hexSpan.textContent = this.value;
+  });
+});
+</script>
+</body>
+</html>

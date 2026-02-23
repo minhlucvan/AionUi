@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voronoi Tessellation</title>
+<script src="../../p5.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a14;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ──── Sidebar ──── */
+  .sidebar {
+    width: 320px;
+    min-width: 320px;
+    background: linear-gradient(180deg, #16213e 0%, #1a1a2e 100%);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+  .sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .sidebar-header p {
+    font-size: 12px;
+    color: #8899aa;
+    line-height: 1.5;
+  }
+
+  .section {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #667788;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  /* ──── Seed Controls ──── */
+  .seed-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .seed-input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .seed-input:focus { border-color: #d97757; }
+
+  .btn-seed {
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .btn-seed:hover { background: rgba(217,119,87,0.2); border-color: #d97757; color: #d97757; }
+
+  /* ──── Sliders ──── */
+  .param-group { margin-bottom: 12px; }
+  .param-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .param-label span:first-child { color: #aabbcc; }
+  .param-label span:last-child { color: #d97757; font-family: monospace; }
+
+  input[type="range"] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #d97757;
+    cursor: pointer;
+    border: 2px solid #1a1a2e;
+  }
+
+  /* ──── Color Pickers ──── */
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .color-row label { font-size: 12px; color: #aabbcc; min-width: 70px; }
+  .color-row input[type="color"] {
+    width: 32px;
+    height: 24px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .color-hex {
+    font-size: 11px;
+    color: #667788;
+    font-family: monospace;
+  }
+
+  /* ──── Action Buttons ──── */
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  .btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .btn-primary {
+    background: #d97757;
+    color: #fff;
+  }
+  .btn-primary:hover { background: #c4663f; }
+  .btn-secondary {
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+  /* ──── Canvas Area ──── */
+  .canvas-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0a0a14;
+    overflow: hidden;
+  }
+  .canvas-area canvas { display: block; }
+
+  /* ──── Description ──── */
+  .description {
+    padding: 16px 20px;
+    font-size: 12px;
+    color: #667788;
+    line-height: 1.6;
+  }
+  .description a { color: #d97757; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <!-- ─── Header ─── -->
+  <div class="sidebar-header">
+    <h1>Voronoi Tessellation</h1>
+    <p>Colored cell decomposition of the plane based on nearest-neighbor distance partitioning. Each cell region is closer to its seed point than to any other.</p>
+  </div>
+
+  <!-- ─── Seed Controls (FIXED — do not modify) ─── -->
+  <div class="section">
+    <div class="section-title">Seed</div>
+    <div class="seed-row">
+      <button class="btn-seed" onclick="changeSeed(-1)" title="Previous">&#9664;</button>
+      <input type="number" class="seed-input" id="seedInput" value="42" min="0" max="9999" onchange="setSeed(this.value)">
+      <button class="btn-seed" onclick="changeSeed(1)" title="Next">&#9654;</button>
+      <button class="btn-seed" onclick="randomSeed()" title="Random">&#9776;</button>
+    </div>
+  </div>
+
+  <!-- ─── Parameters ─── -->
+  <div class="section">
+    <div class="section-title">Parameters</div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Cell Count</span><span id="cellCountVal">60</span></div>
+      <input type="range" id="cellCount" min="10" max="200" value="60"
+             oninput="CONFIG.cellCount=+this.value; document.getElementById('cellCountVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Jitter</span><span id="jitterVal">50</span></div>
+      <input type="range" id="jitter" min="0" max="100" value="50"
+             oninput="CONFIG.jitter=+this.value; document.getElementById('jitterVal').textContent=this.value; regenerate()">
+    </div>
+
+    <div class="param-group">
+      <div class="param-label"><span>Stroke Weight</span><span id="strokeWeightVal">15</span></div>
+      <input type="range" id="strokeWeightSlider" min="0" max="30" value="15"
+             oninput="CONFIG.strokeWeightParam=+this.value; document.getElementById('strokeWeightVal').textContent=this.value; regenerate()">
+    </div>
+  </div>
+
+  <!-- ─── Colors ─── -->
+  <div class="section">
+    <div class="section-title">Colors</div>
+
+    <div class="color-row">
+      <label>Primary</label>
+      <input type="color" id="color1" value="#d97757" onchange="CONFIG.colors[0]=this.value; regenerate()">
+      <span class="color-hex" id="color1Hex">#d97757</span>
+    </div>
+    <div class="color-row">
+      <label>Secondary</label>
+      <input type="color" id="color2" value="#6a9bcc" onchange="CONFIG.colors[1]=this.value; regenerate()">
+      <span class="color-hex" id="color2Hex">#6a9bcc</span>
+    </div>
+    <div class="color-row">
+      <label>Accent</label>
+      <input type="color" id="color3" value="#88d4ab" onchange="CONFIG.colors[2]=this.value; regenerate()">
+      <span class="color-hex" id="color3Hex">#88d4ab</span>
+    </div>
+    <div class="color-row">
+      <label>Highlight</label>
+      <input type="color" id="color4" value="#e8c547" onchange="CONFIG.colors[3]=this.value; regenerate()">
+      <span class="color-hex" id="color4Hex">#e8c547</span>
+    </div>
+    <div class="color-row">
+      <label>Deep</label>
+      <input type="color" id="color5" value="#c75b9b" onchange="CONFIG.colors[4]=this.value; regenerate()">
+      <span class="color-hex" id="color5Hex">#c75b9b</span>
+    </div>
+  </div>
+
+  <!-- ─── Actions (FIXED — do not modify) ─── -->
+  <div class="section">
+    <div class="section-title">Actions</div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="regenerate()">&#8634; Regenerate</button>
+      <button class="btn btn-secondary" onclick="resetDefaults()">Reset Defaults</button>
+      <button class="btn btn-secondary" onclick="downloadPNG()">&#11015; Download PNG</button>
+    </div>
+  </div>
+
+  <!-- ─── Description ─── -->
+  <div class="description">
+    <p>Voronoi tessellation partitions the plane into regions based on distance to a set of seed points. Each pixel is assigned to the nearest point, creating a mosaic of colored cells. Cell edges form where pixels are equidistant between two or more sources. The jitter parameter controls how irregularly the seed points are distributed, while stroke weight controls the prominence of cell boundaries rendered with a soft glow effect.</p>
+  </div>
+</div>
+
+<div class="canvas-area" id="canvasContainer"></div>
+
+<script>
+// ============================================================
+// FIXED SECTION — Mulberry32 PRNG & Seed Management
+// Do NOT modify this section
+// ============================================================
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+let currentSeed = 42;
+let rng = mulberry32(currentSeed);
+
+function seededRandom() { return rng(); }
+function seededRandomRange(min, max) { return min + seededRandom() * (max - min); }
+function seededRandomInt(min, max) { return Math.floor(seededRandomRange(min, max + 1)); }
+function seededGaussian(mean, sd) {
+  let u1 = seededRandom(), u2 = seededRandom();
+  return mean + sd * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+function seededShuffle(arr) {
+  let a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    let j = Math.floor(seededRandom() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function setSeed(val) {
+  currentSeed = parseInt(val) || 0;
+  document.getElementById('seedInput').value = currentSeed;
+  regenerate();
+}
+function changeSeed(delta) { setSeed(currentSeed + delta); }
+function randomSeed() { setSeed(Math.floor(Math.random() * 10000)); }
+
+function regenerate() {
+  rng = mulberry32(currentSeed);
+  if (typeof generateArt === 'function') {
+    clear();
+    generateArt();
+  }
+}
+
+function resetDefaults() {
+  Object.assign(CONFIG, JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
+  syncUIFromConfig();
+  regenerate();
+}
+
+function downloadPNG() {
+  saveCanvas('artwork_seed_' + currentSeed, 'png');
+}
+
+// ============================================================
+// VARIABLE SECTION — CONFIG & DEFAULT_CONFIG
+// ============================================================
+const DEFAULT_CONFIG = {
+  cellCount: 60,
+  jitter: 50,
+  strokeWeightParam: 15,
+  colors: ['#d97757', '#6a9bcc', '#88d4ab', '#e8c547', '#c75b9b'],
+  background: '#0a0a14'
+};
+
+const CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+function syncUIFromConfig() {
+  document.getElementById('cellCount').value = CONFIG.cellCount;
+  document.getElementById('cellCountVal').textContent = CONFIG.cellCount;
+
+  document.getElementById('jitter').value = CONFIG.jitter;
+  document.getElementById('jitterVal').textContent = CONFIG.jitter;
+
+  document.getElementById('strokeWeightSlider').value = CONFIG.strokeWeightParam;
+  document.getElementById('strokeWeightVal').textContent = CONFIG.strokeWeightParam;
+
+  CONFIG.colors.forEach((c, i) => {
+    let picker = document.getElementById('color' + (i + 1));
+    let hex = document.getElementById('color' + (i + 1) + 'Hex');
+    if (picker) { picker.value = c; }
+    if (hex) { hex.textContent = c; }
+  });
+}
+
+// ============================================================
+// VARIABLE SECTION — p5.js Setup & Art Generation
+// ============================================================
+const CANVAS_SIZE = 1200;
+
+function setup() {
+  let canvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
+  canvas.parent('canvasContainer');
+  pixelDensity(1);
+  noLoop();
+  generateArt();
+}
+
+// Helper: parse hex color to {r, g, b}
+function hexToRgb(hex) {
+  let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 0, g: 0, b: 0 };
+}
+
+// Helper: convert RGB to HSL
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  let max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) {
+    h = s = 0;
+  } else {
+    let d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return { h: h * 360, s: s * 100, l: l * 100 };
+}
+
+function generateArt() {
+  background(CONFIG.background);
+
+  let numCells = CONFIG.cellCount;
+  let jitterAmount = CONFIG.jitter / 100.0;
+  let edgeWeight = CONFIG.strokeWeightParam / 10.0; // 0-3 range
+
+  // Generate seed points with jitter
+  let points = [];
+  let cellColors = [];
+
+  for (let i = 0; i < numCells; i++) {
+    let px, py;
+    if (jitterAmount < 0.5) {
+      // Grid-based placement with jitter
+      let cols = Math.ceil(Math.sqrt(numCells));
+      let rows = Math.ceil(numCells / cols);
+      let cellW = CANVAS_SIZE / cols;
+      let cellH = CANVAS_SIZE / rows;
+      let row = Math.floor(i / cols);
+      let col = i % cols;
+      let baseX = col * cellW + cellW / 2;
+      let baseY = row * cellH + cellH / 2;
+      let maxJitter = Math.min(cellW, cellH) * 0.5;
+      px = baseX + seededRandomRange(-maxJitter, maxJitter) * jitterAmount * 2;
+      py = baseY + seededRandomRange(-maxJitter, maxJitter) * jitterAmount * 2;
+    } else {
+      // Fully random placement blended with grid
+      px = seededRandomRange(20, CANVAS_SIZE - 20);
+      py = seededRandomRange(20, CANVAS_SIZE - 20);
+    }
+    px = Math.max(0, Math.min(CANVAS_SIZE, px));
+    py = Math.max(0, Math.min(CANVAS_SIZE, py));
+    points.push({ x: px, y: py });
+
+    // Assign color from palette with slight HSL variation
+    let baseColor = CONFIG.colors[i % CONFIG.colors.length];
+    let rgb = hexToRgb(baseColor);
+    let hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    let hShift = seededRandomRange(-15, 15);
+    let sShift = seededRandomRange(-10, 10);
+    let lShift = seededRandomRange(-12, 12);
+    cellColors.push({
+      h: (hsl.h + hShift + 360) % 360,
+      s: Math.max(20, Math.min(100, hsl.s + sShift)),
+      l: Math.max(15, Math.min(85, hsl.l + lShift))
+    });
+  }
+
+  // Compute Voronoi at reduced resolution then draw as rectangles
+  let step = 3; // Compute every 3rd pixel
+  let gridW = Math.ceil(CANVAS_SIZE / step);
+  let gridH = Math.ceil(CANVAS_SIZE / step);
+
+  // Store cell index and distance info for each grid cell
+  let cellGrid = new Int16Array(gridW * gridH);
+  let distGrid = new Float32Array(gridW * gridH);
+  let dist2Grid = new Float32Array(gridW * gridH);
+
+  // For each grid position, find nearest and second-nearest point
+  for (let gy = 0; gy < gridH; gy++) {
+    let py = gy * step + step / 2;
+    for (let gx = 0; gx < gridW; gx++) {
+      let px = gx * step + step / 2;
+      let minDist = Infinity;
+      let minDist2 = Infinity;
+      let minIdx = 0;
+
+      for (let i = 0; i < points.length; i++) {
+        let dx = px - points[i].x;
+        let dy = py - points[i].y;
+        let d = dx * dx + dy * dy;
+        if (d < minDist) {
+          minDist2 = minDist;
+          minDist = d;
+          minIdx = i;
+        } else if (d < minDist2) {
+          minDist2 = d;
+        }
+      }
+
+      let idx = gy * gridW + gx;
+      cellGrid[idx] = minIdx;
+      distGrid[idx] = Math.sqrt(minDist);
+      dist2Grid[idx] = Math.sqrt(minDist2);
+    }
+  }
+
+  // Layer 1: Draw colored Voronoi cells
+  noStroke();
+  for (let gy = 0; gy < gridH; gy++) {
+    for (let gx = 0; gx < gridW; gx++) {
+      let idx = gy * gridW + gx;
+      let cellIdx = cellGrid[idx];
+      let cc = cellColors[cellIdx];
+
+      // Slight luminance variation based on distance to center
+      let distRatio = distGrid[idx] / (CANVAS_SIZE * 0.5);
+      let lAdjust = distRatio * 8;
+
+      colorMode(HSL, 360, 100, 100, 1);
+      fill(cc.h, cc.s, Math.max(10, cc.l - lAdjust));
+      rect(gx * step, gy * step, step, step);
+    }
+  }
+
+  // Layer 2: Draw cell edges with glow effect
+  if (edgeWeight > 0.05) {
+    let edgeThreshold = 6 + edgeWeight * 4; // Pixel distance threshold for edge detection
+
+    // Glow pass (wider, more transparent)
+    for (let gy = 0; gy < gridH; gy++) {
+      for (let gx = 0; gx < gridW; gx++) {
+        let idx = gy * gridW + gx;
+        let d1 = distGrid[idx];
+        let d2 = dist2Grid[idx];
+        let edgeness = d2 - d1;
+
+        if (edgeness < edgeThreshold) {
+          let alpha = (1 - edgeness / edgeThreshold);
+          alpha = alpha * alpha; // Quadratic falloff for softer glow
+
+          // Outer glow
+          colorMode(HSL, 360, 100, 100, 1);
+          fill(0, 0, 95, alpha * 0.15 * edgeWeight);
+          rect(gx * step - 1, gy * step - 1, step + 2, step + 2);
+        }
+      }
+    }
+
+    // Sharp edge pass
+    for (let gy = 0; gy < gridH; gy++) {
+      for (let gx = 0; gx < gridW; gx++) {
+        let idx = gy * gridW + gx;
+        let d1 = distGrid[idx];
+        let d2 = dist2Grid[idx];
+        let edgeness = d2 - d1;
+
+        let sharpThreshold = 3 + edgeWeight * 2;
+        if (edgeness < sharpThreshold) {
+          let alpha = (1 - edgeness / sharpThreshold);
+          alpha = Math.pow(alpha, 1.5);
+
+          colorMode(HSL, 360, 100, 100, 1);
+          fill(0, 0, 100, alpha * 0.7 * Math.min(edgeWeight, 1));
+          rect(gx * step, gy * step, step, step);
+        }
+      }
+    }
+  }
+
+  // Draw subtle seed point markers
+  colorMode(RGB, 255);
+  for (let i = 0; i < points.length; i++) {
+    let cc = cellColors[i];
+    colorMode(HSL, 360, 100, 100, 1);
+    fill(cc.h, Math.min(100, cc.s + 20), Math.min(95, cc.l + 25), 0.5);
+    noStroke();
+    ellipse(points[i].x, points[i].y, 4, 4);
+  }
+
+  colorMode(RGB, 255);
+}
+
+// Handle color picker hex display updates
+document.querySelectorAll('input[type="color"]').forEach(picker => {
+  picker.addEventListener('input', function() {
+    let hexSpan = document.getElementById(this.id + 'Hex');
+    if (hexSpan) hexSpan.textContent = this.value;
+  });
+});
+</script>
+</body>
+</html>
