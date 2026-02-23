@@ -20,7 +20,7 @@ You will receive:
 
 ### For p5.js (2D)
 
-Start from `templates/viewer-base.html` (or a matching scenario template from `templates/<category>/`).
+Start from `templates/viewer-base.html`. Reference example templates in `.claude/skills/algorithmic-art-p5js/templates/` for technique-specific patterns.
 
 - Load library: `<script src="p5.min.js"></script>` (local, NOT CDN)
 - Canvas: `createCanvas(CANVAS_SIZE, CANVAS_SIZE)` inside `#canvasContainer`
@@ -30,7 +30,7 @@ Start from `templates/viewer-base.html` (or a matching scenario template from `t
 
 ### For Three.js (3D)
 
-Start from `templates/viewer-base-3js.html` (or a matching template from `templates/3d/`).
+Start from `templates/viewer-base-3js.html`.
 
 - Load library: `<script src="three.min.js"></script>` (local, NOT CDN)
 - Renderer: `THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })`
@@ -122,18 +122,26 @@ function animate() {
 }
 ```
 
-## Scenario Templates
+## Example Templates
 
-Check `templates/` for pre-built scenarios. If the requested technique matches an existing template, start from it:
+Reference implementations live in `.claude/skills/algorithmic-art-p5js/templates/` as markdown files. If the requested technique matches an existing template, use it as a starting point:
 
-**p5.js templates:**
-- `templates/mathematics/` — Mandelbrot, phyllotaxis, Lissajous
-- `templates/physics/` — Flow fields, wave interference, N-body
-- `templates/biology/` — Reaction-diffusion, cellular automata, flocking
-- `templates/geometry/` — Voronoi, fractal trees, circle packing
+| Template | Technique |
+|----------|-----------|
+| flow-field-particles.md | Perlin noise flow fields |
+| wave-interference.md | Circular wave superposition |
+| n-body-gravity.md | Gravitational orbital trails |
+| mandelbrot-explorer.md | Escape-time fractal |
+| phyllotaxis-spiral.md | Golden angle spiral |
+| lissajous-harmonics.md | Parametric harmonic curves |
+| reaction-diffusion.md | Gray-Scott Turing patterns |
+| cellular-automata.md | Wolfram 1D rules |
+| flocking-boids.md | Reynolds flocking |
+| voronoi-tessellation.md | Distance-based partitioning |
+| fractal-tree.md | Recursive branching |
+| circle-packing.md | Greedy non-overlapping circles |
 
-**Three.js templates:**
-- `templates/3d/` — (create new templates here as needed)
+Each markdown file contains: DEFAULT_CONFIG, parameters, colors, helper functions, and the full `generateArt()` implementation.
 
 ## Quality Checklist (Self-Review)
 

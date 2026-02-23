@@ -24,7 +24,7 @@ p5.js is the right choice when the artwork is inherently **two-dimensional**:
 
 ## Template
 
-All p5.js artwork starts from `templates/viewer-base.html`. This template provides:
+All p5.js artwork starts from the viewer-base template (located at `workspace/templates/viewer-base.html`). This template provides:
 
 - **FIXED sections** (do not modify): CSS layout, Mulberry32 PRNG, seed controls, action buttons
 - **VARIABLE sections** (customize): title, parameters, colors, `DEFAULT_CONFIG`, `syncUIFromConfig()`, `generateArt()`
@@ -143,6 +143,36 @@ let angle = noise(x * scale + offsetX, y * scale + offsetY) * TWO_PI * 2;
 px += Math.cos(angle) * stepLength;
 py += Math.sin(angle) * stepLength;
 ```
+
+## Templates
+
+Complete example artworks live in `templates/` as markdown files. Each template contains:
+- Title, description, and category
+- `DEFAULT_CONFIG` with all parameters and colors
+- Parameters table (name, range, default)
+- Colors table (label, default hex)
+- Helper functions (if any)
+- Full `generateArt()` implementation
+- Algorithm description
+
+Available templates:
+
+| Template | Category | Technique |
+|----------|----------|-----------|
+| flow-field-particles.md | physics | Perlin noise vector field with particle trails |
+| wave-interference.md | physics | Overlapping circular wave superposition |
+| n-body-gravity.md | physics | Newtonian gravitational orbital trails |
+| mandelbrot-explorer.md | mathematics | Escape-time fractal with smooth coloring |
+| phyllotaxis-spiral.md | mathematics | Golden angle sunflower pattern |
+| lissajous-harmonics.md | mathematics | Parametric harmonic oscillation curves |
+| reaction-diffusion.md | biology | Gray-Scott model Turing patterns |
+| cellular-automata.md | biology | 1D Wolfram elementary rules |
+| flocking-boids.md | biology | Reynolds flocking with trail rendering |
+| voronoi-tessellation.md | geometry | Nearest-neighbor distance partitioning |
+| fractal-tree.md | geometry | Recursive branching with bezier curves |
+| circle-packing.md | geometry | Greedy non-overlapping circle placement |
+
+Use these as reference implementations when generating new artwork.
 
 ## References
 

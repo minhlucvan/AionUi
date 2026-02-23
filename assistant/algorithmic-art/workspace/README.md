@@ -37,17 +37,16 @@ Each skill is a self-contained subfolder with `SKILL.md` and `references/`:
 
 ## Templates
 
-Pre-built scenarios in `templates/`:
+### Base Templates (in `templates/`)
+- `viewer-base.html` — p5.js base template with sidebar, seed controls, PRNG
+- `viewer-base-3js.html` — Three.js base template with OrbitControls
 
-### p5.js (2D)
-- **Mathematics** — Mandelbrot explorer, phyllotaxis spiral, Lissajous harmonics
-- **Physics** — Flow field particles, wave interference, N-body gravity
-- **Biology** — Reaction-diffusion, cellular automata, flocking boids
-- **Geometry** — Voronoi tessellation, fractal tree, circle packing
-
-### Three.js (3D)
-- Base template: `viewer-base-3js.html`
-- Create new 3D templates in `templates/3d/`
+### Example Templates (in skills)
+12 p5.js example templates live in `.claude/skills/algorithmic-art-p5js/templates/` as markdown files:
+- **Mathematics** — mandelbrot-explorer, phyllotaxis-spiral, lissajous-harmonics
+- **Physics** — flow-field-particles, wave-interference, n-body-gravity
+- **Biology** — reaction-diffusion, cellular-automata, flocking-boids
+- **Geometry** — voronoi-tessellation, fractal-tree, circle-packing
 
 ## Resources
 
