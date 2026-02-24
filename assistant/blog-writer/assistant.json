@@ -1,21 +1,14 @@
 {
   "id": "blog-writer",
   "name": "Blog Writer — Content Pipeline",
-  "version": "1.0.0",
-  "description": "Four-agent swarm that transforms a blog idea into a complete, illustrated article. Content Strategist plans the angle, Domain Researcher gathers evidence, Content Writer drafts the prose, and Illustrative Generator adds visuals.",
+  "version": "2.0.0",
+  "description": "Orchestrator that drives a 4-phase blog pipeline using subagents and skills. Strategy, Research, Writing, and Illustration — each delegated to a focused subagent with specialized skills.",
   "author": "AionUi",
   "presetAgentType": "claude",
   "avatar": "blog-writer.svg",
   "workspacePath": "./workspace",
-  "tags": ["blog", "content", "copywriting", "multi-agent", "swarm", "seo", "writing", "illustration"],
-  "mode": "swarm",
-  "swarm": {
-    "feedPath": ".swarm/feed.jsonl",
-    "agents": ["strategist", "researcher", "writer", "illustrator"],
-    "maxTurns": 12,
-    "turnStrategy": "round-robin"
-  },
-  "defaultEnabledSkills": [],
+  "tags": ["blog", "content", "copywriting", "subagent", "pipeline", "seo", "writing", "illustration"],
+  "defaultEnabledSkills": ["blog-writer", "content-strategy", "domain-research", "content-writing", "illustration"],
   "nameI18n": {
     "en-US": "Blog Writer",
     "zh-CN": "博客写作助手",
@@ -24,11 +17,11 @@
     "ko-KR": "블로그 작성 도우미"
   },
   "descriptionI18n": {
-    "en-US": "Four-agent pipeline that transforms a blog idea into a complete, illustrated article. Strategist plans the angle, Researcher gathers evidence, Writer drafts the prose, Illustrator adds visuals.",
-    "zh-CN": "四代理流水线，将博客创意转化为完整的图文文章。策略师规划角度，研究员收集证据，作者撰写正文，插画师添加视觉元素。",
-    "zh-TW": "四代理流水線，將部落格創意轉化為完整的圖文文章。策略師規劃角度，研究員蒐集證據，作者撰寫正文，插畫師添加視覺元素。",
-    "ja-JP": "4エージェントパイプラインがブログのアイデアを完全な図解付き記事に変換。ストラテジストが角度を計画し、リサーチャーが証拠を収集し、ライターが文章を執筆し、イラストレーターがビジュアルを追加。",
-    "ko-KR": "4개 에이전트 파이프라인이 블로그 아이디어를 완성된 일러스트 기사로 변환합니다. 전략가가 각도를 계획하고, 연구자가 증거를 수집하고, 작가가 글을 작성하고, 일러스트레이터가 시각 자료를 추가합니다."
+    "en-US": "Orchestrator that drives a 4-phase blog pipeline using subagents and skills. Strategy plans the angle, Research gathers evidence, Writing drafts the prose, Illustration adds visuals.",
+    "zh-CN": "通过子代理和技能驱动四阶段博客流水线的编排器。策略规划角度，研究收集证据，写作撰写正文，插画添加视觉元素。",
+    "zh-TW": "透過子代理和技能驅動四階段部落格流水線的編排器。策略規劃角度，研究蒐集證據，寫作撰寫正文，插畫添加視覺元素。",
+    "ja-JP": "サブエージェントとスキルを使用して4段階のブログパイプラインを駆動するオーケストレーター。戦略が角度を計画し、リサーチが証拠を収集し、ライティングが文章を執筆し、イラストがビジュアルを追加。",
+    "ko-KR": "서브에이전트와 스킬을 사용하여 4단계 블로그 파이프라인을 구동하는 오케스트레이터. 전략이 각도를 계획하고, 리서치가 증거를 수집하고, 라이팅이 글을 작성하고, 일러스트가 시각 자료를 추가합니다."
   },
   "promptsI18n": {
     "en-US": [
@@ -60,21 +53,6 @@
       "기사 작성: SaaS 제품을 처음부터 구축하면서 배운 10가지 교훈",
       "WebSocket과 Server-Sent Events에 대한 기술 심층 분석 작성",
       "원격 팀이 동일 장소 팀을 능가하는 이유에 대한 사고 리더십 글 작성"
-    ]
-  },
-  "queuedMessages": {
-    "description": "Swarm pipeline: onSwarmInit seeds the strategist, each agent passes output to the next via feed",
-    "phases": [
-      {
-        "trigger": "onSwarmInit",
-        "messages": 4,
-        "purpose": "Seed all four agents with initial context and role instructions"
-      },
-      {
-        "trigger": "onSwarmTurnEnd",
-        "messages": "N (feed-driven)",
-        "purpose": "Route each agent's output to the next agent in the pipeline"
-      }
     ]
   },
   "isBuiltin": true

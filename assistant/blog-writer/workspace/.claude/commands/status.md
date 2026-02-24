@@ -1,11 +1,10 @@
 Check the current state of the blog writing pipeline.
 
-Read the swarm feed at `.swarm/feed.jsonl` and report:
+Look at the workspace and report:
 
-1. Which agents have completed their turns
-2. Current pipeline stage (strategy / research / writing / illustration)
+1. Which pipeline phases have been completed (strategy / research / writing / illustration)
+2. Files generated in `output/`
 3. Key outputs produced so far
-4. Any blockers or issues reported
-5. Files generated in `workspace/output/`
+4. Any pending phases
 
 Provide a concise progress summary.

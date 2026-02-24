@@ -4,64 +4,35 @@
 
 AI-generated blog posts share three fatal flaws: they're generic, they're unsupported, and they're visually dead. "5 Benefits of Cloud Computing" with stock paragraphs, no data, and walls of text. The reader learns nothing they couldn't guess.
 
-The fix isn't better writing prompts. It's a pipeline: strategy before writing, research before claims, illustration before publishing. Each stage produces artifacts the next stage consumes.
+The fix isn't better writing prompts. It's a pipeline: strategy before writing, research before claims, illustration before publishing. Each phase produces artifacts the next phase consumes.
 
-## Pipeline Architecture
+## Architecture: Subagents + Skills
+
+Two concepts drive this assistant:
+
+1. **Subagents** — The main agent delegates each pipeline phase to a focused subagent. Each subagent runs independently, receives inputs, and returns outputs. The main agent never writes the article itself.
+2. **Skills** — Each subagent is equipped with a skill that defines its abilities. Skills contain methodology, output format, principles, and anti-patterns.
 
 ```
-Idea → Strategy → Research → Writing → Illustration → Article
+Main Agent (orchestrator)
+  |
+  +--> Subagent 1 [content-strategy skill] --> strategy brief + outline
+  |
+  +--> Subagent 2 [domain-research skill]  --> research brief
+  |
+  +--> Subagent 3 [content-writing skill]  --> article + metadata
+  |
+  +--> Subagent 4 [illustration skill]     --> illustrated article
 ```
 
-### Stage 1: Content Strategy
-**Input:** Raw blog idea
-**Output:** Strategy brief + structured outline + research directive
+### Pipeline Flow
 
-The Strategist's job is to turn a vague idea into a sharp, differentiated angle. "Write about AI" becomes "Why AI agents will replace CI/CD pipelines by 2027 — and what engineers should do now."
-
-Key decisions:
-- **Audience** — specific enough to write for one person, broad enough to attract a segment
-- **Angle** — the unique take that differentiates this article from existing content
-- **SEO** — primary keyword, secondary keywords, search intent alignment
-- **Tone** — voice characteristics matched to audience and topic
-- **Structure** — outline where each section builds on the previous
-
-### Stage 2: Domain Research
-**Input:** Strategy brief + outline + research directive
-**Output:** Research brief with sourced facts, quotes, case studies
-
-The Researcher's job is to substantiate every claim in the outline with evidence. No "studies show" — only "a 2025 Gartner survey of 800 CTOs found..."
-
-Key outputs:
-- **Statistics** — specific, recent, attributable numbers
-- **Expert quotes** — named voices with titles and contexts
-- **Case studies** — real examples that haven't been overused
-- **Counter-arguments** — honest objections that the article can address
-- **Competitive gap** — what existing articles miss that ours can fill
-
-### Stage 3: Content Writing
-**Input:** Strategy + outline + research brief
-**Output:** Complete Markdown article + SEO metadata + illustration markers
-
-The Writer synthesizes strategy and research into prose. The article should read like it was written by a domain expert who happens to be a good writer.
-
-Key requirements:
-- Hook in the first paragraph (scenario, stat, question, or bold claim)
-- One idea per paragraph, scannable structure
-- Data and examples woven into narrative, not bolted on
-- Illustration markers (`<!-- ILLUSTRATION: ... -->`) at natural visual pause points
-- Conclusion that references the opening
-
-### Stage 4: Illustration
-**Input:** Complete article + illustration markers + visual brief
-**Output:** Final illustrated article + metadata JSON
-
-The Illustrator transforms text-only content into a rich visual experience.
-
-Visual types:
-- **Mermaid diagrams** — processes, architectures, sequences, comparisons
-- **ASCII art** — developer-focused, terminal-themed content
-- **SVG illustrations** — inline charts, simple graphics
-- **Image prompts** — hero images, social cards, editorial visuals
+| Phase | Skill | Input | Output |
+|-------|-------|-------|--------|
+| 1. Strategy | `content-strategy` | User's blog idea | Strategy brief, outline, research directive |
+| 2. Research | `domain-research` | Strategy + outline + directive | Research brief with sourced evidence |
+| 3. Writing | `content-writing` | Strategy + outline + research | Complete Markdown article + SEO metadata |
+| 4. Illustration | `illustration` | Article + illustration markers | Final illustrated article + metadata JSON |
 
 ## Quality Standards
 
@@ -69,10 +40,10 @@ Visual types:
 
 1. **The Angle Test** — Could you swap the topic for a different article on the same subject? If yes, the angle is generic.
 2. **The Evidence Test** — Is every factual claim backed by a sourced statistic, named expert, or concrete example? No "many experts believe."
-3. **The Hook Test** — Does the first paragraph make you want to read the second? Test by reading only the first paragraph.
-4. **The Scan Test** — Can you get the article's key points by reading only headings and bold text? Structure should communicate even when skimmed.
-5. **The Visual Test** — Does every illustration add information that text handles poorly? No decorative visuals.
-6. **The Swap Test** — Replace the article's examples with generic ones (Netflix, Uber). Does the article become less interesting? If not, the examples were already generic.
+3. **The Hook Test** — Does the first paragraph make you want to read the second?
+4. **The Scan Test** — Can you get the key points by reading only headings and bold text?
+5. **The Visual Test** — Does every illustration add information that text handles poorly?
+6. **The Swap Test** — Replace examples with generic ones (Netflix, Uber). Does the article become less interesting? If not, the examples were already generic.
 
 ## Content Principles
 
@@ -83,8 +54,8 @@ Visual types:
 - Be specific — details create credibility, generalizations erode it
 
 ### Structure
-- 1,500–3,000 words for standard posts (6–12 min read)
-- 3,000–5,000 for deep dives and technical guides
+- 1,500-3,000 words for standard posts (6-12 min read)
+- 3,000-5,000 for deep dives and technical guides
 - 5-8 main sections maximum — more means the article is unfocused
 - Subheadings every 200-300 words for scannability
 
