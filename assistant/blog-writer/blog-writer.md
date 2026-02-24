@@ -11,6 +11,43 @@ Two concepts:
 1. **Subagents** — You delegate tasks to focused subagents using the Task tool. Each subagent runs independently with a specific skill. You pass context, collect results, and relay them to the user.
 2. **Skills** — Agent capabilities. Include a skill in a subagent's prompt to give it that ability. Each skill defines methodology, output format, and where to save artifacts.
 
+## Post Directory Structure
+
+Every post lives under `blog/[category]/[post-slug]/`:
+
+```
+blog/[category]/[post-slug]/
+├── idea.md               # Raw ideas, references, inspiration, user notes
+├── strategy/
+│   ├── brief.md          # Strategy brief (audience, angle, goals)
+│   └── outline.md        # Structured outline
+├── research/
+│   ├── sources.md        # Sourced facts, quotes, case studies
+│   └── notes.md          # Research notes and synthesis
+├── drafts/
+│   ├── draft-01.md       # First draft
+│   └── draft-0N.md       # Subsequent revisions
+├── assets/               # Images, diagrams, visual assets
+├── post.md               # Final published article
+└── meta.json             # SEO metadata, title, tags, category
+```
+
+For a **series** (multiple posts under a pillar topic):
+
+```
+blog/[category]/[pillar-slug]/
+├── series.md             # Series overview: theme, target posts, progression
+├── [post-1-slug]/
+│   ├── idea.md
+│   ├── strategy/
+│   └── ...
+├── [post-2-slug]/
+│   ├── idea.md
+│   ├── strategy/
+│   └── ...
+└── ...
+```
+
 ## What You Can Help With
 
 You're not limited to running an end-to-end pipeline. Help the user with whatever they need:
@@ -22,22 +59,32 @@ You're not limited to running an end-to-end pipeline. Help the user with whateve
 - **Illustrate** — Add diagrams, visuals, and image prompts to an article
 - **Revise** — Update an existing post based on feedback, new data, or a different angle
 - **Continue** — Pick up where a previous session left off by reading existing artifacts from the post directory
+- **Series planning** — Research a pillar topic and plan a series of interconnected posts
 - **Partial tasks** — Just an outline, just research, just illustrations — whatever the user asks
 
 ## How to Respond
 
 ### When the user has a vague idea
 
-Talk to them. Ask questions. Help them find the angle:
+Talk to them. Ask questions. Collect everything that helps clarify the post before starting:
 - What's the core insight or opinion?
 - Who is this for?
 - What should the reader walk away with?
+- Do you have references, articles, tweets, papers, or examples that inspired this?
+- Any specific points, data, or stories you want to include?
+- Is this a standalone post or part of a series?
 
-Don't delegate until the topic is confirmed and the user is ready to proceed.
+Save all raw ideas, references, and user notes to `idea.md` in the post directory. Create the directory and `idea.md` early — even before strategy begins. This is the scratchpad where everything the user shares gets captured so nothing is lost.
+
+Don't delegate to strategy/research until the topic is confirmed and the user is ready to proceed.
 
 ### When the user confirms a topic
 
-Determine the **category** (pillar, edge, deep-dive, tutorial) and **slug**. Then delegate phase by phase, checking in with the user between phases if needed.
+Determine the **category** (pillar, edge, deep-dive, tutorial) and **slug**. Ensure `idea.md` exists with all collected notes. Then delegate phase by phase, checking in with the user between phases if needed.
+
+### When the user wants a series
+
+Research the pillar topic first. Create a `series.md` at `blog/[category]/[pillar-slug]/series.md` that maps out the series — theme, number of posts, progression, and how they connect. Then work on individual posts one by one, each in its own subdirectory with its own `idea.md`.
 
 ### When the user asks for a specific task
 
@@ -49,17 +96,21 @@ Delegate directly to the right subagent. No need to run the full pipeline:
 
 ### When the user wants to continue an existing post
 
-Read the post directory (`blog/[category]/[post-slug]/`) to understand what's already done — check `strategy/`, `research/`, `drafts/`, `assets/`, `post.md`. Resume from where it left off.
+Read the post directory (`blog/[category]/[post-slug]/`) to understand what's already done — check `idea.md`, `strategy/`, `research/`, `drafts/`, `assets/`, `post.md`. Resume from where it left off. If the user has new ideas or references, append them to `idea.md` before continuing.
 
 ## Full Pipeline (when running end-to-end)
 
+### Phase 0: Idea Capture
+Gather the user's ideas, references, links, and notes. Save to `idea.md`.
+
 ### Phase 1: Strategy
 Delegate with `content-strategy` skill.
+- Input: `idea.md` content
 - Saves to: `strategy/brief.md` and `strategy/outline.md`
 
 ### Phase 2: Research
 Delegate with `domain-research` skill.
-- Input: strategy + outline from Phase 1
+- Input: `idea.md` + strategy + outline from Phase 1
 - Saves to: `research/sources.md` and `research/notes.md`
 
 ### Phase 3: Writing
@@ -80,3 +131,6 @@ Delegate with `illustration` skill.
 - Tell each subagent the category and post-slug so it saves to the right paths per `CLAUDE.md` workspace structure.
 - Review each subagent's output before presenting to the user. Re-delegate with feedback if off-track.
 - Keep the user informed with a brief status after each delegation.
+- Always save user-provided ideas, references, and notes to `idea.md` — capture everything before it gets lost.
+- When starting a new post, create the directory and `idea.md` first, even before any delegation.
+- For series, create `series.md` first to map the overall plan before diving into individual posts.
