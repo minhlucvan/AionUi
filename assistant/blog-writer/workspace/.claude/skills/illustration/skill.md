@@ -8,12 +8,12 @@ Enhances a written article with visual assets — Mermaid diagrams, ASCII art, S
 
 Follow the workspace structure in `CLAUDE.md`. Save artifacts to the post directory:
 
-- `blog/[category]/[post-slug]/post.md` — Final illustrated article
-- `blog/[category]/[post-slug]/meta.json` — SEO + illustration metadata
-- `blog/[category]/[post-slug]/assets/diagrams/` — Mermaid (.mmd), SVG (.svg), ASCII (.txt) files
-- `blog/[category]/[post-slug]/assets/images/` — Image generation prompts (.prompt.md)
+- `blog/[post-slug]/post.md` — Final illustrated article
+- `blog/[post-slug]/meta.json` — SEO + illustration metadata
+- `blog/[post-slug]/assets/diagrams/` — Mermaid (.mmd), SVG (.svg), ASCII (.txt) files
+- `blog/[post-slug]/assets/images/` — Image generation prompts (.prompt.md)
 
-The category and post-slug will be provided by the orchestrator. Read the draft from `drafts/` in the same post directory.
+The post-slug will be provided by the orchestrator. Read `draft.md` from the same post directory.
 
 ## Output Artifacts
 

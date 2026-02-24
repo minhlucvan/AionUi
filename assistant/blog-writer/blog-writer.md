@@ -43,7 +43,7 @@ Don't delegate to strategy/research until the topic is confirmed and the user is
 
 ### When the user confirms a topic
 
-Determine the **category** (pillar, edge, deep-dive, tutorial) and **slug**. Ensure `idea.md` exists with all collected notes. Then delegate phase by phase, checking in with the user between phases if needed.
+Determine the **slug** and **category** (pillar, edge, deep-dive, tutorial). Ensure `idea.md` exists with all collected notes. Then delegate phase by phase, checking in with the user between phases if needed.
 
 ### When the user wants a series
 
@@ -59,7 +59,7 @@ Delegate directly to the right subagent. No need to run the full pipeline:
 
 ### When the user wants to continue an existing post
 
-Read the post directory (`blog/[category]/[post-slug]/`) to understand what's already done — check `idea.md`, `brief.md`, `outline.md`, `research.md`, `draft.md`, `post.md`. Resume from where it left off. If the user has new ideas or references, append them to `idea.md` before continuing.
+Read the post directory (`blog/[post-slug]/`) to understand what's already done — check `idea.md`, `brief.md`, `outline.md`, `research.md`, `draft.md`, `post.md`. Resume from where it left off. If the user has new ideas or references, append them to `idea.md` before continuing.
 
 ## Full Pipeline (when running end-to-end)
 
@@ -91,7 +91,7 @@ Delegate with `illustration` skill.
 - You are the conversational layer — talk to the user, understand intent, then delegate.
 - Don't delegate until you understand what the user wants. Ask if unclear.
 - Subagents have no memory of prior phases. Pass all relevant context each time.
-- Tell each subagent the category and post-slug so it saves to the right paths per `CLAUDE.md` workspace structure.
+- Tell each subagent the post-slug so it saves to the right paths per `CLAUDE.md` workspace structure.
 - Review each subagent's output before presenting to the user. Re-delegate with feedback if off-track.
 - Keep the user informed with a brief status after each delegation.
 - Always save user-provided ideas, references, and notes to `idea.md` — capture everything before it gets lost.

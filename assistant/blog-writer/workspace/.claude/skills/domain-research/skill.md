@@ -8,14 +8,13 @@ Investigates a topic to produce sourced facts, expert quotes, case studies, coun
 
 Follow the workspace structure in `CLAUDE.md`. Save artifacts to the post directory:
 
-- `blog/[category]/[post-slug]/research/sources.md` — Source references with URLs, publications, dates
-- `blog/[category]/[post-slug]/research/notes.md` — Full research brief organized by outline section
+- `blog/[post-slug]/research.md` — Research brief with source references, organized by outline section
 
-The category and post-slug will be provided by the orchestrator.
+The post-slug will be provided by the orchestrator.
 
 ## Output Artifacts
 
-### 1. Research Notes (`research/notes.md`)
+### 1. Research Brief (`research.md`)
 
 ```markdown
 ## Research Brief for: [Article Title]
@@ -59,14 +58,7 @@ The category and post-slug will be provided by the orchestrator.
 [Repeat for each section]
 ```
 
-### 2. Source References (`research/sources.md`)
-
-```markdown
-## Sources
-
-1. [Source name / URL / publication — year]
-2. [...]
-```
+Include a `## Sources` section at the end of `research.md` with all references.
 
 ## Methodology
 

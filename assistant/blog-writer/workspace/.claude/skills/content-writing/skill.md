@@ -8,14 +8,13 @@ Synthesizes a content strategy and research brief into a complete, publication-r
 
 Follow the workspace structure in `CLAUDE.md`. Save artifacts to the post directory:
 
-- `blog/[category]/[post-slug]/drafts/draft-01.md` — Complete article (first draft)
-- Revised drafts increment: `drafts/draft-02.md`, `drafts/draft-03.md`, etc.
+- `blog/[post-slug]/draft.md` — Complete article draft
 
-The category and post-slug will be provided by the orchestrator. Read strategy from `strategy/` and research from `research/` in the same post directory.
+The post-slug will be provided by the orchestrator. Read `brief.md`, `outline.md`, and `research.md` from the same post directory.
 
 ## Output Artifacts
 
-### 1. Article Draft (`drafts/draft-01.md`)
+### 1. Article Draft (`draft.md`)
 
 A fully written article following the outline structure, with:
 - Hook in the first paragraph

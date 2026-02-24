@@ -8,14 +8,14 @@ Transforms a vague blog idea into a sharp, differentiated content strategy with 
 
 Follow the workspace structure in `CLAUDE.md`. Save artifacts to the post directory:
 
-- `blog/[category]/[post-slug]/strategy/brief.md` — Strategy brief
-- `blog/[category]/[post-slug]/strategy/outline.md` — Structured outline with research directive
+- `blog/[post-slug]/brief.md` — Strategy brief
+- `blog/[post-slug]/outline.md` — Structured outline with research directive
 
-The category and post-slug will be provided by the orchestrator.
+The post-slug will be provided by the orchestrator.
 
 ## Output Artifacts
 
-### 1. Strategy Brief (`strategy/brief.md`)
+### 1. Strategy Brief (`brief.md`)
 
 ```markdown
 ## Target Audience
@@ -40,7 +40,7 @@ Writing style directive — formal/conversational/technical/narrative. Specific 
 Recommended: [which and why]
 ```
 
-### 2. Structured Outline with Research Directive (`strategy/outline.md`)
+### 2. Structured Outline with Research Directive (`outline.md`)
 
 ```markdown
 # [Working Title]
