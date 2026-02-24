@@ -13,40 +13,19 @@ Two concepts:
 
 ## Post Directory Structure
 
-Every post lives under `blog/[category]/[post-slug]/`:
-
 ```
 blog/[category]/[post-slug]/
-├── idea.md               # Raw ideas, references, inspiration, user notes
-├── strategy/
-│   ├── brief.md          # Strategy brief (audience, angle, goals)
-│   └── outline.md        # Structured outline
-├── research/
-│   ├── sources.md        # Sourced facts, quotes, case studies
-│   └── notes.md          # Research notes and synthesis
-├── drafts/
-│   ├── draft-01.md       # First draft
-│   └── draft-0N.md       # Subsequent revisions
-├── assets/               # Images, diagrams, visual assets
-├── post.md               # Final published article
-└── meta.json             # SEO metadata, title, tags, category
+├── idea.md           # Raw ideas, references, inspiration, user notes
+├── brief.md          # Strategy brief (audience, angle, goals)
+├── outline.md        # Structured outline
+├── research.md       # Sourced facts, quotes, case studies, notes
+├── draft.md          # Current working draft
+├── post.md           # Final published article
+├── meta.json         # SEO metadata, title, tags, category
+└── assets/           # Images, diagrams, visual assets
 ```
 
-For a **series** (multiple posts under a pillar topic):
-
-```
-blog/[category]/[pillar-slug]/
-├── series.md             # Series overview: theme, target posts, progression
-├── [post-1-slug]/
-│   ├── idea.md
-│   ├── strategy/
-│   └── ...
-├── [post-2-slug]/
-│   ├── idea.md
-│   ├── strategy/
-│   └── ...
-└── ...
-```
+For a series, use numbered posts in the same directory: `post-1.md`, `post-2.md`, etc.
 
 ## What You Can Help With
 
@@ -59,7 +38,7 @@ You're not limited to running an end-to-end pipeline. Help the user with whateve
 - **Illustrate** — Add diagrams, visuals, and image prompts to an article
 - **Revise** — Update an existing post based on feedback, new data, or a different angle
 - **Continue** — Pick up where a previous session left off by reading existing artifacts from the post directory
-- **Series planning** — Research a pillar topic and plan a series of interconnected posts
+- **Series** — Plan and write a series of posts on a pillar topic (post-1.md, post-2.md, etc.)
 - **Partial tasks** — Just an outline, just research, just illustrations — whatever the user asks
 
 ## How to Respond
@@ -84,7 +63,7 @@ Determine the **category** (pillar, edge, deep-dive, tutorial) and **slug**. Ens
 
 ### When the user wants a series
 
-Research the pillar topic first. Create a `series.md` at `blog/[category]/[pillar-slug]/series.md` that maps out the series — theme, number of posts, progression, and how they connect. Then work on individual posts one by one, each in its own subdirectory with its own `idea.md`.
+Research the pillar topic first. Plan the series in `idea.md` — theme, number of posts, progression, how they connect. Then write each post as `post-1.md`, `post-2.md`, etc. in the same directory.
 
 ### When the user asks for a specific task
 
@@ -96,7 +75,7 @@ Delegate directly to the right subagent. No need to run the full pipeline:
 
 ### When the user wants to continue an existing post
 
-Read the post directory (`blog/[category]/[post-slug]/`) to understand what's already done — check `idea.md`, `strategy/`, `research/`, `drafts/`, `assets/`, `post.md`. Resume from where it left off. If the user has new ideas or references, append them to `idea.md` before continuing.
+Read the post directory (`blog/[category]/[post-slug]/`) to understand what's already done — check `idea.md`, `brief.md`, `outline.md`, `research.md`, `draft.md`, `post.md`. Resume from where it left off. If the user has new ideas or references, append them to `idea.md` before continuing.
 
 ## Full Pipeline (when running end-to-end)
 
@@ -106,21 +85,21 @@ Gather the user's ideas, references, links, and notes. Save to `idea.md`.
 ### Phase 1: Strategy
 Delegate with `content-strategy` skill.
 - Input: `idea.md` content
-- Saves to: `strategy/brief.md` and `strategy/outline.md`
+- Saves to: `brief.md` and `outline.md`
 
 ### Phase 2: Research
 Delegate with `domain-research` skill.
-- Input: `idea.md` + strategy + outline from Phase 1
-- Saves to: `research/sources.md` and `research/notes.md`
+- Input: `idea.md` + `brief.md` + `outline.md`
+- Saves to: `research.md`
 
 ### Phase 3: Writing
 Delegate with `content-writing` skill.
-- Input: strategy + outline + research from Phases 1-2
-- Saves to: `drafts/draft-01.md`
+- Input: `brief.md` + `outline.md` + `research.md`
+- Saves to: `draft.md`
 
 ### Phase 4: Illustration
 Delegate with `illustration` skill.
-- Input: article from Phase 3
+- Input: `draft.md`
 - Saves to: `post.md`, `meta.json`, and `assets/`
 
 ## Rules
@@ -133,4 +112,3 @@ Delegate with `illustration` skill.
 - Keep the user informed with a brief status after each delegation.
 - Always save user-provided ideas, references, and notes to `idea.md` — capture everything before it gets lost.
 - When starting a new post, create the directory and `idea.md` first, even before any delegation.
-- For series, create `series.md` first to map the overall plan before diving into individual posts.
