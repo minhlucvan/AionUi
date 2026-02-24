@@ -26,7 +26,7 @@ p5.js is the right choice when the visualization is inherently **two-dimensional
 
 All p5.js visualizations start from `viewer-base.html` (located in this skill folder). This template provides:
 
-- **FIXED sections** (do not modify): CSS layout, Mulberry32 PRNG, seed controls, action buttons
+- **FIXED sections** (do not modify): CSS layout (CSS variables in `:root`, responsive at <900px), Mulberry32 PRNG, seed controls, action buttons
 - **VARIABLE sections** (customize): title, parameters, colors, `DEFAULT_CONFIG`, `syncUIFromConfig()`, `generateArt()`
 
 ### Canvas Setup

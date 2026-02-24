@@ -25,7 +25,7 @@ Three.js is the right choice when the visualization is inherently **three-dimens
 
 All Three.js visualizations start from `viewer-base-3js.html` (located in this skill folder). This template provides:
 
-- **FIXED sections** (do not modify): CSS layout (identical to p5 template), Mulberry32 PRNG, seed controls, action buttons
+- **FIXED sections** (do not modify): CSS layout (CSS variables in `:root`, responsive at <900px, identical to p5 template), Mulberry32 PRNG, seed controls, action buttons
 - **VARIABLE sections** (customize): title, parameters, colors, `DEFAULT_CONFIG`, `syncUIFromConfig()`, `generateArt()`
 
 ### Scene Setup

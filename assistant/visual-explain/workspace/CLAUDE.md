@@ -16,7 +16,7 @@ This workspace creates interactive visualizations for education, science, and en
 
 All visualizations live in one HTML file:
 
-- `<style>` — inline CSS (dark sidebar + canvas layout)
+- `<style>` — inline CSS (dark sidebar + responsive canvas layout, CSS variables)
 - `<script src="p5.min.js">` or `<script src="three.min.js">` — local library (NOT CDN)
 - `<script>` — all logic inline
 
@@ -94,14 +94,14 @@ function generateArt() {
 
 - **Minimum 2 layered techniques** — depth through background + mid + foreground
 - **Perlin noise** for organic variation — never raw random for positions
-- **Canvas: 1200x1200** minimum for print quality
+- **Canvas: 1200x1200** render resolution (displays responsively, exports at full resolution)
 - **Every seed produces output** — no blank canvases
 - **Seeds 0, 42, 100, 999** must produce visually distinct results
 - **All parameters in CONFIG** — no magic numbers in generateArt()
 
 ## UI Layout
 
-### Sidebar (320px, dark theme)
+### Sidebar (320px, stacks vertically on narrow screens)
 
 - Header: title + short description
 - Seed controls: prev / next / random / input (FIXED — do not modify)
@@ -115,6 +115,7 @@ function generateArt() {
 - Background: `#0a0a14`
 - Sidebar gradient: `#16213e` -> `#1a1a2e`
 - Accent: `#d97757` (terra cotta)
+- All colors are defined as CSS variables (`--accent`, `--bg`, `--surface`, etc.) in `:root`
 
 ## FORBIDDEN
 

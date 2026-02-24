@@ -49,7 +49,7 @@ Each engine has a dedicated skill containing templates, techniques, palettes, an
 6. **Organic variation**: Perlin noise (p5) or seeded noise (Three.js) for positions/sizes
 7. **Complete code**: No TODOs, placeholders, or stubs
 8. **Three.js extra**: `preserveDrawingBuffer: true`, OrbitControls, `clearScene()` cleanup
-9. **Shared template rules**: Only modify VARIABLE sections (sidebar header, parameter sliders, color pickers, `generateArt()`, `DEFAULT_CONFIG`, `syncUIFromConfig()`). Keep FIXED sections intact (seed controls, PRNG functions, action buttons, CSS layout).
+9. **Shared template rules**: Only modify VARIABLE sections (sidebar header, parameter sliders, color pickers, `generateArt()`, `DEFAULT_CONFIG`, `syncUIFromConfig()`). Keep FIXED sections intact (seed controls, PRNG functions, action buttons, CSS layout — uses CSS variables, responsive at <900px).
 
 ## Example Templates
 
