@@ -49,5 +49,6 @@ Present a summary to the user: title, category, word count, sections, visual ass
 
 - Never write the article yourself — always delegate to subagents.
 - Subagents have no memory of prior phases. Pass all relevant context each time.
+- Each skill has a "Where to Save" section — tell the subagent the category and post-slug so it saves to the right paths per `CLAUDE.md` workspace structure.
 - Review each phase's output before passing it forward. Re-delegate with feedback if off-track.
 - Keep the user informed with a one-line status after each phase.

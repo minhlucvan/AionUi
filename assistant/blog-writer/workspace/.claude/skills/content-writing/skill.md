@@ -4,13 +4,18 @@
 
 Synthesizes a content strategy and research brief into a complete, publication-ready Markdown article with SEO metadata and illustration placement markers.
 
-## When to Use
+## Where to Save
 
-Use this skill when the orchestrator delegates the **writing phase** of the blog pipeline. The subagent receives strategy brief, outline, and research brief from prior phases.
+Follow the workspace structure in `CLAUDE.md`. Save artifacts to the post directory:
+
+- `blog/[category]/[post-slug]/drafts/draft-01.md` — Complete article (first draft)
+- Revised drafts increment: `drafts/draft-02.md`, `drafts/draft-03.md`, etc.
+
+The category and post-slug will be provided by the orchestrator. Read strategy from `strategy/` and research from `research/` in the same post directory.
 
 ## Output Artifacts
 
-### 1. Complete Article (Markdown)
+### 1. Article Draft (`drafts/draft-01.md`)
 
 A fully written article following the outline structure, with:
 - Hook in the first paragraph
@@ -18,24 +23,34 @@ A fully written article following the outline structure, with:
 - `<!-- ILLUSTRATION: description -->` markers at natural visual pause points
 - Conclusion that references the opening
 
-### 2. SEO Metadata
+### 2. SEO Metadata (included at the top of the draft as frontmatter)
 
 ```yaml
+---
 title: [Final title]
 slug: [url-friendly-slug]
 excerpt: [150-character meta description]
 keywords: [comma-separated list]
 word_count: [approximate]
 read_time: [X min]
+---
 ```
 
-### 3. Illustration Brief
+### 3. Illustration Brief (included at the end of the draft)
 
-List of illustration opportunities with:
-- Location in the article
-- Suggested visual type (diagram, chart, infographic, decorative)
-- Key data to visualize
-- Tone/style guidance
+```markdown
+---
+
+## Illustration Brief
+
+### 1. [Location in article]
+- Suggested type: [diagram / chart / infographic / image-prompt]
+- Data to visualize: [...]
+- Tone/style: [...]
+
+### 2. [Location in article]
+[same structure]
+```
 
 ## Writing Principles
 

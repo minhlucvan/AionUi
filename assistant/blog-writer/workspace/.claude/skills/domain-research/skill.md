@@ -4,13 +4,18 @@
 
 Investigates a topic to produce sourced facts, expert quotes, case studies, counter-arguments, and competitive analysis — organized by the article outline's sections.
 
-## When to Use
+## Where to Save
 
-Use this skill when the orchestrator delegates the **research phase** of the blog pipeline. The subagent receives the strategy brief, outline, and research directive from the strategy phase.
+Follow the workspace structure in `CLAUDE.md`. Save artifacts to the post directory:
+
+- `blog/[category]/[post-slug]/research/sources.md` — Source references with URLs, publications, dates
+- `blog/[category]/[post-slug]/research/notes.md` — Full research brief organized by outline section
+
+The category and post-slug will be provided by the orchestrator.
 
 ## Output Artifacts
 
-Produce a single **Research Brief** organized as follows:
+### 1. Research Notes (`research/notes.md`)
 
 ```markdown
 ## Research Brief for: [Article Title]
@@ -52,8 +57,13 @@ Produce a single **Research Brief** organized as follows:
 - [Recommended framing]
 
 [Repeat for each section]
+```
 
-### Source References
+### 2. Source References (`research/sources.md`)
+
+```markdown
+## Sources
+
 1. [Source name / URL / publication — year]
 2. [...]
 ```

@@ -4,15 +4,18 @@
 
 Transforms a vague blog idea into a sharp, differentiated content strategy with audience definition, SEO blueprint, tone guidelines, and a structured outline.
 
-## When to Use
+## Where to Save
 
-Use this skill when the orchestrator delegates the **strategy phase** of the blog pipeline. The subagent running this skill receives the user's raw blog idea and produces artifacts that the research and writing phases consume.
+Follow the workspace structure in `CLAUDE.md`. Save artifacts to the post directory:
+
+- `blog/[category]/[post-slug]/strategy/brief.md` — Strategy brief
+- `blog/[category]/[post-slug]/strategy/outline.md` — Structured outline with research directive
+
+The category and post-slug will be provided by the orchestrator.
 
 ## Output Artifacts
 
-Produce all three artifacts in a single response:
-
-### 1. Strategy Brief
+### 1. Strategy Brief (`strategy/brief.md`)
 
 ```markdown
 ## Target Audience
@@ -37,7 +40,7 @@ Writing style directive — formal/conversational/technical/narrative. Specific 
 Recommended: [which and why]
 ```
 
-### 2. Structured Outline
+### 2. Structured Outline with Research Directive (`strategy/outline.md`)
 
 ```markdown
 # [Working Title]
@@ -61,11 +64,12 @@ Recommended: [which and why]
 
 ## Visual Opportunities
 - [Where diagrams, charts, or illustrations would strengthen the article]
-```
 
-### 3. Research Directive
+---
 
+## Research Directive
 Specific instructions for what the research phase needs to find: facts, statistics, case studies, expert opinions, and competitive examples — organized by outline section.
+```
 
 ## Methodology
 
