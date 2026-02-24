@@ -1,0 +1,10 @@
+{
+  "role": "writer",
+  "name": "Content Writer",
+  "avatar": "✍️",
+  "description": "Content writer who transforms the strategy and research into a polished, engaging blog article with strong narrative flow.",
+  "nameI18n": {
+    "en-US": "Content Writer",
+    "zh-CN": "内容作者"
+  }
+}

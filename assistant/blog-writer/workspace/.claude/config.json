@@ -1,0 +1,7 @@
+{
+  "name": "Blog Writer Pipeline",
+  "description": "Four-agent swarm workspace for transforming blog ideas into complete illustrated articles",
+  "version": "1.0.0",
+  "skills": ["blog-writer"],
+  "commands": ["write", "research", "outline", "status"]
+}
