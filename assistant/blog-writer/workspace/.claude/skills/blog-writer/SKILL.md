@@ -1,30 +1,8 @@
-# Blog Writer — Orchestrator Skill
+# Blog Writer — Quality & Standards
 
-You are the orchestrator. You do NOT write the article yourself. You drive a pipeline by delegating phases to subagents, each equipped with a skill that gives it the right capability.
+## Quality Tests
 
-## How It Works
-
-1. **Delegate** each phase to a subagent using the Task tool
-2. **Equip** each subagent by including the relevant skill in its prompt
-3. **Chain** outputs — pass each phase's result as input to the next
-4. **Review** each output before passing it forward; re-delegate if off-track
-
-## Pipeline
-
-| Phase | Skill to activate | Input | Output |
-|-------|-------------------|-------|--------|
-| 1. Strategy | `content-strategy` | User's blog idea | Strategy brief, outline, research directive |
-| 2. Research | `domain-research` | Strategy + outline + directive | Research brief with sourced evidence |
-| 3. Writing | `content-writing` | Strategy + outline + research | Complete Markdown article + SEO metadata |
-| 4. Illustration | `illustration` | Article + illustration markers | Final illustrated article + metadata JSON |
-
-Subagents have no memory of prior phases — pass all relevant context each time.
-
-After the final phase, save to `output/[slug].md` and `output/[slug]-meta.json`.
-
-## Quality Gate
-
-Review the final article against these tests before delivering:
+Every article must pass all six:
 
 1. **Angle Test** — Is the angle specific and differentiated, not just a topic?
 2. **Evidence Test** — Is every claim backed by a sourced statistic, named expert, or concrete example?
@@ -33,11 +11,36 @@ Review the final article against these tests before delivering:
 5. **Visual Test** — Does every illustration add information text handles poorly?
 6. **Swap Test** — Would generic examples (Netflix, Uber) make it less interesting? If not, examples are already generic.
 
-If any test fails, re-delegate the responsible phase with specific feedback.
+## Voice
+
+- Write like a knowledgeable colleague, not a textbook or brochure
+- Use "you" and "we" naturally
+- Take positions — hedging makes writing feel uncommitted
+- Be specific — details create credibility, generalizations erode it
+
+## Structure
+
+- 1,500-3,000 words for standard posts (6-12 min read)
+- 3,000-5,000 for deep dives and technical guides
+- 5-8 main sections maximum
+- Subheadings every 200-300 words
+
+## SEO
+
+- Primary keyword in title, first paragraph, one H2, and meta description
+- Secondary keywords distributed naturally
+- Meta description: 150 characters, primary keyword, creates curiosity
+- URL slug: short, keyword-inclusive, hyphen-separated
+
+## Formatting
+
+- Markdown output — proper heading hierarchy, lists, code blocks
+- Bold key terms on first mention
+- Blockquotes for expert quotes with attribution
+- Code blocks with language tags for technical content
+- Tables for comparisons (3+ items with multiple attributes)
 
 ## Anti-Patterns
-
-Eliminate these from any output:
 
 - "In today's rapidly evolving digital landscape..." — generic openings
 - "X is defined as..." — definition starts

@@ -8,7 +8,10 @@
   "avatar": "blog-writer.svg",
   "workspacePath": "./workspace",
   "tags": ["blog", "content", "copywriting", "subagent", "pipeline", "seo", "writing", "illustration"],
-  "defaultEnabledSkills": ["blog-writer", "content-strategy", "domain-research", "content-writing", "illustration"],
+  "ruleFiles": {
+    "en-US": "blog-writer.md"
+  },
+  "defaultEnabledSkills": ["content-strategy", "domain-research", "content-writing", "illustration"],
   "nameI18n": {
     "en-US": "Blog Writer",
     "zh-CN": "博客写作助手",
