@@ -1139,12 +1139,39 @@ export class AcpAgent {
     this.onStreamEvent(responseMessage);
   }
 
+  /**
+   * Clear agent context by sending /clear command.
+   * This sends /clear as a prompt text, which agents like Claude Code
+   * interpret as an internal slash command to clear conversation history.
+   */
+  async clearContext(): Promise<AcpResult> {
+    if (!this.connection.isConnected || !this.connection.hasActiveSession) {
+      return {
+        success: false,
+        error: createAcpError(AcpErrorType.CONNECTION_NOT_READY, 'No active session to clear', false),
+      };
+    }
+
+    try {
+      await this.connection.clearContext();
+      return { success: true, data: null };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: createAcpError(AcpErrorType.UNKNOWN, `Failed to clear context: ${errorMsg}`, false),
+      };
+    }
+  }
+
   postMessagePromise(action: string, data: unknown): Promise<AcpResult | void> {
     switch (action) {
       case 'send.message':
         return this.sendMessage(data as { content: string; files?: string[]; msg_id?: string });
       case 'stop.stream':
         return this.stop();
+      case 'clear.context':
+        return this.clearContext();
       default:
         return Promise.reject(new Error(`Unknown action: ${action}`));
     }

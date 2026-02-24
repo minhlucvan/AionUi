@@ -467,6 +467,21 @@ export function initAcpConversationBridge(): void {
     }
   });
 
+  // Clear agent context by sending /clear command
+  // 通过发送 /clear 命令清除代理上下文
+  ipcBridge.acpConversation.clearContext.provider(async ({ conversationId }) => {
+    try {
+      const task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);
+      if (!task || !(task instanceof AcpAgentManager)) {
+        return { success: false, msg: 'ACP conversation not found' };
+      }
+      return await task.clearContext();
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, msg: errorMsg };
+    }
+  });
+
   // Set session mode for ACP/Gemini agents (claude, qwen, gemini, etc.)
   // 设置 ACP/Gemini 代理的会话模式（claude、qwen、gemini 等）
   ipcBridge.acpConversation.setMode.provider(async ({ conversationId, mode }) => {

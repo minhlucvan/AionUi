@@ -1097,6 +1097,21 @@ export class AcpConnection {
     return response;
   }
 
+  /**
+   * Clear agent context by sending /clear command via session/prompt.
+   * This relies on the agent's internal command handler recognizing /clear.
+   */
+  async clearContext(): Promise<AcpResponse> {
+    if (!this.sessionId) {
+      throw new Error('No active ACP session');
+    }
+
+    return await this.sendRequest('session/prompt', {
+      sessionId: this.sessionId,
+      prompt: [{ type: 'text', text: '/clear' }],
+    });
+  }
+
   async setConfigOption(configId: string, value: string): Promise<AcpResponse> {
     if (!this.sessionId) {
       throw new Error('No active ACP session');

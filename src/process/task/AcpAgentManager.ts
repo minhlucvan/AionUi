@@ -843,6 +843,31 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
     return { success: result.success, msg: result.error, data: { mode: this.currentMode } };
   }
 
+  /**
+   * Clear agent context by sending /clear command to the underlying ACP agent.
+   * The agent must be initialized (user must have sent at least one message).
+   */
+  async clearContext(): Promise<{ success: boolean; msg?: string }> {
+    if (!this.agent) {
+      try {
+        await this.initAgent(this.options);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        return { success: false, msg: `Agent initialization failed: ${errorMsg}` };
+      }
+    }
+
+    if (!this.agent) {
+      return { success: false, msg: 'Agent not initialized' };
+    }
+
+    const result = await this.agent.clearContext();
+    if (result.success) {
+      return { success: true };
+    }
+    return { success: false, msg: result.error?.message || 'Failed to clear context' };
+  }
+
   /** Check if a mode value represents YOLO mode for any backend */
   private isYoloMode(mode: string): boolean {
     return mode === 'yolo' || mode === 'bypassPermissions';
