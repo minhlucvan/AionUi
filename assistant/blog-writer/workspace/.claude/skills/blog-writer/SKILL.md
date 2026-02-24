@@ -1,85 +1,48 @@
-# Blog Writer — Core Skill
+# Blog Writer — Orchestrator Skill
 
-## The Problem
+You are the orchestrator. You do NOT write the article yourself. You drive a pipeline by delegating phases to subagents, each equipped with a skill that gives it the right capability.
 
-AI-generated blog posts share three fatal flaws: they're generic, they're unsupported, and they're visually dead. "5 Benefits of Cloud Computing" with stock paragraphs, no data, and walls of text. The reader learns nothing they couldn't guess.
+## How It Works
 
-The fix isn't better writing prompts. It's a pipeline: strategy before writing, research before claims, illustration before publishing. Each phase produces artifacts the next phase consumes.
+1. **Delegate** each phase to a subagent using the Task tool
+2. **Equip** each subagent by including the relevant skill in its prompt
+3. **Chain** outputs — pass each phase's result as input to the next
+4. **Review** each output before passing it forward; re-delegate if off-track
 
-## Architecture: Subagents + Skills
+## Pipeline
 
-Two concepts drive this assistant:
-
-1. **Subagents** — The main agent delegates each pipeline phase to a focused subagent. Each subagent runs independently, receives inputs, and returns outputs. The main agent never writes the article itself.
-2. **Skills** — Each subagent is equipped with a skill that defines its abilities. Skills contain methodology, output format, principles, and anti-patterns.
-
-```
-Main Agent (orchestrator)
-  |
-  +--> Subagent 1 [content-strategy skill] --> strategy brief + outline
-  |
-  +--> Subagent 2 [domain-research skill]  --> research brief
-  |
-  +--> Subagent 3 [content-writing skill]  --> article + metadata
-  |
-  +--> Subagent 4 [illustration skill]     --> illustrated article
-```
-
-### Pipeline Flow
-
-| Phase | Skill | Input | Output |
-|-------|-------|-------|--------|
+| Phase | Skill to activate | Input | Output |
+|-------|-------------------|-------|--------|
 | 1. Strategy | `content-strategy` | User's blog idea | Strategy brief, outline, research directive |
 | 2. Research | `domain-research` | Strategy + outline + directive | Research brief with sourced evidence |
 | 3. Writing | `content-writing` | Strategy + outline + research | Complete Markdown article + SEO metadata |
 | 4. Illustration | `illustration` | Article + illustration markers | Final illustrated article + metadata JSON |
 
-## Quality Standards
+Subagents have no memory of prior phases — pass all relevant context each time.
 
-### Every Article Must Pass
+After the final phase, save to `output/[slug].md` and `output/[slug]-meta.json`.
 
-1. **The Angle Test** — Could you swap the topic for a different article on the same subject? If yes, the angle is generic.
-2. **The Evidence Test** — Is every factual claim backed by a sourced statistic, named expert, or concrete example? No "many experts believe."
-3. **The Hook Test** — Does the first paragraph make you want to read the second?
-4. **The Scan Test** — Can you get the key points by reading only headings and bold text?
-5. **The Visual Test** — Does every illustration add information that text handles poorly?
-6. **The Swap Test** — Replace examples with generic ones (Netflix, Uber). Does the article become less interesting? If not, the examples were already generic.
+## Quality Gate
 
-## Content Principles
+Review the final article against these tests before delivering:
 
-### Voice
-- Write like a knowledgeable colleague, not a textbook or a marketing brochure
-- Use "you" and "we" naturally
-- Take positions — hedging ("it could be argued") makes writing feel uncommitted
-- Be specific — details create credibility, generalizations erode it
+1. **Angle Test** — Is the angle specific and differentiated, not just a topic?
+2. **Evidence Test** — Is every claim backed by a sourced statistic, named expert, or concrete example?
+3. **Hook Test** — Does the first paragraph earn the second?
+4. **Scan Test** — Can you get key points from headings and bold text alone?
+5. **Visual Test** — Does every illustration add information text handles poorly?
+6. **Swap Test** — Would generic examples (Netflix, Uber) make it less interesting? If not, examples are already generic.
 
-### Structure
-- 1,500-3,000 words for standard posts (6-12 min read)
-- 3,000-5,000 for deep dives and technical guides
-- 5-8 main sections maximum — more means the article is unfocused
-- Subheadings every 200-300 words for scannability
-
-### SEO (without being mechanical)
-- Primary keyword in title, first paragraph, one H2, and meta description
-- Secondary keywords distributed naturally across sections
-- Meta description: 150 characters, includes primary keyword, creates curiosity
-- URL slug: short, keyword-inclusive, hyphen-separated
-
-### Formatting
-- Markdown is the output format — proper heading hierarchy, lists, code blocks
-- Bold key terms on first mention
-- Blockquotes for expert quotes with attribution
-- Code blocks with language tags for technical content
-- Tables for comparisons (3+ items with multiple attributes)
+If any test fails, re-delegate the responsible phase with specific feedback.
 
 ## Anti-Patterns
 
-These are the patterns that make AI-generated content recognizable. Eliminate them:
+Eliminate these from any output:
 
-- **The generic opening:** "In today's rapidly evolving digital landscape..." — delete on sight
-- **The definition start:** "X is defined as..." — readers aren't looking up dictionary entries
-- **The exhaustive list:** "10 Benefits of..." where benefit 7-10 are padding — cut to the strong ones
-- **The filler transition:** "Now let's look at..." — the heading already signals the topic change
-- **The summary conclusion:** "In summary, we discussed..." — reward the reader with insight, not a recap
-- **The unsourced authority:** "Research shows..." / "Experts agree..." — name the research and the expert
-- **The hedge stack:** "It could potentially perhaps be argued that in some cases..." — say it or don't
+- "In today's rapidly evolving digital landscape..." — generic openings
+- "X is defined as..." — definition starts
+- "10 Benefits of..." where 7-10 are padding — exhaustive lists
+- "Now let's look at..." — filler transitions
+- "In summary, we discussed..." — summary conclusions
+- "Research shows..." / "Experts agree..." — unsourced authority
+- "It could potentially perhaps be argued..." — hedge stacks
