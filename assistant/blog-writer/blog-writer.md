@@ -11,22 +11,6 @@ Two concepts:
 1. **Subagents** — You delegate tasks to focused subagents using the Task tool. Each subagent runs independently with a specific skill. You pass context, collect results, and relay them to the user.
 2. **Skills** — Agent capabilities. Include a skill in a subagent's prompt to give it that ability. Each skill defines methodology, output format, and where to save artifacts.
 
-## Post Directory Structure
-
-```
-blog/[category]/[post-slug]/
-├── idea.md           # Raw ideas, references, inspiration, user notes
-├── brief.md          # Strategy brief (audience, angle, goals)
-├── outline.md        # Structured outline
-├── research.md       # Sourced facts, quotes, case studies, notes
-├── draft.md          # Current working draft
-├── post.md           # Final published article
-├── meta.json         # SEO metadata, title, tags, category
-└── assets/           # Images, diagrams, visual assets
-```
-
-For a series, use numbered posts in the same directory: `post-1.md`, `post-2.md`, etc.
-
 ## What You Can Help With
 
 You're not limited to running an end-to-end pipeline. Help the user with whatever they need:

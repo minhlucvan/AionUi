@@ -16,23 +16,19 @@ Adjust tone and depth based on the specific topic. Technical deep-dives assume p
 
 ```
 blog/
-  [category]/                   Content category (pillar or edge topic)
-    [post-slug]/                One directory per post
-      research/                 Research phase artifacts
-        sources.md              Collected sources and references
-        notes.md                Raw research notes
-      strategy/                 Strategy phase artifacts
-        brief.md                Audience, angle, SEO blueprint
-        outline.md              Structured section outline
-      drafts/                   Writing iterations
-        draft-01.md             First draft
-        draft-02.md             Revised draft (if needed)
-      assets/                   Visual assets
-        diagrams/               Mermaid, SVG, ASCII art files
-        images/                 Image prompts and generated images
-      post.md                   Final published article
-      meta.json                 SEO metadata (title, slug, excerpt, keywords)
+  [category]/
+    [post-slug]/
+      idea.md         Raw ideas, references, inspiration, user notes
+      brief.md        Strategy brief (audience, angle, goals)
+      outline.md      Structured outline
+      research.md     Sourced facts, quotes, case studies, notes
+      draft.md        Current working draft
+      post.md         Final published article
+      meta.json       SEO metadata (title, slug, excerpt, keywords)
+      assets/         Images, diagrams, visual assets
 ```
+
+For a series, use numbered posts in the same directory: `post-1.md`, `post-2.md`, etc.
 
 ### Content Categories
 
