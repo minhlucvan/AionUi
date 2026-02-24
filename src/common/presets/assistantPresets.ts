@@ -328,25 +328,25 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
   },
   {
-    id: 'algorithmic-art',
-    avatar: '🎨',
+    id: 'visual-explain',
+    avatar: '📊',
     presetAgentType: 'claude',
-    resourceDir: 'assistant/algorithmic-art',
+    resourceDir: 'assistant/visual-explain',
     ruleFiles: {
-      'en-US': 'algorithmic-art.md',
-      'zh-CN': 'algorithmic-art.zh-CN.md',
+      'en-US': 'visual-explain.md',
+      'zh-CN': 'visual-explain.zh-CN.md',
     },
     nameI18n: {
-      'en-US': 'Algorithmic Art',
-      'zh-CN': '算法艺术',
+      'en-US': 'Visual Explain',
+      'zh-CN': '可视化解释',
     },
     descriptionI18n: {
-      'en-US': 'Create generative algorithmic art with p5.js — flow fields, fractals, data visualizations, and mathematical patterns for representation, education, and illustration.',
-      'zh-CN': '使用 p5.js 创建生成式算法艺术 — 流场、分形、数据可视化和数学图案，用于表现、教育和插画。',
+      'en-US': 'Create interactive visualizations with p5.js and Three.js — simulations, diagrams, algorithm animations, and scientific visualizations for education and engineering.',
+      'zh-CN': '使用 p5.js 和 Three.js 创建交互式可视化 — 仿真、图表、算法动画和科学可视化，适用于教育和工程。',
     },
     promptsI18n: {
-      'en-US': ['Create a Perlin noise flow field with luminous particle trails', 'Generate a fractal tree with golden ratio branching angles', 'Visualize the Fibonacci spiral as interactive generative art', 'Create a data-driven mandala from synthetic dataset patterns'],
-      'zh-CN': ['创建带有光粒子轨迹的 Perlin 噪声流场', '生成具有黄金比例分支角度的分形树', '将 Fibonacci 螺旋可视化为交互式生成艺术', '从合成数据集模式创建数据驱动的曼陀罗'],
+      'en-US': ['Simulate a double pendulum with chaotic motion', 'Visualize Fourier transform decomposition', 'Draw a microservices architecture diagram', 'Animate sorting algorithm comparison'],
+      'zh-CN': ['模拟具有混沌运动的双摆', '可视化傅里叶变换分解', '绘制微服务架构图', '动画展示排序算法比较'],
     },
   },
 ];
