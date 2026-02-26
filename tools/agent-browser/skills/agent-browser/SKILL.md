@@ -190,3 +190,49 @@ agent-browser find role button click --name "Submit"
 agent-browser find placeholder "Search" type "query"
 agent-browser find testid "submit-btn" click
 ```
+
+## AionUi Sidebar Browser Integration
+
+When running inside AionUi, you can control the **sidebar browser** (the webview
+shown in the preview panel) using CDP. AionUi exposes a remote debugging port
+that agent-browser can connect to.
+
+### Connecting to the Sidebar Browser
+
+```bash
+# Read the CDP port that AionUi wrote on startup
+CDP_PORT=$(cat ~/.aionui/cdp-port 2>/dev/null)
+
+# Connect agent-browser to AionUi's sidebar browser
+agent-browser --cdp "$CDP_PORT" snapshot -i
+agent-browser --cdp "$CDP_PORT" click @e1
+agent-browser --cdp "$CDP_PORT" fill @e2 "text"
+agent-browser --cdp "$CDP_PORT" screenshot
+```
+
+### Workflow: Control the Same Browser as Chrome MCP
+
+Both agent-browser and chrome-devtools-mcp can target AionUi's browser.
+The sidebar preview will reflect all changes in real-time:
+
+```bash
+CDP_PORT=$(cat ~/.aionui/cdp-port 2>/dev/null)
+
+# Navigate (visible in sidebar)
+agent-browser --cdp "$CDP_PORT" open https://example.com
+
+# Snapshot interactive elements
+agent-browser --cdp "$CDP_PORT" snapshot -i
+
+# Interact
+agent-browser --cdp "$CDP_PORT" fill @e1 "search query"
+agent-browser --cdp "$CDP_PORT" click @e2
+agent-browser --cdp "$CDP_PORT" screenshot result.png
+```
+
+### Notes
+
+- The CDP port is auto-assigned by AionUi and written to `~/.aionui/cdp-port`
+- The port file is cleaned up when AionUi exits
+- If the port file is missing, AionUi may not be running or CDP is not enabled
+- You can also specify a fixed port when launching AionUi: `--remote-debugging-port=9222`
