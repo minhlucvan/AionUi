@@ -14,6 +14,7 @@ import type { AgentChatMessage, ReplyRef } from './types';
 type AgentChatBubbleProps = {
   message: AgentChatMessage;
   isCurrentUser: boolean;
+  isConsecutive?: boolean;
   todoStatus?: 'todo' | 'done' | null;
   onReply: (ref: ReplyRef) => void;
   onTodoToggle: (messageId: string) => void;
@@ -25,7 +26,7 @@ const formatTime = (ts: number): string => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const AgentChatBubble: React.FC<AgentChatBubbleProps> = ({ message, isCurrentUser, todoStatus, onReply, onTodoToggle, onScrollToMessage }) => {
+const AgentChatBubble: React.FC<AgentChatBubbleProps> = ({ message, isCurrentUser, isConsecutive, todoStatus, onReply, onTodoToggle, onScrollToMessage }) => {
   const { getAgentColor } = useAgentChat();
   const bubbleRef = useRef<HTMLDivElement>(null);
   const senderColor = message.senderColor || getAgentColor(message.sender);
@@ -50,7 +51,7 @@ const AgentChatBubble: React.FC<AgentChatBubbleProps> = ({ message, isCurrentUse
 
   // Render @mentions in text with colored pills
   const renderedText = useMemo(() => {
-    return message.text.replace(/@(\w+)/g, (match, name) => {
+    return message.text.replace(/@(\w+)/g, (_match: string, name: string) => {
       const color = getAgentColor(name);
       return `<span class="${styles.mention}" style="color: ${color}">@${name}</span>`;
     });
@@ -66,36 +67,48 @@ const AgentChatBubble: React.FC<AgentChatBubbleProps> = ({ message, isCurrentUse
   }
 
   const avatarInitial = message.sender.charAt(0).toUpperCase();
-
   const todoButtonLabel = todoStatus === 'todo' ? 'Done' : todoStatus === 'done' ? 'Unpin' : 'Pin';
 
   return (
-    <div ref={bubbleRef} className={classNames(styles.message, { [styles.messageSelf]: isCurrentUser })} data-message-id={message.id}>
+    <div
+      ref={bubbleRef}
+      className={classNames(styles.message, {
+        [styles.messageSelf]: isCurrentUser,
+        [styles.messageConsecutive]: isConsecutive,
+      })}
+      data-message-id={message.id}
+    >
       {/* Todo strip */}
       <div className={styles.todoStrip} data-status={todoStatus || ''} />
 
-      {/* Avatar */}
-      <div className={styles.avatar} style={{ background: senderColor }}>
-        {avatarInitial}
-      </div>
+      {/* Avatar — hidden for consecutive same-sender messages */}
+      {isConsecutive ? (
+        <div className={styles.avatarSpacer} />
+      ) : (
+        <div className={styles.avatar} style={{ background: senderColor }}>
+          {avatarInitial}
+        </div>
+      )}
 
       {/* Chat bubble */}
       <div className={styles.chatBubble} style={{ '--bubble-color': senderColor } as React.CSSProperties}>
         {/* Reply quote */}
         {message.replyTo && (
-          <div className={styles.replyQuote} onClick={handleReplyClick} role='button' tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleReplyClick()}>
+          <div className={styles.replyQuote} onClick={handleReplyClick} role='button' tabIndex={0} onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleReplyClick()}>
             <span className={styles.replySender}>{message.replyTo.sender}: </span>
             {message.replyTo.text}
           </div>
         )}
 
-        {/* Bubble header */}
-        <div className={styles.bubbleHeader}>
-          <span className={styles.msgSender} style={{ color: senderColor }}>
-            {message.sender}
-          </span>
-          <span className={styles.msgTime}>{formatTime(message.timestamp)}</span>
-        </div>
+        {/* Bubble header — hidden for consecutive same-sender messages */}
+        {!isConsecutive && (
+          <div className={styles.bubbleHeader}>
+            <span className={styles.msgSender} style={{ color: senderColor }}>
+              {message.sender}
+            </span>
+            <span className={styles.msgTime}>{formatTime(message.timestamp)}</span>
+          </div>
+        )}
 
         {/* Message text with markdown */}
         <div className={styles.msgText}>
@@ -108,7 +121,12 @@ const AgentChatBubble: React.FC<AgentChatBubbleProps> = ({ message, isCurrentUse
         <button type='button' className={styles.actionBtn} onClick={handleReply}>
           Reply
         </button>
-        <button type='button' className={styles.actionBtn} onClick={handleTodo} style={todoStatus === 'todo' ? { color: '#4ade80' } : todoStatus === 'done' ? { color: '#f87171' } : undefined}>
+        <button
+          type='button'
+          className={styles.actionBtn}
+          onClick={handleTodo}
+          style={todoStatus === 'todo' ? { color: '#4ade80' } : todoStatus === 'done' ? { color: '#f87171' } : undefined}
+        >
           {todoButtonLabel}
         </button>
       </div>

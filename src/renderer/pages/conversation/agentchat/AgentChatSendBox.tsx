@@ -31,6 +31,9 @@ const AgentChatSendBox: React.FC<AgentChatSendBoxProps> = ({ conversation_id, ba
   const [input, setInput] = useState('');
   const runningRef = useRef(running);
 
+  // Capitalize first letter of backend for display
+  const backendLabel = backend.charAt(0).toUpperCase() + backend.slice(1);
+
   // Sync ref
   useEffect(() => {
     runningRef.current = running;
@@ -47,6 +50,7 @@ const AgentChatSendBox: React.FC<AgentChatSendBoxProps> = ({ conversation_id, ba
         case 'start':
           setRunning(true);
           runningRef.current = true;
+          setTypingAgent(backendLabel);
           break;
         case 'finish': {
           const timeoutId = setTimeout(() => {
@@ -57,7 +61,16 @@ const AgentChatSendBox: React.FC<AgentChatSendBoxProps> = ({ conversation_id, ba
           (window as unknown as { __agentChatFinishTimeout?: ReturnType<typeof setTimeout> }).__agentChatFinishTimeout = timeoutId;
           break;
         }
+        case 'thought':
+          // Agent is thinking — keep typing indicator alive, don't store
+          if (!runningRef.current) {
+            setRunning(true);
+            runningRef.current = true;
+          }
+          setTypingAgent(backendLabel);
+          break;
         case 'content':
+          // Real conversational content — the only type we display as chat bubbles
           if (!runningRef.current) {
             setRunning(true);
             runningRef.current = true;
@@ -66,20 +79,30 @@ const AgentChatSendBox: React.FC<AgentChatSendBoxProps> = ({ conversation_id, ba
           addOrUpdateMessage(transformedMessage);
           break;
         case 'user_content':
+          // User's own message echoed back from backend
+          addOrUpdateMessage(transformedMessage);
+          break;
+        case 'error':
+          // Show errors so the user knows something went wrong
+          setRunning(false);
+          runningRef.current = false;
+          setTypingAgent(null);
           addOrUpdateMessage(transformedMessage);
           break;
         default:
-          if (!runningRef.current) {
+          // Silently ignore internal messages (tool_call, tool_group,
+          // acp_tool_call, acp_permission, plan, agent_status, etc.)
+          // — they are internal agent mechanics, not meaningful chat content
+          if (!runningRef.current && message.type !== 'queue_status') {
             setRunning(true);
             runningRef.current = true;
           }
-          addOrUpdateMessage(transformedMessage);
           break;
       }
     };
 
     return ipcBridge.acpConversation.responseStream.on(handleResponseMessage);
-  }, [conversation_id, addOrUpdateMessage, setTypingAgent]);
+  }, [conversation_id, addOrUpdateMessage, setTypingAgent, backendLabel]);
 
   // Reset state on conversation change
   useEffect(() => {

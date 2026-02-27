@@ -26,6 +26,9 @@ type AgentChatRoomProps = {
 const AgentChatRoomInner: React.FC<AgentChatRoomProps> = ({ conversation_id, workspace, backend = 'claude' }) => {
   useMessageLstCache(conversation_id);
 
+  // Capitalize first letter of backend for display
+  const backendLabel = backend.charAt(0).toUpperCase() + backend.slice(1);
+
   return (
     <ConversationProvider value={{ conversationId: conversation_id, workspace, type: 'acp' }}>
       <AgentChatProvider>
@@ -38,9 +41,9 @@ const AgentChatRoomInner: React.FC<AgentChatRoomProps> = ({ conversation_id, wor
           {/* Todo panel (collapsible) */}
           <TodoPanel />
 
-          {/* Main chat timeline */}
+          {/* Main chat timeline — only shows meaningful text messages */}
           <FlexFullContainer>
-            <AgentChatTimeline />
+            <AgentChatTimeline backendName={backendLabel} />
           </FlexFullContainer>
 
           {/* Send box with mention toggles */}

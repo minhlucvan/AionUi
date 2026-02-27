@@ -128,12 +128,17 @@
 .message {
   display: flex;
   align-items: flex-start;
-  padding: 2px 8px;
+  padding: 4px 8px;
   gap: 8px;
   line-height: 1.5;
   position: relative;
   max-width: 100%;
   animation: msgIn 0.2s ease-out both;
+  margin-top: 8px;
+}
+
+.messageConsecutive {
+  margin-top: 2px;
 }
 
 .messageSelf {
@@ -166,6 +171,12 @@
   font-weight: 700;
   color: white;
   box-shadow: 0 0 8px color-mix(in srgb, var(--bubble-color, currentColor) 35%, transparent);
+}
+
+/* Invisible spacer that keeps alignment when avatar is hidden */
+.avatarSpacer {
+  width: 32px;
+  flex-shrink: 0;
 }
 
 /* --- Chat Bubble --- */
@@ -601,4 +612,80 @@
   border-bottom: 1px solid var(--color-border-2, #2a2a3e);
   flex-shrink: 0;
   flex-wrap: wrap;
+}
+
+/* --- Consecutive bubble refinement (no header, tighter radius) --- */
+
+.messageConsecutive .chatBubble {
+  border-top-left-radius: 4px;
+}
+
+.messageSelf.messageConsecutive .chatBubble {
+  border-top-right-radius: 4px;
+  border-top-left-radius: 16px;
+}
+
+/* --- Empty State --- */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--color-text-3);
+}
+
+.emptyIcon {
+  font-size: 48px;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+.emptyTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-2);
+}
+
+.emptyHint {
+  font-size: 13px;
+  max-width: 300px;
+}
+
+/* --- Markdown content styling inside bubbles --- */
+
+.msgText :global(.markdown-body) {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.msgText :global(.markdown-body) p {
+  margin: 0 0 4px;
+}
+
+.msgText :global(.markdown-body) p:last-child {
+  margin-bottom: 0;
+}
+
+.msgText :global(.markdown-body) pre {
+  margin: 6px 0;
+  border-radius: 8px;
+}
+
+.msgText :global(.markdown-body) code {
+  font-size: 12px;
+}
+
+.msgText :global(.markdown-body) ul,
+.msgText :global(.markdown-body) ol {
+  padding-left: 20px;
+  margin: 4px 0;
+}
+
+/* --- Self-bubble text color (user messages) --- */
+
+.messageSelf .msgText {
+  color: var(--color-text-1);
 }
