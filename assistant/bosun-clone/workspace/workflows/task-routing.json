@@ -1,0 +1,71 @@
+{
+  "id": "task-routing",
+  "name": "Intelligent Task Routing",
+  "description": "Analyzes task complexity and routes to the optimal executor with failover",
+  "trigger": {
+    "type": "manual"
+  },
+  "variables": {
+    "maxRetries": 3,
+    "cooldownMinutes": 5
+  },
+  "nodes": [
+    {
+      "id": "analyze-complexity",
+      "type": "action.run_agent",
+      "config": {
+        "instruction": "Analyze the following task and classify its complexity as 'simple', 'medium', or 'complex'. Consider: number of files affected, architectural changes, test requirements. Task: {{taskDescription}}",
+        "timeout": 60000
+      }
+    },
+    {
+      "id": "route-by-complexity",
+      "type": "condition.switch",
+      "config": {
+        "field": "complexity",
+        "cases": {
+          "simple": "execute-primary",
+          "medium": "execute-weighted",
+          "complex": "execute-with-review"
+        }
+      }
+    },
+    {
+      "id": "execute-primary",
+      "type": "action.run_agent",
+      "config": {
+        "instruction": "Execute the following task: {{taskDescription}}",
+        "timeout": 600000
+      }
+    },
+    {
+      "id": "execute-weighted",
+      "type": "action.run_agent",
+      "config": {
+        "instruction": "Execute the following task, ensuring thorough testing: {{taskDescription}}",
+        "timeout": 600000
+      }
+    },
+    {
+      "id": "execute-with-review",
+      "type": "action.run_agent",
+      "config": {
+        "instruction": "Execute the following task with detailed planning first. Create a plan, review it, then implement: {{taskDescription}}",
+        "timeout": 600000
+      }
+    },
+    {
+      "id": "validate-result",
+      "type": "validation.build",
+      "config": {
+        "ciTimeoutMs": 300000
+      }
+    }
+  ],
+  "edges": [
+    { "from": "analyze-complexity", "to": "route-by-complexity" },
+    { "from": "execute-primary", "to": "validate-result" },
+    { "from": "execute-weighted", "to": "validate-result" },
+    { "from": "execute-with-review", "to": "validate-result" }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "status": "idle",
+  "activeTask": null,
+  "taskQueue": [],
+  "completedTasks": [],
+  "failedTasks": [],
+  "executorHealth": {
+    "claude": {
+      "status": "healthy",
+      "consecutiveFailures": 0,
+      "lastUsed": null,
+      "totalTasks": 0
+    },
+    "codex": {
+      "status": "healthy",
+      "consecutiveFailures": 0,
+      "lastUsed": null,
+      "totalTasks": 0
+    },
+    "copilot": {
+      "status": "healthy",
+      "consecutiveFailures": 0,
+      "lastUsed": null,
+      "totalTasks": 0
+    }
+  },
+  "config": {
+    "distribution": "weighted",
+    "primaryAgent": "claude",
+    "maxRetries": 3,
+    "cooldownMinutes": 5,
+    "disableOnConsecutiveFailures": 3
+  },
+  "stats": {
+    "totalTasksRouted": 0,
+    "totalPRsMerged": 0,
+    "totalFailures": 0,
+    "uptime": 0
+  }
+}

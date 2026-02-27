@@ -1,0 +1,56 @@
+{
+  "id": "pr-auto-merge",
+  "name": "PR Auto-Merge",
+  "description": "Monitors CI status on PRs and auto-merges on success, labels on failure",
+  "trigger": {
+    "type": "pr_event",
+    "events": ["opened", "synchronize"]
+  },
+  "variables": {
+    "ciTimeoutMs": 300000,
+    "mergeStrategy": "squash"
+  },
+  "nodes": [
+    {
+      "id": "check-ci",
+      "type": "validation.build",
+      "config": {
+        "ciTimeoutMs": "{{ciTimeoutMs}}"
+      }
+    },
+    {
+      "id": "merge-pr",
+      "type": "action.run_command",
+      "config": {
+        "command": "gh pr merge {{prNumber}} --{{mergeStrategy}} --auto"
+      }
+    },
+    {
+      "id": "label-failure",
+      "type": "action.run_command",
+      "config": {
+        "command": "gh pr edit {{prNumber}} --add-label bosun-needs-fix"
+      }
+    },
+    {
+      "id": "notify-success",
+      "type": "notify.log",
+      "config": {
+        "message": "PR #{{prNumber}} merged successfully via {{mergeStrategy}}"
+      }
+    },
+    {
+      "id": "notify-failure",
+      "type": "notify.log",
+      "config": {
+        "message": "PR #{{prNumber}} CI failed — labeled bosun-needs-fix"
+      }
+    }
+  ],
+  "edges": [
+    { "from": "check-ci", "to": "merge-pr", "condition": "$output.passed === true" },
+    { "from": "check-ci", "to": "label-failure", "condition": "$output.passed === false" },
+    { "from": "merge-pr", "to": "notify-success" },
+    { "from": "label-failure", "to": "notify-failure" }
+  ]
+}

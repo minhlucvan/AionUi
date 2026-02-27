@@ -1,0 +1,75 @@
+{
+  "id": "bosun-clone",
+  "name": "Bosun — AI Coding Supervisor",
+  "version": "1.0.0",
+  "description": "Production-grade supervisor for autonomous AI coding agents. Routes tasks across executors, automates PR lifecycles, manages retries and failover, and keeps operators in control through notifications and dashboards. Inspired by the open-source Bosun framework.",
+  "author": "AionUi",
+  "presetAgentType": "claude",
+  "avatar": "bosun-clone.svg",
+  "workspacePath": "./workspace",
+  "tags": [
+    "supervisor",
+    "orchestrator",
+    "autonomous",
+    "multi-agent",
+    "ci-cd",
+    "pr-management",
+    "task-routing",
+    "devops"
+  ],
+  "ruleFiles": {
+    "en-US": "bosun-supervisor.md"
+  },
+  "defaultEnabledSkills": [
+    "task-routing",
+    "pr-lifecycle",
+    "workflow-engine"
+  ],
+  "nameI18n": {
+    "en-US": "Bosun — AI Supervisor",
+    "zh-CN": "Bosun — AI 编码监管者",
+    "zh-TW": "Bosun — AI 編碼監管者",
+    "ja-JP": "Bosun — AIコーディング監督",
+    "ko-KR": "Bosun — AI 코딩 감독관"
+  },
+  "descriptionI18n": {
+    "en-US": "Production-grade supervisor for autonomous AI coding agents. Routes tasks, automates PR lifecycles, manages retries/failover, and keeps operators in control.",
+    "zh-CN": "面向自主 AI 编码代理的生产级监管器。路由任务、自动化 PR 生命周期、管理重试/故障转移，并保持运维人员的控制权。",
+    "zh-TW": "面向自主 AI 編碼代理的生產級監管器。路由任務、自動化 PR 生命週期、管理重試/故障轉移，並保持運維人員的控制權。",
+    "ja-JP": "自律型AIコーディングエージェント向けプロダクショングレード監督。タスクルーティング、PRライフサイクル自動化、リトライ・フェイルオーバー管理、オペレーター制御を実現。",
+    "ko-KR": "자율 AI 코딩 에이전트를 위한 프로덕션급 감독관. 태스크 라우팅, PR 수명주기 자동화, 재시도/장애 조치 관리, 운영자 제어 유지."
+  },
+  "promptsI18n": {
+    "en-US": [
+      "Set up Bosun to supervise my repository with Codex and Claude executors",
+      "Configure PR lifecycle automation with auto-merge and CI checks",
+      "Create a task routing workflow with weighted distribution across agents",
+      "Set up Telegram notifications for build failures and PR reviews"
+    ],
+    "zh-CN": [
+      "设置 Bosun 使用 Codex 和 Claude 执行器监管我的仓库",
+      "配置 PR 生命周期自动化，包括自动合并和 CI 检查",
+      "创建带有加权分配的任务路由工作流",
+      "设置 Telegram 通知以报告构建失败和 PR 审查"
+    ],
+    "zh-TW": [
+      "設置 Bosun 使用 Codex 和 Claude 執行器監管我的倉庫",
+      "配置 PR 生命週期自動化，包括自動合併和 CI 檢查",
+      "建立帶有加權分配的任務路由工作流",
+      "設置 Telegram 通知以報告建構失敗和 PR 審查"
+    ],
+    "ja-JP": [
+      "CodexとClaudeエクゼキューターでリポジトリを監督するBosunを設定する",
+      "自動マージとCIチェック付きのPRライフサイクル自動化を設定する",
+      "エージェント間の加重分配タスクルーティングワークフローを作成する",
+      "ビルド失敗とPRレビュー用のTelegram通知を設定する"
+    ],
+    "ko-KR": [
+      "Codex와 Claude 실행기로 리포지토리를 감독하는 Bosun 설정",
+      "자동 병합 및 CI 검사를 포함한 PR 수명주기 자동화 구성",
+      "에이전트 간 가중 분배 태스크 라우팅 워크플로 생성",
+      "빌드 실패 및 PR 리뷰를 위한 Telegram 알림 설정"
+    ]
+  },
+  "isBuiltin": true
+}
