@@ -38,33 +38,41 @@ const delegatorRegistry = new Map<string, AgentChatDelegator>();
 /**
  * AgentChatDelegator manages @mention-based message routing in agentchat conversations.
  *
- * When a user @mentions an agent (e.g., "@gemini explain this"), the delegator:
+ * Only agents registered in the swarm/conversation are valid @mention targets.
+ * Mentions of unknown agents are silently ignored (treated as plain text).
+ *
+ * When a user @mentions a valid agent, the delegator:
  * 1. Lazily creates a child ACP conversation for the mentioned backend
  * 2. Forwards the message to the child agent
  * 3. Streams the child's response back to the parent conversation with agentMeta
- *
- * This enables multi-agent group chat without the full swarm infrastructure.
  */
 export class AgentChatDelegator {
   private parentConversationId: string;
   private workspace: string;
   private defaultBackend: string;
+  /** Only these agent names are valid @mention targets */
+  private allowedAgents: Set<string>;
   private children: Map<string, ChildAgent> = new Map();
   private responseBuffers: Map<string, ResponseBuffer> = new Map();
 
-  private constructor(parentConversationId: string, workspace: string, defaultBackend: string) {
+  private constructor(parentConversationId: string, workspace: string, defaultBackend: string, allowedAgents: string[]) {
     this.parentConversationId = parentConversationId;
     this.workspace = workspace;
     this.defaultBackend = defaultBackend;
+    // Always include the default backend as allowed
+    this.allowedAgents = new Set([...allowedAgents.map((a) => a.toLowerCase()), defaultBackend.toLowerCase()]);
   }
 
   /**
    * Get or create a delegator for a parent conversation.
+   *
+   * @param allowedAgents - Only these agent names can be @mentioned.
+   *   Typically comes from the swarm config or conversation agent list.
    */
-  static getOrCreate(parentConversationId: string, workspace: string, defaultBackend: string): AgentChatDelegator {
+  static getOrCreate(parentConversationId: string, workspace: string, defaultBackend: string, allowedAgents: string[]): AgentChatDelegator {
     let delegator = delegatorRegistry.get(parentConversationId);
     if (!delegator) {
-      delegator = new AgentChatDelegator(parentConversationId, workspace, defaultBackend);
+      delegator = new AgentChatDelegator(parentConversationId, workspace, defaultBackend, allowedAgents);
       delegatorRegistry.set(parentConversationId, delegator);
     }
     return delegator;
@@ -91,29 +99,52 @@ export class AgentChatDelegator {
   }
 
   /**
-   * Parse @mentions from a message text.
-   * Returns the list of mentioned agent names and the cleaned text without mentions.
+   * Parse @mentions from a message text, filtered to only allowed agents.
+   * Returns the list of valid mentioned agent names and the cleaned text.
    */
-  static parseMentions(text: string): { mentions: string[]; cleanText: string } {
+  parseMentions(text: string): { mentions: string[]; cleanText: string } {
+    const allMentions: string[] = [];
+    const mentionRegex = /@(\w+)/g;
+    let match: RegExpExecArray | null;
+    while ((match = mentionRegex.exec(text)) !== null) {
+      const name = match[1].toLowerCase();
+      // Only accept agents that are in the allowed set
+      if (this.allowedAgents.has(name)) {
+        allMentions.push(name);
+      }
+    }
+    const cleanText = text.replace(/@\w+/g, '').trim();
+    return { mentions: allMentions, cleanText };
+  }
+
+  /**
+   * Static helper: parse @mentions from text, filtered against an allow list.
+   * Used by the conversation bridge for swarm routing without a delegator instance.
+   */
+  static parseMentionsWithAllowList(text: string, allowedAgents: string[]): { mentions: string[]; cleanText: string } {
+    const allowSet = new Set(allowedAgents.map((a) => a.toLowerCase()));
     const mentions: string[] = [];
     const mentionRegex = /@(\w+)/g;
     let match: RegExpExecArray | null;
     while ((match = mentionRegex.exec(text)) !== null) {
-      mentions.push(match[1].toLowerCase());
+      const name = match[1].toLowerCase();
+      if (allowSet.has(name)) {
+        mentions.push(name);
+      }
     }
     const cleanText = text.replace(/@\w+/g, '').trim();
-    return { mentions, cleanText };
+    return { mentions: [...new Set(mentions)], cleanText };
   }
 
   /**
    * Delegate a user message to mentioned agents.
    *
    * Returns true if the message was delegated (i.e., at least one non-default agent
-   * was mentioned). Returns false if all mentions match the default backend, meaning
-   * the caller should use the regular send flow.
+   * in the allowed set was mentioned). Returns false if no valid delegation happened,
+   * meaning the caller should use the regular send flow.
    */
   async delegateMessage(input: string, msgId: string): Promise<boolean> {
-    const { mentions, cleanText } = AgentChatDelegator.parseMentions(input);
+    const { mentions, cleanText } = this.parseMentions(input);
 
     if (mentions.length === 0) {
       return false;
@@ -173,7 +204,6 @@ export class AgentChatDelegator {
     const child = await this.getOrCreateChild(agentName);
     if (!child) {
       console.warn(`[AgentChatDelegator] Failed to create child for agent "${agentName}"`);
-      // Emit an error so the user knows
       ipcBridge.conversation.responseStream.emit({
         conversation_id: this.parentConversationId,
         type: 'error',
@@ -347,5 +377,12 @@ export class AgentChatDelegator {
       agentName: name,
       conversationId: child.conversationId,
     }));
+  }
+
+  /**
+   * Get the set of allowed agent names.
+   */
+  getAllowedAgents(): string[] {
+    return [...this.allowedAgents];
   }
 }
