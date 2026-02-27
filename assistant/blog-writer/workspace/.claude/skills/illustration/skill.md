@@ -13,13 +13,13 @@ Follow the workspace structure in `CLAUDE.md`. Save artifacts to the post direct
 - `blog/[post-slug]/assets/diagrams/` — Mermaid (.mmd), SVG (.svg), ASCII (.txt) files
 - `blog/[post-slug]/assets/images/` — Image generation prompts (.prompt.md)
 
-The post-slug will be provided by the orchestrator. Read `draft.md` from the same post directory.
+The post-slug will be provided by the orchestrator. Read `post.md` from the same post directory.
 
 ## Output Artifacts
 
 ### 1. Final Article (`post.md`)
 
-The complete article with all `<!-- ILLUSTRATION: ... -->` markers replaced by actual visual content embedded inline. Mermaid diagrams in fenced code blocks, SVG inline, image prompts as comments.
+The complete article with all `<!-- ILLUSTRATION: ... -->` markers replaced by actual visual content embedded inline. Mermaid diagrams in fenced code blocks, SVG inline, image prompts as comments. Overwrites the input `post.md` with the illustrated version.
 
 ### 2. Metadata (`meta.json`)
 
@@ -43,6 +43,7 @@ The complete article with all `<!-- ILLUSTRATION: ... -->` markers replaced by a
 ### 3. Asset Files (`assets/`)
 
 Save each visual as a standalone file alongside embedding it in `post.md`:
+
 - Mermaid diagrams: `assets/diagrams/[name].mmd`
 - SVG illustrations: `assets/diagrams/[name].svg`
 - ASCII art: `assets/diagrams/[name].txt`
@@ -51,20 +52,25 @@ Save each visual as a standalone file alongside embedding it in `post.md`:
 ## Visual Types
 
 ### Mermaid Diagrams
+
 **Best for:** processes, workflows, architectures, sequences, comparisons
 **When:** article describes a process, system architecture, decision tree, or timeline
 
 ### ASCII Art
+
 **Best for:** developer audiences, terminal-themed content, lightweight diagrams
 **When:** targeting developers and the visual is simple enough for ASCII
 
 ### SVG Illustrations
+
 **Best for:** inline charts, simple graphics, icons, visual metaphors
 **When:** lightweight, scalable visual needed without external dependencies
 
 ### Image Generation Prompts
+
 **Best for:** hero images, concept art, editorial photography, social cards
 **Format:**
+
 ```
 <!-- IMAGE: A flat illustration of [detailed description].
 Style: [art style, colors]. Dimensions: 1200x630 -->

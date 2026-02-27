@@ -18,10 +18,8 @@ Adjust tone and depth based on the specific topic. Technical deep-dives assume p
 blog/
   [post-slug]/
     idea.md         Raw ideas, references, inspiration, user notes
-    brief.md        Strategy brief (audience, angle, goals)
-    outline.md      Structured outline
     research.md     Sourced facts, quotes, case studies, notes
-    draft.md        Current working draft
+    outline.md      Story plan (voice, structure, narrative arc)
     post.md         Final published article
     meta.json       SEO metadata (title, slug, excerpt, keywords, category)
     assets/         Images, diagrams, visual assets
