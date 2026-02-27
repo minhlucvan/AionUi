@@ -456,6 +456,30 @@ export function initConversationBridge(): void {
       return { success: false, msg: 'Swarm session in progress' };
     }
 
+    // Check if this is an agentchat conversation with @mentions → delegate to mentioned agents
+    try {
+      const db = getDatabase();
+      const convResult = db.getConversation(conversation_id);
+      if (convResult.success && convResult.data && (convResult.data as any).conversationMode === 'agentchat') {
+        const { AgentChatDelegator } = await import('../agentchat/AgentChatDelegator');
+        const conv = convResult.data;
+        const extra = conv.extra as { workspace?: string; backend?: string } | undefined;
+        const workspace = extra?.workspace || '';
+        const defaultBackend = extra?.backend || 'claude';
+
+        const delegator = AgentChatDelegator.getOrCreate(conversation_id, workspace, defaultBackend);
+        const delegated = await delegator.delegateMessage(other.input, other.msg_id || uuid());
+
+        if (delegated) {
+          console.log(`[conversationBridge] AgentChat message delegated to mentioned agents`);
+          return { success: true };
+        }
+        // If not delegated (no non-default mentions), fall through to regular flow
+      }
+    } catch (err) {
+      console.warn(`[conversationBridge] AgentChat delegation check failed, falling through:`, err);
+    }
+
     // Regular conversation flow continues...
     let task: GeminiAgentManager | AcpAgentManager | CodexAgentManager | OpenClawAgentManager | NanoBotAgentManager | undefined;
     try {

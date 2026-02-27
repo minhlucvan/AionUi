@@ -46,11 +46,14 @@ const AgentChatSendBox: React.FC<AgentChatSendBoxProps> = ({ conversation_id, ba
 
       const transformedMessage = transformMessage(message);
 
+      // Use agentMeta name for typing indicator when a delegated agent responds
+      const agentLabel = message.agentMeta?.name || backendLabel;
+
       switch (message.type) {
         case 'start':
           setRunning(true);
           runningRef.current = true;
-          setTypingAgent(backendLabel);
+          setTypingAgent(agentLabel);
           break;
         case 'finish': {
           const timeoutId = setTimeout(() => {
@@ -67,7 +70,7 @@ const AgentChatSendBox: React.FC<AgentChatSendBoxProps> = ({ conversation_id, ba
             setRunning(true);
             runningRef.current = true;
           }
-          setTypingAgent(backendLabel);
+          setTypingAgent(agentLabel);
           break;
         case 'content':
           // Real conversational content — the only type we display as chat bubbles
@@ -143,7 +146,7 @@ const AgentChatSendBox: React.FC<AgentChatSendBoxProps> = ({ conversation_id, ba
       if (mentionPrefixes.length > 0) {
         const firstMentioned = agents.find((a) => activeMentions.has(a.id));
         if (firstMentioned) {
-          setTypingAgent(firstMentioned.name);
+          setTypingAgent(firstMentioned.label);
         }
       }
 
