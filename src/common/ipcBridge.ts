@@ -375,6 +375,9 @@ export const acpConversation = {
   // Set model for ACP agents
   // 设置 ACP 代理的模型
   setModel: bridge.buildProvider<IBridgeResponse<{ modelInfo: AcpModelInfo | null }>, { conversationId: string; modelId: string }>('acp.set-model'),
+  // Clear agent context by sending /clear command
+  // 通过发送 /clear 命令清除代理上下文
+  clearContext: bridge.buildProvider<IBridgeResponse, { conversationId: string }>('acp.clear-context'),
 };
 
 // MCP 服务相关接口
